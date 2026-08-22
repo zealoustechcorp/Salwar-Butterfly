@@ -1,0 +1,189 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+/* ---------------------------------------------------------------------------
+   shadcn/ui tokens, mapped onto the Salwar Butterfly brand scales below so
+   registry components (shadcn, Magic UI) arrive already on-brand. Light-only
+   for now — the admin is a single-theme workspace; add storefront dark
+   overrides here when a dark surface needs these components.
+   --------------------------------------------------------------------------- */
+:root {
+  --radius: 0.625rem;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #8a2e4b;            /* brand-600 rose */
+  --primary-foreground: #ffffff;
+  --secondary: #f1f5f9;          /* ink-100 */
+  --secondary-foreground: #334155;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;   /* ink-500 */
+  --accent: #fbf3f5;             /* brand-50 */
+  --accent-foreground: #71263c;  /* brand-700 */
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: #e2e8f0;             /* ink-200 */
+  --input: #cbd5e1;              /* ink-300 */
+  --ring: #8a2e4b;
+}
+
+@theme inline {
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+/* ---------------------------------------------------------------------------
+   Salwar Butterfly — admin design tokens
+   Brand-tinted professional: scales derived from the logo palette (see
+   Docs/Design_Brand-Palette-and-Typography.md) — rose #8A2E4B primary with the
+   wordmark burgundy #64252E at brand-800, rose gold #BC8A69 at gold-500;
+   neutral slate surfaces so data density is never sacrificed to branding.
+   --------------------------------------------------------------------------- */
+@theme {
+  --color-brand-50: #fbf3f5;
+  --color-brand-100: #f7e6ea;
+  --color-brand-200: #efccd5;
+  --color-brand-300: #e0a6b6;
+  --color-brand-400: #cb7690;
+  --color-brand-500: #a94868;
+  --color-brand-600: #8a2e4b;
+  --color-brand-700: #71263c;
+  --color-brand-800: #64252e;
+  --color-brand-900: #4c1c25;
+  --color-brand-950: #2e0f15;
+
+  --color-gold-50: #fbf6f0;
+  --color-gold-100: #f5e9dd;
+  --color-gold-200: #ead3be;
+  --color-gold-300: #d9b294;
+  --color-gold-400: #c69a76;
+  --color-gold-500: #bc8a69;
+  --color-gold-600: #8c5a3b;
+  --color-gold-700: #7a4527;
+  --color-gold-800: #64391f;
+  --color-gold-900: #52301c;
+
+  --color-ink-50: #f8fafc;
+  --color-ink-100: #f1f5f9;
+  --color-ink-200: #e2e8f0;
+  --color-ink-300: #cbd5e1;
+  --color-ink-400: #94a3b8;
+  --color-ink-500: #64748b;
+  --color-ink-600: #475569;
+  --color-ink-700: #334155;
+  --color-ink-800: #1e293b;
+  --color-ink-900: #0f172a;
+}
+
+/* ---------------------------------------------------------------------------
+   Salwar Butterfly — storefront brand tokens
+   Sampled pixel-by-pixel from the logo (public/Salwar Butterfly.jpeg) and
+   verified against WCAG AAA (7:1 normal text, 4.5:1 large) on 2026-08-20.
+   Names follow role, not hue. Utilities: bg-sb-bg, text-sb-heading, etc.
+   --------------------------------------------------------------------------- */
+@theme {
+  /* grounds */
+  --color-sb-bg: #fdf7f1;           /* cream — page ground */
+  --color-sb-surface: #ebcbc0;      /* blush — cards */
+  --color-sb-surface-pink: #d49a9b; /* dusty pink — badges, bands */
+
+  /* inks — all AAA on --color-sb-bg */
+  --color-sb-text: #3e1a18;         /* body · 14.46:1 */
+  --color-sb-heading: #64252e;      /* wordmark burgundy · 10.70:1 */
+  --color-sb-text-muted: #58321c;   /* espresso · 10.46:1 */
+  --color-sb-link: #8a2e4b;         /* rose · 7.68:1 */
+  --color-sb-gold-text: #7a4527;    /* darkened gold · 7.29:1 */
+  --color-sb-ink-on-pink: #2b1413;  /* on sb-surface-pink · 7.34:1 */
+
+  /* fills — pair with --color-sb-bg text (all AAA) */
+  --color-sb-btn-primary: #64252e;
+  --color-sb-btn-rose: #8a2e4b;
+  --color-sb-footer: #3e1a18;
+
+  /* ornament only — NEVER as text (fail AAA/AA on light grounds) */
+  --color-sb-gold: #bc8a69;         /* 2.83:1 on cream */
+  --color-sb-pink-deco: #d49a9b;    /* 2.22:1 on cream */
+  --color-sb-maroon-deco: #5d2826;  /* butterfly outlines (10.99:1 — text-safe too) */
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  /* storefront faces — utilities: font-display, font-body */
+  --font-display: var(--font-cormorant), "Palatino Linotype", Palatino, serif;
+  --font-body: var(--font-karla), "Segoe UI", system-ui, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* The admin panel is a deliberately light, single-theme workspace — it paints
+   its own surface so it never inherits the storefront's dark-mode body. */
+.admin-root {
+  background: #f6f7f9;
+  color: var(--color-ink-900);
+  font-family: var(--font-karla), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes sb-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.sb-enter {
+  animation: sb-fade-up 0.18s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sb-enter {
+    animation: none;
+  }
+}
