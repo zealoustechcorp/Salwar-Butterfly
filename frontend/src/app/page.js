@@ -5,7 +5,11 @@ import Link from "next/link";
 // F-01 Authentication & Authorization and F-10 Payment are backend-side work
 // (sessions, tokens, role checks, gateway integration) and are not tracked here.
 const FEATURES = [
-  { id: "F-02", name: "Category Management", href: null },
+  {
+    id: "F-02",
+    name: "Category Management",
+    href: "/admin/category",
+  },
   { id: "F-03", name: "Product Management", href: "/admin/products" },
   { id: "F-04", name: "Inventory Management", href: null },
   { id: "F-05", name: "Customer Management", href: null },
