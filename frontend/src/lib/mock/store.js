@@ -34,6 +34,19 @@ export function slugify(value) {
     .slice(0, 220);
 }
 
+/**
+ * Three-letter taxonomy abbreviation codes mapped to each official Category ID (F-02 Catalogue):
+ * - 1 (Anarkali Suits)     -> "ANK"
+ * - 2 (Straight Cut Kurtis)-> "KRT"
+ * - 3 (Palazzo Sets)       -> "PLZ"
+ * - 4 (Churidar Suits)     -> "CHD"
+ * - 5 (Sharara Sets)       -> "SHR"
+ * - 6 (Patiala Suits)      -> "PTL"
+ * - 7 (Cotton Daily Wear)  -> "CDW"
+ * - 8 (Festive Gowns)      -> "GWN"
+ *
+ * Used directly during variant SKU compilation to generate standard inventory barcodes.
+ */
 const CATEGORY_CODE = {
   1: "ANK",
   2: "KRT",
@@ -54,7 +67,19 @@ function colourCode(colour) {
   return letters.toUpperCase().slice(0, 3);
 }
 
-/** SKU shape: SB-<CAT>-<PRODUCT>-<SIZE>-<COLOUR>, e.g. SB-ANK-0001-M-RNP */
+/**
+ * Builds standardized, unique SKU identifiers for product variants.
+ * 
+ * SKU Structure: `SB-<CATEGORY_CODE>-<PRODUCT_ID_PADDED>-<SIZE>-<COLOUR_CODE>`
+ * Example: `SB-ANK-0001-M-RNP`
+ * 
+ * @param {Object} params - Input parameters
+ * @param {number|string} params.categoryId - Foreign key referencing the category (F-02)
+ * @param {number|string} params.productId - Product ID
+ * @param {string} params.size - Garment size label (e.g. "M", "XL")
+ * @param {string} params.colour - Garment colour name (e.g. "Rani Pink")
+ * @returns {string} Fully-formed SKU string
+ */
 export function buildSku({ categoryId, productId, size, colour }) {
   const cat = CATEGORY_CODE[categoryId] || "GEN";
   const pid = String(productId).padStart(4, "0");

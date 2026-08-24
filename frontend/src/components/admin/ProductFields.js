@@ -58,12 +58,22 @@ export function DetailsFields({ form, setField, errors = {}, reference }) {
         />
       </Field>
 
+      {/* 
+        ========================================================================
+        CATEGORY ASSIGNMENT FIELD (F-03.07 / F-02 Integration)
+        - Enforces strict one-category-per-product taxonomy rule.
+        - Populates options from the Category Management module.
+        - Disables inactive categories to prevent assigning hidden classifications.
+        - Auto-configures default_size_chart_id from category defaults when selected.
+        ========================================================================
+      */}
       <Field label="Category" required error={errors.category_id} hint="F-03.07 — one category per product.">
         <Select
           value={form.category_id}
           invalid={Boolean(errors.category_id)}
           onChange={(e) => {
             setField("category_id", e.target.value);
+            // Look up selected category to auto-populate default size chart if unset
             const category = categories.find((c) => String(c.id) === String(e.target.value));
             if (category?.default_size_chart_id && !form.size_chart_id)
               setField("size_chart_id", String(category.default_size_chart_id));

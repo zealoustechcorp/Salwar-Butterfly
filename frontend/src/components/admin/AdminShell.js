@@ -13,7 +13,19 @@ import { Badge, Button, cx, ToastProvider, useToast } from "./ui";
 // Admin nav shows only features with screens in this UI — backend-side work
 // (F-01 Authentication, F-10 Payment) is not navigable and stays out of the nav.
 const FEATURES = [
-  { id: "F-02", label: "Categories", href: null },
+  /**
+   * F-02 Catalogue: Category Management
+   * Provides navigation to the Category directory index and new category creation form.
+   */
+  {
+    id: "F-02",
+    label: "Categories",
+    href: "/admin/category",
+    children: [
+      { href: "/admin/category", label: "All categories", requirement: "F-02.01", exact: true },
+      { href: "/admin/category/new", label: "Add category", requirement: "F-02.02" },
+    ],
+  },
   {
     id: "F-03",
     label: "Products",
@@ -184,76 +196,87 @@ function Sidebar({ pathname, onNavigate, idPrefix = "rail" }) {
 }
 
 export function AdminShell({ children }) {
-  const pathname = usePathname() || "";
+  const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const currentFeature =
+    FEATURES.find((f) => f.href && pathname.startsWith(f.href)) ||
+    (pathname.startsWith("/admin/category")
+      ? { id: "F-02", name: "Category Management" }
+      : { id: "F-03", name: "Product Management" });
+
+  const featureTitle =
+    currentFeature.name ||
+    (currentFeature.label ? `${currentFeature.label} Management` : "Admin Console");
+  const featureBadge = currentFeature.id;
 
   return (
     <MotionConfig reducedMotion="user">
-    <ToastProvider>
-      <div className="admin-root flex min-h-screen">
-        <aside className="hidden w-64 shrink-0 border-r border-ink-200 bg-white lg:block">
-          <div className="sticky top-0 h-screen">
+      <ToastProvider>
+        <div className="admin-root flex min-h-screen">
+          {/* Desktop static rail */}
+          <aside className="hidden w-64 shrink-0 border-r border-ink-200 bg-white lg:block">
             <Sidebar pathname={pathname} idPrefix="rail" />
-          </div>
-        </aside>
+          </aside>
 
-        <AnimatePresence>
-          {drawerOpen ? (
-            <motion.div
-              initial="closed"
-              animate="open"
-              exit="closed"
-              className="fixed inset-0 z-40 lg:hidden"
-            >
+          {/* Mobile drawer */}
+          <AnimatePresence>
+            {drawerOpen ? (
               <motion.div
-                variants={{ closed: { opacity: 0 }, open: { opacity: 1 } }}
-                transition={{ duration: 0.18, ease: "easeOut" }}
-                className="absolute inset-0 bg-ink-900/40"
-                onClick={() => setDrawerOpen(false)}
-                aria-hidden="true"
-              />
-              <motion.div
-                variants={{ closed: { x: "-100%" }, open: { x: 0 } }}
-                transition={{ type: "spring", stiffness: 380, damping: 36 }}
-                className="absolute inset-y-0 left-0 w-72 bg-white shadow-xl"
+                initial="closed"
+                animate="open"
+                exit="closed"
+                className="fixed inset-0 z-40 lg:hidden"
               >
-                <Sidebar
-                  pathname={pathname}
-                  onNavigate={() => setDrawerOpen(false)}
-                  idPrefix="drawer"
+                <motion.div
+                  variants={{ closed: { opacity: 0 }, open: { opacity: 1 } }}
+                  transition={{ duration: 0.18, ease: "easeOut" }}
+                  className="absolute inset-0 bg-ink-900/40"
+                  onClick={() => setDrawerOpen(false)}
+                  aria-hidden="true"
                 />
+                <motion.div
+                  variants={{ closed: { x: "-100%" }, open: { x: 0 } }}
+                  transition={{ type: "spring", stiffness: 380, damping: 36 }}
+                  className="absolute inset-y-0 left-0 w-72 bg-white shadow-xl"
+                >
+                  <Sidebar
+                    pathname={pathname}
+                    onNavigate={() => setDrawerOpen(false)}
+                    idPrefix="drawer"
+                  />
+                </motion.div>
               </motion.div>
-            </motion.div>
-          ) : null}
-        </AnimatePresence>
+            ) : null}
+          </AnimatePresence>
 
-        <div className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-ink-200 bg-white/90 px-4 backdrop-blur sm:px-6">
-            <Button
-              size="sm"
-              variant="ghost"
-              className="lg:hidden"
-              onClick={() => setDrawerOpen(true)}
-              aria-label="Open navigation"
-            >
-              <Menu className="size-5" aria-hidden="true" />
-            </Button>
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="truncate text-sm font-semibold text-ink-900">Product Management</span>
-              <Badge tone="brand">F-03</Badge>
-            </div>
-            <div className="ml-auto flex items-center gap-2">
-              <Badge tone="gold" className="hidden sm:inline-flex">
-                Static demo data
-              </Badge>
-              <ResetButton />
-            </div>
-          </header>
+          <div className="flex min-w-0 flex-1 flex-col">
+            <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-ink-200 bg-white/90 px-4 backdrop-blur sm:px-6">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="lg:hidden"
+                onClick={() => setDrawerOpen(true)}
+                aria-label="Open navigation"
+              >
+                <Menu className="size-5" aria-hidden="true" />
+              </Button>
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="truncate text-sm font-semibold text-ink-900">{featureTitle}</span>
+                {featureBadge ? <Badge tone="brand">{featureBadge}</Badge> : null}
+              </div>
+              <div className="ml-auto flex items-center gap-2">
+                <Badge tone="gold" className="hidden sm:inline-flex">
+                  Static demo data
+                </Badge>
+                <ResetButton />
+              </div>
+            </header>
 
-          <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+            <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+          </div>
         </div>
-      </div>
-    </ToastProvider>
+      </ToastProvider>
     </MotionConfig>
   );
 }
