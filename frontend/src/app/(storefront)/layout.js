@@ -1,3 +1,4 @@
+import { AuthProvider } from "@/components/store/AuthProvider";
 import { BrowseProvider } from "@/components/store/BrowseProvider";
 import { StoreFooter } from "@/components/store/StoreFooter";
 import { StoreHeader } from "@/components/store/StoreHeader";
@@ -14,9 +15,13 @@ export const metadata = {
 
 /**
  * Customer-facing shell (F-06 storefront). `.sb-root` paints the cream ground
- * so the storefront never inherits the body's dark-mode fallback, and the two
+ * so the storefront never inherits the body's dark-mode fallback, and the three
  * providers sit above both the header and the page so the header search can
  * steer the shop grid below it.
+ *
+ * <AuthProvider> is outermost because the header, the account page and the
+ * wishlist all need to know who is signed in, and because it renders the sign-in
+ * dialog that any of them can open.
  */
 export default function StorefrontLayout({ children }) {
   const categories = getStorefrontCategories();
@@ -24,13 +29,15 @@ export default function StorefrontLayout({ children }) {
 
   return (
     <div className="sb-root flex min-h-screen flex-col font-body">
-      <StoreProvider>
-        <BrowseProvider>
-          <StoreHeader categories={categories} shop={shop} />
-          <main className="flex-1">{children}</main>
-          <StoreFooter shop={shop} />
-        </BrowseProvider>
-      </StoreProvider>
+      <AuthProvider>
+        <StoreProvider>
+          <BrowseProvider>
+            <StoreHeader categories={categories} shop={shop} />
+            <main className="flex-1">{children}</main>
+            <StoreFooter shop={shop} />
+          </BrowseProvider>
+        </StoreProvider>
+      </AuthProvider>
     </div>
   );
 }

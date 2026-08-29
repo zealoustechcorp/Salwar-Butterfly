@@ -35,9 +35,8 @@ export default function StorefrontHome() {
         catalogueSize={catalogueSize}
         entryPrice={entryPrice}
         topDiscount={topDiscount}
-        sizeRange={sizeRange}
       />
-      <TrustBar />
+      <TrustBar shop={shop} />
       <CategoryGrid categories={categories} />
       <FabricStrip fabrics={fabrics} />
       <ProductShowcase products={products} categories={categories} />

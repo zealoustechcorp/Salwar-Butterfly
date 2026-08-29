@@ -4,30 +4,30 @@ import Link from "next/link";
 
 import { Butterfly, InstagramGlyph, WhatsAppGlyph } from "./Ornaments";
 
+// Every href is absolute: the footer renders on the bag, wishlist and account
+// routes too, where a bare "#shop" would have nothing to scroll to.
 const SECTIONS = [
   {
     title: "Shop",
     links: [
-      { label: "New arrivals", href: "#shop" },
-      { label: "All collections", href: "#categories" },
-      { label: "On offer", href: "#shop" },
-      { label: "Our story", href: "#story" },
+      { label: "New arrivals", href: "/shop?tab=new" },
+      { label: "All collections", href: "/#categories" },
+      { label: "On offer", href: "/shop?tab=offers" },
+      { label: "Almost gone", href: "/shop?tab=almost-gone" },
+      { label: "Our story", href: "/#story" },
     ],
   },
   {
     title: "Help",
     links: [
-      { label: "Exchange policy", href: "#policy" },
-      { label: "Shipping & delivery", href: "#top" },
-      { label: "Size guide", href: "#shop" },
-      { label: "Track your order", href: "#top" },
+      { label: "Exchange policy", href: "/#policy" },
+      { label: "Shipping & delivery", href: "/account#delivery" },
+      { label: "Size guide", href: "/account#sizes" },
+      { label: "Track your order", href: "/account#orders" },
+      { label: "Your bag", href: "/bag" },
     ],
   },
 ];
-
-// The live shop takes UPI, cards and net banking through its payment gateway,
-// and states plainly that it does not do cash on delivery.
-const PAYMENTS = ["UPI", "Cards", "Net banking", "No COD"];
 
 export function StoreFooter({ shop }) {
   return (
@@ -82,12 +82,12 @@ export function StoreFooter({ shop }) {
             <ul className="mt-3 space-y-2">
               {section.links.map((link) => (
                 <li key={link.label}>
-                  <a
+                  <Link
                     href={link.href}
                     className="text-sm text-sb-bg/75 transition-colors hover:text-sb-bg"
                   >
                     {link.label}
-                  </a>
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -120,18 +120,8 @@ export function StoreFooter({ shop }) {
       </div>
 
       <div className="border-t border-sb-bg/15">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-5 text-xs text-sb-bg/60 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+        <div className="mx-auto max-w-7xl px-4 py-5 text-xs text-sb-bg/60 sm:px-6 lg:px-8">
           <p>© 2026 {shop.name}. All rights reserved.</p>
-          <ul className="flex flex-wrap gap-x-3 gap-y-1.5">
-            {PAYMENTS.map((method) => (
-              <li key={method} className="rounded border border-sb-bg/20 px-2 py-1">
-                {method}
-              </li>
-            ))}
-          </ul>
-          <Link href="/admin" className="underline underline-offset-4 hover:text-sb-bg">
-            Admin console
-          </Link>
         </div>
       </div>
     </footer>

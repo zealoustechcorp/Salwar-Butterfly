@@ -61,6 +61,18 @@ export function BrowseProvider({ children }) {
     setQuery("");
   }, []);
 
+  /**
+   * Overwrite the whole filter in one go. `/shop` calls this with the values it
+   * read out of its own query string, so that page always shows what its URL
+   * says — including the defaults for the keys the URL leaves out.
+   */
+  const applyParams = useCallback(({ tab: nextTab, categoryId: nextCategory, fabric: nextFabric, query: nextQuery }) => {
+    setTab(nextTab);
+    setCategoryId(nextCategory);
+    setFabric(nextFabric);
+    setQuery(nextQuery);
+  }, []);
+
   const value = useMemo(
     () => ({
       tab,
@@ -75,9 +87,10 @@ export function BrowseProvider({ children }) {
       browseCategory,
       browseFabric,
       clearFilters,
+      applyParams,
       isFiltered: categoryId !== "all" || fabric !== "all" || query.trim() !== "",
     }),
-    [tab, categoryId, fabric, query, focusShop, browseCategory, browseFabric, clearFilters],
+    [tab, categoryId, fabric, query, focusShop, browseCategory, browseFabric, clearFilters, applyParams],
   );
 
   return <BrowseContext.Provider value={value}>{children}</BrowseContext.Provider>;

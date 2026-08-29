@@ -9,14 +9,29 @@
  * the server snapshot is empty, so the server render and its hydration always
  * agree, and React swaps in the stored bag immediately afterwards.
  *
+ * The two lists are owned differently, and deliberately so:
+ *
+ * - The **bag belongs to the device**. Checkout is open to guests, so signing
+ *   in or out mid-purchase must never empty it.
+ * - The **wishlist belongs to whoever is signed in**. A guest gets a list on
+ *   this device; signing in adopts that list into the account and from then on
+ *   the account's list is the one on screen. See `adoptGuestWishlist`.
+ *
  * When F-07's cart API lands, `addToBag` / `toggleWish` become fetch calls and
  * nothing that consumes `useStore()` has to change.
  */
 
 import { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
+import { readSession } from "@/lib/store/session";
+
 const BAG_KEY = "sb.bag";
-const WISH_KEY = "sb.wishlist";
+const GUEST_WISH_KEY = "sb.wishlist";
+
+/** Guests keep the unsuffixed key, so an existing device list is not orphaned. */
+function wishKeyFor(userId) {
+  return userId ? `${GUEST_WISH_KEY}:${userId}` : GUEST_WISH_KEY;
+}
 
 // --- external store ---------------------------------------------------------
 
@@ -24,6 +39,10 @@ const EMPTY = { bag: [], wishlist: [] };
 
 let snapshot = EMPTY;
 let loaded = false;
+// Which account's wishlist `snapshot.wishlist` currently holds. Resolved from
+// the stored session on the first read so that a shopper who is already signed
+// in never sees the guest list flash past first.
+let activeUserId = null;
 const listeners = new Set();
 
 function read(key) {
@@ -48,7 +67,8 @@ function persist(key, value) {
 function getSnapshot() {
   if (!loaded) {
     loaded = true;
-    snapshot = { bag: read(BAG_KEY), wishlist: read(WISH_KEY) };
+    activeUserId = readSession()?.id ?? null;
+    snapshot = { bag: read(BAG_KEY), wishlist: read(wishKeyFor(activeUserId)) };
   }
   return snapshot;
 }
@@ -62,11 +82,54 @@ function subscribe(listener) {
   return () => listeners.delete(listener);
 }
 
+function notify() {
+  for (const listener of listeners) listener();
+}
+
 function commit(next) {
   snapshot = next;
   persist(BAG_KEY, next.bag);
-  persist(WISH_KEY, next.wishlist);
-  for (const listener of listeners) listener();
+  persist(wishKeyFor(activeUserId), next.wishlist);
+  notify();
+}
+
+// --- account hand-off -------------------------------------------------------
+//
+// Called by <AuthProvider> on sign-in and sign-out. They live here rather than
+// there because the wishlist's storage layout is this module's business, and
+// keeping them here means AuthProvider and StoreProvider never import each
+// other — both go through `@/lib/store/session` instead.
+
+/**
+ * Signing in: fold whatever this device saved as a guest into the account's own
+ * list, then show that list.
+ *
+ * The guest key is cleared once its contents have been adopted. That is what
+ * makes sign-out safe — on a shared phone the next visitor gets an empty list
+ * rather than the previous shopper's saves.
+ */
+export function adoptGuestWishlist(userId) {
+  if (!userId) return;
+  const { bag } = getSnapshot(); // also guarantees the bag has been read in
+  const merged = [...new Set([...read(wishKeyFor(userId)), ...read(GUEST_WISH_KEY)])];
+
+  persist(wishKeyFor(userId), merged);
+  persist(GUEST_WISH_KEY, []);
+
+  activeUserId = userId;
+  snapshot = { bag, wishlist: merged };
+  notify();
+}
+
+/** Signing out: point back at the (now empty) guest list. The bag is untouched. */
+export function repointWishlist(userId) {
+  const next = userId ?? null;
+  const { bag } = getSnapshot();
+  if (activeUserId === next) return;
+
+  activeUserId = next;
+  snapshot = { bag, wishlist: read(wishKeyFor(next)) };
+  notify();
 }
 
 // --- provider ---------------------------------------------------------------
@@ -112,6 +175,29 @@ export function StoreProvider({ children }) {
       });
     };
 
+    /** Quantity stepper on the bag page. Dropping to zero removes the line. */
+    const setQty = (key, qty) => {
+      const next = Math.max(0, Math.min(99, Math.trunc(Number(qty)) || 0));
+      commit({
+        wishlist,
+        bag:
+          next === 0
+            ? bag.filter((line) => line.key !== key)
+            : bag.map((line) => (line.key === key ? { ...line, qty: next } : line)),
+      });
+    };
+
+    const removeLine = (key) => {
+      const line = bag.find((entry) => entry.key === key);
+      commit({ wishlist, bag: bag.filter((entry) => entry.key !== key) });
+      if (line) setToast({ title: "Removed from bag", detail: line.name });
+    };
+
+    const clearBag = () => {
+      commit({ wishlist, bag: [] });
+      setToast({ title: "Bag emptied", detail: "Nothing left to check out" });
+    };
+
     const toggleWish = (product) => {
       const saved = wishlist.includes(product.id);
       commit({
@@ -130,6 +216,9 @@ export function StoreProvider({ children }) {
       bag,
       wishlist,
       addToBag,
+      setQty,
+      removeLine,
+      clearBag,
       toggleWish,
       bagCount: bag.reduce((sum, line) => sum + line.qty, 0),
       bagTotal: bag.reduce((sum, line) => sum + line.qty * line.price, 0),

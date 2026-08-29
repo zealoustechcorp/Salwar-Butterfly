@@ -18,7 +18,7 @@ const ROTATE_MS = 5000;
  * The two columns split at `md`, not `lg`: at tablet widths a single column
  * left the right half of the fold empty and pushed the headline down the page.
  */
-export function Hero({ shop, catalogueSize, entryPrice, topDiscount, sizeRange }) {
+export function Hero({ shop, catalogueSize, entryPrice, topDiscount }) {
   const { focusShop, setTab } = useBrowse();
   const slides = shop.banners || [];
   const [active, setActive] = useState(0);
@@ -90,21 +90,6 @@ export function Hero({ shop, catalogueSize, entryPrice, topDiscount, sizeRange }
               </button>
             ) : null}
           </div>
-
-          <dl className="mt-6 flex flex-wrap gap-x-8 gap-y-3 border-t border-sb-gold/35 pt-4 sm:gap-x-10">
-            {[
-              { term: "Pieces in store", value: String(catalogueSize) },
-              { term: "Sizes", value: sizeRange || "36 – 46" },
-              { term: "Delivery", value: "10 days" },
-            ].map((stat) => (
-              <div key={stat.term}>
-                <dt className="sb-eyebrow text-[9px] text-sb-gold-text">{stat.term}</dt>
-                <dd className="mt-1 font-display text-xl font-semibold text-sb-heading tabular sm:text-2xl">
-                  {stat.value}
-                </dd>
-              </div>
-            ))}
-          </dl>
         </div>
 
         {/* The shop's own banner set, cross-fading — with the illustrated

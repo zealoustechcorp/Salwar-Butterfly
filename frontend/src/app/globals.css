@@ -129,6 +129,23 @@
   --color-sb-gold: #bc8a69;         /* 2.83:1 on cream */
   --color-sb-pink-deco: #d49a9b;    /* 2.22:1 on cream */
   --color-sb-maroon-deco: #5d2826;  /* butterfly outlines (10.99:1 — text-safe too) */
+
+  /*
+    The width at which the storefront's top bar can hold the wordmark, the full
+    nav, a search field wide enough to type in, and the icon cluster all on one
+    line. Measured against the real rendered bar, not guessed: below this the
+    search drops to its own row under the header. `lg` is where the nav itself
+    appears, and by `xl` the gap is generous — the useful edge sits between the
+    two, so it gets its own name rather than an arbitrary value repeated across
+    five files. Utilities: wide:block, wide:hidden, wide:scroll-mt-28.
+
+    In rem (72.5rem = 1160px at the default root size), and that matters:
+    Tailwind orders the breakpoint media queries by raw value, so a px entry
+    sorts ahead of every rem default and lands FIRST in the sheet. `lg:top-44`
+    would then have won over `wide:top-28` on the bag's sticky summary at every
+    width above 1160px. Keep this unit in step with the built-in scale.
+  */
+  --breakpoint-wide: 72.5rem;
 }
 
 @theme inline {

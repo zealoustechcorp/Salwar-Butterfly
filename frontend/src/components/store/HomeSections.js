@@ -1,49 +1,120 @@
-import { PackageCheck, Repeat2, Ruler, ShieldCheck, Sparkles, Truck } from "lucide-react";
+import { BadgeCheck, PackageCheck, Repeat2, Ruler, ShieldCheck, Truck } from "lucide-react";
 import Image from "next/image";
 
-import { Butterfly } from "./Ornaments";
+import { Butterfly, WhatsAppGlyph } from "./Ornaments";
 
 /** Static, server-rendered sections. Nothing here needs client state. */
 
-// The four trust badges the shop configured for its own homepage, spelling
-// normalised ("Watsapp" → "WhatsApp", "Gst" → "GST"). Wording and meaning are
-// the shop's own — see live-catalogue.json → shop.features.
+/**
+ * The shop's own trust badges and headline numbers, spelling normalised
+ * ("Watsapp" → "WhatsApp", "llakh" → "1 lakh"). The claims and their wording
+ * are the shop's — nothing here is computed or invented.
+ *
+ * The source copy repeats itself — "99% best products, delivered safely" is
+ * stated twice, once under "Genuine Products", and WhatsApp support appears
+ * both with and without the number. Each pair is merged into one badge rather
+ * than printed twice.
+ */
 const PROMISES = [
   {
     icon: Truck,
-    title: "Delivery in 10 working days",
-    detail: "Free shipping all over India.",
+    title: "Fast delivery",
+    detail: "5–10 working days to your door, free all over India.",
   },
   {
     icon: ShieldCheck,
-    title: "GST registered brand",
-    detail: "A trusted seller, invoiced on every order.",
+    title: "Secure payment",
+    detail: "GPay, PhonePe, Paytm and more — online payment only.",
   },
   {
-    icon: Sparkles,
-    title: "Limited edition",
-    detail: "Short runs — book fast before stock is out.",
+    icon: BadgeCheck,
+    title: "Genuine products",
+    detail: "99% best products, delivered safely.",
   },
   {
     icon: PackageCheck,
     title: "WhatsApp support",
-    detail: "Online payment only, no cash on delivery.",
+    detail: "Message us for any query, before or after the order.",
+    // Filled in from the shop's own contact details below.
+    contact: true,
   },
 ];
 
-export function TrustBar() {
+export function TrustBar({ shop }) {
+  const stats = [
+    {
+      value: "50,000+",
+      label: "Happy customers on Instagram",
+      href: shop?.instagram,
+    },
+    { value: "1 lakh+", label: "Products posted & sold" },
+  ];
+
   return (
     <section className="border-y border-sb-gold/30 bg-sb-surface/30">
-      <div className="mx-auto grid max-w-7xl gap-x-6 gap-y-5 px-4 py-6 sm:grid-cols-2 sm:px-6 sm:py-7 lg:grid-cols-4 lg:px-8">
-        {PROMISES.map(({ icon: Icon, title, detail }) => (
-          <div key={title} className="flex gap-3">
-            <Icon className="mt-0.5 size-5 shrink-0 text-sb-gold-text sm:size-6" aria-hidden="true" />
-            <div>
-              <p className="text-[13px] font-bold text-sb-text sm:text-sm">{title}</p>
-              <p className="mt-0.5 text-xs leading-relaxed text-sb-text-muted">{detail}</p>
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-7 lg:px-8">
+        <dl className="grid grid-cols-2 gap-4 sm:gap-8">
+          {stats.map(({ value, label, href }) => {
+            const body = (
+              <>
+                <dt className="font-display text-3xl leading-none font-semibold text-sb-heading tabular sm:text-4xl">
+                  {value}
+                </dt>
+                <dd className="mt-1.5 text-xs leading-relaxed text-sb-text-muted sm:text-[13px]">
+                  {label}
+                </dd>
+              </>
+            );
+
+            return href ? (
+              <a
+                key={label}
+                href={href}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="group block rounded-xl transition-colors hover:text-sb-link"
+              >
+                {body}
+              </a>
+            ) : (
+              <div key={label}>{body}</div>
+            );
+          })}
+        </dl>
+
+        <div className="mt-6 grid gap-x-6 gap-y-5 border-t border-sb-gold/30 pt-6 sm:grid-cols-2 lg:grid-cols-4">
+          {PROMISES.map(({ icon: Icon, title, detail, contact }) => (
+            <div key={title} className="flex gap-3">
+              {contact ? (
+                <WhatsAppGlyph className="mt-0.5 size-5 shrink-0 text-sb-gold-text sm:size-6" />
+              ) : (
+                <Icon
+                  className="mt-0.5 size-5 shrink-0 text-sb-gold-text sm:size-6"
+                  aria-hidden="true"
+                />
+              )}
+              <div>
+                <p className="text-[13px] font-bold text-sb-text sm:text-sm">{title}</p>
+                <p className="mt-0.5 text-xs leading-relaxed text-sb-text-muted">
+                  {detail}
+                  {contact && shop?.phone ? (
+                    <>
+                      {" "}
+                      <a
+                        href={shop.whatsapp}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className="font-semibold whitespace-nowrap text-sb-link underline underline-offset-2 tabular"
+                      >
+                        {shop.phone}
+                      </a>
+                    </>
+                  ) : null}
+                </p>
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </section>
   );
@@ -51,7 +122,7 @@ export function TrustBar() {
 
 export function StorySection({ catalogueSize, categoryCount, sizeRange }) {
   return (
-    <section id="story" className="scroll-mt-24 bg-sb-surface/25">
+    <section id="story" className="scroll-mt-40 bg-sb-surface/25 wide:scroll-mt-28">
       <div className="mx-auto grid max-w-7xl items-center gap-8 px-4 py-10 sm:px-6 sm:py-12 lg:grid-cols-[0.85fr_1.15fr] lg:gap-12 lg:px-8 lg:py-16">
         <div className="relative mx-auto w-full max-w-[15rem] sm:max-w-xs lg:max-w-sm">
           <div aria-hidden="true" className="absolute -inset-4 rounded-3xl border border-sb-gold/40" />
@@ -135,7 +206,10 @@ const POLICY = [
 
 export function PolicySection() {
   return (
-    <section className="mx-auto max-w-7xl px-4 py-9 sm:px-6 sm:py-11 lg:px-8 lg:py-13">
+    <section
+      id="policy"
+      className="mx-auto max-w-7xl scroll-mt-40 px-4 py-9 sm:px-6 sm:py-11 lg:px-8 lg:py-13 wide:scroll-mt-28"
+    >
       <div className="text-center">
         <p className="sb-eyebrow text-[10px] text-sb-gold-text">Before You Order</p>
         <h2 className="mt-2 font-display text-3xl font-semibold text-sb-heading sm:text-4xl lg:text-5xl">

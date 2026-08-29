@@ -17,8 +17,12 @@ import { useStore } from "./StoreProvider";
  */
 export function ProductCard({ product, priority = false }) {
   const { addToBag, toggleWish, wishlist } = useStore();
-  const [size, setSize] = useState(product.available_sizes[0] || null);
+  // No size is pre-selected: the shopper has to pick one, so nothing lands in
+  // the bag in a size they never chose.
+  const [size, setSize] = useState(null);
   const wished = wishlist.includes(product.id);
+  const needsSize = product.available_sizes.length > 0;
+  const canAdd = product.in_stock && (!needsSize || Boolean(size));
 
   return (
     <article className="group flex flex-col">
@@ -110,12 +114,12 @@ export function ProductCard({ product, priority = false }) {
 
           <button
             type="button"
-            disabled={!product.in_stock}
+            disabled={!canAdd}
             onClick={() => addToBag(product, { size })}
             className="flex w-full items-center justify-center gap-2 rounded-full bg-sb-btn-primary px-3 py-2.5 text-[13px] font-semibold text-sb-bg transition-colors hover:bg-sb-btn-rose disabled:cursor-not-allowed disabled:bg-sb-text-muted/40 sm:px-4 sm:text-sm"
           >
             <ShoppingBag className="size-4 shrink-0" aria-hidden="true" />
-            {product.in_stock ? "Add to bag" : "Sold out"}
+            {!product.in_stock ? "Sold out" : canAdd ? "Add to bag" : "Select a size"}
           </button>
         </div>
       </div>

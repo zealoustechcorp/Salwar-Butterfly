@@ -1,0 +1,241 @@
+"use client";
+
+import { Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
+import Link from "next/link";
+
+import { money } from "@/lib/format";
+import { useAuth } from "./AuthProvider";
+import { WhatsAppGlyph } from "./Ornaments";
+import { Photo } from "./Photo";
+import { useStore } from "./StoreProvider";
+
+/**
+ * The bag (F-07), still frontend-only.
+ *
+ * There is no cart API and no payment gateway wired up yet, so this does not
+ * pretend to check out. It does the part it can do honestly — hold the lines,
+ * price them, and hand the finished order to the channel the shop actually
+ * takes orders on. When F-07 lands, the WhatsApp hand-off becomes a Checkout
+ * button and nothing else on this page has to move.
+ *
+ * No sign-in anywhere on this page, and that is the point: the shop would
+ * rather take the order than win the account. The only mention of one is an
+ * offer at the bottom of the summary, which a guest can ignore.
+ */
+export function BagView({ products, shop }) {
+  const { bag, bagTotal, bagCount, setQty, removeLine, clearBag } = useStore();
+  const { isSignedIn, openAuth } = useAuth();
+  const byId = new Map(products.map((product) => [product.id, product]));
+
+  const orderText = [
+    `Hi ${shop.name}, I would like to order:`,
+    "",
+    ...bag.map(
+      (line) =>
+        `• ${line.name}${line.size ? ` — size ${line.size}` : ""} × ${line.qty} = ${money(line.price * line.qty)}`,
+    ),
+    "",
+    `Total: ${money(bagTotal)}`,
+  ].join("\n");
+
+  if (!bag.length) {
+    return (
+      <section className="mx-auto max-w-3xl px-4 py-9 sm:px-6 sm:py-14 lg:px-8">
+        <p className="sb-eyebrow text-[10px] text-sb-gold-text">Your Bag</p>
+        <h1 className="mt-2 font-display text-3xl font-semibold text-sb-heading sm:text-4xl lg:text-5xl">
+          Your bag is empty
+        </h1>
+        <div className="mt-6 rounded-2xl border border-dashed border-sb-gold/50 bg-sb-surface/25 px-6 py-14 text-center">
+          <ShoppingBag className="mx-auto size-8 text-sb-gold-text" aria-hidden="true" />
+          <p className="mx-auto mt-3 max-w-sm text-sm text-sb-text-muted">
+            Nothing in it yet. The bag lives on this device, so anything you add here will still be
+            waiting when you come back on the same browser.
+          </p>
+          <Link
+            href="/shop"
+            className="mt-5 inline-flex rounded-full bg-sb-btn-primary px-7 py-3 text-sm font-semibold text-sb-bg transition-colors hover:bg-sb-btn-rose"
+          >
+            Start shopping
+          </Link>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="mx-auto max-w-7xl px-4 py-9 sm:px-6 sm:py-11 lg:px-8 lg:py-13">
+      <p className="sb-eyebrow text-[10px] text-sb-gold-text">Your Bag</p>
+      <h1 className="mt-2 font-display text-3xl font-semibold text-sb-heading sm:text-4xl lg:text-5xl">
+        {bagCount} {bagCount === 1 ? "piece" : "pieces"} in your bag
+      </h1>
+
+      <div className="mt-7 grid gap-8 lg:grid-cols-[1.6fr_1fr] lg:gap-10">
+        <ul className="divide-y divide-sb-gold/30 border-y border-sb-gold/30">
+          {bag.map((line) => {
+            const product = byId.get(line.product_id);
+            // A piece can sell out between adding it and coming back to the
+            // bag; say so rather than letting it be sent to the shop.
+            const gone = product ? !product.in_stock : false;
+
+            return (
+              <li key={line.key} className="flex gap-4 py-5">
+                <div className="relative aspect-3/4 w-20 shrink-0 overflow-hidden rounded-xl border border-sb-gold/30 bg-sb-surface/40 sm:w-24">
+                  <Photo
+                    src={line.image}
+                    alt={line.name}
+                    categoryId={product?.category_id}
+                    seed={line.product_id}
+                    sizes="96px"
+                    className="object-cover"
+                  />
+                </div>
+
+                <div className="flex min-w-0 flex-1 flex-col">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      {product ? (
+                        <p className="sb-eyebrow text-[9px] text-sb-gold-text">
+                          {product.category_name}
+                        </p>
+                      ) : null}
+                      <h2 className="mt-0.5 font-display text-lg leading-snug font-semibold text-sb-heading sm:text-xl">
+                        {line.name}
+                      </h2>
+                      <p className="mt-0.5 text-xs text-sb-text-muted">
+                        {line.size ? `Size ${line.size}` : "One size"}
+                        {product?.fabric ? ` · ${product.fabric}` : ""}
+                      </p>
+                      {gone ? (
+                        <p className="mt-1 text-xs font-semibold text-sb-link">
+                          Sold out since you added it — remove it before you send the order.
+                        </p>
+                      ) : null}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => removeLine(line.key)}
+                      aria-label={`Remove ${line.name} from the bag`}
+                      className="shrink-0 rounded-full p-2 text-sb-text-muted transition-colors hover:bg-sb-surface/60 hover:text-sb-link"
+                    >
+                      <Trash2 className="size-4" aria-hidden="true" />
+                    </button>
+                  </div>
+
+                  <div className="mt-auto flex flex-wrap items-center justify-between gap-3 pt-3">
+                    <div className="flex items-center gap-1 rounded-full border border-sb-gold/45 p-1">
+                      <button
+                        type="button"
+                        onClick={() => setQty(line.key, line.qty - 1)}
+                        aria-label={`Reduce the quantity of ${line.name}`}
+                        className="rounded-full p-1.5 text-sb-text transition-colors hover:bg-sb-surface/60"
+                      >
+                        <Minus className="size-3.5" aria-hidden="true" />
+                      </button>
+                      <span className="min-w-6 text-center text-sm font-semibold text-sb-text tabular">
+                        {line.qty}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setQty(line.key, line.qty + 1)}
+                        aria-label={`Increase the quantity of ${line.name}`}
+                        className="rounded-full p-1.5 text-sb-text transition-colors hover:bg-sb-surface/60"
+                      >
+                        <Plus className="size-3.5" aria-hidden="true" />
+                      </button>
+                    </div>
+
+                    <p className="text-base font-bold text-sb-text tabular sm:text-lg">
+                      {money(line.price * line.qty)}
+                      {line.qty > 1 ? (
+                        <span className="ml-2 text-xs font-normal text-sb-text-muted">
+                          {money(line.price)} each
+                        </span>
+                      ) : null}
+                    </p>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+
+        <aside className="lg:sticky lg:top-44 lg:self-start wide:top-28">
+          <div className="rounded-2xl border border-sb-gold/35 bg-sb-bg p-5 sm:p-6">
+            <p className="sb-eyebrow text-[10px] text-sb-gold-text">Order summary</p>
+
+            <dl className="mt-4 space-y-2.5 text-sm">
+              <div className="flex justify-between">
+                <dt className="text-sb-text-muted">Subtotal</dt>
+                <dd className="font-semibold text-sb-text tabular">{money(bagTotal)}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-sb-text-muted">Shipping</dt>
+                <dd className="font-semibold text-sb-text">Free all over India</dd>
+              </div>
+              <div className="flex justify-between border-t border-sb-gold/30 pt-2.5">
+                <dt className="font-display text-lg font-semibold text-sb-heading">Total</dt>
+                <dd className="font-display text-lg font-semibold text-sb-heading tabular">
+                  {money(bagTotal)}
+                </dd>
+              </div>
+            </dl>
+
+            <a
+              href={`${shop.whatsapp}?text=${encodeURIComponent(orderText)}`}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-sb-btn-primary px-5 py-3.5 text-sm font-semibold text-sb-bg transition-colors hover:bg-sb-btn-rose"
+            >
+              <WhatsAppGlyph className="size-4" />
+              Send this bag to the shop
+            </a>
+
+            <p className="mt-3 text-xs leading-relaxed text-sb-text-muted">
+              Online checkout is not open yet. This opens WhatsApp with your bag written out, and
+              the shop confirms stock and sends a payment link. Payment is online only — GPay,
+              PhonePe, Paytm, cards or net banking. No cash on delivery.
+            </p>
+
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-sb-gold/30 pt-4">
+              <Link
+                href="/shop"
+                className="text-sm font-semibold text-sb-link underline underline-offset-4 hover:text-sb-heading"
+              >
+                Keep shopping
+              </Link>
+              <button
+                type="button"
+                onClick={clearBag}
+                className="text-sm text-sb-text-muted underline underline-offset-4 hover:text-sb-link"
+              >
+                Empty the bag
+              </button>
+            </div>
+          </div>
+
+          {!isSignedIn ? (
+            <p className="mt-4 px-1 text-xs leading-relaxed text-sb-text-muted">
+              You can order without an account.{" "}
+              <button
+                type="button"
+                onClick={() =>
+                  openAuth({ reason: "An account keeps your wishlist across devices." })
+                }
+                className="font-semibold text-sb-link underline underline-offset-4 hover:text-sb-heading"
+              >
+                Sign in
+              </button>{" "}
+              only if you want your wishlist kept across devices.
+            </p>
+          ) : null}
+
+          <p className="mt-4 px-1 text-xs leading-relaxed text-sb-text-muted">
+            Delivery takes 5 to 10 working days. Every run is limited, so nothing here is reserved
+            until the shop confirms it.
+          </p>
+        </aside>
+      </div>
+    </section>
+  );
+}

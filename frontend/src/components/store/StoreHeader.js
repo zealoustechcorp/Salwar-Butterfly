@@ -1,30 +1,68 @@
 "use client";
 
-import { ChevronDown, Heart, Menu, Search, ShoppingBag, User, X } from "lucide-react";
+import { ChevronDown, Heart, LogOut, Menu, Search, ShoppingBag, User, X } from "lucide-react";
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 import { WhatsAppGlyph } from "./Ornaments";
 import { Photo } from "./Photo";
+import { useAuth } from "./AuthProvider";
 import { useBrowse } from "./BrowseProvider";
 import { useStore } from "./StoreProvider";
 
+/**
+ * Every entry is a real href, not a scroll target: the header sits in the
+ * storefront layout and so renders on `/bag` and `/account` too, where there is
+ * no shop grid on the page to scroll to. `/shop` reads these query strings back
+ * out through <ShopFilterSync>.
+ */
 const NAV = [
-  { id: "new", label: "New In", target: "shop", tab: "new" },
-  { id: "offers", label: "Offers", target: "shop", tab: "offers" },
-  { id: "almost-gone", label: "Almost Gone", target: "shop", tab: "almost-gone" },
-  { id: "story", label: "Our Story", target: "story" },
+  { id: "new", label: "New In", href: "/shop?tab=new" },
+  { id: "offers", label: "Offers", href: "/shop?tab=offers" },
+  { id: "almost-gone", label: "Almost Gone", href: "/shop?tab=almost-gone" },
+  // The story lives on the home page; the absolute path keeps the anchor
+  // working from the other routes as well.
+  { id: "story", label: "Our Story", href: "/#story" },
 ];
 
 // The shop's own trust badges, in its own words (spelling normalised).
 const ANNOUNCEMENTS = [
   "Free shipping all over India",
-  "Delivery in 10 working days",
+  "Delivery in 5–10 working days",
   "GST registered brand · trusted seller",
   "Limited edition — book fast before stock out",
   "WhatsApp support · online payment only",
 ];
+
+/**
+ * Closes a popover on an outside pointer press or on Escape, and hands back the
+ * ref to put on it. The category dropdown and the account menu both want
+ * exactly this behaviour.
+ */
+function useDismissable(open, close) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onPointerDown = (event) => {
+      if (!ref.current?.contains(event.target)) close();
+    };
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") close();
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open, close]);
+
+  return ref;
+}
 
 /** Counter bubble on the wishlist / bag icons. Absent until there is a count. */
 function CountBadge({ count }) {
@@ -36,6 +74,9 @@ function CountBadge({ count }) {
   );
 }
 
+const ICON_CLASS =
+  "relative rounded-full p-2 text-sb-text transition-colors hover:bg-sb-surface/70 hover:text-sb-heading focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sb-link";
+
 function IconButton({ label, children, count, onClick, className }) {
   return (
     <button
@@ -43,10 +84,7 @@ function IconButton({ label, children, count, onClick, className }) {
       onClick={onClick}
       aria-label={label}
       title={label}
-      className={cn(
-        "relative rounded-full p-2 text-sb-text transition-colors hover:bg-sb-surface/70 hover:text-sb-heading focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sb-link",
-        className,
-      )}
+      className={cn(ICON_CLASS, className)}
     >
       {children}
       <CountBadge count={count} />
@@ -54,8 +92,76 @@ function IconButton({ label, children, count, onClick, className }) {
   );
 }
 
+function IconLink({ label, href, children, count, active, className }) {
+  return (
+    <Link
+      href={href}
+      aria-label={label}
+      title={label}
+      aria-current={active ? "page" : undefined}
+      className={cn(ICON_CLASS, active && "bg-sb-surface/70 text-sb-heading", className)}
+    >
+      {children}
+      <CountBadge count={count} />
+    </Link>
+  );
+}
+
+/**
+ * The words the search prompt cycles through.
+ *
+ * Every one of them was checked against the committed catalogue and comes back
+ * with results — <ProductShowcase> matches a query against the product name,
+ * its category and its fabric, and these are the words the shop itself uses in
+ * all three. A placeholder is a suggestion, and suggesting a search that lands
+ * on an empty grid is worse than suggesting nothing.
+ *
+ * "dress" is deliberately absent. It is the shop's own word for what it sells —
+ * it is in the logo — but no product name, category or fabric in the snapshot
+ * contains it, so offering it here would send shoppers to nothing.
+ */
+const SEARCH_TERMS = [
+  "dhabu cotton",
+  "anarkali",
+  "coord set",
+  "azrak",
+  "straight cut",
+  "chanderi silk",
+  "kurti",
+];
+
+const ROTATE_MS = 2400;
+
+/**
+ * Steps through `terms` on a timer, and stands still for anyone who asked for
+ * less motion. Always starts at the first term, so the server render and its
+ * hydration agree before the timer has ticked once.
+ */
+function useRotatingTerm(terms, paused) {
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    if (paused) return undefined;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return undefined;
+    const timer = setInterval(() => {
+      setIndex((current) => (current + 1) % terms.length);
+    }, ROTATE_MS);
+    return () => clearInterval(timer);
+  }, [terms, paused]);
+
+  return terms[index];
+}
+
+/**
+ * Typing filters whatever grid is on screen straight away; submitting commits
+ * the term to `/shop`, so it survives a reload and can be shared.
+ */
 function SearchField({ className, autoFocus = false, onSubmit }) {
-  const { query, setQuery, focusShop } = useBrowse();
+  const { query, setQuery } = useBrowse();
+  const router = useRouter();
+  // Nothing to prompt for once they have started typing — and the overlay is
+  // hidden then anyway, so the timer may as well stop.
+  const term = useRotatingTerm(SEARCH_TERMS, Boolean(query));
 
   return (
     <form
@@ -63,7 +169,8 @@ function SearchField({ className, autoFocus = false, onSubmit }) {
       className={cn("relative", className)}
       onSubmit={(event) => {
         event.preventDefault();
-        focusShop();
+        const submitted = query.trim();
+        router.push(submitted ? `/shop?q=${encodeURIComponent(submitted)}` : "/shop");
         onSubmit?.();
       }}
     >
@@ -76,37 +183,128 @@ function SearchField({ className, autoFocus = false, onSubmit }) {
         value={query}
         autoFocus={autoFocus}
         onChange={(event) => setQuery(event.target.value)}
-        placeholder="Search anarkali, azrak, coord set…"
+        // The visible prompt is the overlay below, because a `placeholder`
+        // attribute cannot animate. The accessible name stays fixed, so a
+        // screen reader is never read a moving target.
+        placeholder=""
         aria-label="Search the catalogue"
-        className="h-10 w-full rounded-full border border-sb-gold/40 bg-white/70 pr-4 pl-9 text-sm text-sb-text placeholder:text-sb-text-muted/60 focus:border-sb-link focus:bg-white focus:outline-none"
+        className="h-10 w-full rounded-full border border-sb-gold/40 bg-white/70 pr-4 pl-9 text-sm text-sb-text focus:border-sb-link focus:bg-white focus:outline-none"
       />
+      {query ? null : (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 right-4 left-9 flex items-center gap-1.5 overflow-hidden text-sm whitespace-nowrap text-sb-text-muted/60"
+        >
+          Search for
+          {/* Keyed on the term so the swap replays `sb-enter`, which globals.css
+              already switches off under prefers-reduced-motion. */}
+          <span key={term} className="sb-enter font-medium text-sb-text-muted">
+            {term}
+          </span>
+        </span>
+      )}
     </form>
+  );
+}
+
+/**
+ * The person icon. Signed out it opens the dialog rather than navigating —
+ * `/account` is the one route that needs an account, so sending a guest there
+ * only to bounce them back would be a wasted trip. Signed in it becomes the
+ * shopper's initial and a small menu.
+ */
+function AccountControl({ className }) {
+  const { user, isSignedIn, signOut, openAuth } = useAuth();
+  const [open, setOpen] = useState(false);
+  const close = useCallback(() => setOpen(false), []);
+  const ref = useDismissable(open, close);
+  const pathname = usePathname();
+
+  if (!isSignedIn) {
+    return (
+      <IconButton
+        label="Sign in"
+        className={className}
+        onClick={() =>
+          openAuth({
+            reason: "Sign in to open your account.",
+            redirectTo: "/account",
+          })
+        }
+      >
+        <User className="size-5" aria-hidden="true" />
+      </IconButton>
+    );
+  }
+
+  const initial = (user.name || user.email).trim().charAt(0).toUpperCase();
+
+  return (
+    <div className={cn("relative", className)} ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        aria-expanded={open}
+        aria-label={`Account menu for ${user.name}`}
+        title={user.name}
+        className="flex size-9 items-center justify-center rounded-full bg-sb-heading text-sm font-bold text-sb-bg transition-opacity hover:opacity-85 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sb-link"
+      >
+        {initial}
+      </button>
+
+      {open ? (
+        <div className="sb-enter absolute top-full right-0 mt-2 w-60 overflow-hidden rounded-2xl border border-sb-gold/35 bg-sb-bg shadow-xl shadow-sb-footer/10">
+          <div className="border-b border-sb-gold/25 px-4 py-3">
+            <p className="truncate font-display text-base font-semibold text-sb-heading">
+              {user.name}
+            </p>
+            <p className="truncate text-xs text-sb-text-muted">{user.email}</p>
+          </div>
+          <ul className="p-1.5">
+            {[
+              { href: "/account", label: "Your account", icon: User },
+              { href: "/wishlist", label: "Your wishlist", icon: Heart },
+            ].map(({ href, label, icon: Icon }) => (
+              <li key={href}>
+                <Link
+                  href={href}
+                  onClick={close}
+                  aria-current={pathname === href ? "page" : undefined}
+                  className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-sb-text transition-colors hover:bg-sb-surface/60"
+                >
+                  <Icon className="size-4 text-sb-gold-text" aria-hidden="true" />
+                  {label}
+                </Link>
+              </li>
+            ))}
+            <li>
+              <button
+                type="button"
+                onClick={() => {
+                  close();
+                  signOut();
+                }}
+                className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm text-sb-text transition-colors hover:bg-sb-surface/60"
+              >
+                <LogOut className="size-4 text-sb-gold-text" aria-hidden="true" />
+                Sign out
+              </button>
+            </li>
+          </ul>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
 export function StoreHeader({ categories, shop }) {
   const { bagCount, wishCount } = useStore();
-  const { browseCategory, setTab, focusShop, categoryId } = useBrowse();
+  const { user, isSignedIn, signOut, openAuth } = useAuth();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef(null);
-
-  // Close the category dropdown on an outside click or Escape.
-  useEffect(() => {
-    if (!menuOpen) return undefined;
-    const onPointerDown = (event) => {
-      if (!menuRef.current?.contains(event.target)) setMenuOpen(false);
-    };
-    const onKeyDown = (event) => {
-      if (event.key === "Escape") setMenuOpen(false);
-    };
-    document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [menuOpen]);
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
+  const menuRef = useDismissable(menuOpen, closeMenu);
+  const pathname = usePathname();
 
   // The drawer owns the scroll while it is open.
   useEffect(() => {
@@ -116,17 +314,8 @@ export function StoreHeader({ categories, shop }) {
     };
   }, [drawerOpen]);
 
-  const goToTab = (tab) => {
-    if (tab) setTab(tab);
-    focusShop();
-    setDrawerOpen(false);
-  };
-
-  const goToSection = (item) => {
-    if (item.target === "shop") return goToTab(item.tab);
-    document.getElementById(item.target)?.scrollIntoView({ behavior: "smooth", block: "start" });
-    setDrawerOpen(false);
-  };
+  // Every link inside the drawer and the dropdown closes its own overlay on
+  // click, so there is no route-change effect to reconcile here.
 
   return (
     <header className="sticky top-0 z-40">
@@ -156,7 +345,7 @@ export function StoreHeader({ categories, shop }) {
             <Menu className="size-5" aria-hidden="true" />
           </button>
 
-          <a href="#top" className="flex min-w-0 shrink items-center gap-2 sm:gap-2.5">
+          <Link href="/" className="flex min-w-0 shrink items-center gap-2 sm:gap-2.5">
             <Image
               src="/Salwar Butterfly.jpeg"
               alt="Salwar Butterfly"
@@ -173,7 +362,7 @@ export function StoreHeader({ categories, shop }) {
                 {shop.tagline}
               </span>
             </span>
-          </a>
+          </Link>
 
           <nav className="ml-4 hidden items-center gap-1 lg:flex xl:ml-6">
             <div className="relative" ref={menuRef}>
@@ -197,29 +386,20 @@ export function StoreHeader({ categories, shop }) {
                   </p>
                   <ul className="p-1.5">
                     <li>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          browseCategory("all");
-                          setMenuOpen(false);
-                        }}
+                      <Link
+                        href="/shop"
+                        onClick={() => setMenuOpen(false)}
                         className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm text-sb-text hover:bg-sb-surface/60"
                       >
                         All collections
-                      </button>
+                      </Link>
                     </li>
                     {categories.map((category) => (
                       <li key={category.id}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            browseCategory(category.id);
-                            setMenuOpen(false);
-                          }}
-                          className={cn(
-                            "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm transition-colors hover:bg-sb-surface/60",
-                            categoryId === category.id ? "text-sb-link" : "text-sb-text",
-                          )}
+                        <Link
+                          href={`/shop?category=${category.id}`}
+                          onClick={() => setMenuOpen(false)}
+                          className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm text-sb-text transition-colors hover:bg-sb-surface/60"
                         >
                           <span className="flex items-center gap-2.5">
                             <span className="relative size-7 shrink-0 overflow-hidden rounded-full ring-1 ring-sb-gold/50">
@@ -235,7 +415,7 @@ export function StoreHeader({ categories, shop }) {
                             {category.name}
                           </span>
                           <span className="text-xs text-sb-text-muted tabular">{category.count}</span>
-                        </button>
+                        </Link>
                       </li>
                     ))}
                   </ul>
@@ -244,30 +424,30 @@ export function StoreHeader({ categories, shop }) {
             </div>
 
             {NAV.map((item) => (
-              <button
+              <Link
                 key={item.id}
-                type="button"
-                onClick={() => goToSection(item)}
+                href={item.href}
                 className="rounded-full px-3 py-2 text-sm font-medium text-sb-text transition-colors hover:bg-sb-surface/70 hover:text-sb-heading"
               >
                 {item.label}
-              </button>
+              </Link>
             ))}
           </nav>
 
-          {/* Icons thin out as the bar narrows: search and account both stay
-              reachable from the drawer, the bag never leaves. */}
+          {/*
+            Fills the gap the nav leaves, rather than sitting inside the icon
+            cluster: `flex-1` means it takes whatever the wordmark, the nav and
+            the icons have not claimed, so it grows with the window instead of
+            being pinned to one width. Below `wide` that gap is too narrow to
+            type in, and it drops to its own row under the bar.
+          */}
+          <SearchField className="mx-3 hidden max-w-sm min-w-0 flex-1 wide:block" />
+
+          {/* Icons thin out as the bar narrows: account stays reachable from the
+              drawer, the bag never leaves. Search does not thin out at all — it
+              only changes rows. */}
           <div className="ml-auto flex shrink-0 items-center gap-0.5 sm:gap-1">
-            <SearchField className="hidden w-56 xl:block" />
-            <IconButton
-              label="Search"
-              className="hidden sm:inline-flex xl:hidden"
-              onClick={() => setDrawerOpen(true)}
-            >
-              <Search className="size-5" aria-hidden="true" />
-            </IconButton>
-            {/* The shop takes questions and size help on WhatsApp — a real
-                destination, unlike the account screen F-01 has yet to build. */}
+            {/* The shop takes questions and size help on WhatsApp. */}
             <a
               href={shop.whatsapp}
               target="_blank"
@@ -278,16 +458,31 @@ export function StoreHeader({ categories, shop }) {
             >
               <WhatsAppGlyph className="size-5" />
             </a>
-            <IconButton label="Wishlist" count={wishCount}>
+            <IconLink
+              label="Wishlist"
+              href="/wishlist"
+              count={wishCount}
+              active={pathname === "/wishlist"}
+            >
               <Heart className="size-5" aria-hidden="true" />
-            </IconButton>
-            <IconButton label="Your bag" count={bagCount}>
+            </IconLink>
+            <IconLink label="Your bag" href="/bag" count={bagCount} active={pathname === "/bag"}>
               <ShoppingBag className="size-5" aria-hidden="true" />
-            </IconButton>
-            <IconButton label="Account" className="hidden sm:inline-flex">
-              <User className="size-5" aria-hidden="true" />
-            </IconButton>
+            </IconLink>
+            <AccountControl className="ml-0.5 hidden sm:inline-flex" />
           </div>
+        </div>
+
+        {/*
+          Below `wide` the top bar has no room left for a field wide enough to
+          type in, so the search gets its own full-width row rather than
+          collapsing into an icon. It is the shop's primary way in — 197 pieces
+          across five categories — and a search you have to go looking for is
+          one nobody uses. Anything keyed to the header's height (`scroll-mt`,
+          the bag's sticky summary) carries the matching wide: breakpoint.
+        */}
+        <div className="mx-auto max-w-7xl px-4 pb-2.5 sm:px-6 lg:px-8 wide:hidden">
+          <SearchField />
         </div>
       </div>
 
@@ -320,27 +515,97 @@ export function StoreHeader({ categories, shop }) {
               <ul className="space-y-0.5">
                 {NAV.map((item) => (
                   <li key={item.id}>
-                    <button
-                      type="button"
-                      onClick={() => goToSection(item)}
-                      className="w-full rounded-xl px-3 py-2.5 text-left text-[15px] font-medium text-sb-text hover:bg-sb-surface/60"
+                    <Link
+                      href={item.href}
+                      onClick={() => setDrawerOpen(false)}
+                      className="block w-full rounded-xl px-3 py-2.5 text-left text-[15px] font-medium text-sb-text hover:bg-sb-surface/60"
                     >
                       {item.label}
-                    </button>
+                    </Link>
                   </li>
                 ))}
+              </ul>
+
+              {/* The account icon is desktop-only, so the drawer is where all of
+                  this has to be reachable on a phone. */}
+              <p className="sb-eyebrow px-3 pt-5 pb-2 text-[10px] text-sb-gold-text">
+                {isSignedIn ? user.name : "You"}
+              </p>
+              <ul className="space-y-0.5">
+                {[
+                  { href: "/wishlist", label: "Wishlist", count: wishCount, icon: Heart },
+                  { href: "/bag", label: "Your bag", count: bagCount, icon: ShoppingBag },
+                ].map(({ href, label, count, icon: Icon }) => (
+                  <li key={href}>
+                    <Link
+                      href={href}
+                      onClick={() => setDrawerOpen(false)}
+                      className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-[15px] text-sb-text hover:bg-sb-surface/60"
+                    >
+                      <span className="flex items-center gap-2.5">
+                        <Icon className="size-4 text-sb-gold-text" aria-hidden="true" />
+                        {label}
+                      </span>
+                      {count ? (
+                        <span className="text-xs text-sb-text-muted tabular">{count}</span>
+                      ) : null}
+                    </Link>
+                  </li>
+                ))}
+
+                {isSignedIn ? (
+                  <>
+                    <li>
+                      <Link
+                        href="/account"
+                        onClick={() => setDrawerOpen(false)}
+                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[15px] text-sb-text hover:bg-sb-surface/60"
+                      >
+                        <User className="size-4 text-sb-gold-text" aria-hidden="true" />
+                        Account
+                      </Link>
+                    </li>
+                    <li>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDrawerOpen(false);
+                          signOut();
+                        }}
+                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[15px] text-sb-text hover:bg-sb-surface/60"
+                      >
+                        <LogOut className="size-4 text-sb-gold-text" aria-hidden="true" />
+                        Sign out
+                      </button>
+                    </li>
+                  </>
+                ) : (
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDrawerOpen(false);
+                        openAuth({
+                          reason: "Sign in to open your account.",
+                          redirectTo: "/account",
+                        });
+                      }}
+                      className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[15px] text-sb-text hover:bg-sb-surface/60"
+                    >
+                      <User className="size-4 text-sb-gold-text" aria-hidden="true" />
+                      Sign in
+                    </button>
+                  </li>
+                )}
               </ul>
 
               <p className="sb-eyebrow px-3 pt-5 pb-2 text-[10px] text-sb-gold-text">Collections</p>
               <ul className="space-y-0.5">
                 {categories.map((category) => (
                   <li key={category.id}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        browseCategory(category.id);
-                        setDrawerOpen(false);
-                      }}
+                    <Link
+                      href={`/shop?category=${category.id}`}
+                      onClick={() => setDrawerOpen(false)}
                       className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-[15px] text-sb-text hover:bg-sb-surface/60"
                     >
                       <span className="flex items-center gap-2.5">
@@ -357,7 +622,7 @@ export function StoreHeader({ categories, shop }) {
                         {category.name}
                       </span>
                       <span className="text-xs text-sb-text-muted tabular">{category.count}</span>
-                    </button>
+                    </Link>
                   </li>
                 ))}
               </ul>
