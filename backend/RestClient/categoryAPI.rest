@@ -1,0 +1,105 @@
+### Base URL
+@baseUrl = http://localhost:4000/api
+
+
+### ============================================================
+### CATEGORY ENDPOINTS
+### ============================================================
+
+
+### Create Category
+POST {{baseUrl}}/categories/createCategory
+Content-Type: application/json
+
+{
+  "name": "Sarees",
+  "slug": "sarees",
+  "description": "Traditional and designer sarees",
+  "image": "https://example.com/images/sarees.jpg",
+  "active": true, 
+}
+
+
+### ============================================================
+### Get All Categories
+### ============================================================
+
+GET {{baseUrl}}/categories/getAllCategories
+
+
+### ============================================================
+### Get Category by ID
+### ============================================================
+
+GET {{baseUrl}}/categories/getCategoryById/0f0f051a-09d0-4551-bfc1-4f1b4bb3196b
+
+
+### ============================================================
+### Update Category
+### ============================================================
+
+PUT {{baseUrl}}/categories/updateCategory/1b8719b8-4a9c-4bf7-9649-621f47d16f18
+Content-Type: application/json
+
+{
+  "name": "Designer Sarees",
+  "slug": "designer-sarees",
+  "description": "Designer and premium sarees",
+  "image": "https://example.com/images/designer-sarees.jpg",
+  "active": true
+}
+
+
+### ============================================================
+### Partial Update Category - Name Only
+### ============================================================
+
+PUT {{baseUrl}}/categories/updateCategory/f601efab-2e3c-40af-8a76-7bd668d1cade
+Content-Type: application/json
+
+{
+  "name": "Premium Saree"
+}
+
+
+### ============================================================
+### Partial Update Category - Description
+### ============================================================
+
+PUT {{baseUrl}}/categories/updateCategory/f601efab-2e3c-40af-8a76-7bd668d1cade
+Content-Type: application/json
+
+{
+  "description": "Premium traditional and designer sarees"
+}
+
+
+### ============================================================
+### Deactivate Category
+### ============================================================
+
+PUT {{baseUrl}}/categories/updateCategory/f601efab-2e3c-40af-8a76-7bd668d1cade
+Content-Type: application/json
+
+{
+  "active": false
+}
+
+
+### ============================================================
+### Activate Category
+### ============================================================
+
+PUT {{baseUrl}}/categories/updateCategory/f601efab-2e3c-40af-8a76-7bd668d1cade
+Content-Type: application/json
+
+{
+  "active": true
+}
+
+
+### ============================================================
+### Delete Category - Soft Delete
+### ============================================================
+
+DELETE {{baseUrl}}/categories/deleteCategory/PUT-CATEGORY-UUID-HERE

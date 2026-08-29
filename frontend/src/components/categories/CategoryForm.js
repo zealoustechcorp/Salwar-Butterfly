@@ -180,8 +180,7 @@ export default function CategoryForm({ initial, onSave, onCancel }) {
    */
   const tabs = [
     { id: "general", label: "General Information" },
-    { id: "products", label: `Associated Products (${selectedProductIds.length})` },
-    { id: "sizes", label: `Size Charts (${enabledFits.size})` },
+    { id: "products", label: `Associated Products (${selectedProductIds.length})` }
   ];
 
   /**
@@ -421,57 +420,7 @@ export default function CategoryForm({ initial, onSave, onCancel }) {
           </Card>
         )}
 
-        {/* PANEL 3: Size Charts */}
-        {activeTab === "sizes" && (
-          <div className="space-y-4">
-            {/* Fit Variant Selector Chips */}
-            <Card className="p-4">
-              <p className="text-sm font-semibold text-ink-900">Fit Variants</p>
-              <p className="text-xs text-ink-500 mb-3">
-                Enable fit variants to activate size chart configuration for each garment style.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {FIT_TYPES.map((fit) => {
-                  const on = enabledFits.has(fit);
-                  return (
-                    <button
-                      key={fit}
-                      type="button"
-                      onClick={() => toggleFit(fit)}
-                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${on
-                          ? "bg-brand-600 text-white shadow-xs"
-                          : "bg-white text-ink-700 ring-1 ring-ink-200 hover:bg-ink-50"
-                        }`}
-                    >
-                      {on ? <Check className="size-3.5" /> : <Plus className="size-3.5" />}
-                      {fit}
-                    </button>
-                  );
-                })}
-              </div>
-            </Card>
 
-            {/* Individual Size Chart Measurement Editors */}
-            {sizeCharts.map((chart) => (
-              <SizeChartEditor
-                key={chart.fit}
-                chart={chart}
-                onChange={(c) =>
-                  setSizeCharts((sc) => sc.map((x) => (x.fit === c.fit ? c : x)))
-                }
-              />
-            ))}
-
-            {sizeCharts.length === 0 && (
-              <Card className="p-8 text-center">
-                <p className="text-xs font-medium text-ink-600">No fit variants selected</p>
-                <p className="text-[11px] text-ink-400 mt-0.5">
-                  Click on one of the fit variant buttons above to add a size chart.
-                </p>
-              </Card>
-            )}
-          </div>
-        )}
       </div>
 
       {/* 

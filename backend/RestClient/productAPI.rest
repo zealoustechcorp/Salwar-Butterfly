@@ -1,0 +1,213 @@
+### Base URL
+@baseUrl = http://localhost:4000/api
+
+
+### ============================================================
+### PRODUCT ENDPOINTS
+### ============================================================
+
+
+### ============================================================
+### Create Product
+### ============================================================
+POST {{baseUrl}}/products/createProduct
+Content-Type: application/json
+
+{
+  "name": "Premium Cotton Shirts",
+  "slug": "premium-cotton-shirts-formal",
+  "description": "High quality cotton",
+  "categoryId": "66cc113e-f19e-42df-bbff-777c21f7743a",
+  "subCategoryId": "d9b1686a-ca9e-4f85-ab50-c719406f2a9f",
+  "basePrice": 999.99,
+  "discountPercentage": 10,
+  "isFeatured": true,
+  "active": true
+}
+
+### ============================================================
+### Bulk Update Products Category:
+### ============================================================
+POST {{baseUrl}}/products/bulkUpdateCategory
+Content-Type: application/json
+
+{
+  "categoryId": "f601efab-2e3c-40af-8a76-7bd668d1cade",
+  "productIds": [
+    "dddafe1b-45b5-4880-a56a-6f1a8e1ff2d4",
+    "223d0b5a-4da0-4b62-8009-b85a77d2d5a8"
+  ]
+}
+
+### ============================================================
+### Get All Products
+### ============================================================
+
+GET {{baseUrl}}/products/getAllProducts
+
+
+### ============================================================
+### Get Product by ID
+### ============================================================
+
+GET {{baseUrl}}/products/getProductById/41cee835-1c0c-4511-b091-246a213e8373
+
+
+### ============================================================
+### Update Product - Complete Update
+### ============================================================
+
+PUT {{baseUrl}}/products/updateProduct/223d0b5a-4da0-4b62-8009-b85a77d2d5a8
+Content-Type: application/json
+
+{
+  "categoryId": "f601efab-2e3c-40af-8a76-7bd668d1cade",
+  "sizeChartId": "aeab356d-91c0-4e46-b51b-6ee8c5c72feb",
+  "name": "Premium Designer Salwar",
+  "slug": "premium-designer-salwar",
+  "description": "Premium designer salwar with elegant traditional styling",
+  "basePrice": 1799.00,
+  "discountPercentage": 15,
+  "isFeatured": true,
+  "active": true
+}
+
+
+### ============================================================
+### Partial Update Product - Name Only
+### ============================================================
+
+PUT {{baseUrl}}/products/updateProduct/223d0b5a-4da0-4b62-8009-b85a77d2d5a8
+Content-Type: application/json
+
+{
+  "name": "Premium Cotton Salwar"
+}
+
+
+### ============================================================
+### Partial Update Product - Description
+### ============================================================
+
+PUT {{baseUrl}}/products/updateProduct/223d0b5a-4da0-4b62-8009-b85a77d2d5a8
+Content-Type: application/json
+
+{
+  "description": "Premium cotton salwar with soft fabric and comfortable fit"
+}
+
+
+### ============================================================
+### Update Base Price
+### ============================================================
+
+PUT {{baseUrl}}/products/updateProduct/223d0b5a-4da0-4b62-8009-b85a77d2d5a8
+Content-Type: application/json
+
+{
+  "basePrice": 1599.00
+}
+
+
+### ============================================================
+### Update Discount
+### ============================================================
+
+PUT {{baseUrl}}/products/updateProduct/223d0b5a-4da0-4b62-8009-b85a77d2d5a8
+Content-Type: application/json
+
+{
+  "discountPercentage": 20
+}
+
+
+### ============================================================
+### Remove Discount
+### ============================================================
+
+PUT {{baseUrl}}/products/updateProduct/223d0b5a-4da0-4b62-8009-b85a77d2d5a8
+Content-Type: application/json
+
+{
+  "discountPercentage": 0
+}
+
+
+### ============================================================
+### Feature Product
+### ============================================================
+
+PUT {{baseUrl}}/products/updateProduct/223d0b5a-4da0-4b62-8009-b85a77d2d5a8
+Content-Type: application/json
+
+{
+  "isFeatured": true
+}
+
+
+### ============================================================
+### Remove Product from Featured
+### ============================================================
+
+PUT {{baseUrl}}/products/updateProduct/223d0b5a-4da0-4b62-8009-b85a77d2d5a8
+Content-Type: application/json
+
+{
+  "isFeatured": false
+}
+
+
+### ============================================================
+### Deactivate Product
+### ============================================================
+
+PUT {{baseUrl}}/products/updateProduct/223d0b5a-4da0-4b62-8009-b85a77d2d5a8
+Content-Type: application/json
+
+{
+  "active": false
+}
+
+
+### ============================================================
+### Activate Product
+### ============================================================
+
+PUT {{baseUrl}}/products/updateProduct/223d0b5a-4da0-4b62-8009-b85a77d2d5a8
+Content-Type: application/json
+
+{
+  "active": true
+}
+
+
+### ============================================================
+### Change Category
+### ============================================================
+
+PUT {{baseUrl}}/products/updateProduct/223d0b5a-4da0-4b62-8009-b85a77d2d5a8
+Content-Type: application/json
+
+{
+  "categoryId": "0f0f051a-09d0-4551-bfc1-4f1b4bb3196b"
+}
+
+
+
+### ============================================================
+### Change Slug
+### ============================================================
+
+PUT {{baseUrl}}/products/updateProduct/223d0b5a-4da0-4b62-8009-b85a77d2d5a8
+Content-Type: application/json
+
+{
+  "slug": "premium-designer-salwar"
+}
+
+
+### ============================================================
+### Delete Product - Soft Delete
+### ============================================================
+
+DELETE {{baseUrl}}/products/deleteProduct/223d0b5a-4da0-4b62-8009-b85a77d2d5a8

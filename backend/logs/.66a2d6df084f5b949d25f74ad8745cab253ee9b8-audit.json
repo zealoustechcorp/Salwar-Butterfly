@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 30
+    },
+    "auditLog": "D:\\Salwar-Butterfly-developer\\backend\\logs\\.66a2d6df084f5b949d25f74ad8745cab253ee9b8-audit.json",
+    "files": [
+        {
+            "date": 1787988166493,
+            "name": "D:\\Salwar-Butterfly-developer\\backend\\logs\\warn-2026-08-29.log",
+            "hash": "ebfd064556f5c7f75502a13e2fa1bffa829f427c43e959dd0445db8006bcf2c4"
+        }
+    ],
+    "hashType": "sha256"
+}

@@ -1,0 +1,48 @@
+### Base URL
+@baseUrl = http://localhost:4000/api
+
+### ============ HEALTH CHECK ============
+
+GET {{baseUrl}}/health
+
+
+### ============ CUSTOMER ENDPOINTS ============
+
+### Register Customer
+POST {{baseUrl}}/customers/register
+Content-Type: application/json
+
+{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "phone": "9876543210",
+  "password": "password123"
+}
+
+### Get All Customers
+GET {{baseUrl}}/customers/getAllCustomers
+
+### Get Customer by ID
+GET {{baseUrl}}/customers/getCustomerById/37eaec34-f7b4-4001-95b1-1f2c18535288
+
+### Update Customer
+PUT {{baseUrl}}/customers/updateCustomer/37eaec34-f7b4-4001-95b1-1f2c18535288
+Content-Type: application/json
+
+{
+  "name": "Jane Doe",
+  "email": "jane@example.com",
+  "phone": "9876543211"
+}
+
+### Change Customer Password
+POST {{baseUrl}}/customers/37eaec34-f7b4-4001-95b1-1f2c18535288/change-password
+Content-Type: application/json
+
+{
+  "oldPassword": "password123",
+  "newPassword": "newpassword456"
+}
+
+### Delete Customer (Soft Delete)
+DELETE {{baseUrl}}/customers/550e8400-e29b-41d4-a716-446655440000
