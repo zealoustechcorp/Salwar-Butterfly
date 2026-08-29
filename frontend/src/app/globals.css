@@ -163,8 +163,72 @@ body {
   font-family: var(--font-karla), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
+/* The customer storefront paints its own cream ground so it never inherits the
+   body's dark-mode fallback, and it carries Karla as the body face — Cormorant
+   is headings-only (Docs/Design_Brand-Palette-and-Typography.md §5). */
+.sb-root {
+  background: var(--color-sb-bg);
+  color: var(--color-sb-text);
+  font-family: var(--font-karla), "Segoe UI", system-ui, sans-serif;
+}
+
+/* The logo's "DRESS SHOP" lockup, as a utility: Karla 700, uppercase, 0.2em. */
+.sb-eyebrow {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+}
+
+/* Rose-gold hairline — ornament only, never behind or as text. */
+.sb-rule {
+  background: linear-gradient(90deg, transparent, var(--color-sb-gold), transparent);
+}
+
 .tabular {
   font-variant-numeric: tabular-nums;
+}
+
+.sb-no-scrollbar {
+  scrollbar-width: none;
+}
+
+.sb-no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes sb-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* The track holds two identical copies, so -50% loops seamlessly. */
+.sb-marquee {
+  animation: sb-marquee 30s linear infinite;
+}
+
+@keyframes sb-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(-3deg);
+  }
+}
+
+.sb-float {
+  animation: sb-float 7s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sb-marquee,
+  .sb-float {
+    animation: none;
+  }
 }
 
 @keyframes sb-fade-up {
