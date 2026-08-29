@@ -1,0 +1,151 @@
+"use client";
+
+import { Heart, ShoppingBag } from "lucide-react";
+import { useState } from "react";
+
+import { money } from "@/lib/format";
+import { cn } from "@/lib/utils";
+import { Photo } from "./Photo";
+import { useStore } from "./StoreProvider";
+
+/**
+ * A real product tile: the shop's own Cloudinary photography, its real price
+ * and struck-through MRP, and only the sizes that still have stock.
+ *
+ * There is deliberately no star rating here — the live shop publishes no review
+ * data, and inventing one for a real business would be a lie on the page.
+ */
+export function ProductCard({ product, priority = false }) {
+  const { addToBag, toggleWish, wishlist } = useStore();
+  const [size, setSize] = useState(product.available_sizes[0] || null);
+  const wished = wishlist.includes(product.id);
+
+  return (
+    <article className="group flex flex-col">
+      <div className="relative overflow-hidden rounded-2xl border border-sb-gold/30 bg-sb-surface/40">
+        <div className="relative">
+          <div className="relative aspect-3/4 w-full overflow-hidden bg-sb-surface/50">
+            <Photo
+              src={product.image}
+              hoverSrc={product.image2}
+              alt={product.name}
+              categoryId={product.category_id}
+              seed={product.id}
+              priority={priority}
+              sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
+              className={cn(
+                "object-cover transition-all duration-500",
+                // A second photo, where the shop uploaded one, becomes the
+                // hover state instead of a scale-up.
+                product.image2 ? "group-hover:opacity-0" : "group-hover:scale-105",
+              )}
+            />
+          </div>
+
+          <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-2.5 sm:p-3">
+            {product.off > 0 ? (
+              <span className="rounded-full bg-sb-btn-rose px-2 py-0.5 text-[10px] font-bold text-sb-bg sm:px-2.5 sm:py-1 sm:text-[11px]">
+                {product.off}% off
+              </span>
+            ) : (
+              <span />
+            )}
+
+            <button
+              type="button"
+              onClick={() => toggleWish(product)}
+              aria-pressed={wished}
+              aria-label={
+                wished ? `Remove ${product.name} from wishlist` : `Save ${product.name} to wishlist`
+              }
+              className="rounded-full bg-sb-bg/90 p-1.5 text-sb-heading shadow-sm transition-colors hover:bg-sb-bg sm:p-2"
+            >
+              <Heart
+                className={cn("size-4", wished && "fill-sb-btn-rose text-sb-btn-rose")}
+                aria-hidden="true"
+              />
+            </button>
+          </div>
+
+          {!product.in_stock ? (
+            <span className="absolute bottom-2.5 left-2.5 rounded-full bg-sb-footer/90 px-2.5 py-1 text-[10px] font-semibold text-sb-bg sm:bottom-3 sm:left-3 sm:text-[11px]">
+              Sold out
+            </span>
+          ) : product.is_low_stock ? (
+            <span className="absolute bottom-2.5 left-2.5 rounded-full bg-sb-surface-pink px-2.5 py-1 text-[10px] font-semibold text-sb-ink-on-pink sm:bottom-3 sm:left-3 sm:text-[11px]">
+              Only {product.stock} left
+            </span>
+          ) : null}
+        </div>
+
+        {/*
+          On a pointer device this is an overlay that slides up on hover or
+          keyboard focus; on touch there is no hover to wait for, so it sits in
+          normal flow and is always tappable. `@media (hover: hover)` is the
+          honest test — a 1024px tablet has a desktop's width and no pointer.
+        */}
+        <div className="border-t border-sb-gold/30 bg-sb-bg/95 p-3 transition-transform duration-300 group-hover:translate-y-0 group-focus-within:translate-y-0 [@media(hover:hover)]:absolute [@media(hover:hover)]:inset-x-0 [@media(hover:hover)]:bottom-0 [@media(hover:hover)]:translate-y-full">
+          {product.available_sizes.length ? (
+            <div className="mb-2 flex flex-wrap gap-1">
+              {product.available_sizes.map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setSize(value)}
+                  aria-pressed={size === value}
+                  className={cn(
+                    "min-w-7 rounded-md border px-1.5 py-1 text-[11px] font-semibold transition-colors sm:min-w-8",
+                    size === value
+                      ? "border-sb-heading bg-sb-heading text-sb-bg"
+                      : "border-sb-gold/45 bg-sb-bg text-sb-text hover:border-sb-heading",
+                  )}
+                >
+                  {value}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="mb-2 text-[11px] text-sb-text-muted">No sizes in stock</p>
+          )}
+
+          <button
+            type="button"
+            disabled={!product.in_stock}
+            onClick={() => addToBag(product, { size })}
+            className="flex w-full items-center justify-center gap-2 rounded-full bg-sb-btn-primary px-3 py-2.5 text-[13px] font-semibold text-sb-bg transition-colors hover:bg-sb-btn-rose disabled:cursor-not-allowed disabled:bg-sb-text-muted/40 sm:px-4 sm:text-sm"
+          >
+            <ShoppingBag className="size-4 shrink-0" aria-hidden="true" />
+            {product.in_stock ? "Add to bag" : "Sold out"}
+          </button>
+        </div>
+      </div>
+
+      <div className="flex flex-1 flex-col pt-3">
+        <p className="sb-eyebrow text-[9px] text-sb-gold-text">{product.category_name}</p>
+        <h3 className="mt-1 font-display text-lg leading-snug font-semibold text-sb-heading sm:text-xl">
+          {product.name}
+        </h3>
+
+        {product.fabric ? (
+          <p className="mt-0.5 text-[11px] text-sb-text-muted sm:text-xs">{product.fabric}</p>
+        ) : null}
+
+        <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+          <span className="text-base font-bold text-sb-text tabular sm:text-lg">
+            {money(product.price)}
+          </span>
+          {product.mrp ? (
+            <>
+              <span className="text-[13px] text-sb-text-muted line-through tabular sm:text-sm">
+                {money(product.mrp)}
+              </span>
+              <span className="hidden text-xs font-semibold text-sb-link tabular sm:inline">
+                Save {money(product.saving)}
+              </span>
+            </>
+          ) : null}
+        </div>
+      </div>
+    </article>
+  );
+}

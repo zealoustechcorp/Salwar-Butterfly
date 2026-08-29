@@ -1,0 +1,7394 @@
+{
+ "fetched_at": "2026-08-29",
+ "source": "https://www.salwarbutterfly.in",
+ "shop": {
+  "name": "Salwar Butterfly",
+  "tagline": "Fashion meets comfort",
+  "phone": "8778921938",
+  "email": "salwarbutterfly1213@gmail.com",
+  "logo": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1781285233/shop/settings/njxy2ex9nvieh7r6vhpq.jpg",
+  "instagram": "https://www.instagram.com/salwar_butterfly/",
+  "whatsapp": "https://wa.me/918778921938",
+  "banners": [
+   "https://res.cloudinary.com/ddvui6pi4/image/upload/v1781193886/shop/settings/mfdylo1mwpnsmykcw0ag.jpg",
+   "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782149601/shop/settings/hjmgv0ldthb9vn99hlh9.jpg",
+   "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782149742/shop/settings/d8fuqoctx9wkxvgqlh5v.jpg",
+   "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782149652/shop/settings/oktrkjeec6erzhocqdjg.jpg",
+   "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782149768/shop/settings/ymablyxlrytu1povjvm2.jpg"
+  ],
+  "features": [
+   {
+    "title": "Delivery time 10 working days",
+    "detail": "Freeshipping all over India"
+   },
+   {
+    "title": "Gst registered brand",
+    "detail": "Trusted seller"
+   },
+   {
+    "title": "Limited edition",
+    "detail": "Book fast before stock out"
+   },
+   {
+    "title": "Watsapp support",
+    "detail": "No cod only online payment"
+   }
+  ]
+ },
+ "categories": [
+  {
+   "id": 5,
+   "name": "Straight cut salwars",
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782148398/shop/categories/hqxqrunsai6a9hkp3kjd.jpg",
+   "count": 83
+  },
+  {
+   "id": 1,
+   "name": "Coord sets",
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782148465/shop/categories/iarcqzpl5atuj9m592gy.jpg",
+   "count": 39
+  },
+  {
+   "id": 3,
+   "name": "Aline salwars",
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782149335/shop/categories/msn0kncwcpljphcmm33w.jpg",
+   "count": 31
+  },
+  {
+   "id": 2,
+   "name": "Anarkali salwars",
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782148850/shop/categories/xqxrw4xipd7pcailyhs2.jpg",
+   "count": 27
+  },
+  {
+   "id": 4,
+   "name": "Western wears",
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782322561/shop/categories/n6dpgfzsypnqlbk8bz5x.jpg",
+   "count": 17
+  }
+ ],
+ "products": [
+  {
+   "id": 286,
+   "name": "Anarkali salwar",
+   "price": 1850,
+   "mrp": 2100,
+   "off": 12,
+   "category_id": 2,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784379523/shop/products/qlahqn4cimw3q65zdt1x.jpg",
+   "image2": null,
+   "stock": 5,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 0
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-18T12:58:44.000Z"
+  },
+  {
+   "id": 285,
+   "name": "Anarkali salwar",
+   "price": 1850,
+   "mrp": 2100,
+   "off": 12,
+   "category_id": 2,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784379472/shop/products/h4plood1tnc6wkx7vdd9.jpg",
+   "image2": null,
+   "stock": 4,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 0
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-18T12:57:53.000Z"
+  },
+  {
+   "id": 284,
+   "name": "Anarkali salwar",
+   "price": 1850,
+   "mrp": 2100,
+   "off": 12,
+   "category_id": 2,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784379427/shop/products/uispxjfyqsi6fytg1jgl.jpg",
+   "image2": null,
+   "stock": 4,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 0
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-07-18T12:57:07.000Z"
+  },
+  {
+   "id": 282,
+   "name": "Premium dhabu cotton salwar",
+   "price": 1699,
+   "mrp": 1899,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784351548/shop/products/f0ma5w2lhwbxarukblvn.jpg",
+   "image2": null,
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-18T05:12:30.000Z"
+  },
+  {
+   "id": 281,
+   "name": "Premium dhabu cotton salwar",
+   "price": 1699,
+   "mrp": 1899,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784351480/shop/products/z7zyyaeorifkkdzeekb0.jpg",
+   "image2": null,
+   "stock": 5,
+   "sizes": [
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-18T05:11:21.000Z"
+  },
+  {
+   "id": 277,
+   "name": "Azrak salwar",
+   "price": 1550,
+   "mrp": 1750,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784264270/shop/products/nktst4vqe53lvjh662pi.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784264271/shop/products/mstmyzmpgnz0y4vvkldy.jpg",
+   "stock": 5,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 0
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-17T04:57:52.000Z"
+  },
+  {
+   "id": 276,
+   "name": "Azrak salwar",
+   "price": 1550,
+   "mrp": 1750,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784264060/shop/products/wozykhz0qhlenl1dgeun.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784264061/shop/products/m9nh4l450nczy6rnatfa.jpg",
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-17T04:54:22.000Z"
+  },
+  {
+   "id": 275,
+   "name": "Azrak salwar",
+   "price": 1550,
+   "mrp": 1750,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784263981/shop/products/jeh8nmid7lgd1tj7j5m8.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784263982/shop/products/rs28kxaymbvkmmj1lzol.jpg",
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-17T04:53:03.000Z"
+  },
+  {
+   "id": 274,
+   "name": "Azrak salwar",
+   "price": 1550,
+   "mrp": 1750,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784263921/shop/products/kloqvl83xxfzfeawd9bj.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784263921/shop/products/bpsdw0hh2ylk8ikzmq2y.jpg",
+   "stock": 4,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 0
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-17T04:52:02.000Z"
+  },
+  {
+   "id": 273,
+   "name": "Azrak salwar",
+   "price": 1550,
+   "mrp": 1750,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784217717/shop/products/kimlcu1frsels51g1p5p.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784217719/shop/products/j8g0pl5g2xnlzk6rsfck.jpg",
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-16T16:02:00.000Z"
+  },
+  {
+   "id": 272,
+   "name": "Azrak salwar",
+   "price": 1550,
+   "mrp": 1750,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784217644/shop/products/i1kkknkarigmi0anb1qh.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784217645/shop/products/lfmxpjsu3a4kondomohd.jpg",
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-16T16:00:46.000Z"
+  },
+  {
+   "id": 271,
+   "name": "Azrak salwar",
+   "price": 1550,
+   "mrp": 1750,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784217573/shop/products/zthsl3uhb2d0i4pyva7w.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784217575/shop/products/z9ijfc3hfl7mbybrcbg4.jpg",
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-16T15:59:36.000Z"
+  },
+  {
+   "id": 270,
+   "name": "Boutique style salwar",
+   "price": 1799,
+   "mrp": 1999,
+   "off": 10,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784217294/shop/products/uphmrvigjbhjmq9aep2h.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784217295/shop/products/tjvomayn8lbtqnossrf8.jpg",
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-16T15:54:56.000Z"
+  },
+  {
+   "id": 269,
+   "name": "Azrak salwars",
+   "price": 1550,
+   "mrp": 1750,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784195007/shop/products/hx2qsvfqswgxcwjhrotu.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784195008/shop/products/vl0tnw4hvzhemeavdar6.jpg",
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-16T09:43:30.000Z"
+  },
+  {
+   "id": 268,
+   "name": "Azrak salwar",
+   "price": 1550,
+   "mrp": 1750,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784186965/shop/products/jajurw5s2hztcmdh5xfk.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784186965/shop/products/gsilwrfbi1h8ptgsnata.jpg",
+   "stock": 4,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 0
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-16T07:29:26.000Z"
+  },
+  {
+   "id": 267,
+   "name": "Azrak salwar",
+   "price": 1550,
+   "mrp": 1750,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784186740/shop/products/ew8eexbvbu5nydh76mlk.jpg",
+   "image2": null,
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-16T07:25:42.000Z"
+  },
+  {
+   "id": 266,
+   "name": "Azrak salwar",
+   "price": 1550,
+   "mrp": 1750,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784186670/shop/products/xlggymcx1ceskvwfmz9d.jpg",
+   "image2": null,
+   "stock": 4,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 0
+    },
+    {
+     "size": "38",
+     "stock": 0
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-16T07:24:31.000Z"
+  },
+  {
+   "id": 265,
+   "name": "Azrak salwars",
+   "price": 1550,
+   "mrp": 1750,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784186607/shop/products/dnpzijpk64yaaafnp5yv.jpg",
+   "image2": null,
+   "stock": 4,
+   "sizes": [
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 0
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-16T07:23:28.000Z"
+  },
+  {
+   "id": 264,
+   "name": "Coord set",
+   "price": 1350,
+   "mrp": 1450,
+   "off": 7,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784185961/shop/products/ehslm9fmdqdu94jtspp3.jpg",
+   "image2": null,
+   "stock": 5,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-16T07:12:42.000Z"
+  },
+  {
+   "id": 263,
+   "name": "Coord set",
+   "price": 1350,
+   "mrp": 1450,
+   "off": 7,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784185904/shop/products/jenvqp8tafs6xnisi13v.jpg",
+   "image2": null,
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-16T07:11:45.000Z"
+  },
+  {
+   "id": 262,
+   "name": "Coord sets",
+   "price": 1350,
+   "mrp": 1450,
+   "off": 7,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784185849/shop/products/mgizauqp8u4eq9hatkbu.jpg",
+   "image2": null,
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-16T07:10:50.000Z"
+  },
+  {
+   "id": 261,
+   "name": "Premium cotton coord set",
+   "price": 1350,
+   "mrp": 1450,
+   "off": 7,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784137041/shop/products/dybyhqldejxlwya6jwyp.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784137041/shop/products/ue6mqdqy6shgyv6iknjb.jpg",
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-15T17:37:22.000Z"
+  },
+  {
+   "id": 260,
+   "name": "Premium dhabu cotton salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784136911/shop/products/ljxosp0e7rzqikcnzceg.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784136912/shop/products/dtwwbujcq9y4m7gedwmz.jpg",
+   "stock": 5,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-15T17:35:14.000Z"
+  },
+  {
+   "id": 259,
+   "name": "Premium dhabhu cotton salwar",
+   "price": 1699,
+   "mrp": 1899,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784100000/shop/products/xmpilime938obbybmtfr.jpg",
+   "image2": null,
+   "stock": 5,
+   "sizes": [
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-15T07:20:01.000Z"
+  },
+  {
+   "id": 258,
+   "name": "Premium dhabhu cotton salwar",
+   "price": 1699,
+   "mrp": 1899,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784099943/shop/products/oeajwzlnzdsmbrkbbae0.jpg",
+   "image2": null,
+   "stock": 5,
+   "sizes": [
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-15T07:19:04.000Z"
+  },
+  {
+   "id": 257,
+   "name": "Premium dhabhu cotton salwars",
+   "price": 1699,
+   "mrp": 1899,
+   "off": 11,
+   "category_id": 3,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784099848/shop/products/jtttkywizmy0gr70bjue.jpg",
+   "image2": null,
+   "stock": 4,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 0
+    },
+    {
+     "size": "46",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-07-15T07:17:29.000Z"
+  },
+  {
+   "id": 256,
+   "name": "Premium dhabhu cotton salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 3,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784097580/shop/products/phtshvyquq2hfhvprwh3.jpg",
+   "image2": null,
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-15T06:39:41.000Z"
+  },
+  {
+   "id": 255,
+   "name": "Premium dhabhu cotton salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 3,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784097518/shop/products/rtclyjt88okk81j23hcb.jpg",
+   "image2": null,
+   "stock": 5,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 0
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-15T06:38:39.000Z"
+  },
+  {
+   "id": 254,
+   "name": "Premium dhabhu cotton salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 3,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784097464/shop/products/ot0yxap6aplwxgmunwiu.jpg",
+   "image2": null,
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-15T06:37:45.000Z"
+  },
+  {
+   "id": 253,
+   "name": "Floral salwar",
+   "price": 1799,
+   "mrp": 1999,
+   "off": 10,
+   "category_id": 3,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784037108/shop/products/jtzqm5jetqoq8yxb1i6g.jpg",
+   "image2": null,
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-14T13:51:49.000Z"
+  },
+  {
+   "id": 252,
+   "name": "Floral salwar",
+   "price": 1799,
+   "mrp": 1999,
+   "off": 10,
+   "category_id": 3,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784037042/shop/products/d36fzea1wspaa4wx1acb.jpg",
+   "image2": null,
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-14T13:50:42.000Z"
+  },
+  {
+   "id": 251,
+   "name": "Floral salwar",
+   "price": 1799,
+   "mrp": 1999,
+   "off": 10,
+   "category_id": 3,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1784036982/shop/products/jdiqya09qngvy27ubkhp.jpg",
+   "image2": null,
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-14T13:49:43.000Z"
+  },
+  {
+   "id": 250,
+   "name": "Premium dhabu cotton salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783512603/shop/products/p8ifiykylsqswmke6xp1.jpg",
+   "image2": null,
+   "stock": 5,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-08T12:10:04.000Z"
+  },
+  {
+   "id": 249,
+   "name": "Premium dhabu cotton salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783512509/shop/products/l6mlp0rncqdphr8gbcuh.jpg",
+   "image2": null,
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-08T12:08:30.000Z"
+  },
+  {
+   "id": 248,
+   "name": "Premium dhabu cotton salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783509416/shop/products/kg4rx655h355flh3bdjr.jpg",
+   "image2": null,
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-08T11:16:57.000Z"
+  },
+  {
+   "id": 247,
+   "name": "Premium dhabu cotton salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783509350/shop/products/cypif2sqpxsuhaq35oi9.jpg",
+   "image2": null,
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-08T11:15:51.000Z"
+  },
+  {
+   "id": 246,
+   "name": "Floral maxi",
+   "price": 1350,
+   "mrp": 1550,
+   "off": 13,
+   "category_id": 4,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783402106/shop/products/zmasfdohlgh8bx6vj8j9.jpg",
+   "image2": null,
+   "stock": 4,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 0
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-07-07T05:28:26.000Z"
+  },
+  {
+   "id": 245,
+   "name": "Floral maxi",
+   "price": 1350,
+   "mrp": 1550,
+   "off": 13,
+   "category_id": 4,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783402050/shop/products/zp2txv8h5vkvtm3daizl.jpg",
+   "image2": null,
+   "stock": 5,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 0
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-07T05:27:31.000Z"
+  },
+  {
+   "id": 244,
+   "name": "Floral maxi",
+   "price": 1350,
+   "mrp": 1550,
+   "off": 13,
+   "category_id": 4,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783401980/shop/products/dvc9y4ryeuimu6qgsz3h.jpg",
+   "image2": null,
+   "stock": 5,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-07-07T05:26:21.000Z"
+  },
+  {
+   "id": 243,
+   "name": "Coord sets",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783400686/shop/products/kry0yd4lwoj7hulsu5g7.jpg",
+   "image2": null,
+   "stock": 4,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 0
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-07T05:04:46.000Z"
+  },
+  {
+   "id": 242,
+   "name": "Coord sets",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783400519/shop/products/pe9imfv1je4qmkmxntfk.jpg",
+   "image2": null,
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-07T05:02:00.000Z"
+  },
+  {
+   "id": 241,
+   "name": "Coord set",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783400034/shop/products/xekjqrmck5yqjlbvdhot.jpg",
+   "image2": null,
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-07T04:53:54.000Z"
+  },
+  {
+   "id": 240,
+   "name": "Coord set",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783399984/shop/products/awhwkg490qjpo0ac6yxu.jpg",
+   "image2": null,
+   "stock": 5,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-07-07T04:53:05.000Z"
+  },
+  {
+   "id": 239,
+   "name": "Coord set",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783399843/shop/products/k6qgnhqgwkaspbtsaosv.jpg",
+   "image2": null,
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-07T04:50:44.000Z"
+  },
+  {
+   "id": 238,
+   "name": "Coord set",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783399786/shop/products/lczvxn5asdrs64txr1vg.jpg",
+   "image2": null,
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-07T04:49:47.000Z"
+  },
+  {
+   "id": 237,
+   "name": "Coord set",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783399727/shop/products/qq9zalx8bz3mhsrvkuxi.jpg",
+   "image2": null,
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-07T04:48:31.000Z"
+  },
+  {
+   "id": 236,
+   "name": "Coord set",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783399656/shop/products/tpzgqvs7ydrynpfo0z8u.jpg",
+   "image2": null,
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-07T04:47:37.000Z"
+  },
+  {
+   "id": 235,
+   "name": "Coord set",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783399604/shop/products/rzhkxzf2h2quzwgmbdc5.jpg",
+   "image2": null,
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-07T04:46:45.000Z"
+  },
+  {
+   "id": 234,
+   "name": "Coord set",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783399541/shop/products/ko70msow7jh0n2l2n8oc.jpg",
+   "image2": null,
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-07T04:45:42.000Z"
+  },
+  {
+   "id": 233,
+   "name": "Premium embroidered dhabu cotton salwar",
+   "price": 1699,
+   "mrp": 1899,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783324658/shop/products/wcoksc6lm46jrvcp9f2n.jpg",
+   "image2": null,
+   "stock": 5,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-06T07:57:39.000Z"
+  },
+  {
+   "id": 232,
+   "name": "Premium embroidery design dhabu cotton salwar",
+   "price": 1699,
+   "mrp": 1899,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783324586/shop/products/hyglgpuvwayyn9qm1vfl.jpg",
+   "image2": null,
+   "stock": 5,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-06T07:56:27.000Z"
+  },
+  {
+   "id": 231,
+   "name": "Premium azrak dhabu cotton salwar",
+   "price": 1799,
+   "mrp": 1999,
+   "off": 10,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783324452/shop/products/f6amsjkbttvyqzcczcew.jpg",
+   "image2": null,
+   "stock": 4,
+   "sizes": [
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-06T07:54:13.000Z"
+  },
+  {
+   "id": 230,
+   "name": "Premium azrak dhabu cotton salwar",
+   "price": 1799,
+   "mrp": 1999,
+   "off": 10,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783324364/shop/products/dcjigtspg2fbgosathig.jpg",
+   "image2": null,
+   "stock": 4,
+   "sizes": [
+    {
+     "size": "38",
+     "stock": 0
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-06T07:52:45.000Z"
+  },
+  {
+   "id": 226,
+   "name": "Premium dhabu cotton salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783314205/shop/products/tlxq1besdp3kxbaljtdn.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783314206/shop/products/nwytvmmfpjmhl36yluuw.jpg",
+   "stock": 0,
+   "sizes": [
+    {
+     "size": "38",
+     "stock": 0
+    },
+    {
+     "size": "40",
+     "stock": 0
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 0
+    },
+    {
+     "size": "46",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-07-06T05:03:26.000Z"
+  },
+  {
+   "id": 224,
+   "name": "Premium dhabu cotton salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783313532/shop/products/hmrqmzi4ol3kmlflngaq.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783313533/shop/products/jhtee5c1fvqygnvbap2q.jpg",
+   "stock": 0,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 0
+    },
+    {
+     "size": "38",
+     "stock": 0
+    },
+    {
+     "size": "40",
+     "stock": 0
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 0
+    },
+    {
+     "size": "46",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-07-06T04:52:14.000Z"
+  },
+  {
+   "id": 223,
+   "name": "Premium dhabu cotton",
+   "price": 1799,
+   "mrp": 1999,
+   "off": 10,
+   "category_id": 3,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783313379/shop/products/barszzix9jey85wn03nw.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783313380/shop/products/m5je3fvthwlv8qs40azd.jpg",
+   "stock": 0,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 0
+    },
+    {
+     "size": "38",
+     "stock": 0
+    },
+    {
+     "size": "40",
+     "stock": 0
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 0
+    },
+    {
+     "size": "46",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-07-06T04:49:41.000Z"
+  },
+  {
+   "id": 222,
+   "name": "Anarkali salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 2,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783313178/shop/products/udc0hfcz3awc8qp85pwy.jpg",
+   "image2": null,
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-06T04:46:19.000Z"
+  },
+  {
+   "id": 221,
+   "name": "Anarkali salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 2,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783313133/shop/products/ogcqlcidfexr0lbyazyc.jpg",
+   "image2": null,
+   "stock": 5,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-06T04:45:35.000Z"
+  },
+  {
+   "id": 220,
+   "name": "Anarkali salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 2,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783313040/shop/products/tobeksdup5cnjjq5zrzt.jpg",
+   "image2": null,
+   "stock": 0,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 0
+    },
+    {
+     "size": "38",
+     "stock": 0
+    },
+    {
+     "size": "40",
+     "stock": 0
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-07-06T04:44:01.000Z"
+  },
+  {
+   "id": 219,
+   "name": "Premium dhabu cotton salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 3,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783312743/shop/products/dgztiv04qhcywk4yeh1y.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783312744/shop/products/umpiee6g91qranm5ruzf.jpg",
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-06T04:39:05.000Z"
+  },
+  {
+   "id": 218,
+   "name": "Premium dhabu cotton salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 3,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783312686/shop/products/ymzohduqqryrzv6xrymv.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783312687/shop/products/jpurswqex7ufpo0f3f3m.jpg",
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-06T04:38:08.000Z"
+  },
+  {
+   "id": 217,
+   "name": "Premium dhabu cotton salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 3,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783312629/shop/products/mg9kufn7uer02eurouup.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783312630/shop/products/s5siokvlaqndptxj6ktd.jpg",
+   "stock": 5,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 0
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-06T04:37:11.000Z"
+  },
+  {
+   "id": 216,
+   "name": "Premium dhabu cotton salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 3,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783139440/shop/products/pkcssjmeomkvslosdtz6.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783139441/shop/products/mb6xrlore9arzvgnatbk.jpg",
+   "stock": 8,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-04T04:30:41.000Z"
+  },
+  {
+   "id": 215,
+   "name": "Premium dhabu cotton salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 3,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783139322/shop/products/jo9tzblvwdajqglsnqyb.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783139323/shop/products/blp2hybbdbfpoqqgzcwj.jpg",
+   "stock": 8,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-04T04:28:43.000Z"
+  },
+  {
+   "id": 213,
+   "name": "Premium dhabu cotton salwar",
+   "price": 1650,
+   "mrp": 1850,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783085062/shop/products/ingssxbubifk5tpjuhsr.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783085063/shop/products/mmcidhtukm9b8af3qsz4.jpg",
+   "stock": 7,
+   "sizes": [
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-03T13:24:25.000Z"
+  },
+  {
+   "id": 212,
+   "name": "Premium dhabu cotton salwar",
+   "price": 1650,
+   "mrp": 1850,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783084927/shop/products/zliazi6ugjojng2h0ora.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1783084929/shop/products/aec4ovpvafwgq4krjp7d.jpg",
+   "stock": 5,
+   "sizes": [
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-03T13:22:10.000Z"
+  },
+  {
+   "id": 209,
+   "name": "Chanderi silk salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782994792/shop/products/yzmzxsjzymumjfzk5tnl.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782994793/shop/products/cnfh2oprovcbq50jvipw.jpg",
+   "stock": 9,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-02T12:19:54.000Z"
+  },
+  {
+   "id": 208,
+   "name": "Chanderi silk salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782994718/shop/products/ck6wueheiqxc8ipifrsr.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782994720/shop/products/iy0ugwzjoza0mr3q74vh.jpg",
+   "stock": 0,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 0
+    },
+    {
+     "size": "38",
+     "stock": 0
+    },
+    {
+     "size": "40",
+     "stock": 0
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 0
+    },
+    {
+     "size": "46",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-07-02T12:18:41.000Z"
+  },
+  {
+   "id": 207,
+   "name": "Chanderi silk salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782994632/shop/products/wgh1zupdvcqrzkeyaimf.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782994633/shop/products/apxyiq6xy2zbnoirhqun.jpg",
+   "stock": 11,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 3
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-07-02T12:17:14.000Z"
+  },
+  {
+   "id": 206,
+   "name": "Chanderi salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782994530/shop/products/ie7lb3dwhzhuuwdeb3ed.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782994531/shop/products/owb05emefcjykyek4vhu.jpg",
+   "stock": 14,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 3
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 5
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-02T12:15:32.000Z"
+  },
+  {
+   "id": 205,
+   "name": "Ethnic salwar",
+   "price": 1799,
+   "mrp": 1999,
+   "off": 10,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782979423/shop/products/lfu8nqxlftl1dqzl6nfm.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782979425/shop/products/wqjtumbuqlnhl92ou4fy.jpg",
+   "stock": 0,
+   "sizes": [
+    {
+     "size": "38",
+     "stock": 0
+    },
+    {
+     "size": "40",
+     "stock": 0
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 0
+    },
+    {
+     "size": "46",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-07-02T08:03:46.000Z"
+  },
+  {
+   "id": 199,
+   "name": "Kalamkari Cotton salwar",
+   "price": 1750,
+   "mrp": 1950,
+   "off": 10,
+   "category_id": 3,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782967530/shop/products/zgafek5lokw9kpgdh8en.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782967531/shop/products/wkv69qosbag8l1ghjkgk.jpg",
+   "stock": 8,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 3
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-02T04:45:32.000Z"
+  },
+  {
+   "id": 198,
+   "name": "Kalamkari Cotton salwar",
+   "price": 1750,
+   "mrp": 1950,
+   "off": 10,
+   "category_id": 3,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782967469/shop/products/ydgiz4s1aupstj8ntck2.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782967471/shop/products/yitfcnjxtsagnuruulmp.jpg",
+   "stock": 12,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 3
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 4
+    }
+   ],
+   "created_at": "2026-07-02T04:44:31.000Z"
+  },
+  {
+   "id": 197,
+   "name": "Kalamkari Cotton salwar",
+   "price": 1750,
+   "mrp": 1950,
+   "off": 10,
+   "category_id": 3,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782967408/shop/products/dxyfb4maez59xdaf6e4t.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782967409/shop/products/oidva544ow5hkaikofeg.jpg",
+   "stock": 0,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 0
+    },
+    {
+     "size": "38",
+     "stock": 0
+    },
+    {
+     "size": "40",
+     "stock": 0
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 0
+    },
+    {
+     "size": "46",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-07-02T04:43:30.000Z"
+  },
+  {
+   "id": 195,
+   "name": "Anarkali salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 2,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782963311/shop/products/ojcl5pdsw03xgairf0cm.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782963312/shop/products/afc3ogvuqlnmfs5svc2d.jpg",
+   "stock": 10,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 3
+    },
+    {
+     "size": "46",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-07-02T03:35:13.000Z"
+  },
+  {
+   "id": 186,
+   "name": "Premium dhabu cotton salwar",
+   "price": 1699,
+   "mrp": 1899,
+   "off": 11,
+   "category_id": 3,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782891749/shop/products/nltgikvuwcpjkhuqrkk5.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782891751/shop/products/kiegoerrphucx5mjtzc5.jpg",
+   "stock": 7,
+   "sizes": [
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 3
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-01T07:42:32.000Z"
+  },
+  {
+   "id": 185,
+   "name": "Premium dhabu cotton salwar",
+   "price": 1699,
+   "mrp": 1899,
+   "off": 11,
+   "category_id": 3,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782891676/shop/products/uxkgwlnhrmbb75vlxqdl.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782891678/shop/products/dsvvik688rasmjgmfxyn.jpg",
+   "stock": 8,
+   "sizes": [
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-01T07:41:19.000Z"
+  },
+  {
+   "id": 184,
+   "name": "Rich dhabu cotton salwar",
+   "price": 1699,
+   "mrp": 1899,
+   "off": 11,
+   "category_id": 3,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782891586/shop/products/husi88ax7kc4wrjosqni.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782891588/shop/products/jvvxap4pkmb7c7tgjgp7.jpg",
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-07-01T07:39:48.000Z"
+  },
+  {
+   "id": 183,
+   "name": "Rich cotton salwar",
+   "price": 1699,
+   "mrp": 1899,
+   "off": 11,
+   "category_id": 3,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782891502/shop/products/osgv6acnreisyb5hoajz.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782891503/shop/products/ivfgrdrysmecukxe2h4l.jpg",
+   "stock": 9,
+   "sizes": [
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 3
+    }
+   ],
+   "created_at": "2026-07-01T07:38:24.000Z"
+  },
+  {
+   "id": 182,
+   "name": "Boutique style salwar",
+   "price": 1799,
+   "mrp": 1999,
+   "off": 10,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782891240/shop/products/xiympjsfdt74sxgslgl4.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782891241/shop/products/z0oywilwwbczcippvl3v.jpg",
+   "stock": 12,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 3
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 4
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-07-01T07:34:02.000Z"
+  },
+  {
+   "id": 181,
+   "name": "Premium rich cotton salwar",
+   "price": 1699,
+   "mrp": 1899,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782840036/shop/products/zugecnuw8lfpduh06nf7.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782840037/shop/products/kbu5chwrriwzeqe3suuj.jpg",
+   "stock": 11,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 4
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-30T17:20:38.000Z"
+  },
+  {
+   "id": 180,
+   "name": "Premium Rich Cotton salwar",
+   "price": 1699,
+   "mrp": 1899,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782839975/shop/products/qmcrnvzyltgkatfsj9nr.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782839976/shop/products/pibjlutogxabiavqvwzt.jpg",
+   "stock": 0,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 0
+    },
+    {
+     "size": "38",
+     "stock": 0
+    },
+    {
+     "size": "40",
+     "stock": 0
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 0
+    },
+    {
+     "size": "46",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-06-30T17:19:36.000Z"
+  },
+  {
+   "id": 167,
+   "name": "Premium dhabhu cotton",
+   "price": 1650,
+   "mrp": 1850,
+   "off": 11,
+   "category_id": 3,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782802632/shop/products/elfywaxzi2wju4stmrx6.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782802633/shop/products/ogupwf6ia2wuv2ru6rqo.jpg",
+   "stock": 1,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 0
+    },
+    {
+     "size": "40",
+     "stock": 0
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 0
+    },
+    {
+     "size": "46",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-06-30T06:57:14.000Z"
+  },
+  {
+   "id": 166,
+   "name": "Premium dhabhu cotton",
+   "price": 1650,
+   "mrp": 1850,
+   "off": 11,
+   "category_id": 3,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782802570/shop/products/sv4ys6jnsewu9jmtphrw.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782802571/shop/products/wa7kdzodpkgweay9jkwp.jpg",
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-30T06:56:12.000Z"
+  },
+  {
+   "id": 165,
+   "name": "Premium dhabhu cotton",
+   "price": 1650,
+   "mrp": 1850,
+   "off": 11,
+   "category_id": 3,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782802518/shop/products/om3mn77yyrqvfa9hegjx.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782802519/shop/products/fuv5r2vap8qaivbhszxs.jpg",
+   "stock": 0,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 0
+    },
+    {
+     "size": "38",
+     "stock": 0
+    },
+    {
+     "size": "40",
+     "stock": 0
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 0
+    },
+    {
+     "size": "46",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-06-30T06:55:20.000Z"
+  },
+  {
+   "id": 164,
+   "name": "Premium dhabhu cotton",
+   "price": 1650,
+   "mrp": 1850,
+   "off": 11,
+   "category_id": 3,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782802463/shop/products/yxyxdyb3wdthvogzcgsl.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782802464/shop/products/djpv1bwq0rdu8x2vului.jpg",
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-30T06:54:25.000Z"
+  },
+  {
+   "id": 163,
+   "name": "Premium cotton salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782752384/shop/products/g6pfwwzkfoayzaygxvod.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782752385/shop/products/ydikpamorehr0xhfhbxl.jpg",
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-29T16:59:46.000Z"
+  },
+  {
+   "id": 160,
+   "name": "Premium cotton salwar",
+   "price": 1650,
+   "mrp": 1850,
+   "off": 11,
+   "category_id": 3,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782751940/shop/products/hl10izzam0ecysgbj7f1.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782751941/shop/products/dvoorgxyrpn7adey7cwk.jpg",
+   "stock": 11,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-29T16:52:23.000Z"
+  },
+  {
+   "id": 159,
+   "name": "Premium cotton salwar",
+   "price": 1650,
+   "mrp": 1850,
+   "off": 11,
+   "category_id": 3,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782751779/shop/products/d9e8iewtpz2i7cqz847n.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782751780/shop/products/onkazxfteiwtjps59nab.jpg",
+   "stock": 11,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-29T16:49:42.000Z"
+  },
+  {
+   "id": 158,
+   "name": "Azrak salwar",
+   "price": 1550,
+   "mrp": null,
+   "off": 0,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782726531/shop/products/a5nvhym8wcta0ilgmlzb.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782726532/shop/products/kg6jqkqdp56ecfrauswk.jpg",
+   "stock": 15,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 5
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 3
+    }
+   ],
+   "created_at": "2026-06-29T09:48:52.000Z"
+  },
+  {
+   "id": 157,
+   "name": "Azrak salwars",
+   "price": 1550,
+   "mrp": null,
+   "off": 0,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782726418/shop/products/a2nfu6fjobl0t2qzocki.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782726418/shop/products/vxr6z6l4tdgojr8j4wmi.jpg",
+   "stock": 0,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 0
+    },
+    {
+     "size": "38",
+     "stock": 0
+    },
+    {
+     "size": "40",
+     "stock": 0
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 0
+    },
+    {
+     "size": "46",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-06-29T09:46:59.000Z"
+  },
+  {
+   "id": 155,
+   "name": "Royal fine dhabu cotton salwar",
+   "price": 1699,
+   "mrp": 1899,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782710394/shop/products/ffpo5z2yjs5ayhzvvhas.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782710395/shop/products/gnaxbuejcg80elfphgg5.jpg",
+   "stock": 0,
+   "sizes": [
+    {
+     "size": "38",
+     "stock": 0
+    },
+    {
+     "size": "40",
+     "stock": 0
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 0
+    },
+    {
+     "size": "46",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-06-29T05:19:56.000Z"
+  },
+  {
+   "id": 154,
+   "name": "Coord sets",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782710226/shop/products/ck7r7s13s8u08bjcuard.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782710227/shop/products/f4kzqxmjpelilsgvvwk2.jpg",
+   "stock": 5,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 0
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-29T05:17:08.000Z"
+  },
+  {
+   "id": 153,
+   "name": "Coord sets",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782710137/shop/products/rgq2a97y22sffcyzly6c.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782710138/shop/products/xb5tdbi4g3zn9victva7.jpg",
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-29T05:15:39.000Z"
+  },
+  {
+   "id": 152,
+   "name": "Coord sets",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782710074/shop/products/ajfxeonxjrddbvpkopac.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782710075/shop/products/pupw0b0njfei5hyua65b.jpg",
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-29T05:14:36.000Z"
+  },
+  {
+   "id": 151,
+   "name": "Coord sets",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782710011/shop/products/ndi89c8ywgorqbmsnmnt.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782710011/shop/products/oqpqg1xcjosdtgaowm0l.jpg",
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-29T05:13:32.000Z"
+  },
+  {
+   "id": 150,
+   "name": "Coord sets",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782709475/shop/products/jedh2s0nmpgemhu4pllo.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782709476/shop/products/vd4agmwwr1gxhwgnzxam.jpg",
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-29T05:04:37.000Z"
+  },
+  {
+   "id": 149,
+   "name": "Half white salwar",
+   "price": 1799,
+   "mrp": 1999,
+   "off": 10,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782709402/shop/products/pbjryntmgrvix5jqpmeg.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782709403/shop/products/o67kq3gzh1uzw4mrwuxz.jpg",
+   "stock": 4,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 0
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-06-29T05:03:24.000Z"
+  },
+  {
+   "id": 148,
+   "name": "Coord sets",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782709200/shop/products/fsvahvtczbsgfu5glicv.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782709201/shop/products/ejdjmccniawcenqtzrhv.jpg",
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-29T05:00:02.000Z"
+  },
+  {
+   "id": 147,
+   "name": "Coord sets",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782708982/shop/products/srd1olqxngrkpnlwlyjd.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782708983/shop/products/nxnxnk9hboa3jmh5rkjq.jpg",
+   "stock": 5,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 0
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-29T04:56:24.000Z"
+  },
+  {
+   "id": 146,
+   "name": "Coord sets",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782708895/shop/products/jopd5nnyhmyyojk8pblb.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782708896/shop/products/fo2q5balehito3p2e9lu.jpg",
+   "stock": 5,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-06-29T04:54:57.000Z"
+  },
+  {
+   "id": 145,
+   "name": "Coord sets",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782708581/shop/products/s27z2qyw0umxyshnfm4e.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782708582/shop/products/ws42bfqkcrf4semll6bt.jpg",
+   "stock": 2,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 0
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 0
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-06-29T04:49:42.000Z"
+  },
+  {
+   "id": 144,
+   "name": "Coord sets",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782708444/shop/products/gleaf2almzmqlqy8rypd.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782708445/shop/products/iq5aznxzntwm6qlc6x69.jpg",
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-29T04:47:26.000Z"
+  },
+  {
+   "id": 143,
+   "name": "Designer ethnic salwar",
+   "price": 1799,
+   "mrp": 1999,
+   "off": 10,
+   "category_id": 3,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782708316/shop/products/i5liouyishknkiulkz2p.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782708318/shop/products/tsdq0tispd0tuaqkfxna.jpg",
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-29T04:45:19.000Z"
+  },
+  {
+   "id": 142,
+   "name": "Coord sets",
+   "price": 1158,
+   "mrp": 1358,
+   "off": 15,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782708193/shop/products/s8jdg2kexwrnw91ybxoq.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782708194/shop/products/tgk9ljho4s2pkxdn3jjb.jpg",
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-29T04:43:15.000Z"
+  },
+  {
+   "id": 141,
+   "name": "Designer ethnic salwar",
+   "price": 1799,
+   "mrp": 1999,
+   "off": 10,
+   "category_id": 3,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782708084/shop/products/oivyjmqieswcooebenqy.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782708086/shop/products/uyo1qi1keddxm5ljateo.jpg",
+   "stock": 1,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 0
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 0
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 0
+    },
+    {
+     "size": "46",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-06-29T04:41:26.000Z"
+  },
+  {
+   "id": 140,
+   "name": "Coord sets",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782707887/shop/products/kqmg94do2jgg8lpyfth3.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782707888/shop/products/ndkoivuhwdv8afbbtjfv.jpg",
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-29T04:38:09.000Z"
+  },
+  {
+   "id": 138,
+   "name": "Coord sets",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782707582/shop/products/jpe0inidri54kvdhlzet.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782707583/shop/products/siq2vaoccaru4xsmqtwk.jpg",
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-29T04:33:04.000Z"
+  },
+  {
+   "id": 137,
+   "name": "Coord sets",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782707522/shop/products/pkq1fa9hhoiwtshwaaym.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782707523/shop/products/frgd9voc9tfmtzn5pley.jpg",
+   "stock": 4,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 0
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-06-29T04:32:04.000Z"
+  },
+  {
+   "id": 136,
+   "name": "Coords",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782707440/shop/products/tjsz2lcylgwztqaadgym.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782707441/shop/products/ekisjrheao9niaetesrk.jpg",
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-29T04:30:42.000Z"
+  },
+  {
+   "id": 135,
+   "name": "Coord sets",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782707338/shop/products/ri3kq2c0hdqms3jgeedk.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782707338/shop/products/djjao7gh0nz9obpwq2xz.jpg",
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-29T04:28:59.000Z"
+  },
+  {
+   "id": 134,
+   "name": "Dhabu cotton salwar",
+   "price": 1699,
+   "mrp": 1899,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782698567/shop/products/zjrjlozcbbw7mtcxqokt.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782698569/shop/products/muy1w29vvqshl3goumve.jpg",
+   "stock": 7,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-29T02:02:50.000Z"
+  },
+  {
+   "id": 133,
+   "name": "Black beauty",
+   "price": 1699,
+   "mrp": 1899,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782698498/shop/products/yf6ylui1fyfzfnyshsxw.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782698500/shop/products/mn6bl3uadgtsmbbez3j0.jpg",
+   "stock": 5,
+   "sizes": [
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-29T02:01:40.000Z"
+  },
+  {
+   "id": 132,
+   "name": "Coord sets",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782652297/shop/products/cg0yxos54i2flo5sp8zo.jpg",
+   "image2": null,
+   "stock": 10,
+   "sizes": [
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-28T13:11:39.000Z"
+  },
+  {
+   "id": 131,
+   "name": "Coord sets",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782639859/shop/products/a9xsjy26c8oi4tirstu7.jpg",
+   "image2": null,
+   "stock": 10,
+   "sizes": [
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-28T09:44:20.000Z"
+  },
+  {
+   "id": 130,
+   "name": "Coord sets",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782639707/shop/products/jjaoxpbupmukipblfh0m.jpg",
+   "image2": null,
+   "stock": 9,
+   "sizes": [
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-28T09:41:48.000Z"
+  },
+  {
+   "id": 129,
+   "name": "Coord sets",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782639477/shop/products/cidbdvc0i2o3ozdwr897.jpg",
+   "image2": null,
+   "stock": 10,
+   "sizes": [
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-28T09:37:58.000Z"
+  },
+  {
+   "id": 126,
+   "name": "Kota cotton salwar",
+   "price": 1899,
+   "mrp": 2199,
+   "off": 14,
+   "category_id": 2,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782627492/shop/products/zr6zk8ykprexpvkhdor0.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782627493/shop/products/ry66rttgzspjz3vdempf.jpg",
+   "stock": 5,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-28T06:18:15.000Z"
+  },
+  {
+   "id": 125,
+   "name": "Kanchi cotton salwar",
+   "price": 1899,
+   "mrp": 2199,
+   "off": 14,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782627159/shop/products/qznvg3v0wiqgsinuzcjx.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782627160/shop/products/jwvsp0fz9w5elutkwrl2.jpg",
+   "stock": 5,
+   "sizes": [
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-28T06:12:42.000Z"
+  },
+  {
+   "id": 124,
+   "name": "Kanchi cotton salwar",
+   "price": 1899,
+   "mrp": 2199,
+   "off": 14,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782626705/shop/products/jwr32iucixl388j1ktwi.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782626705/shop/products/nupqbo7uqun1c3rih0qo.jpg",
+   "stock": 5,
+   "sizes": [
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-28T06:05:06.000Z"
+  },
+  {
+   "id": 123,
+   "name": "Kanchi cotton salwar",
+   "price": 1899,
+   "mrp": 2100,
+   "off": 10,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782616330/shop/products/y3tedajjgekukh38zojp.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782616331/shop/products/q64vfof9wnffg2w2oejw.jpg",
+   "stock": 4,
+   "sizes": [
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-06-28T03:12:13.000Z"
+  },
+  {
+   "id": 119,
+   "name": "Premium dhabhu cotton salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782568069/shop/products/qkrusovehg2amhqijdym.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782568070/shop/products/nabborlk4kz6qgirudaf.jpg",
+   "stock": 9,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-27T13:47:50.000Z"
+  },
+  {
+   "id": 110,
+   "name": "Chanderi silk salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782542858/shop/products/fopgk1lfgwnugone5dfl.jpg",
+   "image2": null,
+   "stock": 11,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-27T06:47:39.000Z"
+  },
+  {
+   "id": 109,
+   "name": "Chanderi silk salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782542803/shop/products/ub5ncf3jlati6mnnk6uk.jpg",
+   "image2": null,
+   "stock": 11,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-27T06:46:44.000Z"
+  },
+  {
+   "id": 108,
+   "name": "Chanderi silk",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782542504/shop/products/sn7fn8bvhhahhxbl1wu4.jpg",
+   "image2": null,
+   "stock": 11,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-27T06:41:45.000Z"
+  },
+  {
+   "id": 107,
+   "name": "Floral salwar",
+   "price": 1550,
+   "mrp": 1750,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782481622/shop/products/lzbbpdtlyxjwmkgppvni.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782481624/shop/products/l6ejki32hgvjqkr4mlgi.jpg",
+   "stock": 0,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 0
+    },
+    {
+     "size": "38",
+     "stock": 0
+    },
+    {
+     "size": "40",
+     "stock": 0
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 0
+    },
+    {
+     "size": "46",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-06-26T13:47:04.000Z"
+  },
+  {
+   "id": 106,
+   "name": "Floral salwar",
+   "price": 1550,
+   "mrp": 1750,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782481565/shop/products/xngrhcdlaloysbtxxgg0.jpg",
+   "image2": null,
+   "stock": 0,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 0
+    },
+    {
+     "size": "38",
+     "stock": 0
+    },
+    {
+     "size": "40",
+     "stock": 0
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 0
+    },
+    {
+     "size": "46",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-06-26T13:46:06.000Z"
+  },
+  {
+   "id": 105,
+   "name": "Floral salwar",
+   "price": 1550,
+   "mrp": 1750,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782481387/shop/products/s7adc3oedwza7msydajx.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782481389/shop/products/aoci4crjdrfdxqmwzhb3.jpg",
+   "stock": 0,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 0
+    },
+    {
+     "size": "38",
+     "stock": 0
+    },
+    {
+     "size": "40",
+     "stock": 0
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 0
+    },
+    {
+     "size": "46",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-06-26T13:43:10.000Z"
+  },
+  {
+   "id": 103,
+   "name": "Floral salwar",
+   "price": 1550,
+   "mrp": 1750,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782480808/shop/products/lj7ntrcongzzvrqmgrqq.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782480809/shop/products/wadtafvxyymdceavitvp.jpg",
+   "stock": 0,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 0
+    },
+    {
+     "size": "38",
+     "stock": 0
+    },
+    {
+     "size": "40",
+     "stock": 0
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 0
+    },
+    {
+     "size": "46",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-06-26T13:33:30.000Z"
+  },
+  {
+   "id": 101,
+   "name": "Hot seller",
+   "price": 1350,
+   "mrp": 1450,
+   "off": 7,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782443798/shop/products/pysyr7xzq4gmfh468ap8.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782443799/shop/products/s1u33yxzhcxkhcshlcba.jpg",
+   "stock": 0,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 0
+    },
+    {
+     "size": "38",
+     "stock": 0
+    },
+    {
+     "size": "40",
+     "stock": 0
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 0
+    },
+    {
+     "size": "46",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-06-26T03:16:42.000Z"
+  },
+  {
+   "id": 99,
+   "name": "Azrak salwar",
+   "price": 1399,
+   "mrp": 1750,
+   "off": 20,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782443638/shop/products/wda2a7ybc3bp5hz7liwg.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782443639/shop/products/o6yxpvnwvhaks7b94jg8.jpg",
+   "stock": 12,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-26T03:14:00.000Z"
+  },
+  {
+   "id": 98,
+   "name": "Azrak salwar",
+   "price": 1399,
+   "mrp": 1750,
+   "off": 20,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782443549/shop/products/qfbg7wracpqatnxkvcau.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782443551/shop/products/ti7vtaux7gegd5bw69b4.jpg",
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-26T03:12:32.000Z"
+  },
+  {
+   "id": 97,
+   "name": "Anarkali kurti with pant",
+   "price": 1350,
+   "mrp": 1499,
+   "off": 10,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782441394/shop/products/vrczp0rd3da94tao32ir.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782441394/shop/products/dey8bv6ix0wcrbeiwhiu.jpg",
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-26T02:36:35.000Z"
+  },
+  {
+   "id": 96,
+   "name": "Black beauty",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782441264/shop/products/nmjhilozhwlpptdlqgdj.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782441264/shop/products/vn5g2wfvp0voqqvs91e7.jpg",
+   "stock": 5,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 0
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-26T02:34:26.000Z"
+  },
+  {
+   "id": 87,
+   "name": "Cotton Flared Suit (FullSleeves)",
+   "price": 1599,
+   "mrp": null,
+   "off": 0,
+   "category_id": 2,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782360914/shop/products/nbcaws1zsghlwzj8cm0o.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782360915/shop/products/jgqrbsikdhvadwqsdj11.jpg",
+   "stock": 12,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-25T04:15:17.000Z"
+  },
+  {
+   "id": 86,
+   "name": "Jaipur Abstract Print Kurti (one side pocket)",
+   "price": 1575,
+   "mrp": null,
+   "off": 0,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782360719/shop/products/htunbvp6eybhhqsbbblt.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782360720/shop/products/xv1hmq5vkjipfpezsy6u.jpg",
+   "stock": 0,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 0
+    },
+    {
+     "size": "38",
+     "stock": 0
+    },
+    {
+     "size": "40",
+     "stock": 0
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 0
+    },
+    {
+     "size": "46",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-06-25T04:12:03.000Z"
+  },
+  {
+   "id": 84,
+   "name": "Viral anarkali salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 2,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782329493/shop/products/v6nkzy71au9b2thzv6mk.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782329493/shop/products/sxs633xzxkjzkdpva6tu.jpg",
+   "stock": 12,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T19:31:34.000Z"
+  },
+  {
+   "id": 83,
+   "name": "Floral print anarkali salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 2,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782329369/shop/products/avgw5geegstwrxhnghjm.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782329369/shop/products/dlrtwluwgkwjqrkh5xx7.jpg",
+   "stock": 12,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T19:29:29.000Z"
+  },
+  {
+   "id": 82,
+   "name": "Floral print anarkali",
+   "price": 1699,
+   "mrp": 1899,
+   "off": 11,
+   "category_id": 2,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782329213/shop/products/bylmpzbz5mddqb8vokq4.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782329213/shop/products/rxldqtrlb7gv4phowfb4.jpg",
+   "stock": 8,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-24T19:26:54.000Z"
+  },
+  {
+   "id": 81,
+   "name": "South cotton anarkali",
+   "price": 1699,
+   "mrp": 1899,
+   "off": 11,
+   "category_id": 2,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782329055/shop/products/vq1gscvyscpz7pq97v0f.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782329056/shop/products/kkgkwszbwurabo0psz6s.jpg",
+   "stock": 12,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T19:24:18.000Z"
+  },
+  {
+   "id": 80,
+   "name": "South cotton anarkali salwar",
+   "price": 1699,
+   "mrp": 1899,
+   "off": 11,
+   "category_id": 2,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782328881/shop/products/gsdn9gyjqauqulrccemv.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782328881/shop/products/yv2bavfonoqbytwxriov.jpg",
+   "stock": 9,
+   "sizes": [
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T19:21:23.000Z"
+  },
+  {
+   "id": 79,
+   "name": "Floral alia cut anarkali",
+   "price": 1699,
+   "mrp": 1999,
+   "off": 15,
+   "category_id": 2,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782328761/shop/products/g8cvfclx4evjvs9ajxef.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782328762/shop/products/i3ej6ofpznkooocydtxe.jpg",
+   "stock": 12,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T19:19:24.000Z"
+  },
+  {
+   "id": 78,
+   "name": "Ikkat anarkali salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 2,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782328587/shop/products/axc1xsqxddaxrpor1hzy.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782328587/shop/products/n3wdoagedggmpguqwrnk.jpg",
+   "stock": 12,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T19:16:29.000Z"
+  },
+  {
+   "id": 77,
+   "name": "Ikkat anarkali salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 2,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782328424/shop/products/ax3ocxqmnicybzrfbbnv.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782328425/shop/products/s52gxvmzolxfe7dmvzp6.jpg",
+   "stock": 12,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T19:13:46.000Z"
+  },
+  {
+   "id": 75,
+   "name": "Ikkat anarkali salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 2,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782328256/shop/products/tg7toypyqw6j9zvjanxx.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782328256/shop/products/c68xf2fnnomedtp1but7.jpg",
+   "stock": 12,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T19:10:57.000Z"
+  },
+  {
+   "id": 74,
+   "name": "Ajrak anarkali salwar",
+   "price": 1699,
+   "mrp": 1899,
+   "off": 11,
+   "category_id": 2,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782328159/shop/products/yc16wfxqrkfq2bhjcsek.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782328160/shop/products/mfl6tfln4kyr9ocxal1n.jpg",
+   "stock": 12,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T19:09:22.000Z"
+  },
+  {
+   "id": 73,
+   "name": "Ajrak anarkali",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 2,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782328033/shop/products/usb7oucruwphslttfotb.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782328035/shop/products/ffmuae1qntyghdsh5ept.jpg",
+   "stock": 10,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T19:07:17.000Z"
+  },
+  {
+   "id": 72,
+   "name": "Kota salwar",
+   "price": 1899,
+   "mrp": 2100,
+   "off": 10,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782327407/shop/products/qgjakiw39radsatxtlx5.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782327407/shop/products/tkilb1ctzdqbuhihkcgm.jpg",
+   "stock": 12,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T18:56:48.000Z"
+  },
+  {
+   "id": 69,
+   "name": "Floral salwar",
+   "price": 1499,
+   "mrp": 1699,
+   "off": 12,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782326816/shop/products/qvg2cbysvy53ob83tq7i.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782326817/shop/products/v12birl8didd6sye0kdu.jpg",
+   "stock": 12,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T18:46:58.000Z"
+  },
+  {
+   "id": 68,
+   "name": "Floral salwar",
+   "price": 1499,
+   "mrp": 1699,
+   "off": 12,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782326695/shop/products/cdd7wanmx8cbfzp9aayr.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782326696/shop/products/nfr1d1awcjfv4qdyrdki.jpg",
+   "stock": 10,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T18:44:58.000Z"
+  },
+  {
+   "id": 67,
+   "name": "South cotton salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782326467/shop/products/vmzu5o6uruwuqgoriu1y.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782326469/shop/products/qel63ocus0mgdpowmklf.jpg",
+   "stock": 10,
+   "sizes": [
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T18:41:10.000Z"
+  },
+  {
+   "id": 66,
+   "name": "South cotton salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782326319/shop/products/vwpiph8wihpkdjusme3c.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782326319/shop/products/nczeppet7lpz6q7sz7wb.jpg",
+   "stock": 10,
+   "sizes": [
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T18:38:40.000Z"
+  },
+  {
+   "id": 65,
+   "name": "South cotton salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782326131/shop/products/frbvgyz8bjcbih2l2eri.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782326132/shop/products/l3oqghxzkfhgxsauypno.jpg",
+   "stock": 12,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T18:35:34.000Z"
+  },
+  {
+   "id": 64,
+   "name": "South cotton salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782325975/shop/products/nrvusei9eplcbfrn2by4.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782325977/shop/products/k88flnmczkn1qkydbwmb.jpg",
+   "stock": 12,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T18:33:00.000Z"
+  },
+  {
+   "id": 63,
+   "name": "Embroidery cotton salwar",
+   "price": 1699,
+   "mrp": 1899,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782325735/shop/products/xaj349i2qfjk1xtsbqzt.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782325736/shop/products/vfqjf7wv0czk3dweyngm.jpg",
+   "stock": 12,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T18:28:57.000Z"
+  },
+  {
+   "id": 62,
+   "name": "Embroidery cotton salwar",
+   "price": 1699,
+   "mrp": 1899,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782325601/shop/products/ky0jcdyhkndwmvdos4uz.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782325603/shop/products/uwsbxbzfwglqwdvz17w7.jpg",
+   "stock": 12,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T18:26:44.000Z"
+  },
+  {
+   "id": 61,
+   "name": "Chettinad pure cotton salwar",
+   "price": 1699,
+   "mrp": 1899,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782325440/shop/products/mdxxgreowazo47ayjgsk.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782325440/shop/products/uymfqvv5r2im9zbnkeyl.jpg",
+   "stock": 10,
+   "sizes": [
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T18:24:01.000Z"
+  },
+  {
+   "id": 60,
+   "name": "Smart top with pant",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 4,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782325259/shop/products/kqdfzaoyog4hxfjvyrtd.jpg",
+   "image2": null,
+   "stock": 12,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T18:21:00.000Z"
+  },
+  {
+   "id": 59,
+   "name": "Smart top with pant",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 4,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782325187/shop/products/gwzbrhjl5zcjpor0fegw.jpg",
+   "image2": null,
+   "stock": 1,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 0
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 0
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 0
+    },
+    {
+     "size": "46",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-06-24T18:19:48.000Z"
+  },
+  {
+   "id": 58,
+   "name": "Smart top with pant",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 4,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782325121/shop/products/othmvmpl52ajcxeysg8a.jpg",
+   "image2": null,
+   "stock": 12,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T18:18:41.000Z"
+  },
+  {
+   "id": 57,
+   "name": "Smart top with pant",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 4,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782325053/shop/products/sm6gokoulwvxittv4svl.jpg",
+   "image2": null,
+   "stock": 10,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T18:17:34.000Z"
+  },
+  {
+   "id": 56,
+   "name": "Smart top with pant",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 4,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782324977/shop/products/hgaycnqurpejxgdcjoob.jpg",
+   "image2": null,
+   "stock": 12,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T18:16:17.000Z"
+  },
+  {
+   "id": 55,
+   "name": "Smart top with pant",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 4,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782324915/shop/products/hunnxclcvt5ox2ueyqqz.jpg",
+   "image2": null,
+   "stock": 11,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T18:15:15.000Z"
+  },
+  {
+   "id": 54,
+   "name": "Smart top with pant",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 4,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782324839/shop/products/nxdtepk1goveovu8qvld.jpg",
+   "image2": null,
+   "stock": 12,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T18:14:00.000Z"
+  },
+  {
+   "id": 53,
+   "name": "Azrak salwars",
+   "price": 1550,
+   "mrp": 1750,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782324352/shop/products/obmxrgrsfpjhuxb6vkas.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782324353/shop/products/cttirw0kvdtnszmnrunj.jpg",
+   "stock": 0,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 0
+    },
+    {
+     "size": "38",
+     "stock": 0
+    },
+    {
+     "size": "40",
+     "stock": 0
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 0
+    },
+    {
+     "size": "46",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-06-24T18:05:54.000Z"
+  },
+  {
+   "id": 52,
+   "name": "Azrak salwars",
+   "price": 1550,
+   "mrp": 1750,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782324180/shop/products/yut0yvdaiog6dv9tuhue.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782324181/shop/products/xhngsdftucixt1wb1xei.jpg",
+   "stock": 0,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 0
+    },
+    {
+     "size": "38",
+     "stock": 0
+    },
+    {
+     "size": "40",
+     "stock": 0
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 0
+    },
+    {
+     "size": "46",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-06-24T18:03:02.000Z"
+  },
+  {
+   "id": 51,
+   "name": "Azrak salwars",
+   "price": 1550,
+   "mrp": 1750,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782324104/shop/products/pyyilckjsy5njlvjy2io.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782324106/shop/products/rijiuyhqbb2jhz2imc0x.jpg",
+   "stock": 0,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 0
+    },
+    {
+     "size": "38",
+     "stock": 0
+    },
+    {
+     "size": "40",
+     "stock": 0
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 0
+    },
+    {
+     "size": "46",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-06-24T18:01:47.000Z"
+  },
+  {
+   "id": 50,
+   "name": "Azrak salwars",
+   "price": 1550,
+   "mrp": 1750,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782324031/shop/products/tgububz1lhrcgbzxpxar.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782324032/shop/products/oa0mmtef84dv49xfs0in.jpg",
+   "stock": 7,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T18:00:33.000Z"
+  },
+  {
+   "id": 49,
+   "name": "Premium dhabu cotton salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 3,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782323340/shop/products/jotxm2sbopumh0z2kqxp.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782323341/shop/products/wkrghfjhxhhzj4holshm.jpg",
+   "stock": 0,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 0
+    },
+    {
+     "size": "38",
+     "stock": 0
+    },
+    {
+     "size": "40",
+     "stock": 0
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 0
+    },
+    {
+     "size": "46",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-06-24T17:49:02.000Z"
+  },
+  {
+   "id": 48,
+   "name": "Smart tops",
+   "price": 750,
+   "mrp": null,
+   "off": 0,
+   "category_id": 4,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782323177/shop/products/fgludsn6sdx1m9ljkfoj.jpg",
+   "image2": null,
+   "stock": 12,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T17:46:18.000Z"
+  },
+  {
+   "id": 47,
+   "name": "Smart tops",
+   "price": 750,
+   "mrp": null,
+   "off": 0,
+   "category_id": 4,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782323109/shop/products/ul8cg6jwti8kkkqn8ws4.jpg",
+   "image2": null,
+   "stock": 12,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T17:45:10.000Z"
+  },
+  {
+   "id": 46,
+   "name": "Smart tops",
+   "price": 750,
+   "mrp": null,
+   "off": 0,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782323037/shop/products/zvn0afbhjfonm7n4ynml.jpg",
+   "image2": null,
+   "stock": 12,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T17:43:58.000Z"
+  },
+  {
+   "id": 45,
+   "name": "Smart tops",
+   "price": 750,
+   "mrp": null,
+   "off": 0,
+   "category_id": 4,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782322958/shop/products/dr7ev4ikfnnje23iavmi.jpg",
+   "image2": null,
+   "stock": 12,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T17:42:39.000Z"
+  },
+  {
+   "id": 44,
+   "name": "Smart tops",
+   "price": 750,
+   "mrp": null,
+   "off": 0,
+   "category_id": 4,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782322885/shop/products/d1nmqh8vmpyareli0c3c.jpg",
+   "image2": null,
+   "stock": 10,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-24T17:41:26.000Z"
+  },
+  {
+   "id": 43,
+   "name": "Smart tops",
+   "price": 750,
+   "mrp": null,
+   "off": 0,
+   "category_id": 4,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782322833/shop/products/duhh7ckpvm9el6cmkipf.jpg",
+   "image2": null,
+   "stock": 12,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T17:40:34.000Z"
+  },
+  {
+   "id": 42,
+   "name": "Smart tops",
+   "price": 750,
+   "mrp": null,
+   "off": 0,
+   "category_id": 4,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782322775/shop/products/xekrdndccwmuixz7vokb.jpg",
+   "image2": null,
+   "stock": 12,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T17:39:36.000Z"
+  },
+  {
+   "id": 41,
+   "name": "Smart tops",
+   "price": 750,
+   "mrp": null,
+   "off": 0,
+   "category_id": 4,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782322707/shop/products/umnnqjq6jm9cy1uwdsgy.jpg",
+   "image2": null,
+   "stock": 12,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T17:38:28.000Z"
+  },
+  {
+   "id": 38,
+   "name": "Ethnic elephant embroidery salwar",
+   "price": 1799,
+   "mrp": 1999,
+   "off": 10,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782321941/shop/products/seucsvyowwp4rdi0mjgi.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782321942/shop/products/ozipejftj7pekrmmfn0t.jpg",
+   "stock": 9,
+   "sizes": [
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T17:25:43.000Z"
+  },
+  {
+   "id": 30,
+   "name": "Premium dhabu cotton salwar",
+   "price": 1699,
+   "mrp": 1899,
+   "off": 11,
+   "category_id": 2,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782320805/shop/products/xetzywupwexnmmooz4tf.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782320807/shop/products/ozujexrxijyjwcv00frj.jpg",
+   "stock": 4,
+   "sizes": [
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-24T17:06:48.000Z"
+  },
+  {
+   "id": 27,
+   "name": "Party wear",
+   "price": 1699,
+   "mrp": 1899,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782320321/shop/products/qrpaysdf3qcau84lxws1.jpg",
+   "image2": null,
+   "stock": 5,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-24T16:58:42.000Z"
+  },
+  {
+   "id": 25,
+   "name": "South Cotton",
+   "price": 1650,
+   "mrp": 1850,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782282427/shop/products/xvpllxnqgdf57imhtf5j.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782282428/shop/products/m1bfecqycazwealrhpoh.jpg",
+   "stock": 29,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 5
+    },
+    {
+     "size": "38",
+     "stock": 5
+    },
+    {
+     "size": "40",
+     "stock": 5
+    },
+    {
+     "size": "42",
+     "stock": 5
+    },
+    {
+     "size": "44",
+     "stock": 4
+    },
+    {
+     "size": "46",
+     "stock": 5
+    }
+   ],
+   "created_at": "2026-06-24T06:27:10.000Z"
+  },
+  {
+   "id": 23,
+   "name": "Ethnic Suit in Dhabu Cotton",
+   "price": 1699,
+   "mrp": 1899,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782282092/shop/products/uvyjofwgvsymqe02mncs.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782282093/shop/products/utloyfmm2getzhhakxcd.jpg",
+   "stock": 15,
+   "sizes": [
+    {
+     "size": "38",
+     "stock": 3
+    },
+    {
+     "size": "40",
+     "stock": 3
+    },
+    {
+     "size": "42",
+     "stock": 3
+    },
+    {
+     "size": "44",
+     "stock": 3
+    },
+    {
+     "size": "46",
+     "stock": 3
+    }
+   ],
+   "created_at": "2026-06-24T06:21:34.000Z"
+  },
+  {
+   "id": 22,
+   "name": "Premium dhabu cotton salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782280164/shop/products/kpduhsltpyu0hkxzkimt.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782280165/shop/products/cnceurcysk4dzcohtjbl.jpg",
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-24T05:49:26.000Z"
+  },
+  {
+   "id": 21,
+   "name": "Premium dhabu cotton salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782280088/shop/products/cmiioshdbxd4t69udk1f.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782280089/shop/products/hczcqthsbkaf1fhdcqsq.jpg",
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-24T05:48:10.000Z"
+  },
+  {
+   "id": 20,
+   "name": "Premium dhabu cotton salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782279984/shop/products/qeycsodoey39lbawrapm.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782279985/shop/products/vmhouhaczculsciqnwlw.jpg",
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-24T05:46:26.000Z"
+  },
+  {
+   "id": 18,
+   "name": "Dhabu cotton salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 3,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782279763/shop/products/nm95hjfsy2vuhgdctpxm.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782279764/shop/products/jkb1zdhkkoqnhamnasn2.jpg",
+   "stock": 12,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T05:42:45.000Z"
+  },
+  {
+   "id": 16,
+   "name": "Applique salwar",
+   "price": 1650,
+   "mrp": 1850,
+   "off": 11,
+   "category_id": 3,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782279489/shop/products/petpuozv32ucncxqciul.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782279490/shop/products/yidgcbe1amaf5kzeladt.jpg",
+   "stock": 9,
+   "sizes": [
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-24T05:38:11.000Z"
+  },
+  {
+   "id": 15,
+   "name": "Alia cut salwar",
+   "price": 1650,
+   "mrp": 1850,
+   "off": 11,
+   "category_id": 2,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782279391/shop/products/fkpyt3filoubakmh4xvs.jpg",
+   "image2": null,
+   "stock": 12,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T05:36:31.000Z"
+  },
+  {
+   "id": 14,
+   "name": "Alia cut salwar",
+   "price": 1650,
+   "mrp": 1850,
+   "off": 11,
+   "category_id": 2,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782279267/shop/products/wwnyptzzpqsri3iedkzv.jpg",
+   "image2": null,
+   "stock": 12,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T05:34:28.000Z"
+  },
+  {
+   "id": 13,
+   "name": "Alia cut salwar",
+   "price": 1650,
+   "mrp": 1850,
+   "off": 11,
+   "category_id": 2,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782279162/shop/products/a4dt1jvud3iyc5mbfjr4.jpg",
+   "image2": null,
+   "stock": 12,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 2
+    },
+    {
+     "size": "38",
+     "stock": 2
+    },
+    {
+     "size": "40",
+     "stock": 2
+    },
+    {
+     "size": "42",
+     "stock": 2
+    },
+    {
+     "size": "44",
+     "stock": 2
+    },
+    {
+     "size": "46",
+     "stock": 2
+    }
+   ],
+   "created_at": "2026-06-24T05:32:45.000Z"
+  },
+  {
+   "id": 12,
+   "name": "Coord sets",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782263159/shop/products/redsxv3pzqxzyffcnkr7.jpg",
+   "image2": null,
+   "stock": 8,
+   "sizes": [
+    {
+     "size": "2XL",
+     "stock": 2
+    },
+    {
+     "size": "3XL",
+     "stock": 2
+    },
+    {
+     "size": "L",
+     "stock": 2
+    },
+    {
+     "size": "M",
+     "stock": 1
+    },
+    {
+     "size": "XL",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-24T01:06:00.000Z"
+  },
+  {
+   "id": 11,
+   "name": "Coord sets",
+   "price": 1150,
+   "mrp": 1350,
+   "off": 15,
+   "category_id": 1,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782263087/shop/products/uxpafzgsykjpxrzyn0vh.jpg",
+   "image2": null,
+   "stock": 0,
+   "sizes": [
+    {
+     "size": "2XL",
+     "stock": 0
+    },
+    {
+     "size": "3XL",
+     "stock": 0
+    },
+    {
+     "size": "L",
+     "stock": 0
+    },
+    {
+     "size": "M",
+     "stock": 0
+    },
+    {
+     "size": "XL",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-06-24T01:04:48.000Z"
+  },
+  {
+   "id": 10,
+   "name": "Viral salwar",
+   "price": 1750,
+   "mrp": 1999,
+   "off": 12,
+   "category_id": 2,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782262902/shop/products/ctdxqsujivgkv4pz13fk.jpg",
+   "image2": null,
+   "stock": 0,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 0
+    },
+    {
+     "size": "38",
+     "stock": 0
+    },
+    {
+     "size": "40",
+     "stock": 0
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 0
+    },
+    {
+     "size": "46",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-06-24T01:01:43.000Z"
+  },
+  {
+   "id": 9,
+   "name": "Viral salwar",
+   "price": 1750,
+   "mrp": 1999,
+   "off": 12,
+   "category_id": 2,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782262835/shop/products/xiizbtehiqb39qqu33aq.jpg",
+   "image2": null,
+   "stock": 0,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 0
+    },
+    {
+     "size": "38",
+     "stock": 0
+    },
+    {
+     "size": "40",
+     "stock": 0
+    },
+    {
+     "size": "42",
+     "stock": 0
+    },
+    {
+     "size": "44",
+     "stock": 0
+    }
+   ],
+   "created_at": "2026-06-24T01:00:36.000Z"
+  },
+  {
+   "id": 8,
+   "name": "Flora",
+   "price": 1699,
+   "mrp": 1899,
+   "off": 11,
+   "category_id": 2,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782179619/shop/products/dkpwsemvd6u0hh4fbrng.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782179623/shop/products/gnhbbldjr3mkxyrhbhdz.jpg",
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-23T01:53:48.000Z"
+  },
+  {
+   "id": 7,
+   "name": "South cotton salwar",
+   "price": 1599,
+   "mrp": 1799,
+   "off": 11,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782147680/shop/products/kagb4xjf6xxtz896u0vs.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782147681/shop/products/jxpcltwywsdqbh4ndkmk.jpg",
+   "stock": 6,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 1
+    },
+    {
+     "size": "38",
+     "stock": 1
+    },
+    {
+     "size": "40",
+     "stock": 1
+    },
+    {
+     "size": "42",
+     "stock": 1
+    },
+    {
+     "size": "44",
+     "stock": 1
+    },
+    {
+     "size": "46",
+     "stock": 1
+    }
+   ],
+   "created_at": "2026-06-22T17:01:24.000Z"
+  },
+  {
+   "id": 6,
+   "name": "South Handloom Salwar",
+   "price": 1650,
+   "mrp": null,
+   "off": 0,
+   "category_id": 5,
+   "image": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782144380/shop/products/ilbfjzdwcjikzbesqbrz.jpg",
+   "image2": "https://res.cloudinary.com/ddvui6pi4/image/upload/v1782144392/shop/products/faelig1n7i2lkirzbefg.jpg",
+   "stock": 30,
+   "sizes": [
+    {
+     "size": "36",
+     "stock": 5
+    },
+    {
+     "size": "38",
+     "stock": 5
+    },
+    {
+     "size": "40",
+     "stock": 5
+    },
+    {
+     "size": "42",
+     "stock": 5
+    },
+    {
+     "size": "44",
+     "stock": 5
+    },
+    {
+     "size": "46",
+     "stock": 5
+    }
+   ],
+   "created_at": "2026-06-22T16:07:00.000Z"
+  }
+ ]
+}

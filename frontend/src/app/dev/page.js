@@ -13,14 +13,14 @@ const FEATURES = [
   { id: "F-03", name: "Product Management", href: "/admin/products" },
   { id: "F-04", name: "Inventory Management", href: null },
   { id: "F-05", name: "Customer Management", href: null },
-  { id: "F-06", name: "Product Browsing & Search", href: null },
+  { id: "F-06", name: "Product Browsing & Search", href: "/" },
   { id: "F-07", name: "Cart", href: null },
   { id: "F-08", name: "Address & Checkout", href: null },
   { id: "F-09", name: "Order Management", href: null },
   { id: "F-11", name: "Dashboard & Reports", href: null },
 ];
 
-export default function Home() {
+export default function BuildTracker() {
   return (
     <div className="admin-root flex flex-1 justify-center px-6 py-16">
       <main className="w-full max-w-2xl">
@@ -32,8 +32,9 @@ export default function Home() {
         </h1>
         <p className="mt-3 text-sm leading-relaxed text-ink-600">
           Features ship one at a time in the FRS order: Database → API → UI → Integration → Test.
-          This tracker lists only the features with screens in this frontend — Product Management
-          is the first one ready.
+          This tracker lists only the features with screens in this frontend. The customer
+          storefront now owns <code className="font-mono text-xs text-brand-600">/</code>; this
+          page moved to <code className="font-mono text-xs text-brand-600">/dev</code>.
         </p>
 
         <ul className="mt-8 divide-y divide-ink-200 overflow-hidden rounded-xl bg-white ring-1 ring-ink-200">
