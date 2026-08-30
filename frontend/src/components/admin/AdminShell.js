@@ -32,6 +32,7 @@ const FEATURES = [
       { href: "/admin/products", label: "All products", exact: true },
       { href: "/admin/products/new", label: "Add product" },
       { href: "/admin/products/bulk", label: "Bulk upload" },
+      { href: "/admin/products/attributes", label: "Approved attributes" },
     ],
   },
   { id: "F-04", label: "Inventory", href: null },

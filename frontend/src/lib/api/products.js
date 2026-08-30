@@ -173,35 +173,6 @@ export async function getReference({ token, signal } = {}) {
   return { categories: categoryResult.categories, subCategories };
 }
 
-/**
- * The attribute values already in use across the catalogue, grouped by
- * key — what the product form's fabric / work / sleeve fields offer.
- *
- * Derived from the products themselves rather than an approved-values
- * table: the vocabulary converges on what has actually been entered, and
- * a real register can replace this later without migrating any data.
- *
- * @returns {Promise<Record<string, string[]>>}
- */
-export async function getAttributeSuggestions({ token, signal } = {}) {
-  const products = await listAllProducts({ token, signal });
-  const groups = {};
-
-  for (const product of products) {
-    for (const [key, value] of Object.entries(product.attributes ?? {})) {
-      if (typeof value !== "string" || !value.trim()) continue;
-      (groups[key] ||= new Set()).add(value);
-    }
-  }
-
-  return Object.fromEntries(
-    Object.entries(groups).map(([key, values]) => [
-      key,
-      [...values].sort((a, b) => a.localeCompare(b)),
-    ]),
-  );
-}
-
 // ============================================================
 // READ
 // ============================================================

@@ -1,8 +1,11 @@
 "use client";
 
+import { useState } from "react";
+
+import { ATTRIBUTE_GROUPS, createAttributeValue } from "@/lib/api/attributes";
 import { money } from "@/lib/format";
 import { autoSlug } from "@/lib/slug";
-import { Badge, Field, Input, Select, Textarea, Toggle } from "./ui";
+import { Badge, Button, Field, Input, Select, Textarea, Toggle, useToast } from "./ui";
 
 /**
  * The product form, split into the two cards every write screen shows.
@@ -151,67 +154,131 @@ export function DetailsFields({ form, setField, errors = {}, reference, lockCate
 }
 
 /**
- * Fabric, work and sleeve — stored together in the `attributes` JSONB
- * column, so a fourth attribute later needs no migration.
+ * Fabric, work and sleeve — chosen from the approved-values register,
+ * stored together in the `attributes` JSONB column.
  *
- * There is no approved-values register to pick from, and deliberately
- * so: each field offers the values already used elsewhere in the
- * catalogue (passed in as `suggestions`) through a datalist, while
- * staying free text. The vocabulary converges on its own, and a real
- * register can replace this later without touching stored data.
+ * Dropdowns rather than free text, because the register is what stops
+ * "Cotton", "cotton " and "Coton" all reaching the catalogue. A value
+ * missing from the list is added inline, which writes it to the register
+ * and makes it available everywhere — so entering a product never means
+ * stopping to visit the attributes screen first.
+ *
+ * `groups` is the register, keyed by attribute: { fabric: [...], ... }.
  */
-export function AttributeFields({ form, setField, suggestions = {} }) {
-  const groups = [
-    { key: "fabric", label: "Fabric", placeholder: "e.g. Cotton" },
-    { key: "work", label: "Work", placeholder: "e.g. Zari" },
-    { key: "sleeve", label: "Sleeve", placeholder: "e.g. Half" },
-  ];
+export function AttributeFields({ form, setField, groups = {}, onRegister }) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-3">
+      {ATTRIBUTE_GROUPS.map((group) => (
+        <AttributeSelect
+          key={group.key}
+          group={group}
+          values={groups[group.key] ?? []}
+          selected={form.attributes?.[group.key] ?? ""}
+          onSelect={(value) => {
+            const next = { ...form.attributes };
 
-  function setAttribute(key, value) {
-    const next = { ...form.attributes };
+            // A cleared field means "not recorded", not an empty string —
+            // the API drops blanks anyway, so keep the form in step.
+            if (value) next[group.key] = value;
+            else delete next[group.key];
 
-    // A cleared field means "not recorded", not an empty string — the
-    // API drops blanks anyway, so keep the form in step with storage.
-    if (value.trim()) next[key] = value;
-    else delete next[key];
+            setField("attributes", next);
+          }}
+          onRegister={onRegister}
+        />
+      ))}
+    </div>
+  );
+}
 
-    setField("attributes", next);
+function AttributeSelect({ group, values, selected, onSelect, onRegister }) {
+  const toast = useToast();
+
+  const [addingOpen, setAddingOpen] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  // A product saved before a value was retired still shows it, rather
+  // than silently losing the attribute when the form loads.
+  const options = values.some((value) => value.value === selected)
+    ? values
+    : selected
+      ? [...values, { id: `current-${selected}`, value: selected, active: false }]
+      : values;
+
+  async function add() {
+    const value = draft.trim();
+    if (!value) return;
+
+    setBusy(true);
+    try {
+      const created = await createAttributeValue(group.key, value);
+      onSelect(created.value);
+      await onRegister?.();
+      toast.success(`"${created.value}" added to ${group.label.toLowerCase()}.`);
+      setDraft("");
+      setAddingOpen(false);
+    } catch (err) {
+      toast.error(err.message || "Could not add the value.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
-    <div className="grid gap-4 sm:grid-cols-3">
-      {groups.map((group) => {
-        const options = suggestions[group.key] ?? [];
-        const listId = `attribute-${group.key}-options`;
+    <Field
+      label={group.label}
+      hint={
+        values.length
+          ? `${values.length} approved · manage on the attributes screen`
+          : "Nothing approved yet — add the first below."
+      }
+    >
+      <Select value={selected} onChange={(e) => onSelect(e.target.value)}>
+        <option value="">Not specified</option>
+        {options.map((value) => (
+          <option key={value.id} value={value.value}>
+            {value.value}
+            {value.active ? "" : " — retired"}
+          </option>
+        ))}
+      </Select>
 
-        return (
-          <Field
-            key={group.key}
-            label={group.label}
-            hint={
-              options.length
-                ? `${options.length} already in use — start typing`
-                : "Free text. Reused across products as you go."
-            }
-          >
-            <Input
-              value={form.attributes?.[group.key] ?? ""}
-              onChange={(e) => setAttribute(group.key, e.target.value)}
-              placeholder={group.placeholder}
-              maxLength={100}
-              list={options.length ? listId : undefined}
-            />
-            {options.length ? (
-              <datalist id={listId}>
-                {options.map((option) => (
-                  <option key={option} value={option} />
-                ))}
-              </datalist>
-            ) : null}
-          </Field>
-        );
-      })}
-    </div>
+      {addingOpen ? (
+        <div className="mt-1.5 flex items-center gap-1.5">
+          <Input
+            value={draft}
+            autoFocus
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                add();
+              }
+              if (e.key === "Escape") setAddingOpen(false);
+            }}
+            placeholder={group.placeholder}
+            maxLength={100}
+            className="h-8 text-xs"
+            aria-label={`New ${group.label.toLowerCase()} value`}
+          />
+          <Button size="sm" variant="primary" busy={busy} disabled={!draft.trim()} onClick={add}>
+            Add
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setAddingOpen(false)}>
+            Cancel
+          </Button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setAddingOpen(true)}
+          className="mt-1.5 text-[11px] font-medium text-brand-600 hover:text-brand-700 hover:underline"
+        >
+          + Add a new {group.label.toLowerCase()}
+        </button>
+      )}
+    </Field>
   );
 }
 

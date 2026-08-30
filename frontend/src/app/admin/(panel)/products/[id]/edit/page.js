@@ -23,12 +23,8 @@ import {
   Toggle,
   useToast,
 } from "@/components/admin/ui";
-import {
-  getAttributeSuggestions,
-  getProduct,
-  getReference,
-  updateProduct,
-} from "@/lib/api/products";
+import { listAttributeValues } from "@/lib/api/attributes";
+import { getProduct, getReference, updateProduct } from "@/lib/api/products";
 import { getVariantsForProduct, replaceVariants } from "@/lib/api/variants";
 import { shortDate } from "@/lib/format";
 
@@ -56,7 +52,7 @@ function EditProduct() {
   const [tab, setTab] = useState(searchParams.get("tab") || "details");
   const [reload, setReload] = useState(0);
   const [loaded, setLoaded] = useState({ product: null, reference: null, error: null });
-  const [suggestions, setSuggestions] = useState({});
+  const [attributeGroups, setAttributeGroups] = useState({});
   const [form, setForm] = useState(null);
   // Sizes live in their own table, so they are their own piece of form
   // state and their own save — `null` until the first load lands.
@@ -113,11 +109,10 @@ function EditProduct() {
           setLoaded((current) => ({ ...current, error: err }));
       });
 
-    // Only fills the attribute dropdowns — never worth failing the page.
-    getAttributeSuggestions({ signal: controller.signal })
-      .then((groups) => {
-        if (active) setSuggestions(groups);
-      })
+    // Fills the attribute dropdowns. An empty or failed register still
+    // lets the form save, and a value can be added inline.
+    listAttributeValues({ activeOnly: true, signal: controller.signal })
+      .then(setAttributeGroups)
       .catch(() => {});
 
     return () => {
@@ -127,6 +122,21 @@ function EditProduct() {
   }, [id, reload]);
 
   const load = useCallback(() => setReload((n) => n + 1), []);
+
+  // Re-read after a value is registered inline. Only fills the
+  // dropdowns, so a failure here never blocks the page.
+  /**
+   * Re-reads the register after a value is added inline, so the new
+   * option shows up on the other dropdowns too. A plain function: it is
+   * only passed to a child, never used as an effect dependency.
+   */
+  async function refreshAttributes() {
+    try {
+      setAttributeGroups(await listAttributeValues({ activeOnly: true }));
+    } catch {
+      // Dropdown options only — never worth blocking the form.
+    }
+  }
   const { product, reference, error } = loaded;
 
   function setField(key, value) {
@@ -251,6 +261,21 @@ function EditProduct() {
             <CardHeader title="Product details" />
             <div className="p-5">
               <DetailsFields form={form} setField={setField} errors={errors} reference={reference} />
+            </div>
+          </Card>
+
+          <Card>
+            <CardHeader
+              title="Attributes"
+              description="Chosen from the approved-values register. Add a missing one inline."
+            />
+            <div className="p-5">
+              <AttributeFields
+                form={form}
+                setField={setField}
+                groups={attributeGroups}
+                onRegister={refreshAttributes}
+              />
             </div>
           </Card>
 

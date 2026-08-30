@@ -22,11 +22,8 @@ import {
 } from "@/components/admin/ui";
 import { AttributeFields } from "@/components/admin/ProductFields";
 import { SizeStockEditor } from "@/components/admin/SizeStockEditor";
-import {
-  bulkCreateProducts,
-  getAttributeSuggestions,
-  getReference,
-} from "@/lib/api/products";
+import { listAttributeValues } from "@/lib/api/attributes";
+import { bulkCreateProducts, getReference } from "@/lib/api/products";
 import { replaceVariants } from "@/lib/api/variants";
 import { money, number } from "@/lib/format";
 import { autoSlug } from "@/lib/slug";
@@ -71,7 +68,7 @@ export default function BulkUploadPage() {
   const toast = useToast();
 
   const [reference, setReference] = useState(null);
-  const [suggestions, setSuggestions] = useState({});
+  const [attributeGroups, setAttributeGroups] = useState({});
   const [shared, setShared] = useState(BLANK_SHARED);
   const [sizes, setSizes] = useState(DEFAULT_SIZES);
   const [rows, setRows] = useState(() => [makeRow(), makeRow(), makeRow()]);
@@ -86,12 +83,29 @@ export default function BulkUploadPage() {
         if (err?.name !== "AbortError") setFailure(err);
       });
 
-    getAttributeSuggestions({ signal: controller.signal })
-      .then(setSuggestions)
+    // Fills the attribute dropdowns. An empty or failed register still
+    // lets the form save, and a value can be added inline.
+    listAttributeValues({ activeOnly: true, signal: controller.signal })
+      .then(setAttributeGroups)
       .catch(() => {});
 
     return () => controller.abort();
   }, []);
+
+  // Re-read after a value is registered inline. Only fills the
+  // dropdowns, so a failure here never blocks the form.
+  /**
+   * Re-reads the register after a value is added inline. A plain
+   * function: it is only passed to a child, never used as an effect
+   * dependency.
+   */
+  async function refreshAttributes() {
+    try {
+      setAttributeGroups(await listAttributeValues({ activeOnly: true }));
+    } catch {
+      // Dropdown options only — never worth blocking the form.
+    }
+  }
 
   const subCategories = useMemo(
     () => (reference?.subCategories ?? []).filter((sub) => sub.categoryId === shared.categoryId),
@@ -323,7 +337,8 @@ export default function BulkUploadPage() {
           <AttributeFields
             form={shared}
             setField={setSharedField}
-            suggestions={suggestions}
+            groups={attributeGroups}
+            onRegister={refreshAttributes}
           />
         </div>
       </Card>
