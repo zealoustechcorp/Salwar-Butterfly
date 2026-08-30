@@ -166,6 +166,17 @@ export function AuthProvider({ children }) {
       user,
       isSignedIn: Boolean(user),
 
+      /**
+       * The raw JWT, for storefront calls that make their own requests —
+       * checkout and order history (F-07).
+       *
+       * Exposed rather than left for callers to read out of localStorage
+       * themselves, so there is one place a screen gets a token from and the
+       * session store stays this module's business. Null for a guest, which
+       * checkout treats as an ordinary case rather than an error.
+       */
+      token,
+
       signIn: async (credentials) => {
         const result = await customerAuth.signIn(credentials);
         if (result.ok) land(result.user, result.token);

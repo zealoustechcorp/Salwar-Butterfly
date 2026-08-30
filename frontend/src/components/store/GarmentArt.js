@@ -103,10 +103,36 @@ function Motif({ kind, id, tint }) {
   );
 }
 
+/**
+ * A stable non-negative integer from whatever a caller passes as a seed.
+ *
+ * Product ids used to be integers and this arithmetic was done on them
+ * directly. They are UUIDs now, and `Math.abs("4f5a1da6-…") % 8` is NaN —
+ * which indexed the palette out of bounds and took the whole prerender down
+ * rather than picking a dull colour.
+ *
+ * Any string is hashed, so the same piece keeps the same illustration between
+ * builds; anything unusable falls back to 0 rather than throwing, because a
+ * decorative placeholder must never be able to fail a page.
+ */
+function seedNumber(seed) {
+  if (typeof seed === "number" && Number.isFinite(seed)) return Math.abs(Math.trunc(seed));
+
+  const text = String(seed ?? "");
+  let hash = 0;
+
+  for (let index = 0; index < text.length; index += 1) {
+    hash = (hash * 31 + text.charCodeAt(index)) | 0;
+  }
+
+  return Math.abs(hash);
+}
+
 export function GarmentArt({ shape = "straight", seed = 0, label, className }) {
   const spec = SHAPES[shape] || SHAPES.straight;
-  const tone = TONES[Math.abs(seed) % TONES.length];
-  const uid = `g-${shape}-${Math.abs(seed) % 997}`;
+  const key = seedNumber(seed);
+  const tone = TONES[key % TONES.length];
+  const uid = `g-${shape}-${key % 997}`;
   const tint = "rgba(253,247,241,0.34)";
   const body = silhouettePath(spec);
 
@@ -127,7 +153,7 @@ export function GarmentArt({ shape = "straight", seed = 0, label, className }) {
           <stop offset="0%" stopColor={tone.cloth} />
           <stop offset="100%" stopColor={tone.cloth} stopOpacity="0.74" />
         </linearGradient>
-        <Motif kind={Math.abs(seed) % 4} id={`${uid}-motif`} tint={tint} />
+        <Motif kind={key % 4} id={`${uid}-motif`} tint={tint} />
         <clipPath id={`${uid}-clip`}>
           <path d={body} />
         </clipPath>
@@ -168,10 +194,18 @@ export function GarmentArt({ shape = "straight", seed = 0, label, className }) {
 }
 
 /** Live category id → silhouette. */
+/**
+ * Which silhouette to draw for a category.
+ *
+ * Keyed by name rather than id. The ids were the old shop's integers and are
+ * UUIDs now; a lookup by id would miss every time and quietly draw the whole
+ * catalogue as a straight cut. The names are the shop's own and do not change
+ * when the catalogue is re-imported.
+ */
 export const CATEGORY_SHAPE = {
-  5: "straight",
-  1: "coord",
-  3: "aline",
-  2: "anarkali",
-  4: "western",
+  "Straight cut salwars": "straight",
+  "Coord sets": "coord",
+  "Aline salwars": "aline",
+  "Anarkali salwars": "anarkali",
+  "Western wears": "western",
 };

@@ -16,7 +16,9 @@ import { CATEGORY_SHAPE, GarmentArt } from "./GarmentArt";
 export function Photo({
   src,
   alt,
-  categoryId,
+  // The category's *name*, which is what picks the silhouette. It used to be
+  // the id; ids are UUIDs now and no longer say anything about the garment.
+  categoryName,
   seed = 0,
   priority = false,
   sizes,
@@ -25,7 +27,7 @@ export function Photo({
 }) {
   const [failed, setFailed] = useState(false);
   const [hoverFailed, setHoverFailed] = useState(false);
-  const shape = CATEGORY_SHAPE[categoryId] || "straight";
+  const shape = CATEGORY_SHAPE[categoryName] || "straight";
 
   return (
     <>

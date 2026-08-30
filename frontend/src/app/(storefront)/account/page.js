@@ -2,12 +2,13 @@ import { CreditCard, PackageSearch, Ruler, Truck } from "lucide-react";
 import Link from "next/link";
 
 import { AccountPanel } from "@/components/store/AccountPanel";
+import { OrderHistory } from "@/components/store/OrderHistory";
 import { getShop } from "@/lib/store/catalogue";
 
 export const metadata = {
   title: "Your account",
   description:
-    "Your Salwar Butterfly bag and wishlist, order help on WhatsApp, and how delivery, sizing and payment work.",
+    "Your Salwar Butterfly orders, bag and wishlist, and how delivery, sizing and payment work.",
 };
 
 /**
@@ -19,18 +20,22 @@ export const metadata = {
  * public, because the footer's Help column links straight to these anchors and
  * a guest asking about the size guide should not meet a wall.
  *
- * The shop still handles orders themselves on WhatsApp, so tracking points
- * there rather than at a self-service page that does not exist.
+ * <OrderHistory> sits between them and gates itself the same way: orders are
+ * a signed-in shopper's, and a guest sees nothing there but is pointed at
+ * /track, which needs only their order number.
  */
 export default function AccountPage() {
   const shop = getShop();
 
   const help = [
     {
+      // The footer's Help column links straight at this anchor, so it stays
+      // put and stays public — <OrderHistory> owns #my-orders instead, and a
+      // guest following this link still lands on an answer.
       id: "orders",
       icon: PackageSearch,
       title: "Track your order",
-      body: "Order updates come from the shop directly. Send your order details on WhatsApp and it will tell you where the parcel is — there is no self-service tracking page yet.",
+      body: "Signed in, every order you have placed is listed above. Ordered as a guest? Use the order number from your confirmation and the email you placed it with on the tracking page — no account needed.",
     },
     {
       id: "delivery",
@@ -60,6 +65,8 @@ export default function AccountPage() {
       </h1>
 
       <AccountPanel />
+
+      <OrderHistory />
 
       <h2 className="mt-10 font-display text-2xl font-semibold text-sb-heading sm:text-3xl">
         Before and after you order

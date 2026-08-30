@@ -33,10 +33,14 @@ export function ShopFilterSync({ categoryIds }) {
   const knownIds = categoryIds.join(",");
 
   useEffect(() => {
-    const numericCategory = Number(category);
+    // Category ids are UUIDs and matched as opaque strings — they used to be
+    // integers, and `Number("883e80b6-…")` is NaN, which silently reset every
+    // `?category=` link in the header to "all".
+    const known = knownIds.split(",");
+
     applyParams({
       tab: TABS.some((item) => item.id === tab) ? tab : "new",
-      categoryId: knownIds.split(",").includes(String(numericCategory)) ? numericCategory : "all",
+      categoryId: category && known.includes(category) ? category : "all",
       fabric: fabric || "all",
       query: query || "",
     });

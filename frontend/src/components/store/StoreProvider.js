@@ -1,10 +1,16 @@
 "use client";
 
 /**
- * Frontend-only shopper state: bag (F-07) and wishlist.
+ * Shopper state held on the device: bag (F-07) and wishlist.
  *
- * There is no backend behind the storefront yet, so the bag lives in
- * localStorage. It is held in a tiny external store read through
+ * The bag stays in localStorage even now that checkout is real, and that is a
+ * choice rather than a leftover. A cart API would mean a shopper cannot add
+ * anything without an account, or that guest carts need their own server-side
+ * identity and expiry — for a bag that is read on one device and posted once,
+ * neither earns its cost. The bag becomes an order at checkout; until then it
+ * is nobody's business but this browser's.
+ *
+ * It is held in a tiny external store read through
  * `useSyncExternalStore` rather than in component state seeded by an effect:
  * the server snapshot is empty, so the server render and its hydration always
  * agree, and React swaps in the stored bag immediately afterwards.
@@ -16,9 +22,6 @@
  * - The **wishlist belongs to whoever is signed in**. A guest gets a list on
  *   this device; signing in adopts that list into the account and from then on
  *   the account's list is the one on screen. See `adoptGuestWishlist`.
- *
- * When F-07's cart API lands, `addToBag` / `toggleWish` become fetch calls and
- * nothing that consumes `useStore()` has to change.
  */
 
 import { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore } from "react";
@@ -151,9 +154,16 @@ export function StoreProvider({ children }) {
      * `qty` is how many to add, not the new total — a card adds one, the
      * product page adds whatever its stepper says. The line is capped at the
      * same 99 the bag's own stepper enforces.
+     *
+     * The line records `variant_id`, looked up from the chosen size. That is
+     * the only field checkout actually orders against — the API prices and
+     * reserves against a product_variants row, and a size label identifies
+     * nothing it can sell. The rest is display: enough to render the bag
+     * without re-reading the catalogue, and re-priced by the server anyway.
      */
     const addToBag = (product, { size, qty = 1 } = {}) => {
       const pickedSize = size || product.available_sizes[0] || null;
+      const variant = product.sizes?.find((row) => row.size === pickedSize) ?? null;
       const key = `${product.id}:${pickedSize ?? "-"}`;
       const existing = bag.find((line) => line.key === key);
       const adding = Math.max(1, Math.min(99, Math.trunc(Number(qty)) || 1));
@@ -162,13 +172,23 @@ export function StoreProvider({ children }) {
         wishlist,
         bag: existing
           ? bag.map((line) =>
-              line.key === key ? { ...line, qty: Math.min(99, line.qty + adding) } : line,
+              line.key === key
+                ? {
+                    ...line,
+                    qty: Math.min(99, line.qty + adding),
+                    // Heals a line saved before the variant ids existed, so a
+                    // bag left on a device before this change can still check
+                    // out instead of failing at the last step.
+                    variant_id: line.variant_id ?? variant?.variant_id ?? null,
+                  }
+                : line,
             )
           : [
               ...bag,
               {
                 key,
                 product_id: product.id,
+                variant_id: variant?.variant_id ?? null,
                 name: product.name,
                 price: product.price,
                 size: pickedSize,

@@ -1,17 +1,28 @@
 /**
- * Snapshots the live salwarbutterfly.in catalogue into a static JSON file.
+ * SUPERSEDED — do not run this to refresh the storefront.
  *
- *   node scripts/snapshot-live-catalogue.mjs
+ *   Use `npm run db:export-storefront` in ../backend instead.
  *
- * The storefront is deliberately frontend-only — it must render with no API and
- * no database — so the live shop's data is pulled once, trimmed to the fields
- * the storefront actually uses, and committed as
- * `src/lib/store/live-catalogue.json`. Re-run this whenever the real shop's
- * stock moves; nothing at runtime ever calls the API.
+ * This pulled the *old* shop's catalogue (salwarbutterfly.in, integer product
+ * ids) straight into `src/lib/store/live-catalogue.json`. That was right while
+ * the storefront only had to display things.
  *
- * Source: the React SPA at https://www.salwarbutterfly.in reads this same API.
- * Product photography stays on the shop's own Cloudinary account — the snapshot
- * stores URLs, not bytes.
+ * It is wrong now. Checkout (F-07) orders against a `product_variants.id`, and
+ * this script writes no variant ids and no ids that exist in this project's
+ * database — running it would leave a storefront that browses perfectly and
+ * cannot sell anything, with no error to say why.
+ *
+ * The catalogue now lives in Postgres (loaded once by the backend's
+ * `db:import-catalogue`) and the storefront snapshot is written from there.
+ * The storefront is still frontend-only: it renders with no API and no
+ * database, which is the part worth keeping.
+ *
+ * Kept, rather than deleted, as the record of where this data originally came
+ * from — and in case the old shop ever needs to be re-read into a fresh
+ * import. Writing to a path is required so it cannot clobber the live snapshot
+ * by accident:
+ *
+ *   node scripts/snapshot-live-catalogue.mjs ./old-shop.json
  */
 
 import { writeFile } from "node:fs/promises";
@@ -19,14 +30,20 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const API = "https://swalar-butterfly.onrender.com/api";
-const OUT = path.join(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "..",
-  "src",
-  "lib",
-  "store",
-  "live-catalogue.json",
-);
+
+// No default. This used to write straight over the storefront's snapshot, and
+// doing that now would replace ids the shop can sell against with the old
+// shop's integers — a storefront that browses and cannot check out.
+const OUT = process.argv[2];
+
+if (!OUT) {
+  console.error(
+    "This script is superseded — use `npm run db:export-storefront` in ../backend.\n" +
+      "To re-read the old shop anyway, name an output file:\n" +
+      "  node scripts/snapshot-live-catalogue.mjs ./old-shop.json",
+  );
+  process.exit(1);
+}
 
 // The API is on a free Render dyno and cold-starts slowly; a first request can
 // take the better part of a minute.

@@ -1,6 +1,6 @@
 "use client";
 
-import { Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
+import { Lock, Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
 import Link from "next/link";
 
 import { money } from "@/lib/format";
@@ -10,33 +10,29 @@ import { Photo } from "./Photo";
 import { useStore } from "./StoreProvider";
 
 /**
- * The bag (F-07), still frontend-only.
+ * The bag (F-07).
  *
- * There is no cart API and no payment gateway wired up yet, so this does not
- * pretend to check out. It does the part it can do honestly — hold the lines,
- * price them, and hand the finished order to the channel the shop actually
- * takes orders on. When F-07 lands, the WhatsApp hand-off becomes a Checkout
- * button and nothing else on this page has to move.
+ * This page used to end in a WhatsApp link: the lines were formatted into a
+ * message and handed to wa.me, because there was no order API and a Checkout
+ * button that dropped orders on the floor would have been a lie.
  *
- * No sign-in anywhere on this page, and that is the point: the shop would
- * rather take the order than win the account. The only mention of one is an
- * offer at the bottom of the summary, which a guest can ignore.
+ * There is an API now, so the button goes to `/checkout` and the order is
+ * placed on the site. Nothing else on this page moved, which was the point of
+ * writing it that way.
+ *
+ * No sign-in anywhere on this page, and that is still the point: the shop
+ * would rather take the order than win the account. The only mention of one is
+ * an offer at the bottom of the summary, which a guest can ignore.
  */
 export function BagView({ products, shop }) {
   const { bag, bagTotal, bagCount, setQty, removeLine, clearBag } = useStore();
   const { isSignedIn, openAuth } = useAuth();
   const byId = new Map(products.map((product) => [product.id, product]));
 
-  const orderText = [
-    `Hi ${shop.name}, I would like to order:`,
-    "",
-    ...bag.map(
-      (line) =>
-        `• ${line.name}${line.size ? ` — size ${line.size}` : ""} × ${line.qty} = ${money(line.price * line.qty)}`,
-    ),
-    "",
-    `Total: ${money(bagTotal)}`,
-  ].join("\n");
+  // A line saved before the catalogue moved into the database has no variant
+  // id and nothing to order against. Counted here so the summary can say so
+  // before the shopper reaches checkout and finds the button disabled.
+  const unorderable = bag.filter((line) => !line.variant_id).length;
 
   if (!bag.length) {
     return (
@@ -74,7 +70,7 @@ export function BagView({ products, shop }) {
           {bag.map((line) => {
             const product = byId.get(line.product_id);
             // A piece can sell out between adding it and coming back to the
-            // bag; say so rather than letting it be sent to the shop.
+            // bag; say so here rather than letting checkout refuse it.
             const gone = product ? !product.in_stock : false;
 
             return (
@@ -83,7 +79,7 @@ export function BagView({ products, shop }) {
                   <Photo
                     src={line.image}
                     alt={line.name}
-                    categoryId={product?.category_id}
+                    categoryName={product?.category_name}
                     seed={line.product_id}
                     sizes="96px"
                     className="object-cover"
@@ -107,7 +103,7 @@ export function BagView({ products, shop }) {
                       </p>
                       {gone ? (
                         <p className="mt-1 text-xs font-semibold text-sb-link">
-                          Sold out since you added it — remove it before you send the order.
+                          Sold out since you added it — remove it before you check out.
                         </p>
                       ) : null}
                     </div>
@@ -181,21 +177,41 @@ export function BagView({ products, shop }) {
               </div>
             </dl>
 
-            <a
-              href={`${shop.whatsapp}?text=${encodeURIComponent(orderText)}`}
-              target="_blank"
-              rel="noreferrer noopener"
+            <Link
+              href="/checkout"
               className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-sb-btn-primary px-5 py-3.5 text-sm font-semibold text-sb-bg transition-colors hover:bg-sb-btn-rose"
             >
-              <WhatsAppGlyph className="size-4" />
-              Send this bag to the shop
-            </a>
+              <Lock className="size-4" aria-hidden="true" />
+              Checkout
+            </Link>
 
             <p className="mt-3 text-xs leading-relaxed text-sb-text-muted">
-              Online checkout is not open yet. This opens WhatsApp with your bag written out, and
-              the shop confirms stock and sends a payment link. Payment is online only — GPay,
-              PhonePe, Paytm, cards or net banking. No cash on delivery.
+              No account needed. Nothing is charged at checkout — the shop confirms your order and
+              sends a payment link. Payment is online only: GPay, PhonePe, Paytm, cards or net
+              banking. No cash on delivery.
             </p>
+
+            {unorderable ? (
+              <p className="mt-3 text-xs leading-relaxed font-medium text-sb-link">
+                {unorderable === 1
+                  ? "One piece above was saved before the shop's catalogue moved and can no longer be ordered."
+                  : `${unorderable} pieces above were saved before the shop's catalogue moved and can no longer be ordered.`}{" "}
+                Remove them and add them again from the shop.
+              </p>
+            ) : null}
+
+            {/* Still offered, because some shoppers would simply rather ask a
+                person — a question about a fabric, or a size they are unsure
+                of. It is no longer how an order is placed. */}
+            <a
+              href={shop.whatsapp}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="mt-3.5 flex w-full items-center justify-center gap-2 rounded-full border border-sb-gold/50 px-5 py-2.5 text-xs font-semibold text-sb-heading transition-colors hover:bg-sb-surface/60"
+            >
+              <WhatsAppGlyph className="size-3.5" />
+              Ask the shop a question
+            </a>
 
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-sb-gold/30 pt-4">
               <Link

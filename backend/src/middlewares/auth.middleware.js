@@ -142,3 +142,30 @@ export const authenticate = (req, res, next) => {
     );
   }
 };
+
+/**
+ * Authenticate when a token is present, carry on when it is not.
+ *
+ * For routes that serve everybody but do more for a signed-in caller.
+ * Checkout (F-07) is the one that needed it: the storefront bag says
+ * "You can order without an account", so a guest must reach it, while a
+ * signed-in shopper's order should attach to their account so it shows
+ * up under "my orders".
+ *
+ * The distinction from `authenticate` is only about a *missing* token.
+ * A token that is present and bad is still rejected — silently ignoring
+ * an expired one would quietly file a signed-in shopper's order as a
+ * guest's, and they would never see it again.
+ *
+ * Only for routes that are safe with no caller at all. Anything that
+ * reads or writes somebody's data still needs `authenticate` plus an
+ * authorization middleware; `req.user` is optional here by design, and
+ * a handler that assumes it will find one is a hole.
+ */
+export const authenticateOptional = (req, res, next) => {
+  if (!req.headers.authorization) {
+    return next();
+  }
+
+  return authenticate(req, res, next);
+};

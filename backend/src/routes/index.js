@@ -9,6 +9,7 @@ import productVariantRoutes from './product_variant.routes.js';
 import productAttributeRoutes from './product_attribute_value.routes.js';
 import productImageRoutes from './product_image.routes.js';
 import inventoryRoutes from './inventory.routes.js';
+import orderRoutes from './order.routes.js';
 import subCategories from './sub_categories.router.js';
 import adminAuthRoutes from './admin.auth.routes.js';
 
@@ -39,6 +40,9 @@ import { requireAdmin } from '../middlewares/authorize.middleware.js';
  *   /customers    mostly admin, but registration is public and
  *                 password change is a customer's own business. The
  *                 split lives in that file, next to the reasons.
+ *   /orders       three audiences at once — a guest places one, a
+ *                 signed-in shopper reads their own, the shop moves
+ *                 all of them. Guarded route by route in that file.
  */
 
 const router = Router();
@@ -59,6 +63,10 @@ router.use('/admin/auth', adminAuthRoutes);
 // own router rather than falling through to the one that owns /:id.
 router.use('/customers/auth', customerAuthRoutes);
 router.use('/customers', customerRoutes);
+
+// Checkout is public, "my orders" is behind a storefront token, and the
+// queue is behind an admin one. See order.routes.js.
+router.use('/orders', orderRoutes);
 
 // ============================================================
 // ADMIN ONLY

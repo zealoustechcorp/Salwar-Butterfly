@@ -70,7 +70,7 @@ export function ProductDetail({ product, shop }) {
 
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-sb-text-muted">
           {product.fabric ? <span>{product.fabric}</span> : null}
-          <span className="tabular">Piece SB-{product.id}</span>
+          <span className="tabular">{product.piece_code}</span>
         </div>
 
         <div className="sb-rule mt-5 h-px w-full" aria-hidden="true" />
@@ -294,7 +294,7 @@ function Gallery({ product, shots }) {
           key={current ?? "art"}
           src={current}
           alt={product.name}
-          categoryId={product.category_id}
+          categoryName={product.category_name}
           seed={product.id}
           priority
           sizes="(min-width: 1024px) 45vw, 100vw"
@@ -331,7 +331,7 @@ function Gallery({ product, shots }) {
               <Photo
                 src={shot}
                 alt=""
-                categoryId={product.category_id}
+                categoryName={product.category_name}
                 seed={product.id}
                 sizes="96px"
                 className="object-cover"
@@ -354,7 +354,7 @@ function Spec({ product }) {
       value: product.available_sizes.length ? product.available_sizes.join(", ") : "None left",
     },
     { term: "Pieces on the shelf", value: `${product.stock}`, tabular: true },
-    { term: "Piece code", value: `SB-${product.id}`, tabular: true },
+    { term: "Piece code", value: product.piece_code, tabular: true },
     { term: "Added to the shop", value: shortDate(product.created_at) },
   ].filter(Boolean);
 

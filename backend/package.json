@@ -9,6 +9,8 @@
     "start": "nodemon --env-file=.env src/server.js",
     "db:check": "node --env-file=.env src/scripts/checkDb.js",
     "db:migrate": "node --env-file=.env src/scripts/migrate.js",
+    "db:import-catalogue": "node --env-file=.env src/scripts/importCatalogue.js",
+    "db:export-storefront": "node --env-file=.env src/scripts/exportStorefront.js",
     "admin:create": "node --env-file=.env src/scripts/createAdmin.js"
   },
   "dependencies": {

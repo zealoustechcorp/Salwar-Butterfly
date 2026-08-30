@@ -406,7 +406,7 @@ export function StoreHeader({ categories, shop }) {
                               <Photo
                                 src={category.image}
                                 alt=""
-                                categoryId={category.id}
+                                categoryName={category.name}
                                 seed={category.id * 2}
                                 sizes="28px"
                                 className="object-cover"
@@ -613,7 +613,7 @@ export function StoreHeader({ categories, shop }) {
                           <Photo
                             src={category.image}
                             alt=""
-                            categoryId={category.id}
+                            categoryName={category.name}
                             seed={category.id * 2}
                             sizes="32px"
                             className="object-cover"

@@ -2,15 +2,21 @@
  * Storefront read model (F-06 Product Browsing) — the customer's view of the
  * real Salwar Butterfly catalogue.
  *
- * The data is a committed snapshot of the live shop
- * (`scripts/snapshot-live-catalogue.mjs` → `live-catalogue.json`): real
+ * The data is a committed snapshot of the shop's own database
+ * (`backend: npm run db:export-storefront` → `live-catalogue.json`): real
  * products, real prices, real per-size stock and the shop's own Cloudinary
  * photography. The storefront stays frontend-only — nothing here fetches at
- * runtime. Re-run the script to refresh.
+ * runtime, so all 197 pieces prerender as static pages. Re-run the export
+ * whenever stock moves.
  *
- * The admin console no longer has a seed of its own — its category and
- * product screens read the Express API. This snapshot is the last static
- * data left, and is what the storefront still renders from.
+ * Two things changed when checkout became real (F-07).
+ *
+ * The snapshot now comes from *this* project's Postgres rather than the old
+ * shop's API, so ids are UUIDs and a page points at a row that exists here.
+ * They are opaque strings — never parse or compare them numerically.
+ *
+ * Every size carries a `variant_id`. That is what a bag line is ordered
+ * against: a size label alone identifies nothing the API can sell.
  */
 
 import { STOCK_STATUS, stockStatusFor } from "@/lib/stock";
@@ -19,13 +25,19 @@ import snapshot from "./live-catalogue.json";
 
 // --- presentation lookups ---------------------------------------------------
 
-/** One-line merchandising copy per live category. */
+/**
+ * One-line merchandising copy per live category.
+ *
+ * Keyed by name, not id. The ids are UUIDs now and would change if the
+ * catalogue were ever re-imported into a fresh database; the names are the
+ * shop's own and do not.
+ */
 const CATEGORY_BLURB = {
-  5: "The everyday straight cut — dhabu, azrak and south cotton",
-  1: "Matching top-and-pant co-ords, ready to wear together",
-  3: "A-line flare that skims rather than clings",
-  2: "Heavy-flare anarkalis for weddings and festivals",
-  4: "Smart tops, maxis and pants for the off-duty week",
+  "Straight cut salwars": "The everyday straight cut — dhabu, azrak and south cotton",
+  "Coord sets": "Matching top-and-pant co-ords, ready to wear together",
+  "Aline salwars": "A-line flare that skims rather than clings",
+  "Anarkali salwars": "Heavy-flare anarkalis for weddings and festivals",
+  "Western wears": "Smart tops, maxis and pants for the off-duty week",
 };
 
 /**
@@ -67,8 +79,13 @@ function decorate(product, categoryName) {
     category_name: categoryName,
     fabric: fabricOf(product.name),
     saving: product.mrp ? product.mrp - product.price : 0,
-    // Only sizes actually on the shelf are selectable.
+    // Something a shopper can read out over the phone. The id is a UUID and
+    // unusable for that; the first block is short, stable and distinct enough
+    // across a catalogue this size.
+    piece_code: `SB-${String(product.id).slice(0, 8).toUpperCase()}`,
+    // Every size, each carrying the variant_id a bag line is ordered against.
     sizes: product.sizes,
+    // Only sizes actually on the shelf are selectable.
     available_sizes: sizes.map((s) => s.size),
     in_stock: inStock,
     is_low_stock: inStock && stockStatusFor(product.stock) === STOCK_STATUS.LOW_STOCK,
@@ -98,12 +115,13 @@ export function getStorefrontProducts() {
 /**
  * One product, decorated exactly as the grid's cards are.
  *
- * Ids come out of a URL segment, so anything that is not a real numeric id in
- * the snapshot is a miss rather than a crash — the route turns that into a 404.
+ * Ids come out of a URL segment and are matched as opaque strings — an id
+ * that is not in the snapshot is a miss rather than a crash, and the route
+ * turns that into a 404.
  */
 export function getStorefrontProduct(id) {
-  const productId = Number(id);
-  if (!Number.isInteger(productId)) return null;
+  const productId = String(id ?? "");
+  if (!productId) return null;
 
   const row = snapshot.products.find((p) => p.id === productId);
   if (!row) return null;
@@ -159,7 +177,7 @@ export function getStorefrontCategories(products = getStorefrontProducts()) {
     const rows = products.filter((p) => p.category_id === category.id);
     return {
       ...category,
-      blurb: CATEGORY_BLURB[category.id] || "",
+      blurb: CATEGORY_BLURB[category.name] || "",
       from_price: rows.length ? Math.min(...rows.map((p) => p.price)) : null,
       // Fall back to a product photo if the category has no cover image.
       image: category.image || rows[0]?.image || null,

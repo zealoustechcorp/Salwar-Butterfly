@@ -45,3 +45,22 @@ export const authRateLimiter = createLimiter({
   limit: 10,
   message: "Too many authentication attempts. Please try again later.",
 });
+
+/**
+ * Checkout (F-07.01).
+ *
+ * Placing an order is open to guests, opens a transaction and takes a
+ * row lock on every variant in the bag. The global limiter's 300 per
+ * fifteen minutes is far too loose for that: a loop against it would
+ * reserve the whole catalogue's stock into abandoned orders and take
+ * the shop off sale without ever paying for anything.
+ *
+ * Twenty is well above what a real shopper does — a couple of attempts
+ * if a card fails — and well below what a script needs to be useful.
+ */
+export const checkoutRateLimiter = createLimiter({
+  name: "checkout",
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  message: "Too many checkout attempts. Please try again in a few minutes.",
+});

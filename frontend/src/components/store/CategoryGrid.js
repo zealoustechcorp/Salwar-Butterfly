@@ -50,7 +50,7 @@ export function CategoryGrid({ categories }) {
               <Photo
                 src={category.image}
                 alt={category.name}
-                categoryId={category.id}
+                categoryName={category.name}
                 seed={category.id * 2}
                 sizes="(min-width: 1024px) 20vw, (min-width: 640px) 33vw, 50vw"
                 className="object-cover transition-transform duration-500 group-hover:scale-105"

@@ -23,7 +23,9 @@ const SECTIONS = [
       { label: "Exchange policy", href: "/#policy" },
       { label: "Shipping & delivery", href: "/account#delivery" },
       { label: "Size guide", href: "/account#sizes" },
-      { label: "Track your order", href: "/account#orders" },
+      // Points at the tracking page itself now that there is one — it works
+      // for a guest, which /account does not.
+      { label: "Track your order", href: "/track" },
       { label: "Your bag", href: "/bag" },
     ],
   },
