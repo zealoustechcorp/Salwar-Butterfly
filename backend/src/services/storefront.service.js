@@ -38,6 +38,18 @@ import { logger } from "../utils/logger.js";
 
 const CACHE_TTL_MS = 10_000;
 
+/**
+ * The most reviews one product page is served.
+ *
+ * A boutique piece collects a handful, not a thread. The count comes
+ * back alongside, so a page can say "showing 50 of 63" rather than
+ * quietly truncating — but in practice this cap is not expected to bind.
+ */
+const MAX_REVIEWS = 50;
+
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 let cache = null;
 
 const readCache = () => {
@@ -119,6 +131,62 @@ export const StorefrontService = {
       });
 
       throw new ApiError(500, "Failed to load the catalogue");
+    }
+  },
+
+  /**
+   * What shoppers have said about one piece (F-06.08).
+   *
+   * Its own request rather than part of the catalogue, and that is the
+   * one design decision here worth defending. The catalogue is a single
+   * document covering ~200 products that every page of the storefront
+   * loads; folding each piece's reviews into it would grow the payload
+   * for every visitor to serve a section only the few who open a
+   * product page will read. The average and the count *are* in the
+   * catalogue, because a card shows stars — that is two numbers per
+   * product, not a paragraph.
+   *
+   * Not cached. It is read once per product page render, behind Next's
+   * own revalidation, and a review published by the shop should appear
+   * without waiting on a second cache underneath that one.
+   *
+   * A product that does not exist, or has been taken off sale, is a 404
+   * — not an empty list. An empty list is a real and different answer:
+   * a piece nobody has reviewed yet.
+   */
+  async getProductReviews(productId) {
+    const id = String(productId ?? "").trim();
+
+    if (!id || !UUID_REGEX.test(id)) {
+      throw new ApiError(400, "Invalid product ID");
+    }
+
+    try {
+      const visible = await StorefrontRepository.productIsVisible(id);
+
+      if (!visible) {
+        throw new ApiError(404, "That piece is not in the shop");
+      }
+
+      const [ratingRow, reviewRows] = await Promise.all([
+        StorefrontRepository.productRating(id),
+        StorefrontRepository.reviewsFor(id, MAX_REVIEWS),
+      ]);
+
+      return {
+        product_id: id,
+        rating: StorefrontMapper.toRating(ratingRow),
+        reviews: reviewRows.map((row) => StorefrontMapper.toReview(row)),
+      };
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+
+      logger.error("StorefrontService.getProductReviews failed", {
+        productId: id,
+        error: error?.message,
+      });
+
+      throw new ApiError(500, "Failed to load reviews for this piece");
     }
   },
 };

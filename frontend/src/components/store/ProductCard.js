@@ -7,14 +7,19 @@ import { useState } from "react";
 import { money } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Photo } from "./Photo";
+import { Stars } from "./Stars";
 import { useStore } from "./StoreProvider";
 
 /**
  * A real product tile: the shop's own Cloudinary photography, its real price
  * and struck-through MRP, and only the sizes that still have stock.
  *
- * There is deliberately no star rating here — the live shop publishes no review
- * data, and inventing one for a real business would be a lie on the page.
+ * The star rating (F-06.08) appears only on pieces that actually have one.
+ * This tile carried no rating at all until the shop had somewhere to publish
+ * reviews from, on the principle that inventing one for a real business would
+ * be a lie on the page — and that principle is what the `count` test below
+ * still enforces. A piece nobody has reviewed shows nothing, not zero stars
+ * and not an empty "(0)": those read as a verdict rather than as silence.
  *
  * The photo and the name open the piece's own page. They are two separate links
  * rather than one wrapper, because the tile also carries the wishlist button
@@ -153,6 +158,15 @@ export function ProductCard({ product, priority = false }) {
 
         {product.fabric ? (
           <p className="mt-0.5 text-[11px] text-sb-text-muted sm:text-xs">{product.fabric}</p>
+        ) : null}
+
+        {product.rating?.count ? (
+          <div className="mt-1 flex items-center gap-1.5">
+            <Stars rating={product.rating.average} />
+            <span className="text-[11px] text-sb-text-muted tabular">
+              {product.rating.average.toFixed(1)} ({product.rating.count})
+            </span>
+          </div>
         ) : null}
 
         <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">

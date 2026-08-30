@@ -57,7 +57,56 @@ export const StorefrontMapper = {
         size: size.size,
         stock: Number(size.stock) || 0,
       })),
+
+      // F-06.08. `average` stays null when nothing has been published,
+      // because zero is a rating — the worst one — and a card must be
+      // able to tell "nobody has reviewed this" from "everybody hated
+      // it". `count` is what decides whether stars are drawn at all.
+      rating: {
+        count: Number(row.rating_count) || 0,
+        average: row.rating_average === null ? null : Number(row.rating_average),
+      },
+
       created_at: row.created_at,
+    };
+  },
+
+  /**
+   * One published review (F-06.08).
+   *
+   * Four fields and a date. No customer id, no email, no `published`
+   * flag — see the repository's column list, which is where that is
+   * actually enforced, and the reasons it gives.
+   */
+  toReview(row) {
+    return {
+      id: row.id,
+      author: row.author_name,
+      rating: Number(row.rating),
+      title: row.title ?? null,
+      body: row.body ?? null,
+      created_at: row.created_at,
+    };
+  },
+
+  /**
+   * The score for one piece, and its spread.
+   *
+   * The distribution is keyed 1–5 from a fixed list rather than from
+   * whatever the query returned, so a rating nobody has given is a zero
+   * the bar chart can draw rather than a hole it has to fill.
+   */
+  toRating(row) {
+    return {
+      count: Number(row?.count) || 0,
+      average: Number(row?.count) ? Number(row.average) : null,
+      distribution: {
+        5: Number(row?.five) || 0,
+        4: Number(row?.four) || 0,
+        3: Number(row?.three) || 0,
+        2: Number(row?.two) || 0,
+        1: Number(row?.one) || 0,
+      },
     };
   },
 

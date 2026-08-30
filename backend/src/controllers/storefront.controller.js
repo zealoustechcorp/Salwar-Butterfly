@@ -37,4 +37,33 @@ export const StorefrontController = {
       },
     });
   }),
+
+  /**
+   * GET /api/storefront/getProductReviews/:id
+   *
+   * Published reviews for one piece (F-06.08), with the average and the
+   * spread the star bar draws.
+   *
+   * Cached for longer than the catalogue is. Stock is what makes the
+   * catalogue go stale in a minute; a review is written once and never
+   * changes, so five minutes in front of it costs nothing a shopper
+   * would notice and keeps the product page cheap to serve.
+   */
+  getProductReviews: asyncHandler(async (req, res) => {
+    const reviews = await StorefrontService.getProductReviews(req.params.id);
+
+    res.set("Cache-Control", "public, max-age=300, stale-while-revalidate=600");
+
+    return okResponse({
+      res,
+      data: reviews,
+      message: "Reviews fetched successfully",
+      meta: {
+        counts: {
+          returned: reviews.reviews.length,
+          total: reviews.rating.count,
+        },
+      },
+    });
+  }),
 };

@@ -156,6 +156,11 @@ function decorate(product, categoryName) {
     sizes: product.sizes,
     // Only sizes actually on the shelf are selectable.
     available_sizes: sizes.map((s) => s.size),
+    // F-06.08. Defaulted rather than assumed: an API that predates the
+    // reviews table returns no `rating`, and a card reaching into
+    // `undefined.count` would take the whole grid down over a section
+    // that is meant to be optional.
+    rating: product.rating ?? { count: 0, average: null },
     in_stock: inStock,
     is_low_stock: inStock && stockStatusFor(product.stock) === STOCK_STATUS.LOW_STOCK,
   };

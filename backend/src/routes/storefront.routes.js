@@ -24,4 +24,14 @@ const router = express.Router();
 
 router.get("/getCatalogue", StorefrontController.getCatalogue);
 
+// What shoppers have said about one piece (F-06.08).
+//
+// The second public read, added the way this file's header says a
+// public read should be: one endpoint, on purpose, backed by a column
+// list in storefront.repository.js that names four fields and a date.
+// The admin's own /reviews router returns the customer link, the email
+// and the published flag; none of those are here, and the difference is
+// enforced by that column list rather than by a filter downstream.
+router.get("/getProductReviews/:id", StorefrontController.getProductReviews);
+
 export default router;

@@ -9,6 +9,7 @@ import { availabilityNotice } from "@/lib/stock";
 import { cn } from "@/lib/utils";
 import { WhatsAppGlyph } from "./Ornaments";
 import { Photo } from "./Photo";
+import { Stars } from "./Stars";
 import { useStore } from "./StoreProvider";
 
 /**
@@ -24,9 +25,14 @@ import { useStore } from "./StoreProvider";
  *     only one 40 is left before they pick, not after.
  *   - a quantity that cannot exceed what the chosen size actually holds.
  *
- * There is no description, care label, colourway or review block, because the
- * shop publishes none of those — a detail page padded with invented copy about
- * a real garment would be worse than a short one.
+ * There is no description, care label or colourway, because the shop publishes
+ * none of those — a detail page padded with invented copy about a real garment
+ * would be worse than a short one.
+ *
+ * Reviews (F-06.08) are the one thing that rule used to exclude and no longer
+ * does, now that the shop has an admin page to publish them from. They live in
+ * <ProductReviews> at the bottom of the route; what appears here is the score,
+ * and only on a piece that genuinely has one.
  */
 export function ProductDetail({ product, shop }) {
   const { addToBag, toggleWish, wishlist } = useStore();
@@ -71,6 +77,22 @@ export function ProductDetail({ product, shop }) {
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-sb-text-muted">
           {product.fabric ? <span>{product.fabric}</span> : null}
           <span className="tabular">{product.piece_code}</span>
+
+          {/* F-06.08. A jump link rather than a repeat of the section:
+              the stars here are a signal, and the reviews themselves are
+              a scroll away at the bottom of the page. Absent entirely on
+              a piece nobody has reviewed — see <ProductCard>. */}
+          {product.rating?.count ? (
+            <a
+              href="#reviews"
+              className="inline-flex items-center gap-1.5 underline-offset-4 hover:text-sb-link hover:underline"
+            >
+              <Stars rating={product.rating.average} size="size-3.5" />
+              <span className="tabular">
+                {product.rating.average.toFixed(1)} ({product.rating.count})
+              </span>
+            </a>
+          ) : null}
         </div>
 
         <div className="sb-rule mt-5 h-px w-full" aria-hidden="true" />

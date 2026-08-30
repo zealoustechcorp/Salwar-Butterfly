@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { PolicySection } from "@/components/store/HomeSections";
 import { ProductCard } from "@/components/store/ProductCard";
 import { ProductDetail } from "@/components/store/ProductDetail";
+import { ProductReviews } from "@/components/store/ProductReviews";
 import { money } from "@/lib/format";
 import {
   getProductIds,
@@ -12,6 +13,7 @@ import {
   getShop,
   getStorefrontProduct,
 } from "@/lib/store/catalogue";
+import { getProductReviews } from "@/lib/store/reviews";
 
 /**
  * A single piece (F-06 Product Browsing) — where a card on the home page, the
@@ -74,7 +76,14 @@ export default async function ProductPage({ params }) {
 
   if (!product) notFound();
 
-  const related = await getRelatedProducts(product);
+  // Fetched alongside the related pieces rather than after them: two
+  // independent reads, and awaiting them in sequence would add a round
+  // trip to a page that is prerendered anyway.
+  const [related, reviews] = await Promise.all([
+    getRelatedProducts(product),
+    getProductReviews(product.id),
+  ]);
+
   const shop = getShop();
 
   return (
@@ -82,6 +91,13 @@ export default async function ProductPage({ params }) {
       <Breadcrumb product={product} />
 
       <ProductDetail product={product} shop={shop} />
+
+      {/* F-06.08. Renders nothing at all when the piece has no reviews,
+          and nothing when the read failed — the page is about the
+          garment, and a review section is not worth 500ing over. */}
+      {reviews ? (
+        <ProductReviews rating={reviews.rating} reviews={reviews.reviews} />
+      ) : null}
 
       {related.length ? (
         <section className="mx-auto max-w-7xl px-4 py-9 sm:px-6 sm:py-11 lg:px-8 lg:py-13">
