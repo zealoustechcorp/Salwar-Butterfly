@@ -29,6 +29,9 @@ export const CategoryMapper = {
       // Cloudinary public ID
       imagePublicId: category.image_public_id ?? null,
 
+      // JSONB size-fit matrices, as stored
+      fits: category.fits ?? null,
+
       active: category.active,
 
       createdAt: category.created_at,
@@ -66,6 +69,8 @@ export const CategoryMapper = {
       image: row.image ?? null,
 
       image_public_id: row.image_public_id ?? null,
+
+      fits: row.fits ?? null,
 
       active: row.active,
 

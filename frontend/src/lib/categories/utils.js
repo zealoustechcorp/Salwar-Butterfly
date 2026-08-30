@@ -1,6 +1,6 @@
 /**
  * @file utils.js
- * @description Helper utilities for Category Management (F-02 Catalogue module).
+ * @description Helper utilities for Category Management.
  * Provides automated size chart template generators and SEO URL slug formatters.
  */
 
@@ -45,19 +45,32 @@ export function defaultSizeChartFor(fit) {
 }
 
 /**
+ * The shape the API's slug validator accepts: lowercase alphanumeric
+ * groups joined by single hyphens, with no hyphen at either end.
+ */
+export const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/**
  * Automatically converts human-readable category names into URL-safe, SEO-friendly slugs.
- * 
- * Transformation steps:
- * 1. Converts input string to lowercase (`.toLowerCase()`).
- * 2. Replaces all whitespace sequences with single hyphens (`/\s+/g -> '-'`).
- * 3. Strips away all non-alphanumeric characters except hyphens (`/[^a-z0-9-]/g -> ''`).
  *
- * Example: "Cotton Daily Wear & Kurtis!" -> "cotton-daily-wear--kurtis"
+ * Transformation steps:
+ * 1. Converts input string to lowercase.
+ * 2. Replaces every run of non-alphanumeric characters with a single hyphen.
+ * 3. Trims any leading or trailing hyphen.
+ *
+ * Steps 2 and 3 exist because the API rejects doubled and dangling
+ * hyphens outright — a naive strip would turn "Cotton Daily Wear &
+ * Kurtis!" into "cotton-daily-wear--kurtis" and fail validation.
+ *
+ * Example: "Cotton Daily Wear & Kurtis!" -> "cotton-daily-wear-kurtis"
  *
  * @param {string} name - Raw category name input by the user
  * @returns {string} Sanitized URL slug for routing and storefront category URLs
  */
 export function autoSlug(name) {
-  return name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+  return String(name ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 

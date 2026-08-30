@@ -1,8 +1,10 @@
 /**
  * @file constants.js
- * @description Centralized constants for Category Management (F-02 Catalogue module).
- * Defines standardized fit categories and their corresponding UI thematic colors
- * used across category cards, badges, size chart tables, and detail screens.
+ * @description Centralized constants for Category Management.
+ *
+ * Not seed data — the fit list is a UI enum with no API counterpart. The
+ * `fits` column stores whatever charts an admin configures, so the set of
+ * fits offered when building one lives here.
  */
 
 /**
@@ -14,15 +16,3 @@
  * - "Special Dress": Floor-length gowns, flared Anarkalis, and occasion wear.
  */
 export const FIT_TYPES = ["Slim Fit", "Normal Fit", "Special Dress"];
-
-/**
- * Brand color palette mappings (hex codes) associated with each garment fit type.
- * Used for badge borders, category tags, background accents, and size chart indicators
- * to provide quick visual differentiation across admin views.
- */
-export const FIT_COLORS = {
-  "Slim Fit": "#63242f",
-  "Normal Fit": "#522d1a",
-  "Special Dress": "#9b5e8a",
-};
-

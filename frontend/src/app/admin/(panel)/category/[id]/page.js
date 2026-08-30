@@ -2,15 +2,24 @@
 
 /**
  * @file page.js
- * @description Dynamic Category Detail Page Controller (`/admin/category/[id]`, F-02.01).
- * Extracts the dynamic `id` route parameter, queries the matching category from `CategoryContext`,
- * and renders the `CategoryDetail` inspector view.
- * If the category does not exist, renders an informative "Category not found" empty state.
+ * @description Dynamic Category Detail Page Controller (`/admin/category/[id]`).
+ * Extracts the dynamic `id` route parameter, resolves the matching category from the
+ * API-backed `CategoryContext`, and renders the `CategoryDetail` inspector view.
+ *
+ * Three outcomes rather than two: the collection is still loading, it failed
+ * to load, or it loaded and this id is genuinely not in it — only the last
+ * of which is a "not found".
  */
 
 import { FolderX } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import { Button, EmptyState } from "@/components/admin/ui";
+import {
+  Button,
+  EmptyState,
+  ErrorNotice,
+  SkeletonRows,
+  useToast,
+} from "@/components/admin/ui";
 import { useCategories } from "@/lib/categories/context";
 import CategoryDetail from "@/components/categories/CategoryDetail";
 
@@ -27,10 +36,24 @@ export default function CategoryDetailPage() {
    */
   const { id } = useParams();
   const router = useRouter();
-  const { categories, toggleActive } = useCategories();
+  const toast = useToast();
+  const { categories, products, status, error, refresh, toggleActive } =
+    useCategories();
+
+  if (status === "loading") {
+    return (
+      <div className="rounded-xl bg-white ring-1 ring-ink-200/80 shadow-xs">
+        <SkeletonRows rows={5} />
+      </div>
+    );
+  }
+
+  if (status === "error") {
+    return <ErrorNotice error={error} onRetry={refresh} />;
+  }
 
   /**
-   * Finds matching category object from context state by string/numeric ID
+   * Finds matching category record by ID
    */
   const category = categories.find((c) => c.id === id);
 
@@ -52,17 +75,33 @@ export default function CategoryDetailPage() {
     );
   }
 
+  /**
+   * Products the API reports against this category.
+   */
+  const linkedProducts = products.filter((p) => p.categoryId === category.id);
+
+  const handleToggle = async () => {
+    try {
+      await toggleActive(category.id);
+    } catch (toggleError) {
+      toast.error(
+        "Could not update category",
+        toggleError?.message ?? "The change was not saved.",
+      );
+    }
+  };
+
   /* Render detail view with navigation handlers and toggle action */
   return (
     <CategoryDetail
       category={category}
+      products={linkedProducts}
       /* Navigate to category edit screen */
       onEdit={() => router.push(`/admin/category/${id}/edit`)}
       /* Navigate back to category list screen */
       onBack={() => router.push("/admin/category")}
       /* Toggle category active/inactive visibility */
-      onToggle={() => toggleActive(id)}
+      onToggle={handleToggle}
     />
   );
 }
-

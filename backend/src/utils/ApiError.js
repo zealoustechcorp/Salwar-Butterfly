@@ -4,16 +4,64 @@
 // PRODUCTION-GRADE API ERROR
 // ============================================================
 
+// ============================================================
+// DEFAULT CODE PER STATUS
+// ============================================================
+//
+// Used by the positional signature, which has no code argument.
+//
+
+const CODE_BY_STATUS = {
+  400: "BAD_REQUEST",
+  401: "UNAUTHORIZED",
+  403: "FORBIDDEN",
+  404: "RESOURCE_NOT_FOUND",
+  409: "CONFLICT",
+  422: "UNPROCESSABLE_ENTITY",
+  429: "TOO_MANY_REQUESTS",
+  500: "INTERNAL_SERVER_ERROR",
+};
+
+// ============================================================
+// ARGUMENT NORMALIZATION
+// ============================================================
+//
+// Two call styles are supported:
+//
+//   new ApiError({ statusCode, message, code, errors })
+//   new ApiError(statusCode, message, errors)
+//
+// The positional form is what the controllers, services and
+// validators use throughout. Without it the number lands in the
+// destructuring pattern, every field falls back to its default,
+// and a 400 with field errors is served as a bare 500.
+//
+
+const normalizeArgs = (first, message, errors) => {
+  if (typeof first !== "number") {
+    return first ?? {};
+  }
+
+  return {
+    statusCode: first,
+    message,
+    code: CODE_BY_STATUS[first] ?? `HTTP_${first}`,
+    errors,
+  };
+};
+
 export class ApiError extends Error {
-  constructor({
-    statusCode = 500,
-    message = "Internal Server Error",
-    code = "INTERNAL_SERVER_ERROR",
-    details = null,
-    errors = null,
-    isOperational = true,
-    cause = null,
-  } = {}) {
+  constructor(first, positionalMessage, positionalErrors) {
+    const {
+      statusCode = 500,
+      message = "Internal Server Error",
+      code = "INTERNAL_SERVER_ERROR",
+      details = null,
+      errors = null,
+      isOperational = true,
+      cause = null,
+    } = normalizeArgs(first, positionalMessage, positionalErrors);
+
     super(message);
 
     // ----------------------------------------------------------

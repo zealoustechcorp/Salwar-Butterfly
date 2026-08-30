@@ -2,7 +2,7 @@
 
 /**
  * @file Toggle.js
- * @description Interactive boolean toggle switch for category active/inactive states (F-02 Catalogue module).
+ * @description Interactive boolean toggle switch for category active/inactive states.
  * Wraps the base Admin UI Toggle component to provide instant status switching from category cards,
  * detail headers, and form sections without requiring full form submission.
  */

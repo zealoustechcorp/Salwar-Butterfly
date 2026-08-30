@@ -2,7 +2,7 @@
 
 /**
  * @file Badge.js
- * @description Category Status Badge component for the F-02 Catalogue module.
+ * @description Category Status Badge component for the Catalogue module.
  * Visually communicates whether a category is currently "Active" (published and visible
  * on the customer storefront) or "Inactive" (hidden / draft state).
  */

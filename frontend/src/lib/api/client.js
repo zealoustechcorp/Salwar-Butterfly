@@ -49,16 +49,25 @@ export const NETWORK_ERROR = "NETWORK_ERROR";
  * @param {string} path      path below the base URL, e.g. "/admin/auth/login"
  * @param {object} [options]
  * @param {string} [options.method]
- * @param {object} [options.body]   serialized as JSON
+ * @param {object|FormData} [options.body]  JSON-serialized, unless it is a
+ *                                          FormData — routes that accept a
+ *                                          file upload need multipart
  * @param {string} [options.token]  bearer token, when the route needs one
+ * @param {boolean} [options.envelope]  resolve to { data, meta } instead of
+ *                                      just data — for paginated lists
  * @param {AbortSignal} [options.signal]
  */
 export async function request(path, options = {}) {
-  const { method = "GET", body, token, signal } = options;
+  const { method = "GET", body, token, signal, envelope = false } = options;
 
   const headers = {};
 
-  if (body !== undefined) {
+  // A FormData body must set its own Content-Type: the browser appends the
+  // multipart boundary, and naming the header here would strip it.
+  const isFormData =
+    typeof FormData !== "undefined" && body instanceof FormData;
+
+  if (body !== undefined && !isFormData) {
     headers["Content-Type"] = "application/json";
   }
 
@@ -72,7 +81,12 @@ export async function request(path, options = {}) {
     response = await fetch(`${BASE_URL}${path}`, {
       method,
       headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body:
+        body === undefined
+          ? undefined
+          : isFormData
+            ? body
+            : JSON.stringify(body),
       signal,
     });
   } catch (error) {
@@ -92,7 +106,7 @@ export async function request(path, options = {}) {
 
   // 204 and other empty bodies
   if (response.status === 204) {
-    return null;
+    return envelope ? { data: null, meta: null } : null;
   }
 
   const payload = await response.json().catch(() => null);
@@ -108,7 +122,12 @@ export async function request(path, options = {}) {
     );
   }
 
-  // The API envelope is { success, message, data } — callers want data.
+  // The API envelope is { success, message, data, meta } — callers want data,
+  // except paginated lists, which also need meta.
+  if (envelope) {
+    return { data: payload?.data ?? null, meta: payload?.meta ?? null };
+  }
+
   return payload?.data ?? null;
 }
 

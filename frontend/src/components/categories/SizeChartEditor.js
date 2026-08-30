@@ -2,7 +2,7 @@
 
 /**
  * @file SizeChartEditor.js
- * @description Interactive Size Chart Measurement Matrix Editor (F-02 Catalogue module, F-02.06).
+ * @description Interactive Size Chart Measurement Matrix Editor.
  * Provides an editable tabular interface where administrators can customize garment measurements
  * (in centimetres) for each fit variant (e.g. Slim Fit, Normal Fit, Special Dress).
  * 
@@ -14,7 +14,6 @@
 
 import { Plus, Trash2 } from "lucide-react";
 import { Badge, Button, Input } from "@/components/admin/ui";
-import { FIT_COLORS } from "../../lib/categories/constants";
 
 /**
  * SizeChartEditor Component

@@ -2,7 +2,7 @@
 
 /**
  * @file layout.js
- * @description Layout boundary wrapper for the `/admin/category` route segment (F-02 Catalogue).
+ * @description Layout boundary wrapper for the `/admin/category` route segment.
  * 
  * Architectural Role:
  * - Mounts `<CategoryProvider>` once at the root of the category sub-tree.
