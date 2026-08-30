@@ -1,0 +1,149 @@
+### Base URL
+@baseUrl = http://localhost:4000/api
+
+@productId = 41cee835-1c0c-4511-b091-246a213e8373
+@variantId = 8f2a1c44-1c0c-4511-b091-246a213e8373
+
+
+### ============================================================
+### PRODUCT VARIANT ENDPOINTS
+###
+### A variant is one sellable size of a product. One row per
+### (product, size), each with its own stock count.
+### ============================================================
+
+
+### ============================================================
+### Replace a product's whole size set  (what the admin form saves)
+###
+### Sizes not listed here are deleted, along with their stock.
+### The order sent is the order stored and returned.
+### ============================================================
+PUT {{baseUrl}}/productVariants/replaceProductVariants/{{productId}}
+Content-Type: application/json
+
+{
+  "variants": [
+    { "size": "S",   "stockQuantity": 4,  "active": true },
+    { "size": "M",   "stockQuantity": 30, "active": true },
+    { "size": "L",   "stockQuantity": 0,  "active": true },
+    { "size": "XL",  "stockQuantity": 7,  "active": false }
+  ]
+}
+
+
+### ============================================================
+### Clear every size from a product
+### ============================================================
+PUT {{baseUrl}}/productVariants/replaceProductVariants/{{productId}}
+Content-Type: application/json
+
+{
+  "variants": []
+}
+
+
+### ============================================================
+### Get a product's sizes  (detail + edit screens)
+###
+### Returns meta.summary: sizeCount, activeSizeCount, totalStock,
+### lowestStatus.
+### ============================================================
+GET {{baseUrl}}/productVariants/getVariantsByProduct/{{productId}}
+
+
+### ============================================================
+### Get every variant, with a per-product roll-up  (admin list)
+###
+### meta.summaries is keyed by product id, so the list renders a
+### stock column without one request per row.
+### ============================================================
+GET {{baseUrl}}/productVariants/getAllVariants?page=1&limit=500
+
+
+### ============================================================
+### Get one variant
+### ============================================================
+GET {{baseUrl}}/productVariants/getVariantById/{{variantId}}
+
+
+### ============================================================
+### Add a single size
+### ============================================================
+POST {{baseUrl}}/productVariants/createVariant
+Content-Type: application/json
+
+{
+  "productId": "{{productId}}",
+  "size": "XXL",
+  "stockQuantity": 12,
+  "active": true
+}
+
+
+### ============================================================
+### Update a variant
+### ============================================================
+PUT {{baseUrl}}/productVariants/updateVariant/{{variantId}}
+Content-Type: application/json
+
+{
+  "size": "XL",
+  "stockQuantity": 20,
+  "active": true
+}
+
+
+### ============================================================
+### Update stock only  (inline stock edit)
+### ============================================================
+PATCH {{baseUrl}}/productVariants/updateVariantStock/{{variantId}}
+Content-Type: application/json
+
+{
+  "stockQuantity": 99
+}
+
+
+### ============================================================
+### Take a size off sale without losing its stock
+### ============================================================
+PUT {{baseUrl}}/productVariants/updateVariant/{{variantId}}
+Content-Type: application/json
+
+{
+  "active": false
+}
+
+
+### ============================================================
+### Delete a variant
+### ============================================================
+DELETE {{baseUrl}}/productVariants/deleteVariant/{{variantId}}
+
+
+### ============================================================
+### Validation: duplicate size in one payload -> 400
+### ============================================================
+PUT {{baseUrl}}/productVariants/replaceProductVariants/{{productId}}
+Content-Type: application/json
+
+{
+  "variants": [
+    { "size": "M", "stockQuantity": 5 },
+    { "size": "m", "stockQuantity": 8 }
+  ]
+}
+
+
+### ============================================================
+### Validation: negative stock -> 400
+### ============================================================
+PUT {{baseUrl}}/productVariants/replaceProductVariants/{{productId}}
+Content-Type: application/json
+
+{
+  "variants": [
+    { "size": "M", "stockQuantity": -5 }
+  ]
+}

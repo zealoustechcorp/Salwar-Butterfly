@@ -11,11 +11,11 @@ const router = express.Router();
 
 router.post("/createProduct", validateCreateProduct, ProductController.create);
 
-router.post(
-  "/bulkCreateProducts",
-  validateCreateProduct,
-  ProductController.bulkCreate,
-);
+// No validateCreateProduct here: that middleware reads a single product
+// off the body root and would reject every bulk payload, whose shape is
+// { categoryId, products: [...] }. ProductService.bulkCreateByCategoryId
+// validates each element and reports the offending index.
+router.post("/bulkCreateProducts", ProductController.bulkCreate);
 
 router.post("/bulkUpdateCategory", ProductController.bulkUpdateCategory);
 

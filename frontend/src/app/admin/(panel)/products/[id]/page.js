@@ -2,25 +2,25 @@
 
 import { ArrowLeft } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { DiscountDialog } from "@/components/admin/DiscountDialog";
-import { ActiveDot, PriceCell, StatTile, StockPill } from "@/components/admin/ProductBits";
-import { ColourSwatch, ImageTile, ProductThumb } from "@/components/admin/ProductThumb";
+import { ActiveDot, StatTile } from "@/components/admin/ProductBits";
+import { ProductThumb, swatchFor } from "@/components/admin/ProductThumb";
+import { StockBadge } from "@/components/admin/SizeStockEditor";
 import {
   Badge,
   Button,
   Card,
   CardHeader,
-  cx,
   ErrorNotice,
   LinkButton,
-  RequirementTag,
   SkeletonRows,
   useToast,
 } from "@/components/admin/ui";
-import { getProduct, setActive } from "@/lib/api/products";
-import { FIT_LABEL, money, number, shortDate } from "@/lib/format";
+import { getProduct, getReference, setActive } from "@/lib/api/products";
+import { EMPTY_SUMMARY, getVariantsForProduct } from "@/lib/api/variants";
+import { money, number, shortDate } from "@/lib/format";
 
 export default function ProductDetailPage() {
   const params = useParams();
@@ -28,33 +28,70 @@ export default function ProductDetailPage() {
   const toast = useToast();
 
   const [reload, setReload] = useState(0);
-  const [result, setResult] = useState({ product: null, error: null });
+  const [result, setResult] = useState({
+    product: null,
+    reference: null,
+    variants: [],
+    summary: EMPTY_SUMMARY,
+    error: null,
+  });
   const [busy, setBusy] = useState(false);
   const [discountOpen, setDiscountOpen] = useState(false);
 
   // Every setState here lands after an await, so the effect never triggers a
   // cascading render on mount.
   useEffect(() => {
+    const controller = new AbortController();
     let active = true;
-    getProduct(id)
-      .then((fetched) => {
-        if (active) setResult({ product: fetched, error: null });
+
+    Promise.all([
+      getProduct(id, { signal: controller.signal }),
+      // The names behind category_id / sub_category_id. Not worth failing
+      // the whole screen for.
+      getReference({ signal: controller.signal }).catch(() => null),
+      getVariantsForProduct(id, { signal: controller.signal }).catch(() => ({
+        variants: [],
+        summary: EMPTY_SUMMARY,
+      })),
+    ])
+      .then(([product, reference, variantResult]) => {
+        if (active)
+          setResult({
+            product,
+            reference,
+            variants: variantResult.variants,
+            summary: variantResult.summary,
+            error: null,
+          });
       })
       .catch((err) => {
-        if (active) setResult((current) => ({ ...current, error: err }));
+        if (active && err?.name !== "AbortError")
+          setResult((current) => ({ ...current, error: err }));
       });
+
     return () => {
       active = false;
+      controller.abort();
     };
   }, [id, reload]);
 
   const load = useCallback(() => setReload((n) => n + 1), []);
-  const { product, error } = result;
+  const { product, reference, variants, summary, error } = result;
+
+  const names = useMemo(() => {
+    if (!product) return { category: "—", subCategory: null };
+    return {
+      category:
+        reference?.categories.find((c) => c.id === product.categoryId)?.name ?? "—",
+      subCategory:
+        reference?.subCategories.find((s) => s.id === product.subCategoryId)?.name ?? null,
+    };
+  }, [product, reference]);
 
   async function toggleActive() {
     setBusy(true);
     try {
-      const outcome = await setActive({ productIds: [product.id], active: !product.is_active });
+      const outcome = await setActive({ productIds: [product.id], active: !product.active });
       toast.success(outcome.message);
       load();
     } catch (err) {
@@ -77,10 +114,6 @@ export default function ProductDetailPage() {
 
   if (!product) return <SkeletonRows rows={10} className="mx-auto max-w-6xl" />;
 
-  const gallery = product.images.filter((i) => i.variant_id === null);
-  const variantImages = product.images.filter((i) => i.variant_id !== null);
-  const colours = [...new Map(product.variants.map((v) => [v.colour, v])).values()];
-
   return (
     <div className="mx-auto max-w-6xl space-y-5">
       <nav className="flex items-center gap-1.5 text-xs text-ink-500">
@@ -93,29 +126,27 @@ export default function ProductDetailPage() {
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex min-w-0 items-start gap-4">
-          <ProductThumb
-            hex={product.primary_image?.swatch_hex || product.variants[0]?.colour_hex}
-            seed={product.primary_image?.swatch_seed ?? product.id}
-            size={64}
-            rounded="rounded-xl"
-            label={product.name}
-          />
+          <ProductThumb {...swatchFor(product)} size={64} rounded="rounded-xl" label={product.name} />
           <div className="min-w-0">
             <h1 className="flex flex-wrap items-center gap-2 text-xl font-semibold tracking-tight text-ink-900">
               {product.name}
-              {product.is_featured ? <Badge tone="gold">Featured</Badge> : null}
-              {product.discount_percent > 0 ? (
-                <Badge tone="brand">−{product.discount_percent}% offer</Badge>
+              {product.isFeatured ? <Badge tone="gold">Featured</Badge> : null}
+              {product.discountPercentage > 0 ? (
+                <Badge tone="brand">−{product.discountPercentage}% offer</Badge>
               ) : null}
             </h1>
             <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-ink-500">
               <span className="font-mono">/{product.slug}</span>
               <span aria-hidden="true">·</span>
-              <span>{product.category_name}</span>
+              <span>{names.category}</span>
+              {names.subCategory ? (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span>{names.subCategory}</span>
+                </>
+              ) : null}
               <span aria-hidden="true">·</span>
-              <span>{FIT_LABEL[product.fit] || "No fit"}</span>
-              <span aria-hidden="true">·</span>
-              <ActiveDot active={product.is_active} />
+              <ActiveDot active={product.active} />
             </p>
           </div>
         </div>
@@ -125,7 +156,7 @@ export default function ProductDetailPage() {
             Discount…
           </Button>
           <Button variant="secondary" busy={busy} onClick={toggleActive}>
-            {product.is_active ? "Deactivate" : "Activate"}
+            {product.active ? "Deactivate" : "Activate"}
           </Button>
           <LinkButton variant="primary" href={`/admin/products/${product.id}/edit`}>
             Edit product
@@ -136,29 +167,47 @@ export default function ProductDetailPage() {
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile
           label="Customer pays"
-          value={money(product.sale_price)}
-          sub={product.discount_percent > 0 ? `was ${money(product.base_price)}` : "no offer active"}
+          value={money(product.currentPrice)}
+          sub={
+            product.discountPercentage > 0
+              ? `was ${money(product.basePrice)}`
+              : "no offer active"
+          }
           tone="brand"
-          requirement="F-03.08"
         />
         <StatTile
-          label="Variants"
-          value={number(product.stock.variant_count)}
-          sub={`${product.stock.active_variant_count} active · ${colours.length} colours`}
-          requirement="F-03.03"
+          label="Sizes"
+          value={number(summary.sizeCount)}
+          sub={summary.sizeCount ? `${summary.activeSizeCount} on sale` : "nothing sellable yet"}
+          tone={summary.sizeCount ? "neutral" : "amber"}
         />
         <StatTile
           label="Units on hand"
-          value={number(product.stock.total_stock)}
-          sub={product.stock.has_in_stock ? "at least one variant sellable" : "nothing sellable"}
-          tone={product.stock.has_in_stock ? "green" : "red"}
-          requirement="F-04.01"
+          value={number(summary.totalStock)}
+          sub={
+            summary.lowestStatus === "out_of_stock"
+              ? "a size is out of stock"
+              : summary.lowestStatus === "low_stock"
+                ? "a size is running low"
+                : summary.totalStock
+                  ? "every size in stock"
+                  : "no stock recorded"
+          }
+          tone={
+            summary.lowestStatus === "out_of_stock"
+              ? "red"
+              : summary.lowestStatus === "low_stock"
+                ? "amber"
+                : summary.totalStock
+                  ? "green"
+                  : "neutral"
+          }
         />
         <StatTile
-          label="Ordered to date"
-          value={number(product.ordered_units)}
-          sub={product.ordered_units ? "protected from deletion" : "never sold — deletable"}
-          requirement="F-03.11"
+          label="Storefront"
+          value={product.active ? "Live" : "Hidden"}
+          sub={product.active ? "shoppers can see it" : "in the catalogue only"}
+          tone={product.active ? "green" : "amber"}
         />
       </div>
 
@@ -166,113 +215,66 @@ export default function ProductDetailPage() {
         <div className="space-y-5 lg:col-span-2">
           <Card>
             <CardHeader
-              title="Variants"
-              requirement="F-03.10"
-              description="The sellable rows. Effective price honours variant overrides before falling back to the product."
+              title="Sizes & stock"
+              description="The rows a shopper actually buys."
               actions={
-                <LinkButton size="sm" variant="secondary" href={`/admin/products/${product.id}/edit?tab=variants`}>
+                <LinkButton
+                  size="sm"
+                  variant="secondary"
+                  href={`/admin/products/${product.id}/edit?tab=sizes`}
+                >
                   Manage
                 </LinkButton>
               }
             />
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] border-collapse text-sm">
-                <thead>
-                  <tr className="border-b border-ink-200 bg-ink-50/60 text-left text-[11px] font-semibold tracking-wide text-ink-500 uppercase">
-                    <th className="px-4 py-2.5">SKU</th>
-                    <th className="px-4 py-2.5">Size</th>
-                    <th className="px-4 py-2.5">Colour</th>
-                    <th className="px-4 py-2.5 text-right">Price</th>
-                    <th className="px-4 py-2.5 text-right">Stock</th>
-                    <th className="px-4 py-2.5">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-ink-100">
-                  {product.variants.map((variant) => (
-                    <tr key={variant.id} className={cx(!variant.is_active && "bg-ink-50/60 text-ink-400")}>
-                      <td className="px-4 py-2.5 font-mono text-[11px] text-ink-600">{variant.sku}</td>
-                      <td className="px-4 py-2.5 font-medium text-ink-800">{variant.size}</td>
-                      <td className="px-4 py-2.5">
-                        <ColourSwatch hex={variant.colour_hex} name={variant.colour} />
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <PriceCell
-                          basePrice={variant.pricing.unit_price}
-                          salePrice={variant.pricing.sale_price}
-                          discountPercent={variant.pricing.discount_percent}
-                          overridden={variant.pricing.has_override}
-                        />
-                      </td>
-                      <td className="tabular px-4 py-2.5 text-right font-medium">
-                        {variant.stock_quantity}
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <StockPill status={variant.stock_status} />
-                      </td>
+            {variants.length === 0 ? (
+              <p className="px-5 py-6 text-sm text-ink-500">
+                No sizes recorded, so there is nothing a shopper can add to a bag. Add them from
+                the edit screen.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[420px] border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b border-ink-200 bg-ink-50/60 text-left text-[11px] font-semibold tracking-wide text-ink-500 uppercase">
+                      <th className="px-5 py-2.5">Size</th>
+                      <th className="px-5 py-2.5 text-right">Stock</th>
+                      <th className="px-5 py-2.5">Status</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-ink-100">
+                    {variants.map((variant) => (
+                      <tr key={variant.id}>
+                        <td className="px-5 py-2.5 font-semibold text-ink-800">{variant.size}</td>
+                        <td className="tabular px-5 py-2.5 text-right text-ink-700">
+                          {number(variant.stockQuantity)}
+                        </td>
+                        <td className="px-5 py-2.5">
+                          <StockBadge active={variant.active} stock={variant.stockQuantity} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </Card>
 
           <Card>
-            <CardHeader
-              title="Images"
-              requirement="F-03.06"
-              description={`${gallery.length} gallery · ${variantImages.length} variant-specific`}
-              actions={
-                <LinkButton size="sm" variant="secondary" href={`/admin/products/${product.id}/edit?tab=images`}>
-                  Manage
-                </LinkButton>
-              }
-            />
-            <div className="space-y-4 p-5">
-              <div>
-                <p className="mb-2 text-xs font-semibold text-ink-700">Product gallery</p>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  {gallery.map((image) => (
-                    <ImageTile key={image.id} image={image} variantLabel="Gallery" size={120} />
-                  ))}
-                </div>
-              </div>
-              {variantImages.length ? (
-                <div>
-                  <p className="mb-2 flex items-center gap-2 text-xs font-semibold text-ink-700">
-                    Variant-specific
-                    <RequirementTag id="F-03.04" />
-                  </p>
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                    {variantImages.map((image) => {
-                      const variant = product.variants.find((v) => v.id === image.variant_id);
-                      return (
-                        <ImageTile
-                          key={image.id}
-                          image={image}
-                          size={120}
-                          variantLabel={variant ? `${variant.size} · ${variant.colour}` : "Variant"}
-                        />
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : null}
-            </div>
+            <CardHeader title="Description" />
+            <p className="px-5 py-4 text-sm leading-relaxed whitespace-pre-line text-ink-600">
+              {product.description || (
+                <span className="text-ink-400">No description recorded.</span>
+              )}
+            </p>
           </Card>
         </div>
 
         <div className="space-y-5">
           <Card>
-            <CardHeader title="Description" />
-            <p className="px-5 py-4 text-sm leading-relaxed text-ink-600">
-              {product.description || <span className="text-ink-400">No description recorded.</span>}
-            </p>
-          </Card>
-
-          <Card>
-            <CardHeader title="Attributes" requirement="F-03.09" />
+            <CardHeader title="Attributes" />
             <dl className="divide-y divide-ink-100 px-5 text-sm">
-              {Object.entries(product.attributes || {}).length === 0 ? (
+              {Object.keys(product.attributes ?? {}).length === 0 ? (
                 <p className="py-4 text-sm text-ink-400">None recorded.</p>
               ) : (
                 Object.entries(product.attributes).map(([key, value]) => (
@@ -288,17 +290,18 @@ export default function ProductDetailPage() {
           <Card>
             <CardHeader title="Record" />
             <dl className="divide-y divide-ink-100 px-5 text-sm">
-              <Row label="Product ID" value={<span className="font-mono text-xs">{product.id}</span>} />
-              <Row label="Category" value={product.category_name} />
-              <Row label="Size chart" value={product.size_chart_name || "—"} />
-              <Row label="Base price" value={money(product.base_price)} />
+              <Row label="Product ID" value={<span className="font-mono text-[11px]">{product.id}</span>} />
+              <Row label="Category" value={names.category} />
+              <Row label="Sub-category" value={names.subCategory || "—"} />
+              <Row label="Base price" value={money(product.basePrice)} />
               <Row
                 label="Discount"
-                value={product.discount_percent > 0 ? `${product.discount_percent}%` : "None"}
-              />
-              <Row label="Published" value={shortDate(product.published_at)} />
-              <Row label="Created" value={shortDate(product.created_at)} />
-              <Row label="Last updated" value={shortDate(product.updated_at)} />
+              value={product.discountPercentage > 0 ? `${product.discountPercentage}%` : "None"}
+            />
+              <Row label="Current price" value={money(product.currentPrice)} />
+              <Row label="Featured" value={product.isFeatured ? "Yes" : "No"} />
+              <Row label="Created" value={shortDate(product.createdAt)} />
+              <Row label="Last updated" value={shortDate(product.updatedAt)} />
             </dl>
           </Card>
         </div>
@@ -307,7 +310,7 @@ export default function ProductDetailPage() {
       <DiscountDialog
         open={discountOpen}
         onClose={() => setDiscountOpen(false)}
-        targets={{ products: [product], variants: [] }}
+        products={[product]}
         onDone={load}
       />
     </div>

@@ -24,9 +24,11 @@ export const ProductService = {
     slug,
     description = null,
     categoryId,
+    subCategoryId = null,
     sizeChartId = null,
     basePrice,
     discountPercentage = 0,
+    attributes = {},
     isFeatured = false,
     active = true,
   } = {}) {
@@ -46,6 +48,9 @@ export const ProductService = {
           ? description.trim()
           : description || null;
       const normalizedCategoryId = String(categoryId).trim();
+      const normalizedSubCategoryId = subCategoryId
+        ? String(subCategoryId).trim()
+        : null;
       const normalizedSizeChartId = sizeChartId
         ? String(sizeChartId).trim()
         : null;
@@ -56,6 +61,13 @@ export const ProductService = {
 
       if (!UUID_REGEX.test(normalizedCategoryId)) {
         throw new ApiError(400, "Invalid category ID format");
+      }
+
+      if (
+        normalizedSubCategoryId &&
+        !UUID_REGEX.test(normalizedSubCategoryId)
+      ) {
+        throw new ApiError(400, "Invalid sub-category ID format");
       }
 
       if (normalizedSizeChartId && !UUID_REGEX.test(normalizedSizeChartId)) {
@@ -102,10 +114,12 @@ export const ProductService = {
         slug: normalizedSlug,
         description: normalizedDescription,
         categoryId: normalizedCategoryId,
+        subCategoryId: normalizedSubCategoryId,
         sizeChartId: normalizedSizeChartId,
         basePrice: price,
         discountPercentage: discount,
         currentPrice,
+        attributes: attributes ?? {},
         isFeatured: normalizedFeatured,
         active: normalizedActive,
       });
@@ -120,6 +134,7 @@ export const ProductService = {
 
       const product = await ProductRepository.create({
         categoryId: productDTO.categoryId,
+        subCategoryId: productDTO.subCategoryId,
         sizeChartId: productDTO.sizeChartId,
         name: productDTO.name,
         slug: productDTO.slug,
@@ -127,6 +142,7 @@ export const ProductService = {
         basePrice: productDTO.basePrice,
         discountPercentage: productDTO.discountPercentage,
         currentPrice: productDTO.currentPrice,
+        attributes: productDTO.attributes,
         isFeatured: productDTO.isFeatured,
         active: productDTO.active,
       });
@@ -223,10 +239,13 @@ export const ProductService = {
           name: p.name.trim(),
           slug: p.slug.trim().toLowerCase(),
           description: p.description ? p.description.trim() : null,
+          subCategoryId: p.subCategoryId ? String(p.subCategoryId).trim() : null,
           sizeChartId: p.sizeChartId ? String(p.sizeChartId).trim() : null,
           basePrice: price,
           discountPercentage: discount,
           currentPrice,
+          attributes:
+            p.attributes && typeof p.attributes === "object" ? p.attributes : {},
           isFeatured: p.isFeatured === true || p.isFeatured === "true",
           active: p.active !== false && p.active !== "false",
         });
@@ -262,6 +281,81 @@ export const ProductService = {
       });
 
       throw new ApiError(500, "Failed to create products");
+    }
+  },
+
+  /**
+   * Moves products into a category.
+   *
+   * This is the only way to change a product's category: updateProduct
+   * deliberately does not touch `category_id`, so both the product edit
+   * screen and the category screens' product assignment come through
+   * here.
+   *
+   * @param {string} categoryId
+   * @param {string[]} productIds
+   * @returns {Promise<number>} how many rows were updated
+   */
+  async bulkUpdateCategoryByProductIds(categoryId, productIds) {
+    try {
+      if (!categoryId || !Array.isArray(productIds)) {
+        throw new ApiError(400, "Category ID and product IDs array are required");
+      }
+
+      if (productIds.length === 0) {
+        throw new ApiError(400, "At least one product ID is required");
+      }
+
+      if (productIds.length > 1000) {
+        throw new ApiError(400, "Maximum 1000 products can be updated at once");
+      }
+
+      const normalizedCategoryId = String(categoryId).trim();
+
+      if (!UUID_REGEX.test(normalizedCategoryId)) {
+        throw new ApiError(400, "Invalid category ID format");
+      }
+
+      const normalizedProductIds = productIds.map((id) => String(id).trim());
+
+      const invalid = normalizedProductIds.find((id) => !UUID_REGEX.test(id));
+      if (invalid) {
+        throw new ApiError(400, `Invalid product ID format: ${invalid}`);
+      }
+
+      logger.info("Bulk updating product category", {
+        categoryId: normalizedCategoryId,
+        count: normalizedProductIds.length,
+      });
+
+      const updated = await ProductRepository.bulkUpdateCategoryByIds(
+        normalizedProductIds,
+        normalizedCategoryId,
+      );
+
+      logger.info("Products moved to category", {
+        categoryId: normalizedCategoryId,
+        updated,
+      });
+
+      return updated;
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+
+      if (error?.code === "PRODUCT_FOREIGN_KEY_VIOLATION") {
+        logger.warn("Bulk category update failed - unknown category", {
+          categoryId,
+        });
+        throw new ApiError(400, "Invalid category ID");
+      }
+
+      logger.error("ProductService.bulkUpdateCategoryByProductIds failed", {
+        categoryId,
+        count: productIds?.length,
+        error: error?.message,
+      });
+
+      throw new ApiError(500, "Failed to update product category");
     }
   },
 
@@ -409,6 +503,7 @@ export const ProductService = {
         updateData.description !== undefined ||
         updateData.basePrice !== undefined ||
         updateData.discountPercentage !== undefined ||
+        updateData.attributes !== undefined ||
         updateData.isFeatured !== undefined ||
         updateData.active !== undefined ||
         updateData.sizeChartId !== undefined;

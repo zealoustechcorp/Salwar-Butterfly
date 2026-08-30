@@ -8,6 +8,7 @@ export class CreateProductDTO {
     basePrice,
     discountPercentage = 0,
     currentPrice,
+    attributes = {},
     isFeatured = false,
     active = true,
   } = {}) {
@@ -20,6 +21,7 @@ export class CreateProductDTO {
     this.basePrice = basePrice;
     this.discountPercentage = discountPercentage;
     this.currentPrice = currentPrice;
+    this.attributes = attributes;
     this.isFeatured = isFeatured;
     this.active = active;
   }
@@ -34,6 +36,7 @@ export class UpdateProductDTO {
     basePrice,
     discountPercentage,
     currentPrice,
+    attributes,
     isFeatured,
     active,
   } = {}) {
@@ -49,6 +52,7 @@ export class UpdateProductDTO {
     if (discountPercentage !== undefined)
       this.discountPercentage = discountPercentage;
     if (currentPrice !== undefined) this.currentPrice = currentPrice;
+    if (attributes !== undefined) this.attributes = attributes;
     if (isFeatured !== undefined) this.isFeatured = isFeatured;
     if (active !== undefined) this.active = active;
   }

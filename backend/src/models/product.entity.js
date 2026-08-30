@@ -60,6 +60,12 @@ export const productEntity = {
       default: 0,
     },
 
+    attributes: {
+      type: "JSONB",
+      notNull: true,
+      default: "'{}'::jsonb",
+    },
+
     is_featured: {
       type: "BOOLEAN",
       notNull: true,
@@ -93,5 +99,6 @@ export const productEntity = {
     { name: "idx_products_featured", fields: ["is_featured"] },
     { name: "idx_products_price", fields: ["current_price"] },
     { name: "idx_products_created_at", fields: ["created_at"] },
+    { name: "idx_products_attributes", fields: ["attributes"], using: "GIN" },
   ],
 };

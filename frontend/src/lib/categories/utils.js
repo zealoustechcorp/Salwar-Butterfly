@@ -2,7 +2,13 @@
  * @file utils.js
  * @description Helper utilities for Category Management.
  * Provides automated size chart template generators and SEO URL slug formatters.
+ *
+ * The slug helpers moved to `src/lib/slug.js` once Product Management
+ * needed the same rule; they are re-exported here so the category
+ * screens keep importing them from one place.
  */
+
+export { autoSlug, SLUG_PATTERN } from "@/lib/slug";
 
 /**
  * Generates an empty default size chart measurement skeleton for a given garment fit type.
@@ -44,33 +50,4 @@ export function defaultSizeChartFor(fit) {
   };
 }
 
-/**
- * The shape the API's slug validator accepts: lowercase alphanumeric
- * groups joined by single hyphens, with no hyphen at either end.
- */
-export const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-
-/**
- * Automatically converts human-readable category names into URL-safe, SEO-friendly slugs.
- *
- * Transformation steps:
- * 1. Converts input string to lowercase.
- * 2. Replaces every run of non-alphanumeric characters with a single hyphen.
- * 3. Trims any leading or trailing hyphen.
- *
- * Steps 2 and 3 exist because the API rejects doubled and dangling
- * hyphens outright — a naive strip would turn "Cotton Daily Wear &
- * Kurtis!" into "cotton-daily-wear--kurtis" and fail validation.
- *
- * Example: "Cotton Daily Wear & Kurtis!" -> "cotton-daily-wear-kurtis"
- *
- * @param {string} name - Raw category name input by the user
- * @returns {string} Sanitized URL slug for routing and storefront category URLs
- */
-export function autoSlug(name) {
-  return String(name ?? "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
 

@@ -21,9 +21,16 @@ Content-Type: application/json
   "subCategoryId": "d9b1686a-ca9e-4f85-ab50-c719406f2a9f",
   "basePrice": 999.99,
   "discountPercentage": 10,
+  "attributes": {
+    "fabric": "Cotton",
+    "work": "Plain",
+    "sleeve": "Full"
+  },
   "isFeatured": true,
   "active": true
 }
+
+### Sizes live in their own table — see productVariantAPI.rest
 
 ### ============================================================
 ### Bulk Update Products Category:

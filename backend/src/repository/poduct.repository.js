@@ -44,6 +44,7 @@ export const ProductRepository = {
     basePrice,
     discountPercentage = 0,
     currentPrice,
+    attributes = {},
     isFeatured = false,
     active = true,
   }) {
@@ -57,12 +58,13 @@ export const ProductRepository = {
         base_price,
         discount_percentage,
         current_price,
+        attributes,
         is_featured,
         active,
         created_at,
         updated_at
       )
-      VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
+      VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, NOW(), NOW())
       RETURNING *
     `;
 
@@ -76,6 +78,7 @@ export const ProductRepository = {
         basePrice,
         discountPercentage,
         currentPrice,
+        JSON.stringify(attributes ?? {}),
         isFeatured,
         active,
       ]);
@@ -101,8 +104,8 @@ export const ProductRepository = {
     let paramIndex = 1;
     const placeholders = productsData
       .map(() => {
-        const ph = `($${paramIndex}::uuid, $${paramIndex + 1}::uuid, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7}, $${paramIndex + 8}, $${paramIndex + 9}, NOW(), NOW())`;
-        paramIndex += 10;
+        const ph = `($${paramIndex}::uuid, $${paramIndex + 1}::uuid, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7}, $${paramIndex + 8}::jsonb, $${paramIndex + 9}, $${paramIndex + 10}, NOW(), NOW())`;
+        paramIndex += 11;
         return ph;
       })
       .join(",");
@@ -117,6 +120,7 @@ export const ProductRepository = {
         p.basePrice,
         p.discountPercentage || 0,
         p.currentPrice,
+        JSON.stringify(p.attributes ?? {}),
         p.isFeatured || false,
         p.active !== false,
       );
@@ -132,6 +136,7 @@ export const ProductRepository = {
         base_price,
         discount_percentage,
         current_price,
+        attributes,
         is_featured,
         active,
         created_at,
@@ -314,6 +319,11 @@ export const ProductRepository = {
     if (updateData.currentPrice !== undefined) {
       fields.push(`current_price = $${paramIndex++}`);
       values.push(updateData.currentPrice);
+    }
+
+    if (updateData.attributes !== undefined) {
+      fields.push(`attributes = $${paramIndex++}::jsonb`);
+      values.push(JSON.stringify(updateData.attributes ?? {}));
     }
 
     if (updateData.isFeatured !== undefined) {

@@ -43,19 +43,6 @@ export function relativeDate(value) {
   return `${Math.round(days / 365)} years ago`;
 }
 
-export const FIT_LABEL = {
-  slim_fit: "Slim Fit",
-  normal_fit: "Normal Fit",
-  special_dress: "Special Dress",
-};
-
-export const STOCK_LABEL = {
-  in_stock: "In stock",
-  low_stock: "Low stock",
-  out_of_stock: "Out of stock",
-  unavailable: "Unavailable",
-};
-
 /** Readable contrast pick for text sitting on a colour swatch. */
 export function readableOn(hex) {
   if (!hex) return "#0f172a";

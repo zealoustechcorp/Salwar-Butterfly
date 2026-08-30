@@ -100,6 +100,86 @@ export const validateProductDiscountPercentage = (value) => {
   return null;
 };
 
+/**
+ * Free-form product attributes — { fabric, work, sleeve, ... }.
+ *
+ * Deliberately not a fixed key list: which attributes matter differs by
+ * category and grows over time. What is enforced is that the document
+ * stays a flat string map, so it can never become a nested blob that the
+ * admin dropdowns and any future filter cannot read.
+ */
+export const validateProductAttributes = (value) => {
+  if (value === undefined || value === null || value === "") return null;
+
+  let attributes = value;
+
+  // Multipart and query bodies arrive as strings.
+  if (typeof attributes === "string") {
+    try {
+      attributes = JSON.parse(attributes);
+    } catch {
+      return "Attributes must be valid JSON";
+    }
+  }
+
+  if (
+    typeof attributes !== "object" ||
+    Array.isArray(attributes) ||
+    attributes === null
+  ) {
+    return "Attributes must be a JSON object";
+  }
+
+  const keys = Object.keys(attributes);
+
+  if (keys.length > 20) {
+    return "A product may not have more than 20 attributes";
+  }
+
+  for (const key of keys) {
+    if (key.trim().length === 0) return "Attribute names cannot be empty";
+    if (key.length > 40) {
+      return `Attribute name "${key}" must not exceed 40 characters`;
+    }
+
+    const entry = attributes[key];
+    if (entry === null || entry === undefined) continue;
+
+    if (typeof entry !== "string") {
+      return `Attribute "${key}" must be text`;
+    }
+
+    if (entry.length > 100) {
+      return `Attribute "${key}" must not exceed 100 characters`;
+    }
+  }
+
+  return null;
+};
+
+/**
+ * Parses and tidies an attribute document for storage: values trimmed,
+ * blanks dropped (a cleared dropdown means "not recorded", not an empty
+ * string), keys lowercased so "Fabric" and "fabric" cannot both exist.
+ */
+export const normalizeProductAttributes = (value) => {
+  if (value === undefined || value === null || value === "") return {};
+
+  const source = typeof value === "string" ? JSON.parse(value) : value;
+  const out = {};
+
+  for (const [key, entry] of Object.entries(source)) {
+    if (typeof entry !== "string") continue;
+
+    const trimmed = entry.trim();
+    if (!trimmed) continue;
+
+    out[key.trim().toLowerCase()] = trimmed;
+  }
+
+  return out;
+};
+
 export const validateProductIsFeatured = (value) => {
   if (value === undefined || value === null || value === "") return null;
 

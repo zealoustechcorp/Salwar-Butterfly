@@ -14,8 +14,8 @@ import { Badge, Button, cx, ToastProvider } from "./ui";
 // (F-01 Authentication, F-10 Payment) is not navigable and stays out of the nav.
 const FEATURES = [
   /**
-   * Categories Management — live against the API, so it carries no spec
-   * badge. The remaining entries below are still the FRS placeholders.
+   * Categories and Products are live against the API, so they carry no
+   * spec badge. The remaining entries below are still FRS placeholders.
    */
   {
     label: "Categories",
@@ -26,14 +26,12 @@ const FEATURES = [
     ],
   },
   {
-    id: "F-03",
     label: "Products",
     href: "/admin/products",
     children: [
-      { href: "/admin/products", label: "All products", requirement: "F-03.01", exact: true },
-      { href: "/admin/products/new", label: "Add product", requirement: "F-03.02" },
-      { href: "/admin/products/bulk", label: "Bulk upload", requirement: "F-03.04" },
-      { href: "/admin/products/attributes", label: "Approved attributes", requirement: "F-03.09" },
+      { href: "/admin/products", label: "All products", exact: true },
+      { href: "/admin/products/new", label: "Add product" },
+      { href: "/admin/products/bulk", label: "Bulk upload" },
     ],
   },
   { id: "F-04", label: "Inventory", href: null },
@@ -248,7 +246,7 @@ export function AdminShell({ children }) {
     FEATURES.find((f) => f.href && pathname.startsWith(f.href)) ||
     (pathname.startsWith("/admin/category")
       ? { name: "Categories Management" }
-      : { id: "F-03", name: "Product Management" });
+      : { name: "Product Management" });
 
   const featureTitle =
     currentFeature.name ||

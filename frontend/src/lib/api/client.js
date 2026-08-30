@@ -1,14 +1,13 @@
 /**
  * The one place the frontend talks to the Express API.
  *
- * Everything in src/lib/api/products.js is still mock data backed by
- * an in-memory store; this module is the real thing, introduced for
- * admin authentication and meant to absorb the rest as those
- * endpoints land.
+ * Every admin module goes through here — admin authentication,
+ * categories and products. The storefront still renders from the
+ * static catalogue in src/lib/store/catalogue.js and is the last
+ * thing left to move.
  *
- * The error contract deliberately matches the mock layer's — a
- * thrown `ApiError` carrying { code, message, fields } — so a caller
- * migrating from mock to real does not change its error handling.
+ * Failures arrive as a thrown `ApiError` carrying
+ * { code, message, fields, status }.
  */
 
 // ============================================================
@@ -137,5 +136,7 @@ export const api = {
     request(path, { ...options, method: "POST", body }),
   put: (path, body, options) =>
     request(path, { ...options, method: "PUT", body }),
+  patch: (path, body, options) =>
+    request(path, { ...options, method: "PATCH", body }),
   del: (path, options) => request(path, { ...options, method: "DELETE" }),
 };

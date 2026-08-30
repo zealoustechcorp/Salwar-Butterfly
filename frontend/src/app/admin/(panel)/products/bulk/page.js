@@ -1,11 +1,9 @@
 "use client";
 
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-import { ColourSwatch, ProductThumb } from "@/components/admin/ProductThumb";
-import { DetailsFields, PricingFields } from "@/components/admin/ProductFields";
 import {
   Badge,
   Button,
@@ -16,128 +14,168 @@ import {
   Field,
   Input,
   LinkButton,
-  RequirementTag,
   Select,
   SkeletonRows,
+  Textarea,
+  Toggle,
   useToast,
 } from "@/components/admin/ui";
-import { bulkCreateProduct, getBootstrap } from "@/lib/api/products";
+import { AttributeFields } from "@/components/admin/ProductFields";
+import { SizeStockEditor } from "@/components/admin/SizeStockEditor";
+import {
+  bulkCreateProducts,
+  getAttributeSuggestions,
+  getReference,
+} from "@/lib/api/products";
+import { replaceVariants } from "@/lib/api/variants";
 import { money, number } from "@/lib/format";
-import { slugify } from "@/lib/mock/store";
-
-const BLANK = {
-  name: "",
-  slug: "",
-  description: "",
-  category_id: "",
-  size_chart_id: "",
-  fit: "",
-  base_price: "",
-  discount_percent: 0,
-  is_active: true,
-  is_featured: false,
-  attributes: {},
-};
+import { autoSlug } from "@/lib/slug";
 
 /**
- * F-03.04 — "Bulk upload a product with different variants and different images
- * at a time (description, size, price remain same)."
+ * Bulk upload — many products into one category, in a single request.
  *
- * Read literally: the description, the size run and the price are entered once
- * and shared; what differs per row is the colour and its images. So the screen
- * is a shared header plus a repeating colour block, and the cross-product of
- * sizes × colours becomes the variant set.
+ * `POST /products/bulkCreateProducts` takes a shared `categoryId` and an
+ * array of products, and inserts them in one statement. So the screen is
+ * a shared header (category, description, price, offer, visibility) plus
+ * a repeating row where only what actually differs per product is typed:
+ * its name, its slug and any price override.
+ *
+ * A blank price on a row inherits the shared one — that is the whole
+ * point of the shared header, and it keeps a twenty-row upload to twenty
+ * names instead of twenty forms.
  */
+
+const BLANK_SHARED = {
+  categoryId: "",
+  subCategoryId: "",
+  description: "",
+  basePrice: "",
+  discountPercentage: 0,
+  attributes: {},
+  isFeatured: false,
+  active: true,
+};
+
+/** Applied to every product in the batch. */
+const DEFAULT_SIZES = ["S", "M", "L", "XL"].map((size) => ({
+  size,
+  stockQuantity: 0,
+  active: true,
+}));
+
+let rowCounter = 0;
+const makeRow = () => ({ key: `row-${++rowCounter}`, name: "", slug: "", basePrice: "" });
+
 export default function BulkUploadPage() {
   const router = useRouter();
   const toast = useToast();
 
   const [reference, setReference] = useState(null);
-  const [form, setForm] = useState(BLANK);
-  const [sizes, setSizes] = useState([]);
-  const [groups, setGroups] = useState([]);
-  const [errors, setErrors] = useState({});
+  const [suggestions, setSuggestions] = useState({});
+  const [shared, setShared] = useState(BLANK_SHARED);
+  const [sizes, setSizes] = useState(DEFAULT_SIZES);
+  const [rows, setRows] = useState(() => [makeRow(), makeRow(), makeRow()]);
   const [failure, setFailure] = useState(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    getBootstrap()
-      .then((data) => {
-        setReference(data);
-        const first = data.attributes.colours.find((c) => c.approved);
-        if (first) setGroups([makeGroup(first)]);
-      })
-      .catch(setFailure);
+    const controller = new AbortController();
+    getReference({ signal: controller.signal })
+      .then(setReference)
+      .catch((err) => {
+        if (err?.name !== "AbortError") setFailure(err);
+      });
+
+    getAttributeSuggestions({ signal: controller.signal })
+      .then(setSuggestions)
+      .catch(() => {});
+
+    return () => controller.abort();
   }, []);
 
-  const approvedSizes = useMemo(
-    () => (reference?.attributes.sizes || []).filter((s) => s.approved).sort((a, b) => a.sort - b.sort),
-    [reference],
-  );
-  const approvedColours = useMemo(
-    () => (reference?.attributes.colours || []).filter((c) => c.approved),
-    [reference],
+  const subCategories = useMemo(
+    () => (reference?.subCategories ?? []).filter((sub) => sub.categoryId === shared.categoryId),
+    [reference, shared.categoryId],
   );
 
-  function setField(key, value) {
-    setForm((current) => ({ ...current, [key]: value }));
-    setErrors((current) => {
-      if (!current[key]) return current;
-      const next = { ...current };
-      delete next[key];
-      return next;
+  function setSharedField(key, value) {
+    setShared((current) => ({ ...current, [key]: value }));
+  }
+
+  function patchRow(index, patch) {
+    setRows((current) => current.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+  }
+
+  /** Rows with a name are the ones that will be sent. */
+  const filled = rows.filter((row) => row.name.trim());
+
+  const slugs = filled.map((row) => row.slug.trim() || autoSlug(row.name));
+  const duplicateSlug = slugs.length !== new Set(slugs).size;
+
+  const sharedPrice = Number(shared.basePrice) || 0;
+  const percent = Number(shared.discountPercentage) || 0;
+
+  const totalValue = filled.reduce((sum, row) => {
+    const base = row.basePrice === "" ? sharedPrice : Number(row.basePrice) || 0;
+    return sum + Math.round(base * (100 - percent)) / 100;
+  }, 0);
+
+  const ready =
+    Boolean(shared.categoryId) &&
+    filled.length > 0 &&
+    !duplicateSlug &&
+    filled.every((row) => {
+      const base = row.basePrice === "" ? shared.basePrice : row.basePrice;
+      return base !== "" && Number(base) >= 0;
     });
-  }
-
-  function toggleSize(value) {
-    setSizes((current) =>
-      current.includes(value) ? current.filter((s) => s !== value) : [...current, value],
-    );
-  }
-
-  function patchGroup(index, patch) {
-    setGroups((current) => current.map((g, i) => (i === index ? { ...g, ...patch } : g)));
-  }
-
-  function addGroup() {
-    const used = new Set(groups.map((g) => g.colour));
-    const next = approvedColours.find((c) => !used.has(c.value)) || approvedColours[0];
-    if (next) setGroups((current) => [...current, makeGroup(next)]);
-  }
-
-  const totalVariants = sizes.length * groups.length;
-  const totalUnits = groups.reduce((sum, g) => sum + (Number(g.stock) || 0) * sizes.length, 0);
-  const totalImages = groups.reduce((sum, g) => sum + g.images.length, 0);
-  const duplicateColour = groups.length !== new Set(groups.map((g) => g.colour)).size;
 
   async function submit() {
     setBusy(true);
-    setErrors({});
     setFailure(null);
     try {
-      const result = await bulkCreateProduct({
-        ...form,
-        slug: form.slug || slugify(form.name),
-        sizes,
-        colourGroups: groups.map((g) => ({
-          colour: g.colour,
-          colour_hex: g.colour_hex,
-          stock: g.stock,
-          images: g.images.map((img, i) => ({
-            alt_text: img.alt_text,
-            swatch_hex: g.colour_hex,
-            swatch_seed: img.swatch_seed,
-            display_order: i,
-          })),
+      const created = await bulkCreateProducts(
+        shared.categoryId,
+        filled.map((row) => ({
+          name: row.name,
+          slug: row.slug.trim() || autoSlug(row.name),
+          description: shared.description,
+          subCategoryId: shared.subCategoryId,
+          attributes: shared.attributes,
+          basePrice: row.basePrice === "" ? shared.basePrice : row.basePrice,
+          discountPercentage: shared.discountPercentage,
+          isFeatured: shared.isFeatured,
+          active: shared.active,
         })),
-      });
-      toast.success(
-        `"${result.product.name}" created.`,
-        `${result.summary.variants_created} variants from ${result.summary.colours} colours × ${result.summary.sizes} sizes, ${result.summary.images_created} images.`,
       );
-      router.push(`/admin/products/${result.product.id}`);
+
+      // Sizes are per-product rows in another table, so the batch insert
+      // above cannot carry them — each new product gets the shared size
+      // run in its own request.
+      let sizeFailures = 0;
+
+      if (sizes.length) {
+        const results = await Promise.allSettled(
+          created.map((product) => replaceVariants(product.id, sizes)),
+        );
+        sizeFailures = results.filter((r) => r.status === "rejected").length;
+      }
+
+      if (sizeFailures) {
+        toast.error(
+          `${created.length} product${created.length === 1 ? "" : "s"} created, but ${sizeFailures} did not get their sizes.`,
+          "Open the ones without sizes and add them from the edit screen.",
+        );
+      } else {
+        toast.success(
+          `${created.length} product${created.length === 1 ? "" : "s"} created.`,
+          sizes.length
+            ? `Each with ${sizes.length} size${sizes.length === 1 ? "" : "s"}.`
+            : undefined,
+        );
+      }
+
+      router.push("/admin/products");
     } catch (err) {
-      if (err.fields) setErrors(err.fields);
       setFailure(err);
       toast.error(err.message || "Bulk upload failed.");
       setBusy(false);
@@ -146,19 +184,14 @@ export default function BulkUploadPage() {
 
   if (!reference && !failure) return <SkeletonRows rows={10} className="mx-auto max-w-5xl" />;
 
-  const ready = form.name && form.category_id && form.base_price !== "" && sizes.length && groups.length && !duplicateColour;
-
   return (
     <div className="mx-auto max-w-5xl space-y-5 pb-24">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight text-ink-900">
-            Bulk upload
-            <RequirementTag id="F-03.04" />
-          </h1>
+          <h1 className="text-xl font-semibold tracking-tight text-ink-900">Bulk upload</h1>
           <p className="mt-1 max-w-2xl text-sm text-ink-500">
-            Description, sizes and price are entered once. Each colour gets its own image set, and the
-            size run is applied to every colour.
+            Category, description, price and offer are entered once and shared. Each row below adds
+            one product; leave its price blank to inherit the shared one.
           </p>
         </div>
         <LinkButton variant="ghost" href="/admin/products">
@@ -167,109 +200,237 @@ export default function BulkUploadPage() {
         </LinkButton>
       </div>
 
-      {failure && !Object.keys(errors).length ? <ErrorNotice error={failure} /> : null}
+      {failure ? <ErrorNotice error={failure} /> : null}
 
       <Card>
-        <CardHeader title="Shared details" description="Applies to every generated variant." />
-        <div className="space-y-5 p-5">
-          <DetailsFields form={form} setField={setField} errors={errors} reference={reference} />
-          <hr className="border-ink-200" />
-          <PricingFields form={form} setField={setField} errors={errors} />
+        <CardHeader title="Shared details" description="Applies to every product in this upload." />
+        <div className="grid gap-4 p-5 md:grid-cols-2">
+          <Field label="Category" required hint="One category for the whole batch.">
+            <Select
+              value={shared.categoryId}
+              onChange={(e) => {
+                setSharedField("categoryId", e.target.value);
+                setSharedField("subCategoryId", "");
+              }}
+            >
+              <option value="">Select a category…</option>
+              {(reference?.categories ?? []).map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                  {category.active ? "" : " — inactive"}
+                </option>
+              ))}
+            </Select>
+          </Field>
+
+          <Field
+            label="Sub-category"
+            hint={shared.categoryId ? "Optional." : "Pick a category first."}
+          >
+            <Select
+              value={shared.subCategoryId}
+              disabled={!shared.categoryId || subCategories.length === 0}
+              onChange={(e) => setSharedField("subCategoryId", e.target.value)}
+            >
+              <option value="">
+                {shared.categoryId && subCategories.length === 0
+                  ? "No sub-categories in this category"
+                  : "None"}
+              </option>
+              {subCategories.map((sub) => (
+                <option key={sub.id} value={sub.id}>
+                  {sub.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+
+          <Field
+            label="Description"
+            className="md:col-span-2"
+            hint="Shared by every product in the batch — edit individually afterwards if they differ."
+          >
+            <Textarea
+              value={shared.description}
+              onChange={(e) => setSharedField("description", e.target.value)}
+              placeholder="Chanderi silk, dry clean only, unstitched…"
+            />
+          </Field>
+
+          <Field label="Base price (₹)" required hint="A row can override this.">
+            <Input
+              type="number"
+              min={0}
+              step={1}
+              value={shared.basePrice}
+              onChange={(e) => setSharedField("basePrice", e.target.value)}
+              className="tabular"
+              placeholder="0"
+            />
+          </Field>
+
+          <Field label="Discount %" hint="0–100, applied to every product in the batch.">
+            <Input
+              type="number"
+              min={0}
+              max={100}
+              step={0.5}
+              value={shared.discountPercentage}
+              onChange={(e) => setSharedField("discountPercentage", e.target.value)}
+              className="tabular"
+            />
+          </Field>
+
+          <div className="flex items-center justify-between gap-3 rounded-lg bg-ink-50 px-3 py-2.5 ring-1 ring-inset ring-ink-200">
+            <p className="text-xs font-semibold text-ink-700">Feature all on the home page</p>
+            <Toggle
+              checked={shared.isFeatured}
+              onChange={(value) => setSharedField("isFeatured", value)}
+              label="Feature all on the home page"
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-3 rounded-lg bg-ink-50 px-3 py-2.5 ring-1 ring-inset ring-ink-200">
+            <div>
+              <p className="text-xs font-semibold text-ink-700">Publish to storefront</p>
+              <p className="text-[11px] text-ink-500">Turn off to upload the batch as drafts.</p>
+            </div>
+            <Toggle
+              checked={shared.active}
+              onChange={(value) => setSharedField("active", value)}
+              label="Publish to storefront"
+            />
+          </div>
         </div>
       </Card>
 
       <Card>
         <CardHeader
-          title="Size run"
-          description="Applied identically to every colour below — the FRS's shared sizes."
+          title="Sizes & stock"
+          description="The same size run is given to every product in the batch. Stock can be corrected per product afterwards."
         />
         <div className="p-5">
-          <div className="flex flex-wrap gap-1.5">
-            {approvedSizes.map((size) => (
-              <button
-                key={size.value}
-                type="button"
-                onClick={() => toggleSize(size.value)}
-                className={cx(
-                  "min-w-12 rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors",
-                  sizes.includes(size.value)
-                    ? "bg-brand-600 text-white ring-1 ring-brand-600"
-                    : "bg-white text-ink-700 ring-1 ring-ink-300 hover:bg-ink-50",
-                )}
-              >
-                {size.value}
-              </button>
-            ))}
-          </div>
-          {errors.sizes ? <p className="mt-2 text-xs text-red-600">{errors.sizes}</p> : null}
-          <div className="mt-3 flex gap-1.5">
-            <Button size="sm" variant="ghost" onClick={() => setSizes(approvedSizes.map((s) => s.value))}>
-              Select all
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => setSizes(["S", "M", "L", "XL"])}>
-              Standard run (S–XL)
-            </Button>
-            {sizes.length ? (
-              <Button size="sm" variant="ghost" onClick={() => setSizes([])}>
-                Clear
-              </Button>
-            ) : null}
-          </div>
+          <SizeStockEditor rows={sizes} onChange={setSizes} />
         </div>
       </Card>
 
       <Card>
         <CardHeader
-          title="Colours & images"
-          requirement="F-03.04"
-          description="One block per colour. Images added here attach to that colour's variants only."
+          title="Attributes"
+          description="Shared by the batch — fabric, work and sleeve."
+        />
+        <div className="p-5">
+          <AttributeFields
+            form={shared}
+            setField={setSharedField}
+            suggestions={suggestions}
+          />
+        </div>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Products"
+          description="One row per product. Empty rows are ignored."
           actions={
-            <Button size="sm" variant="secondary" onClick={addGroup}>
-              + Add colour
+            <Button size="sm" variant="secondary" onClick={() => setRows((c) => [...c, makeRow()])}>
+              <Plus className="size-3.5" aria-hidden="true" />
+              Add row
             </Button>
           }
         />
-        <div className="space-y-4 p-5">
-          {errors.colours ? <p className="text-xs text-red-600">{errors.colours}</p> : null}
-          {duplicateColour ? (
-            <p className="rounded-lg bg-red-50 p-2.5 text-xs text-red-700 ring-1 ring-inset ring-red-200">
-              Two blocks use the same colour — every (size, colour) pair must be unique
-              (<code className="font-mono">uq_variant_product_combo</code>).
-            </p>
-          ) : null}
 
-          {groups.map((group, index) => (
-            <ColourGroup
-              key={group.key}
-              group={group}
-              index={index}
-              sizes={sizes}
-              colours={approvedColours}
-              basePrice={form.base_price}
-              onPatch={(patch) => patchGroup(index, patch)}
-              onRemove={() => setGroups((current) => current.filter((_, i) => i !== index))}
-              removable={groups.length > 1}
-            />
-          ))}
+        {duplicateSlug ? (
+          <p className="mx-5 mt-4 rounded-lg bg-red-50 p-2.5 text-xs text-red-700 ring-1 ring-inset ring-red-200">
+            Two rows resolve to the same URL slug. Slugs are unique across the whole catalogue, so
+            the upload would be rejected.
+          </p>
+        ) : null}
+
+        <div className="overflow-x-auto p-5">
+          <table className="w-full min-w-[720px] border-collapse text-sm">
+            <thead>
+              <tr className="text-left text-[11px] font-semibold tracking-wide text-ink-500 uppercase">
+                <th className="w-8 pb-2" />
+                <th className="pb-2 pr-3">Product name</th>
+                <th className="pb-2 pr-3">URL slug</th>
+                <th className="pb-2 pr-3 text-right">Price override</th>
+                <th className="pb-2 pr-3 text-right">Sells at</th>
+                <th className="w-10 pb-2" />
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, index) => {
+                const derivedSlug = row.slug.trim() || autoSlug(row.name);
+                const base = row.basePrice === "" ? sharedPrice : Number(row.basePrice) || 0;
+                const filledRow = Boolean(row.name.trim());
+
+                return (
+                  <tr key={row.key} className={cx(!filledRow && "opacity-60")}>
+                    <td className="py-1.5 pr-2 text-right text-[11px] text-ink-400">{index + 1}</td>
+                    <td className="py-1.5 pr-3">
+                      <Input
+                        value={row.name}
+                        onChange={(e) => patchRow(index, { name: e.target.value })}
+                        placeholder="e.g. Rani Pink Chanderi Anarkali"
+                        maxLength={200}
+                        aria-label={`Name for row ${index + 1}`}
+                      />
+                    </td>
+                    <td className="py-1.5 pr-3">
+                      <Input
+                        value={row.slug}
+                        onChange={(e) => patchRow(index, { slug: autoSlug(e.target.value) })}
+                        placeholder={derivedSlug || "auto"}
+                        className="font-mono text-xs"
+                        aria-label={`Slug for row ${index + 1}`}
+                      />
+                    </td>
+                    <td className="py-1.5 pr-3">
+                      <Input
+                        type="number"
+                        min={0}
+                        value={row.basePrice}
+                        onChange={(e) => patchRow(index, { basePrice: e.target.value })}
+                        placeholder={shared.basePrice === "" ? "—" : String(shared.basePrice)}
+                        className="tabular w-28 text-right"
+                        aria-label={`Price for row ${index + 1}`}
+                      />
+                    </td>
+                    <td className="tabular py-1.5 pr-3 text-right text-ink-700">
+                      {filledRow ? money(Math.round(base * (100 - percent)) / 100) : "—"}
+                    </td>
+                    <td className="py-1.5 text-right">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        aria-label={`Remove row ${index + 1}`}
+                        disabled={rows.length === 1}
+                        onClick={() => setRows((c) => c.filter((_, i) => i !== index))}
+                      >
+                        <Trash2 className="size-3.5 text-ink-400" aria-hidden="true" />
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </Card>
 
       <Card className="bg-ink-900 text-white ring-ink-900">
         <div className="flex flex-wrap items-center gap-x-8 gap-y-3 p-5">
-          <Summary label="Colours" value={groups.length} />
-          <Summary label="Sizes" value={sizes.length} />
-          <Summary label="Variants created" value={totalVariants} highlight />
-          <Summary label="Units in stock" value={number(totalUnits)} />
-          <Summary label="Images" value={totalImages} />
+          <Summary label="Products" value={number(filled.length)} highlight />
+          <Summary label="Sizes each" value={number(sizes.length)} />
+          <Summary label="Offer" value={percent > 0 ? `${percent}%` : "None"} />
+          <Summary
+            label="Status"
+            value={<Badge tone={shared.active ? "green" : "slate"}>{shared.active ? "Live" : "Draft"}</Badge>}
+          />
           <div className="ml-auto text-right">
-            <p className="text-[11px] text-white/60">Each variant sells for</p>
-            <p className="tabular text-lg font-semibold">
-              {money(
-                Math.round(
-                  (Number(form.base_price) || 0) * (100 - (Number(form.discount_percent) || 0)),
-                ) / 100,
-              )}
-            </p>
+            <p className="text-[11px] text-white/60">Combined shelf value</p>
+            <p className="tabular text-lg font-semibold">{money(totalValue)}</p>
           </div>
         </div>
       </Card>
@@ -277,163 +438,20 @@ export default function BulkUploadPage() {
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-ink-200 bg-white/95 backdrop-blur lg:left-64">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-3 px-4 py-3 sm:px-6">
           <p className="text-xs text-ink-500">
-            {totalVariants ? (
-              <>
-                Will create <strong className="text-ink-800">{totalVariants}</strong> variants and{" "}
-                <strong className="text-ink-800">{totalImages}</strong> images in one transaction.
-              </>
-            ) : (
-              "Pick at least one size and one colour."
-            )}
+            {filled.length
+              ? `Will create ${filled.length} product${filled.length === 1 ? "" : "s"} in one request.`
+              : "Name at least one product."}
           </p>
           <div className="ml-auto flex items-center gap-2">
             <LinkButton variant="ghost" href="/admin/products">
               Cancel
             </LinkButton>
             <Button variant="primary" size="lg" busy={busy} disabled={!ready} onClick={submit}>
-              Upload {totalVariants || ""} variant{totalVariants === 1 ? "" : "s"}
+              Upload {filled.length || ""} product{filled.length === 1 ? "" : "s"}
             </Button>
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-let groupCounter = 0;
-function makeGroup(colour) {
-  return {
-    key: `group-${++groupCounter}`,
-    colour: colour.value,
-    colour_hex: colour.hex,
-    stock: 20,
-    images: [],
-  };
-}
-
-function ColourGroup({ group, index, sizes, colours, basePrice, onPatch, onRemove, removable }) {
-  const fileRef = useRef(null);
-
-  function addFiles(fileList) {
-    const files = Array.from(fileList || []);
-    if (!files.length) return;
-    onPatch({
-      images: [
-        ...group.images,
-        ...files.map((file, i) => ({
-          local_id: `${group.key}-${group.images.length + i}`,
-          alt_text: file.name.replace(/\.[a-z0-9]+$/i, "").replace(/[-_]+/g, " "),
-          swatch_seed: (index + 1) * 31 + group.images.length + i,
-        })),
-      ],
-    });
-    if (fileRef.current) fileRef.current.value = "";
-  }
-
-  return (
-    <div className="rounded-xl bg-ink-50/70 p-4 ring-1 ring-inset ring-ink-200">
-      <div className="flex flex-wrap items-end gap-3">
-        <Field label={`Colour ${index + 1}`} className="min-w-44">
-          <Select
-            value={group.colour}
-            onChange={(e) => {
-              const picked = colours.find((c) => c.value === e.target.value);
-              onPatch({ colour: e.target.value, colour_hex: picked?.hex || "#94a3b8" });
-            }}
-          >
-            {colours.map((colour) => (
-              <option key={colour.value} value={colour.value}>
-                {colour.value}
-              </option>
-            ))}
-          </Select>
-        </Field>
-
-        <Field label="Swatch">
-          <input
-            type="color"
-            value={group.colour_hex}
-            onChange={(e) => onPatch({ colour_hex: e.target.value })}
-            aria-label={`Swatch hex for ${group.colour}`}
-            className="h-9 w-14 cursor-pointer rounded border border-ink-300 bg-white p-1"
-          />
-        </Field>
-
-        <Field label="Stock per size" hint="Applied to each size in the run.">
-          <Input
-            type="number"
-            min={0}
-            value={group.stock}
-            onChange={(e) => onPatch({ stock: e.target.value })}
-            className="tabular w-28 text-right"
-          />
-        </Field>
-
-        <div className="ml-auto flex items-center gap-2">
-          <Badge tone="neutral">
-            {sizes.length} variant{sizes.length === 1 ? "" : "s"}
-          </Badge>
-          {removable ? (
-            <Button size="sm" variant="danger" onClick={onRemove}>
-              Remove
-            </Button>
-          ) : null}
-        </div>
-      </div>
-
-      <div className="mt-3">
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <p className="flex items-center gap-2 text-[11px] font-semibold text-ink-600">
-            Images for <ColourSwatch hex={group.colour_hex} name={group.colour} size={11} />
-          </p>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            multiple
-            className="hidden"
-            onChange={(e) => addFiles(e.target.files)}
-          />
-          <Button size="sm" variant="secondary" onClick={() => fileRef.current?.click()}>
-            + Add images
-          </Button>
-        </div>
-
-        {group.images.length === 0 ? (
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            className="flex w-full items-center justify-center rounded-lg border border-dashed border-ink-300 bg-white/60 px-4 py-6 text-xs text-ink-500 hover:border-brand-400 hover:text-brand-600"
-          >
-            Drop or choose images for {group.colour}
-          </button>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {group.images.map((image, i) => (
-              <div key={image.local_id} className="relative">
-                <ProductThumb hex={group.colour_hex} seed={image.swatch_seed} size={72} rounded="rounded-lg" />
-                <button
-                  type="button"
-                  aria-label={`Remove image ${i + 1}`}
-                  onClick={() =>
-                    onPatch({ images: group.images.filter((img) => img.local_id !== image.local_id) })
-                  }
-                  className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-white text-[10px] text-red-600 shadow ring-1 ring-ink-900/10 hover:bg-red-50"
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {sizes.length ? (
-        <p className="tabular mt-3 text-[11px] text-ink-500">
-          Generates {sizes.map((s) => `${s}/${group.colour}`).join(", ")} at{" "}
-          {money(Number(basePrice) || 0)} each.
-        </p>
-      ) : null}
     </div>
   );
 }
@@ -442,7 +460,9 @@ function Summary({ label, value, highlight }) {
   return (
     <div>
       <p className="text-[11px] tracking-wide text-white/60 uppercase">{label}</p>
-      <p className={cx("tabular mt-0.5 text-xl font-semibold", highlight && "text-gold-300")}>{value}</p>
+      <p className={cx("tabular mt-0.5 text-xl font-semibold", highlight && "text-gold-300")}>
+        {value}
+      </p>
     </div>
   );
 }

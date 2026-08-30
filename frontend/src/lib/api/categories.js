@@ -136,67 +136,13 @@ export async function updateCategory(id, patch, { token } = {}) {
 }
 
 // ============================================================
-// PRODUCTS, AS THE CATEGORY SCREENS NEED THEM
+// PRODUCTS
 // ============================================================
 //
-// Not a general product client — /admin/products still has its own.
-// These exist so the category views can show real linkages instead of
-// a hard-coded product table.
+// The category views report on their linkage — how many products, which
+// ones, are they live — so they read products too. That client lives in
+// `./products` and is imported from there directly: this module must not
+// depend on it, because `./products` imports `listCategories` from here
+// to populate its category picker.
 //
 // ============================================================
-
-function toProduct(dto) {
-  if (!dto) return null;
-
-  return {
-    id: String(dto.id),
-    name: dto.name ?? "",
-    slug: dto.slug ?? "",
-    categoryId: dto.categoryId == null ? null : String(dto.categoryId),
-    basePrice: Number(dto.basePrice ?? 0),
-    currentPrice: Number(dto.currentPrice ?? dto.basePrice ?? 0),
-    discountPercentage: Number(dto.discountPercentage ?? 0),
-    active: Boolean(dto.active),
-  };
-}
-
-/**
- * Every product, walked page by page — the endpoint caps a page at 100
- * and the category screens need counts across the whole catalogue, not
- * one page of it. Capped at `maxPages` so a large catalogue degrades
- * into an undercount rather than a stalled panel.
- */
-export async function listAllProducts({ maxPages = 10, token, signal } = {}) {
-  const rows = [];
-
-  for (let page = 1; page <= maxPages; page++) {
-    const { data, meta } = await api.get(
-      `/products/getAllProducts?page=${page}&limit=100`,
-      { token, signal, envelope: true },
-    );
-
-    rows.push(...(data ?? []).map(toProduct));
-
-    const totalPages = meta?.pagination?.totalPages ?? meta?.pagination?.pages;
-    if (!data?.length || (totalPages && page >= totalPages)) break;
-  }
-
-  return rows;
-}
-
-/**
- * Moves products into a category. There is no inverse: `category_id` is
- * NOT NULL on products, so a product is always in exactly one category
- * and unlinking means linking somewhere else.
- */
-export async function assignProductsToCategory(categoryId, productIds, { token } = {}) {
-  if (!productIds?.length) return 0;
-
-  const data = await api.post(
-    "/products/bulkUpdateCategory",
-    { categoryId, productIds },
-    { token },
-  );
-
-  return data?.updatedCount ?? productIds.length;
-}

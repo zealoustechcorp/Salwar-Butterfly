@@ -1,14 +1,26 @@
 "use client";
 
 import { money } from "@/lib/format";
-import { slugify } from "@/lib/mock/store";
-import { FIT_TYPES } from "@/lib/mock/seed";
-import { Badge, Field, Input, RequirementTag, Select, Textarea, Toggle } from "./ui";
+import { autoSlug } from "@/lib/slug";
+import { Badge, Field, Input, Select, Textarea, Toggle } from "./ui";
 
-/** F-03.02 / F-03.05 / F-03.07 — identity, description and category assignment. */
-export function DetailsFields({ form, setField, errors = {}, reference }) {
-  const categories = reference?.categories || [];
-  const charts = reference?.sizeCharts || [];
+/**
+ * The product form, split into the two cards every write screen shows.
+ *
+ * Field names match the API's DTO exactly — `basePrice`, not
+ * `base_price` — so a form object can be handed to createProduct /
+ * updateProduct without a translation step.
+ */
+
+/** Identity, description and where the product sits in the catalogue. */
+export function DetailsFields({ form, setField, errors = {}, reference, lockCategory = false }) {
+  const categories = reference?.categories ?? [];
+
+  // A sub-category belongs to one category, so the picker only offers the
+  // ones under the category currently selected.
+  const subCategories = (reference?.subCategories ?? []).filter(
+    (sub) => sub.categoryId === form.categoryId,
+  );
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
@@ -30,17 +42,20 @@ export function DetailsFields({ form, setField, errors = {}, reference }) {
 
       <Field
         label="URL slug"
+        required
         className="md:col-span-2"
         error={errors.slug}
         hint="Derived from the name. Must be unique across the catalogue."
       >
         <div className="flex items-center gap-2">
-          <span className="shrink-0 font-mono text-xs text-ink-400">salwarbutterfly.com/product/</span>
+          <span className="shrink-0 font-mono text-xs text-ink-400">
+            salwarbutterfly.com/product/
+          </span>
           <Input
             value={form.slug}
             invalid={Boolean(errors.slug)}
-            onChange={(e) => setField("slug", slugify(e.target.value))}
-            placeholder={slugify(form.name) || "product-slug"}
+            onChange={(e) => setField("slug", autoSlug(e.target.value))}
+            placeholder={autoSlug(form.name) || "product-slug"}
             className="font-mono text-xs"
           />
         </div>
@@ -49,6 +64,7 @@ export function DetailsFields({ form, setField, errors = {}, reference }) {
       <Field
         label="Description"
         className="md:col-span-2"
+        error={errors.description}
         hint="Fabric, fit, care and what is included. Also feeds storefront search."
       >
         <Textarea
@@ -58,69 +74,75 @@ export function DetailsFields({ form, setField, errors = {}, reference }) {
         />
       </Field>
 
-      {/* 
-        ========================================================================
-        CATEGORY ASSIGNMENT FIELD (F-03.07 / F-02 Integration)
-        - Enforces strict one-category-per-product taxonomy rule.
-        - Populates options from the Category Management module.
-        - Disables inactive categories to prevent assigning hidden classifications.
-        - Auto-configures default_size_chart_id from category defaults when selected.
-        ========================================================================
-      */}
-      <Field label="Category" required error={errors.category_id} hint="F-03.07 — one category per product.">
+      <Field
+        label="Category"
+        required
+        error={errors.categoryId}
+        hint={
+          lockCategory
+            ? "Shared by every product in this upload."
+            : "One category per product — the column is NOT NULL."
+        }
+      >
         <Select
-          value={form.category_id}
-          invalid={Boolean(errors.category_id)}
+          value={form.categoryId}
+          invalid={Boolean(errors.categoryId)}
+          disabled={lockCategory}
           onChange={(e) => {
-            setField("category_id", e.target.value);
-            // Look up selected category to auto-populate default size chart if unset
-            const category = categories.find((c) => String(c.id) === String(e.target.value));
-            if (category?.default_size_chart_id && !form.size_chart_id)
-              setField("size_chart_id", String(category.default_size_chart_id));
+            setField("categoryId", e.target.value);
+            // The old sub-category belongs to the old category.
+            setField("subCategoryId", "");
           }}
         >
           <option value="">Select a category…</option>
           {categories.map((category) => (
-            <option key={category.id} value={category.id} disabled={!category.is_active}>
+            <option key={category.id} value={category.id}>
               {category.name}
-              {category.is_active ? "" : " — inactive"}
+              {category.active ? "" : " — inactive"}
             </option>
           ))}
         </Select>
       </Field>
 
-      <Field label="Fit" hint="Decides which size chart the storefront shows (F-02.06).">
-        <Select value={form.fit} onChange={(e) => setField("fit", e.target.value)}>
-          <option value="">No fit specified</option>
-          {FIT_TYPES.map((fit) => (
-            <option key={fit.value} value={fit.value}>
-              {fit.label}
+      <Field
+        label="Sub-category"
+        error={errors.subCategoryId}
+        hint={
+          form.categoryId
+            ? "Optional. Only sub-categories of the chosen category are listed."
+            : "Pick a category first."
+        }
+      >
+        <Select
+          value={form.subCategoryId}
+          invalid={Boolean(errors.subCategoryId)}
+          disabled={!form.categoryId || subCategories.length === 0}
+          onChange={(e) => setField("subCategoryId", e.target.value)}
+        >
+          <option value="">
+            {form.categoryId && subCategories.length === 0
+              ? "No sub-categories in this category"
+              : "None"}
+          </option>
+          {subCategories.map((sub) => (
+            <option key={sub.id} value={sub.id}>
+              {sub.name}
+              {sub.active ? "" : " — inactive"}
             </option>
           ))}
         </Select>
       </Field>
 
-      <Field label="Size chart" hint="Defaults to the category's chart; override per product if needed.">
-        <Select value={form.size_chart_id} onChange={(e) => setField("size_chart_id", e.target.value)}>
-          <option value="">No size chart</option>
-          {charts.map((chart) => (
-            <option key={chart.id} value={chart.id}>
-              {chart.name}
-            </option>
-          ))}
-        </Select>
-      </Field>
-
-      <div className="flex items-end">
-        <div className="flex w-full items-center justify-between rounded-lg bg-ink-50 px-3 py-2.5 ring-1 ring-inset ring-ink-200">
+      <div className="md:col-span-2">
+        <div className="flex items-center justify-between gap-3 rounded-lg bg-ink-50 px-3 py-2.5 ring-1 ring-inset ring-ink-200">
           <div>
-            <p className="text-xs font-semibold text-ink-700">Feature on home page</p>
-            <p className="text-[11px] text-ink-500">Adds it to the featured rail (F-06.01).</p>
+            <p className="text-xs font-semibold text-ink-700">Feature on the home page</p>
+            <p className="text-[11px] text-ink-500">Adds it to the featured rail on the storefront.</p>
           </div>
           <Toggle
-            checked={form.is_featured}
-            onChange={(value) => setField("is_featured", value)}
-            label="Feature on home page"
+            checked={form.isFeatured}
+            onChange={(value) => setField("isFeatured", value)}
+            label="Feature on the home page"
           />
         </div>
       </div>
@@ -128,10 +150,75 @@ export function DetailsFields({ form, setField, errors = {}, reference }) {
   );
 }
 
-/** F-03.08 / F-03.12 — price and availability, discount as a percentage. */
+/**
+ * Fabric, work and sleeve — stored together in the `attributes` JSONB
+ * column, so a fourth attribute later needs no migration.
+ *
+ * There is no approved-values register to pick from, and deliberately
+ * so: each field offers the values already used elsewhere in the
+ * catalogue (passed in as `suggestions`) through a datalist, while
+ * staying free text. The vocabulary converges on its own, and a real
+ * register can replace this later without touching stored data.
+ */
+export function AttributeFields({ form, setField, suggestions = {} }) {
+  const groups = [
+    { key: "fabric", label: "Fabric", placeholder: "e.g. Cotton" },
+    { key: "work", label: "Work", placeholder: "e.g. Zari" },
+    { key: "sleeve", label: "Sleeve", placeholder: "e.g. Half" },
+  ];
+
+  function setAttribute(key, value) {
+    const next = { ...form.attributes };
+
+    // A cleared field means "not recorded", not an empty string — the
+    // API drops blanks anyway, so keep the form in step with storage.
+    if (value.trim()) next[key] = value;
+    else delete next[key];
+
+    setField("attributes", next);
+  }
+
+  return (
+    <div className="grid gap-4 sm:grid-cols-3">
+      {groups.map((group) => {
+        const options = suggestions[group.key] ?? [];
+        const listId = `attribute-${group.key}-options`;
+
+        return (
+          <Field
+            key={group.key}
+            label={group.label}
+            hint={
+              options.length
+                ? `${options.length} already in use — start typing`
+                : "Free text. Reused across products as you go."
+            }
+          >
+            <Input
+              value={form.attributes?.[group.key] ?? ""}
+              onChange={(e) => setAttribute(group.key, e.target.value)}
+              placeholder={group.placeholder}
+              maxLength={100}
+              list={options.length ? listId : undefined}
+            />
+            {options.length ? (
+              <datalist id={listId}>
+                {options.map((option) => (
+                  <option key={option} value={option} />
+                ))}
+              </datalist>
+            ) : null}
+          </Field>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Price, offer percentage and storefront visibility. */
 export function PricingFields({ form, setField, errors = {} }) {
-  const base = Number(form.base_price) || 0;
-  const percent = Number(form.discount_percent) || 0;
+  const base = Number(form.basePrice) || 0;
+  const percent = Number(form.discountPercentage) || 0;
   const sale = Math.round(base * (100 - percent)) / 100;
 
   return (
@@ -139,16 +226,16 @@ export function PricingFields({ form, setField, errors = {} }) {
       <Field
         label="Base price (₹)"
         required
-        error={errors.base_price}
-        hint="Before any offer. Variants may override this individually."
+        error={errors.basePrice}
+        hint="Before any offer."
       >
         <Input
           type="number"
           min={0}
           step={1}
-          value={form.base_price}
-          invalid={Boolean(errors.base_price)}
-          onChange={(e) => setField("base_price", e.target.value)}
+          value={form.basePrice}
+          invalid={Boolean(errors.basePrice)}
+          onChange={(e) => setField("basePrice", e.target.value)}
           className="tabular"
           placeholder="0"
         />
@@ -156,7 +243,7 @@ export function PricingFields({ form, setField, errors = {} }) {
 
       <Field
         label="Discount %"
-        error={errors.discount_percent}
+        error={errors.discountPercentage}
         hint="0–100. Set 0 to remove the offer."
       >
         <Input
@@ -164,17 +251,16 @@ export function PricingFields({ form, setField, errors = {} }) {
           min={0}
           max={100}
           step={0.5}
-          value={form.discount_percent}
-          invalid={Boolean(errors.discount_percent)}
-          onChange={(e) => setField("discount_percent", e.target.value)}
+          value={form.discountPercentage}
+          invalid={Boolean(errors.discountPercentage)}
+          onChange={(e) => setField("discountPercentage", e.target.value)}
           className="tabular"
         />
       </Field>
 
       <div className="rounded-lg bg-brand-50 px-3 py-2.5 ring-1 ring-inset ring-brand-200">
-        <p className="flex items-center gap-1.5 text-[11px] font-semibold tracking-wide text-brand-700 uppercase">
+        <p className="text-[11px] font-semibold tracking-wide text-brand-700 uppercase">
           Customer pays
-          <RequirementTag id="F-03.12" />
         </p>
         <p className="tabular mt-1 flex items-baseline gap-2">
           <span className="text-xl font-semibold text-brand-800">{money(sale)}</span>
@@ -183,64 +269,30 @@ export function PricingFields({ form, setField, errors = {} }) {
           ) : null}
         </p>
         <p className="mt-1 text-[11px] text-brand-700/80">
-          Derived, never typed — the database generates it from base price and percentage.
+          Derived, never typed — the API writes <code className="font-mono">current_price</code>{" "}
+          from the base price and the percentage.
         </p>
       </div>
 
       <div className="md:col-span-3">
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-ink-50 px-3 py-2.5 ring-1 ring-inset ring-ink-200">
           <div>
-            <p className="flex items-center gap-1.5 text-xs font-semibold text-ink-700">
-              Publish to storefront
-              <RequirementTag id="F-03.08" />
-            </p>
+            <p className="text-xs font-semibold text-ink-700">Publish to storefront</p>
             <p className="text-[11px] text-ink-500">
-              Inactive products stay in the catalogue and on past orders but are invisible to shoppers.
+              Inactive products stay in the catalogue and on past orders but are invisible to
+              shoppers.
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Badge tone={form.is_active ? "green" : "slate"}>{form.is_active ? "Active" : "Draft"}</Badge>
+            <Badge tone={form.active ? "green" : "slate"}>{form.active ? "Active" : "Draft"}</Badge>
             <Toggle
-              checked={form.is_active}
-              onChange={(value) => setField("is_active", value)}
+              checked={form.active}
+              onChange={(value) => setField("active", value)}
               label="Publish to storefront"
             />
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-/** F-03.09 — free-form approved attributes recorded against the product. */
-export function AttributeFields({ form, setField, reference }) {
-  const groups = [
-    { key: "fabric", label: "Fabric", list: reference?.attributes?.fabrics },
-    { key: "work", label: "Work", list: reference?.attributes?.works },
-    { key: "sleeve", label: "Sleeve", list: reference?.attributes?.sleeves },
-  ];
-
-  return (
-    <div className="grid gap-4 sm:grid-cols-3">
-      {groups.map((group) => (
-        <Field key={group.key} label={group.label}>
-          <Select
-            value={form.attributes?.[group.key] || ""}
-            onChange={(e) =>
-              setField("attributes", { ...form.attributes, [group.key]: e.target.value })
-            }
-          >
-            <option value="">Not specified</option>
-            {(group.list || [])
-              .filter((item) => item.approved)
-              .map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.value}
-                </option>
-              ))}
-          </Select>
-        </Field>
-      ))}
     </div>
   );
 }

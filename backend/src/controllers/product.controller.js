@@ -19,9 +19,11 @@ export const ProductController = {
         slug,
         description,
         categoryId,
+        subCategoryId,
         sizeChartId,
         basePrice,
         discountPercentage,
+        attributes,
         isFeatured,
         active,
       } = req.body;
@@ -45,9 +47,11 @@ export const ProductController = {
         slug,
         description,
         categoryId,
+        subCategoryId,
         sizeChartId,
         basePrice: Number(basePrice),
         discountPercentage: discountPercentage ? Number(discountPercentage) : 0,
+        attributes: attributes ?? {},
         isFeatured: isFeatured ?? false,
         active: active ?? true,
       });

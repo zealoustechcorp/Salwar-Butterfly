@@ -9,6 +9,8 @@ import {
   validateProductDiscountPercentage,
   validateProductIsFeatured,
   validateProductActive,
+  validateProductAttributes,
+  normalizeProductAttributes,
 } from "./product.rules.js";
 
 const UUID_REGEX =
@@ -35,6 +37,7 @@ export const validateCreateProduct = (req, res, next) => {
       subCategoryId,
       basePrice,
       discountPercentage,
+      attributes,
       isFeatured,
       active,
     } = req.body;
@@ -62,6 +65,9 @@ export const validateCreateProduct = (req, res, next) => {
     const discountError = validateProductDiscountPercentage(discountPercentage);
     if (discountError) errors.discountPercentage = discountError;
 
+    const attributesError = validateProductAttributes(attributes);
+    if (attributesError) errors.attributes = attributesError;
+
     const isFeaturedError = validateProductIsFeatured(isFeatured);
     if (isFeaturedError) errors.isFeatured = isFeaturedError;
 
@@ -83,6 +89,7 @@ export const validateCreateProduct = (req, res, next) => {
     req.body.basePrice = Number(basePrice);
     req.body.discountPercentage =
       discountPercentage !== undefined ? Number(discountPercentage) : 0;
+    req.body.attributes = normalizeProductAttributes(attributes);
     req.body.isFeatured = normalizeBoolean(isFeatured) ?? false;
     req.body.active = normalizeBoolean(active) ?? true;
 
@@ -116,6 +123,7 @@ export const validateUpdateProduct = (req, res, next) => {
       subCategoryId,
       basePrice,
       discountPercentage,
+      attributes,
       isFeatured,
       active,
     } = body;
@@ -126,6 +134,7 @@ export const validateUpdateProduct = (req, res, next) => {
       description !== undefined ||
       basePrice !== undefined ||
       discountPercentage !== undefined ||
+      attributes !== undefined ||
       isFeatured !== undefined ||
       active !== undefined ||
       subCategoryId !== undefined;
@@ -190,6 +199,15 @@ export const validateUpdateProduct = (req, res, next) => {
         req.body.subCategoryId = subCategoryId
           ? String(subCategoryId).trim()
           : null;
+      }
+    }
+
+    if (attributes !== undefined) {
+      const error = validateProductAttributes(attributes);
+      if (error) {
+        errors.attributes = error;
+      } else {
+        req.body.attributes = normalizeProductAttributes(attributes);
       }
     }
 

@@ -117,6 +117,13 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
   const [saveError, setSaveError] = useState(null);
 
   /**
+   * Whether the admin has engaged with the slug yet — gates when its
+   * validation message is allowed to appear. Editing starts touched,
+   * because an existing category already has a slug to be wrong about.
+   */
+  const [slugTouched, setSlugTouched] = useState(Boolean(initial));
+
+  /**
    * Preview source: an object URL for a freshly picked file, otherwise
    * the Cloudinary URL the API already holds.
    */
@@ -153,7 +160,16 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
    */
   const handleNameChange = (v) => {
     setName(v);
-    if (!initial) setSlug(autoSlug(v));
+
+    if (initial) return;
+
+    const derived = autoSlug(v);
+    setSlug(derived);
+
+    // A name that yields nothing usable ("!!!", say) is a slug problem the
+    // admin has to see, even though they never opened the slug field. A
+    // name that slugifies cleanly leaves the field quiet.
+    if (v.trim() && !derived) setSlugTouched(true);
   };
 
   /**
@@ -215,13 +231,22 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
 
   /**
    * Client-side checks that mirror the API's own validators, so an
-   * obviously bad slug is caught before a round trip.
+   * obviously bad slug is caught before a round trip. This gates the save
+   * button from the first render — it is only the *message* that waits.
    */
   const slugError = !slug.trim()
     ? "A URL slug is required."
     : SLUG_PATTERN.test(slug.trim().toLowerCase())
       ? null
       : "Use lowercase letters, numbers and single hyphens only.";
+
+  /**
+   * An untouched field has not failed yet, it is simply blank — so a fresh
+   * create form opens with its hints, not with errors it caused itself.
+   * The message appears once the admin has actually engaged with the slug,
+   * directly or through the name it is derived from.
+   */
+  const visibleSlugError = slugTouched ? slugError : null;
 
   const canSave = Boolean(name.trim()) && !slugError && !saving;
 
@@ -358,7 +383,7 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
                   label="URL Slug"
                   required
                   hint="Unique URI slug used in storefront URLs"
-                  error={apiFields.slug || slugError}
+                  error={apiFields.slug || visibleSlugError}
                 >
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 font-mono text-xs text-ink-400">
@@ -366,10 +391,14 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
                     </span>
                     <Input
                       value={slug}
-                      onChange={(e) => setSlug(e.target.value)}
+                      onChange={(e) => {
+                        setSlug(e.target.value);
+                        setSlugTouched(true);
+                      }}
+                      onBlur={() => setSlugTouched(true)}
                       placeholder="e.g. silk-sarees"
                       className="pl-6 font-mono text-xs"
-                      invalid={Boolean(apiFields.slug || slugError)}
+                      invalid={Boolean(apiFields.slug || visibleSlugError)}
                     />
                   </div>
                 </Field>

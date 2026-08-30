@@ -8,9 +8,9 @@
  * photography. The storefront stays frontend-only — nothing here fetches at
  * runtime. Re-run the script to refresh.
  *
- * The admin console keeps its own FRS seed in `src/lib/mock/store.js`; the two
- * are deliberately separate, since that seed models the v2 schema and this
- * models what the shop actually sells today.
+ * The admin console no longer has a seed of its own — its category and
+ * product screens read the Express API. This snapshot is the last static
+ * data left, and is what the storefront still renders from.
  */
 
 import snapshot from "./live-catalogue.json";

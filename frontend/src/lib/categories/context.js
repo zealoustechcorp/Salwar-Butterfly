@@ -29,12 +29,11 @@ import {
 } from "react";
 
 import {
-  assignProductsToCategory,
   createCategory,
-  listAllProducts,
   listCategories,
   updateCategory,
 } from "@/lib/api/categories";
+import { assignProductsToCategory, listAllProducts } from "@/lib/api/products";
 
 const CategoryContext = createContext(null);
 
