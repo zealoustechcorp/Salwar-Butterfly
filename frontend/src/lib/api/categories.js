@@ -1,5 +1,5 @@
 /**
- * F-02 Category Management — the real REST layer.
+ * Categories Management — the real REST layer.
  *
  * Talks to the Express routes under `/api/categories`, plus the two
  * product endpoints the category screens depend on (listing products so

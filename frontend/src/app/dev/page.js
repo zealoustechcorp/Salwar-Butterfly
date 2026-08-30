@@ -5,10 +5,12 @@ import Link from "next/link";
 // F-01 Authentication & Authorization and F-10 Payment are backend-side work
 // (sessions, tokens, role checks, gateway integration) and are not tracked here.
 const FEATURES = [
+  // Built and running against the API, so it carries no FRS id — the rest
+  // of this list is still spec placeholders.
   {
-    id: "F-02",
-    name: "Category Management",
+    name: "Categories Management",
     href: "/admin/category",
+    status: "live",
   },
   { id: "F-03", name: "Product Management", href: "/admin/products" },
   { id: "F-04", name: "Inventory Management", href: null },
@@ -40,21 +42,23 @@ export default function BuildTracker() {
         <ul className="mt-8 divide-y divide-ink-200 overflow-hidden rounded-xl bg-white ring-1 ring-ink-200">
           {FEATURES.map((feature) =>
             feature.href ? (
-              <li key={feature.id}>
+              <li key={feature.name}>
                 <Link
                   href={feature.href}
                   className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-brand-50"
                 >
-                  <span className="font-mono text-xs text-brand-600">{feature.id}</span>
+                  {feature.id ? (
+                    <span className="font-mono text-xs text-brand-600">{feature.id}</span>
+                  ) : null}
                   <span className="text-sm font-medium text-ink-900">{feature.name}</span>
                   <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200">
-                    UI ready
+                    {feature.status === "live" ? "Live on API" : "UI ready"}
                     <ArrowRight className="size-3" aria-hidden="true" />
                   </span>
                 </Link>
               </li>
             ) : (
-              <li key={feature.id} className="flex items-center gap-3 px-4 py-3">
+              <li key={feature.name} className="flex items-center gap-3 px-4 py-3">
                 <span className="font-mono text-xs text-ink-300">{feature.id}</span>
                 <span className="text-sm text-ink-400">{feature.name}</span>
                 <span className="ml-auto text-[11px] text-ink-300">not started</span>
@@ -63,11 +67,7 @@ export default function BuildTracker() {
           )}
         </ul>
 
-        <p className="mt-6 text-xs text-ink-500">
-          The Product Management screens run on static seed data — no API or database is required to
-          demo them.
-        </p>
-        <p className="mt-2 text-xs text-ink-400">
+        <p className="mt-6 text-xs text-ink-400">
           F-01 Authentication &amp; Authorization and F-10 Payment are backend work (sessions,
           tokens, role checks, payment gateway) and are tracked outside this UI.
         </p>

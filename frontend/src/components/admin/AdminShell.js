@@ -7,24 +7,22 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 
-import { resetDemoData } from "@/lib/api/products";
 import { useAdminAuth } from "./AdminAuthProvider";
-import { Badge, Button, cx, ToastProvider, useToast } from "./ui";
+import { Badge, Button, cx, ToastProvider } from "./ui";
 
 // Admin nav shows only features with screens in this UI — backend-side work
 // (F-01 Authentication, F-10 Payment) is not navigable and stays out of the nav.
 const FEATURES = [
   /**
-   * F-02 Catalogue: Category Management
-   * Provides navigation to the Category directory index and new category creation form.
+   * Categories Management — live against the API, so it carries no spec
+   * badge. The remaining entries below are still the FRS placeholders.
    */
   {
-    id: "F-02",
     label: "Categories",
     href: "/admin/category",
     children: [
-      { href: "/admin/category", label: "All categories", requirement: "F-02.01", exact: true },
-      { href: "/admin/category/new", label: "Add category", requirement: "F-02.02" },
+      { href: "/admin/category", label: "All categories", exact: true },
+      { href: "/admin/category/new", label: "Add category" },
     ],
   },
   {
@@ -116,28 +114,6 @@ function AdminUserCard() {
   );
 }
 
-function ResetButton() {
-  const toast = useToast();
-  const [busy, setBusy] = useState(false);
-
-  return (
-    <Button
-      size="sm"
-      variant="ghost"
-      busy={busy}
-      onClick={async () => {
-        setBusy(true);
-        await resetDemoData();
-        setBusy(false);
-        toast.info("Demo data reset.", "All 28 seeded products are back.");
-        window.location.reload();
-      }}
-    >
-      Reset demo data
-    </Button>
-  );
-}
-
 /**
  * idPrefix keeps Motion layoutIds unique between the two mounted copies of the
  * sidebar (desktop rail + mobile drawer) — shared ids would animate across them.
@@ -168,10 +144,12 @@ function Sidebar({ pathname, onNavigate, idPrefix = "rail" }) {
             const active = feature.href && pathname.startsWith(feature.href);
             if (!feature.href)
               return (
-                <li key={feature.id}>
+                <li key={feature.label}>
                   <span className="flex cursor-not-allowed items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-sm text-ink-400">
                     <span className="flex items-center gap-2">
-                      <span className="font-mono text-[10px] text-ink-300">{feature.id}</span>
+                      {feature.id ? (
+                        <span className="font-mono text-[10px] text-ink-300">{feature.id}</span>
+                      ) : null}
                       {feature.label}
                     </span>
                     <span className="text-[10px] text-ink-300">later</span>
@@ -179,7 +157,7 @@ function Sidebar({ pathname, onNavigate, idPrefix = "rail" }) {
                 </li>
               );
             return (
-              <li key={feature.id}>
+              <li key={feature.label}>
                 <Link
                   href={feature.href}
                   onClick={onNavigate}
@@ -196,14 +174,16 @@ function Sidebar({ pathname, onNavigate, idPrefix = "rail" }) {
                       aria-hidden="true"
                     />
                   ) : null}
-                  <span
-                    className={cx(
-                      "relative font-mono text-[10px]",
-                      active ? "text-brand-500" : "text-ink-400",
-                    )}
-                  >
-                    {feature.id}
-                  </span>
+                  {feature.id ? (
+                    <span
+                      className={cx(
+                        "relative font-mono text-[10px]",
+                        active ? "text-brand-500" : "text-ink-400",
+                      )}
+                    >
+                      {feature.id}
+                    </span>
+                  ) : null}
                   <span className="relative">{feature.label}</span>
                 </Link>
                 {feature.children ? (
@@ -233,14 +213,16 @@ function Sidebar({ pathname, onNavigate, idPrefix = "rail" }) {
                               />
                             ) : null}
                             <span className="relative">{link.label}</span>
-                            <span
-                              className={cx(
-                                "relative font-mono text-[10px]",
-                                linkActive ? "text-white/50" : "text-ink-300",
-                              )}
-                            >
-                              {link.requirement}
-                            </span>
+                            {link.requirement ? (
+                              <span
+                                className={cx(
+                                  "relative font-mono text-[10px]",
+                                  linkActive ? "text-white/50" : "text-ink-300",
+                                )}
+                              >
+                                {link.requirement}
+                              </span>
+                            ) : null}
                           </Link>
                         </li>
                       );
@@ -265,7 +247,7 @@ export function AdminShell({ children }) {
   const currentFeature =
     FEATURES.find((f) => f.href && pathname.startsWith(f.href)) ||
     (pathname.startsWith("/admin/category")
-      ? { id: "F-02", name: "Category Management" }
+      ? { name: "Categories Management" }
       : { id: "F-03", name: "Product Management" });
 
   const featureTitle =
@@ -327,12 +309,6 @@ export function AdminShell({ children }) {
               <div className="flex min-w-0 items-center gap-2">
                 <span className="truncate text-sm font-semibold text-ink-900">{featureTitle}</span>
                 {featureBadge ? <Badge tone="brand">{featureBadge}</Badge> : null}
-              </div>
-              <div className="ml-auto flex items-center gap-2">
-                <Badge tone="gold" className="hidden sm:inline-flex">
-                  Static demo data
-                </Badge>
-                <ResetButton />
               </div>
             </header>
 
