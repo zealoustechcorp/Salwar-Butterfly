@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { GarmentArt } from "./GarmentArt";
 import { Butterfly } from "./Ornaments";
+import { Stars } from "./Stars";
 import { useBrowse } from "./BrowseProvider";
 
 const ROTATE_MS = 5000;
@@ -18,8 +19,14 @@ const SWIPE_PX = 44;
  *
  * The two columns split at `md`, not `lg`: at tablet widths a single column
  * left the right half of the fold empty and pushed the headline down the page.
+ *
+ * The rating line under the buttons (F-06.08) holds to the same rule as the
+ * imagery above it: it is the shop's real score across its real reviews, and it
+ * is absent entirely until there are some. No "★★★★★ 5.0 (0)", no rounded-up
+ * placeholder — an invented rating in the first fold is the most conspicuous
+ * possible place to put a claim the shop cannot support.
  */
-export function Hero({ shop, topDiscount }) {
+export function Hero({ shop, topDiscount, rating }) {
   const { focusShop, setTab } = useBrowse();
   const banners = shop.banners || [];
   // Banners that failed to load. They drop out of the carousel entirely — a
@@ -88,6 +95,26 @@ export function Hero({ shop, topDiscount }) {
               </button>
             ) : null}
           </div>
+
+          {/* Below the buttons, not above the headline: it is a reason to
+              trust the shop once the offer has landed, not the offer. */}
+          {rating?.count ? (
+            <div className="mt-4 flex flex-wrap items-center gap-x-2.5 gap-y-1">
+              <Stars rating={rating.average} />
+
+              <p className="text-sm text-sb-text">
+                <span className="font-semibold text-sb-heading tabular">
+                  {rating.average.toFixed(1)}
+                </span>{" "}
+                <span className="text-sb-text-muted">
+                  from {rating.count} customer{rating.count === 1 ? "" : "s"}
+                  {/* Named only when it means something. "across 1 piece"
+                      beside a shop of 200 reads worse than saying nothing. */}
+                  {rating.products > 1 ? ` across ${rating.products} pieces` : ""}
+                </span>
+              </p>
+            </div>
+          ) : null}
         </div>
 
         {/* The shop's own banner set as a carousel — with the illustrated

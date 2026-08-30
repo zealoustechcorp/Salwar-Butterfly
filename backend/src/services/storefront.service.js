@@ -99,8 +99,40 @@ export const StorefrontService = {
         );
       }
 
+      // How the shop scores overall (F-06.08) — what the hero shows.
+      //
+      // Added up from the rows above rather than asked for separately,
+      // which makes it exactly consistent with what the page renders: a
+      // review on a product that was dropped for having no photo cannot
+      // appear in a figure printed over a grid that does not contain it.
+      //
+      // Weighted by review, not by product. The star totals are summed
+      // and divided by the number of reviews, so a piece with twenty
+      // reviews counts twenty times — averaging the per-product averages
+      // would let one five-star review outweigh them.
+      const stars = shippable.reduce(
+        (running, row) => ({
+          count: running.count + (Number(row.rating_count) || 0),
+          sum: running.sum + (Number(row.rating_sum) || 0),
+          products: running.products + (Number(row.rating_count) > 0 ? 1 : 0),
+        }),
+        { count: 0, sum: 0, products: 0 },
+      );
+
       const catalogue = {
         fetched_at: new Date().toISOString(),
+
+        // `average` is null, never 0, when nothing has been published —
+        // zero is a rating, and the hero must be able to tell "no
+        // reviews yet" from "everybody hated it". It renders nothing at
+        // all in the first case.
+        rating: {
+          count: stars.count,
+          products: stars.products,
+          average: stars.count
+            ? Number((stars.sum / stars.count).toFixed(1))
+            : null,
+        },
 
         // Only categories that have something to show. An empty
         // collection tile is a dead end with a photo on it.

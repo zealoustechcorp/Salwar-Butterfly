@@ -73,6 +73,7 @@ const PRODUCTS_SQL = `
     photos.image_url                 AS image,
     photos.image_url_2               AS image2,
     COALESCE(rating.count, 0)        AS rating_count,
+    COALESCE(rating.sum, 0)          AS rating_sum,
     rating.average                   AS rating_average
   FROM products p
   LEFT JOIN LATERAL (
@@ -111,9 +112,17 @@ const PRODUCTS_SQL = `
   -- no reviews. Zero is a rating — the worst one — and a card cannot tell
   -- it apart from "nobody has said anything yet". The count is what the
   -- frontend tests before drawing stars at all.
+  -- The star total is not shown anywhere. It is what lets the service
+  -- add up a shop-wide average exactly, from these same rows, without a
+  -- second query: averaging the per-product averages would weight a
+  -- piece with one review the same as one with twenty, and re-averaging
+  -- the rounded ones would drift besides. Summing the stars and dividing
+  -- by the count is the only arithmetic that gives the same answer as
+  -- counting every review at once.
   LEFT JOIN LATERAL (
     SELECT
       COUNT(*)::INTEGER              AS count,
+      SUM(r.rating)::INTEGER         AS sum,
       ROUND(AVG(r.rating), 1)::NUMERIC(3,1) AS average
     FROM reviews r
     WHERE r.product_id = p.id

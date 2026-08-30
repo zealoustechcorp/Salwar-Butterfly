@@ -24,11 +24,12 @@ export default async function StorefrontHome() {
     offerCount,
     catalogueSize,
     sizeRange,
+    rating,
   } = await getHomePageData();
 
   return (
     <>
-      <Hero shop={shop} topDiscount={topDiscount} />
+      <Hero shop={shop} topDiscount={topDiscount} rating={rating} />
       <TrustBar shop={shop} />
       <CategoryGrid categories={categories} />
       <FabricStrip fabrics={fabrics} />

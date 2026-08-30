@@ -57,7 +57,15 @@ const API_BASE = (
  */
 const REVALIDATE_SECONDS = 60;
 
-const EMPTY = { fetched_at: null, categories: [], products: [] };
+const EMPTY = {
+  fetched_at: null,
+  categories: [],
+  products: [],
+  // F-06.08. `average: null` rather than 0 — see the mapper at the other
+  // end: zero is a rating, and the hero must be able to tell "nobody has
+  // reviewed us" from "everybody hated it".
+  rating: { count: 0, products: 0, average: null },
+};
 
 /**
  * The catalogue, fetched once per render and cached across requests.
@@ -314,6 +322,14 @@ export async function getHomePageData() {
     shop: SHOP,
     fetched_at: catalogue.fetched_at,
     products,
+
+    // The shop's overall score (F-06.08), added up by the API across the
+    // same products this page renders. Not recomputed here: the star
+    // totals it was summed from are not in the product shape, and a
+    // second average over the rounded per-product ones would disagree
+    // with the one printed on every card.
+    rating: catalogue.rating ?? EMPTY.rating,
+
     categories: await getStorefrontCategories(products),
     fabrics: await getFabrics(products),
     topDiscount: discounted.reduce((max, p) => Math.max(max, p.off), 0),
