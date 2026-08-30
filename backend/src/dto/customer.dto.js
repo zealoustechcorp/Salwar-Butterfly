@@ -17,6 +17,19 @@ export class CreateCustomerDTO {
 }
 
 // ============================================================
+// CUSTOMER LOGIN DTO
+// ============================================================
+
+export class LoginCustomerDTO {
+  constructor(email, password) {
+    this.email = typeof email === "string" ? email.trim().toLowerCase() : email;
+
+    // Never trimmed — leading/trailing whitespace is part of the secret.
+    this.password = password;
+  }
+}
+
+// ============================================================
 // UPDATE CUSTOMER DTO
 // ============================================================
 

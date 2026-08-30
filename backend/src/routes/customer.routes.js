@@ -5,7 +5,11 @@ import express from "express";
 import { CustomerController } from "../controllers/customer.controller.js";
 
 import { authenticate } from "../middlewares/auth.middleware.js";
-import { requireAdmin } from "../middlewares/authorize.middleware.js";
+import {
+  requireAdmin,
+  requireCustomer,
+  requireSelf,
+} from "../middlewares/authorize.middleware.js";
 import { authRateLimiter } from "../middlewares/rateLimiter.js";
 
 import {
@@ -29,10 +33,11 @@ const router = express.Router();
  *   /register         a person signing up has no token yet, by
  *                     definition. It is the one public route here.
  *
- *   /change-password  self-service, so an admin token is the wrong
- *                     key for it. It stays open, but only because
- *                     there is no customer token to demand yet
- *                     (F-01.02) — see the note on the route itself.
+ *   /change-password  behind a *customer* token plus an ownership
+ *                     check, not an admin one — see the route.
+ *
+ * Signing in lives next door in customer.auth.routes.js, mounted at
+ * /customers/auth, mirroring /admin/auth.
  */
 
 // ============================================================
@@ -42,20 +47,31 @@ const router = express.Router();
 // Register customer (F-05.01)
 router.post("/register", validateCreateCustomer, CustomerController.register);
 
+// ============================================================
+// CUSTOMER'S OWN ACCOUNT
+// ============================================================
+
 /**
  * Change password (F-05.06).
  *
- * Rate-limited rather than authenticated, which is a stopgap and not a
- * design: knowing a customer id, this endpoint lets an attacker guess
- * `oldPassword` at HTTP speed. The limiter is what stands in for the
- * missing check until customer login lands, at which point this route
- * takes `authenticate` plus an "is this your own id?" guard and the
- * limiter becomes the second line rather than the first.
+ * Three checks, and each one is load-bearing:
+ *
+ *   authenticate     proves who is asking.
+ *   requireCustomer  refuses an admin token — an admin who could set
+ *                    a customer's password could sign in as them.
+ *   requireSelf      proves the id in the URL is the caller's own.
+ *
+ * The rate limiter stays as the second line. The old password is
+ * still required, so this remains a guessing surface, just one that
+ * an attacker must first own an account to reach.
  */
 router.post(
   "/:id/change-password",
-  authRateLimiter,
+  authenticate,
+  requireCustomer,
   validateCustomerIdParam,
+  requireSelf("id"),
+  authRateLimiter,
   validateChangePassword,
   CustomerController.changePassword,
 );

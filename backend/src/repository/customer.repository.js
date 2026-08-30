@@ -323,6 +323,42 @@ export const CustomerRepository = Object.freeze({
   },
 
   // ==========================================================
+  // FIND CUSTOMER BY EMAIL FOR AUTHENTICATION
+  // ==========================================================
+
+  /**
+   * The sign-in lookup — the one query that returns the hash.
+   *
+   * Separate from findByEmail rather than a flag on it, so the column
+   * that must never reach a response can only be selected by a caller
+   * that asked for it by name.
+   */
+  async findByEmailForAuth(email) {
+    const text = `
+      SELECT
+        id,
+        name,
+        email,
+        phone,
+        password,
+        created_at,
+        updated_at
+      FROM customers
+      WHERE email = $1
+        AND deleted_at IS NULL
+      LIMIT 1
+    `;
+
+    try {
+      const result = await query(text, [email]);
+
+      return result.rows[0] ?? null;
+    } catch (error) {
+      throw handleDatabaseError(error, "findByEmailForAuth");
+    }
+  },
+
+  // ==========================================================
   // FIND CUSTOMER BY EMAIL
   // ==========================================================
 

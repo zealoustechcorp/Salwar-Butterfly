@@ -20,6 +20,7 @@ import { useEffect, useRef } from "react";
 
 import { AccountSnapshot } from "./AccountSnapshot";
 import { useAuth } from "./AuthProvider";
+import { ProfileCard } from "./ProfileCard";
 
 const SIGN_IN_REASON = "Sign in to see your account.";
 
@@ -89,6 +90,7 @@ export function AccountPanel() {
         </button>
       </div>
 
+      <ProfileCard />
       <AccountSnapshot />
     </>
   );

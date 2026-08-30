@@ -56,7 +56,7 @@ export const CustomerService = {
         });
 
         throw new ApiError(409, "Email already registered", {
-          field: "email",
+          email: "Email already registered",
         });
       }
 
@@ -73,7 +73,7 @@ export const CustomerService = {
         });
 
         throw new ApiError(409, "Phone number already registered", {
-          field: "phone",
+          phone: "Phone number already registered",
         });
       }
 
@@ -128,7 +128,7 @@ export const CustomerService = {
         });
 
         throw new ApiError(409, "Email already registered", {
-          field: "email",
+          email: "Email already registered",
         });
       }
 
@@ -138,7 +138,7 @@ export const CustomerService = {
         });
 
         throw new ApiError(409, "Phone number already registered", {
-          field: "phone",
+          phone: "Phone number already registered",
         });
       }
 
@@ -295,8 +295,8 @@ export const CustomerService = {
           });
 
           throw new ApiError(409, "Email already in use", {
-            field: "email",
-          });
+          email: "Email already in use",
+        });
         }
       }
 
@@ -314,8 +314,8 @@ export const CustomerService = {
           });
 
           throw new ApiError(409, "Phone number already in use", {
-            field: "phone",
-          });
+          phone: "Phone number already in use",
+        });
         }
       }
 
@@ -366,13 +366,13 @@ export const CustomerService = {
 
       if (error.code === CUSTOMER_ERRORS.EMAIL_EXISTS) {
         throw new ApiError(409, "Email already in use", {
-          field: "email",
+          email: "Email already in use",
         });
       }
 
       if (error.code === CUSTOMER_ERRORS.PHONE_EXISTS) {
         throw new ApiError(409, "Phone number already in use", {
-          field: "phone",
+          phone: "Phone number already in use",
         });
       }
 

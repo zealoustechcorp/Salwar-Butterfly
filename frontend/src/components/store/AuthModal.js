@@ -45,7 +45,12 @@ function Field({ id, label, error, children, hint }) {
  */
 function AuthForm({ intent, signIn, signUp, closeAuth }) {
   const [mode, setMode] = useState(intent.mode);
-  const [values, setValues] = useState({ name: "", email: "", password: "" });
+  const [values, setValues] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    password: "",
+  });
   const [failure, setFailure] = useState(null); // { field, error }
   const [pending, setPending] = useState(false);
 
@@ -124,6 +129,33 @@ function AuthForm({ intent, signIn, signUp, closeAuth }) {
           />
         </Field>
 
+        {/*
+          Required, not optional. The shop confirms orders on WhatsApp,
+          so a number is how a customer actually gets told their parcel
+          has gone out — and the API stores it NOT NULL for that reason.
+        */}
+        {isSignUp ? (
+          <Field
+            id="auth-phone"
+            label="Phone"
+            error={errorFor("phone")}
+            hint={errorFor("phone") ? undefined : "Where the shop confirms your order on WhatsApp."}
+          >
+            <input
+              id="auth-phone"
+              type="tel"
+              inputMode="tel"
+              value={values.phone}
+              onChange={set("phone")}
+              autoComplete="tel"
+              placeholder="9876543210"
+              aria-invalid={Boolean(errorFor("phone"))}
+              aria-describedby={errorFor("phone") ? "auth-phone-error" : undefined}
+              className={FIELD_CLASS}
+            />
+          </Field>
+        ) : null}
+
         <PasswordField
           value={values.password}
           onChange={set("password")}
@@ -175,7 +207,7 @@ function PasswordField({ value, onChange, isSignUp, error }) {
       id="auth-password"
       label="Password"
       error={error}
-      hint={isSignUp ? "At least 6 characters." : null}
+      hint={isSignUp ? "At least 8 characters." : null}
     >
       <div className="relative">
         <input

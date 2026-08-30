@@ -14,12 +14,12 @@ GET {{baseUrl}}/health
 ### data, and this API used to hand the whole list to anyone who
 ### asked.
 ###
-### Two routes stay public, for reasons that are not laziness:
+### One route stays public: /register — a person signing up has no
+### token yet, by definition.
 ###
-###   /register         a person signing up has no token yet.
-###   /change-password  self-service, so an admin token is the wrong
-###                     key. Rate-limited until customer login (F-01.02)
-###                     gives it a real one.
+### /change-password is not here any more. It needs a *customer*
+### token plus an ownership check, so it lives in customerAuthAPI.rest
+### alongside the sign-in that issues one.
 ###
 ### Sign in first and paste the token below.
 ### ============================================================
@@ -48,16 +48,6 @@ Content-Type: application/json
   "email": "john@example.com",
   "phone": "9876543210",
   "password": "password123"
-}
-
-### Change Customer Password  (F-05.06)
-### Rate-limited: 10 attempts per 15 minutes per IP.
-POST {{baseUrl}}/customers/37eaec34-f7b4-4001-95b1-1f2c18535288/change-password
-Content-Type: application/json
-
-{
-  "oldPassword": "password123",
-  "newPassword": "newpassword456"
 }
 
 

@@ -165,6 +165,44 @@ export const validateCreateCustomer = (req, res, next) => {
 };
 
 // ============================================================
+// CUSTOMER LOGIN
+// ============================================================
+
+/**
+ * Shape check only (F-01.02).
+ *
+ * Note what is NOT checked: the password's length or format. The
+ * rules that apply when *choosing* a password must not apply when
+ * presenting one — rejecting a 6-character attempt with "must be at
+ * least 8 characters" tells an attacker their guess was too short to
+ * be this account's password, which is a free filter on the search
+ * space. A missing password is the only failure worth naming.
+ */
+export const validateCustomerLogin = (req, res, next) => {
+  const { email, password } = req.body ?? {};
+
+  const errors = {};
+
+  const emailError = validateEmail(email, true);
+
+  if (emailError) {
+    errors.email = emailError;
+  }
+
+  if (typeof password !== "string" || password.length === 0) {
+    errors.password = "Password is required";
+  }
+
+  if (Object.keys(errors).length > 0) {
+    throw new ApiError(400, "Validation failed", errors);
+  }
+
+  req.body.email = email.trim().toLowerCase();
+
+  next();
+};
+
+// ============================================================
 // UPDATE CUSTOMER
 // ============================================================
 

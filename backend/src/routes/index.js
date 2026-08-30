@@ -2,6 +2,7 @@ import { Router } from 'express';
 
 import healthRoutes from './health.routes.js';
 import customerRoutes from './customer.routes.js'
+import customerAuthRoutes from './customer.auth.routes.js';
 import categoryRoutes from './category.routes.js'
 import productRoutes from './product.routes.js';
 import productVariantRoutes from './product_variant.routes.js';
@@ -53,6 +54,10 @@ router.use('/health', healthRoutes);
 // ============================================================
 
 router.use('/admin/auth', adminAuthRoutes);
+
+// Mounted before /customers so the sign-in routes are matched by their
+// own router rather than falling through to the one that owns /:id.
+router.use('/customers/auth', customerAuthRoutes);
 router.use('/customers', customerRoutes);
 
 // ============================================================
