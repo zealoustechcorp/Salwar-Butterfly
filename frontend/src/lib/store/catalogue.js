@@ -13,6 +13,8 @@
  * data left, and is what the storefront still renders from.
  */
 
+import { STOCK_STATUS, stockStatusFor } from "@/lib/stock";
+
 import snapshot from "./live-catalogue.json";
 
 // --- presentation lookups ---------------------------------------------------
@@ -49,9 +51,10 @@ export function fabricOf(name) {
   return FABRIC_RULES.find((rule) => rule.test.test(name))?.name || null;
 }
 
-// The shop treats a piece as running low once only a couple are left; below
-// that the size chip is simply not offered.
-const LOW_STOCK_AT = 3;
+// When a piece counts as running low is F-04's rule, not this file's —
+// it comes from lib/stock.js, which mirrors the API's policy module, so
+// the "only N left" notice here and the amber badge in the admin panel
+// move together instead of drifting apart.
 
 // --- decoration -------------------------------------------------------------
 
@@ -68,7 +71,7 @@ function decorate(product, categoryName) {
     sizes: product.sizes,
     available_sizes: sizes.map((s) => s.size),
     in_stock: inStock,
-    is_low_stock: inStock && product.stock <= LOW_STOCK_AT,
+    is_low_stock: inStock && stockStatusFor(product.stock) === STOCK_STATUS.LOW_STOCK,
   };
 }
 

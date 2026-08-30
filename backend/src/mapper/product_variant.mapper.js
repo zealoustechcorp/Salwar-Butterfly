@@ -1,17 +1,12 @@
 /**
- * Stock thresholds. These are presentation rules, not columns — the
- * admin and the storefront must agree on when a size counts as "low",
- * so the status is derived once, here, rather than in each screen.
+ * Stock thresholds are presentation rules, not columns — the admin and
+ * the storefront must agree on when a size counts as "low", so the
+ * status is derived once, in src/config/stock.policy.js, rather than in
+ * each screen. Re-exported here so existing importers keep working.
  */
-const OUT_OF_STOCK_AT = 0;
-const LOW_STOCK_AT = 5;
+import { stockStatusFor, worstStatusOf } from "../config/stock.policy.js";
 
-export const stockStatusFor = (variant) => {
-  if (!variant.active) return "unavailable";
-  if (variant.stock_quantity <= OUT_OF_STOCK_AT) return "out_of_stock";
-  if (variant.stock_quantity <= LOW_STOCK_AT) return "low_stock";
-  return "in_stock";
-};
+export { stockStatusFor };
 
 export const ProductVariantMapper = {
   toDTO(variant) {
@@ -59,19 +54,12 @@ export const ProductVariantMapper = {
    */
   toSummary(variants = []) {
     const active = variants.filter((v) => v.active);
-    const statuses = active.map((v) => stockStatusFor(v));
 
     return {
       sizeCount: variants.length,
       activeSizeCount: active.length,
       totalStock: active.reduce((sum, v) => sum + Number(v.stock_quantity), 0),
-      lowestStatus: statuses.includes("out_of_stock")
-        ? "out_of_stock"
-        : statuses.includes("low_stock")
-          ? "low_stock"
-          : active.length
-            ? "in_stock"
-            : "unavailable",
+      lowestStatus: worstStatusOf(variants),
     };
   },
 };

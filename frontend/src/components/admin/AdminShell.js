@@ -14,8 +14,9 @@ import { Badge, Button, cx, ToastProvider } from "./ui";
 // (F-01 Authentication, F-10 Payment) is not navigable and stays out of the nav.
 const FEATURES = [
   /**
-   * Categories and Products are live against the API, so they carry no
-   * spec badge. The remaining entries below are still FRS placeholders.
+   * Categories, Products and Inventory are live against the API, so
+   * they carry no spec badge. The remaining entries below are still
+   * FRS placeholders.
    */
   {
     label: "Categories",
@@ -35,7 +36,7 @@ const FEATURES = [
       { href: "/admin/products/attributes", label: "Approved attributes" },
     ],
   },
-  { id: "F-04", label: "Inventory", href: null },
+  { label: "Inventory", href: "/admin/inventory" },
   { id: "F-05", label: "Customers", href: null },
   { id: "F-09", label: "Orders", href: null },
   { id: "F-11", label: "Dashboard & Reports", href: null },

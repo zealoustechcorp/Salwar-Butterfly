@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { STANDARD_SIZES } from "@/lib/api/variants";
 import { number } from "@/lib/format";
+import { STOCK_LABEL, STOCK_TONE, stockStatusFor } from "@/lib/stock";
 import { Badge, Button, cx, Input, Toggle } from "./ui";
 
 /**
@@ -200,35 +201,20 @@ export function SizeStockEditor({ rows, onChange, disabled = false }) {
   );
 }
 
-/** Mirrors the API's thresholds: 0 is out, 1–5 is low. */
+/**
+ * The stock status of a size — or of a whole product, when `stock` is
+ * its total across sizes.
+ *
+ * The thresholds come from lib/stock.js, which mirrors the API's policy
+ * module, so this badge cannot drift from the one the inventory screen
+ * and the storefront show.
+ */
 export function StockBadge({ active, stock, className }) {
-  if (!active) {
-    return (
-      <Badge tone="slate" className={className}>
-        Not on sale
-      </Badge>
-    );
-  }
-
-  if (stock <= 0) {
-    return (
-      <Badge tone="red" className={className}>
-        Out of stock
-      </Badge>
-    );
-  }
-
-  if (stock <= 5) {
-    return (
-      <Badge tone="amber" className={className}>
-        Low stock
-      </Badge>
-    );
-  }
+  const status = stockStatusFor(stock, active);
 
   return (
-    <Badge tone="green" className={className}>
-      In stock
+    <Badge tone={STOCK_TONE[status]} className={className}>
+      {STOCK_LABEL[status]}
     </Badge>
   );
 }

@@ -13,13 +13,11 @@
 
 import { api } from "./client";
 
-/** Matches the thresholds in the API's variant mapper. */
-export const STOCK_LABEL = {
-  in_stock: "In stock",
-  low_stock: "Low stock",
-  out_of_stock: "Out of stock",
-  unavailable: "Unavailable",
-};
+/**
+ * Re-exported so existing importers keep working. The labels — and the
+ * thresholds behind them — are defined once in lib/stock.js.
+ */
+export { STOCK_LABEL } from "../stock";
 
 /** The order sizes are offered in, and the order they are stored in. */
 export const STANDARD_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "3XL"];

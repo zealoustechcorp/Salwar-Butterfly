@@ -1,0 +1,237 @@
+### Base URL
+@baseUrl = http://localhost:4000/api
+
+@variantId = 8f2a1c44-1c0c-4511-b091-246a213e8373
+@otherVariantId = 6b13d902-77aa-4f22-9c31-5d2b0e441a90
+@categoryId = 41cee835-1c0c-4511-b091-246a213e8373
+
+
+### ============================================================
+### INVENTORY ENDPOINTS  (F-04)
+###
+### Stock lives on product_variants — one row per (product, size).
+### These routes read it the other way round from the product
+### screens: variant-first, joined out to its product, so the
+### question "what is running out anywhere in the shop?" can be
+### asked of the whole catalogue at once.
+###
+### The rule, from src/config/stock.policy.js:
+###
+###   0 units          out of stock
+###   1 to 9 units     low stock       (F-04.05 "order fast")
+###   10 or more       in stock
+###   deactivated      unavailable, whatever it holds
+###
+### Out of stock is a true zero rather than the spec's suggested
+### reserve buffer: this catalogue holds one or two pieces per
+### size, so holding back the last ten would take every product
+### off sale.
+### ============================================================
+
+
+### ============================================================
+### The stock table — lowest stock first
+###
+### meta.pagination describes the page; meta.summary describes the
+### whole catalogue, not just this page.
+### ============================================================
+GET {{baseUrl}}/inventory/getInventory
+Accept: application/json
+
+
+### ============================================================
+### What needs reordering
+### ============================================================
+GET {{baseUrl}}/inventory/getInventory?status=low_stock&limit=50
+Accept: application/json
+
+
+### ============================================================
+### What cannot be sold at all right now
+### ============================================================
+GET {{baseUrl}}/inventory/getInventory?status=out_of_stock
+Accept: application/json
+
+
+### ============================================================
+### Sizes taken off sale — they may still hold stock
+### ============================================================
+GET {{baseUrl}}/inventory/getInventory?status=unavailable
+Accept: application/json
+
+
+### ============================================================
+### Search: product name or slug, or an exact size
+###
+### Size matches exactly, so "L" finds size L rather than every
+### product with an L in its name.
+### ============================================================
+GET {{baseUrl}}/inventory/getInventory?search=cotton
+Accept: application/json
+
+###
+GET {{baseUrl}}/inventory/getInventory?search=XL
+Accept: application/json
+
+
+### ============================================================
+### One category, one product, and the sort orders
+### ============================================================
+GET {{baseUrl}}/inventory/getInventory?categoryId={{categoryId}}
+Accept: application/json
+
+###
+GET {{baseUrl}}/inventory/getInventory?sort=stock_desc
+Accept: application/json
+
+###
+GET {{baseUrl}}/inventory/getInventory?sort=product&page=2&limit=25
+Accept: application/json
+
+
+### ============================================================
+### Totals on their own — for a screen with no table (F-11)
+### ============================================================
+GET {{baseUrl}}/inventory/getInventorySummary
+Accept: application/json
+
+###
+GET {{baseUrl}}/inventory/getInventorySummary?categoryId={{categoryId}}
+Accept: application/json
+
+
+### ============================================================
+### A movement: two more arrived
+###
+### Sent as a delta, not a new total, so two people counting the
+### same delivery both land instead of the second overwriting the
+### first. The arithmetic happens in SQL.
+### ============================================================
+PATCH {{baseUrl}}/inventory/adjustStock/{{variantId}}
+Content-Type: application/json
+
+{
+  "delta": 2
+}
+
+
+### ============================================================
+### A movement the other way: one was damaged
+### ============================================================
+PATCH {{baseUrl}}/inventory/adjustStock/{{variantId}}
+Content-Type: application/json
+
+{
+  "delta": -1
+}
+
+
+### ============================================================
+### Refused: stock cannot go below zero  → 409
+### ============================================================
+PATCH {{baseUrl}}/inventory/adjustStock/{{variantId}}
+Content-Type: application/json
+
+{
+  "delta": -999999
+}
+
+
+### ============================================================
+### Refused: an adjustment of nothing  → 400
+### ============================================================
+PATCH {{baseUrl}}/inventory/adjustStock/{{variantId}}
+Content-Type: application/json
+
+{
+  "delta": 0
+}
+
+
+### ============================================================
+### A stock-take: an absolute count
+###
+### expectedStockQuantity is what the screen was showing. With it,
+### a correction typed against a stale page is refused instead of
+### silently undoing whatever changed in between.
+### ============================================================
+PATCH {{baseUrl}}/inventory/setStock/{{variantId}}
+Content-Type: application/json
+
+{
+  "stockQuantity": 12,
+  "expectedStockQuantity": 10
+}
+
+
+### ============================================================
+### Refused: the row moved since the page loaded  → 409
+### ============================================================
+PATCH {{baseUrl}}/inventory/setStock/{{variantId}}
+Content-Type: application/json
+
+{
+  "stockQuantity": 12,
+  "expectedStockQuantity": 99999
+}
+
+
+### ============================================================
+### Unconditional set — no concurrency check
+### ============================================================
+PATCH {{baseUrl}}/inventory/setStock/{{variantId}}
+Content-Type: application/json
+
+{
+  "stockQuantity": 8
+}
+
+
+### ============================================================
+### A delivery: many sizes, one transaction
+###
+### All or nothing. A half-applied delivery cannot be told from a
+### whole one by looking, which would mean re-counting the lot.
+### ============================================================
+PUT {{baseUrl}}/inventory/bulkAdjustStock
+Content-Type: application/json
+
+{
+  "adjustments": [
+    { "variantId": "{{variantId}}",      "delta": 5 },
+    { "variantId": "{{otherVariantId}}", "delta": 5 }
+  ]
+}
+
+
+### ============================================================
+### Refused whole: one impossible line rolls back the rest  → 409
+###
+### Check the other size afterwards — it must be untouched.
+### ============================================================
+PUT {{baseUrl}}/inventory/bulkAdjustStock
+Content-Type: application/json
+
+{
+  "adjustments": [
+    { "variantId": "{{variantId}}",      "delta": 5 },
+    { "variantId": "{{otherVariantId}}", "delta": -999999 }
+  ]
+}
+
+
+### ============================================================
+### Refused: the same size listed twice  → 400
+###
+### Both would apply and the caller would see only the second
+### reflected back.
+### ============================================================
+PUT {{baseUrl}}/inventory/bulkAdjustStock
+Content-Type: application/json
+
+{
+  "adjustments": [
+    { "variantId": "{{variantId}}", "delta": 1 },
+    { "variantId": "{{variantId}}", "delta": 1 }
+  ]
+}
