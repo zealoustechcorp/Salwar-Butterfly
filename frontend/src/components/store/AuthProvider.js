@@ -20,6 +20,12 @@
  * is genuinely no good. A network error is not: the API being down
  * should not log everybody out and throw away their session.
  *
+ * That covers the token being dead on arrival. A token that runs out
+ * *during* a visit is caught by the api client instead, which ends the
+ * session wherever the 401 surfaced (lib/api/expiry.js); what this
+ * file does with that is put the sign-in dialog up with the reason,
+ * rather than letting the header quietly go blank mid-checkout.
+ *
  * The modal is rendered here, next to `children`, exactly as
  * StoreProvider renders its toast. That is what lets any component
  * anywhere in the storefront put up the sign-in dialog with
@@ -46,6 +52,7 @@ import {
 } from "react";
 
 import { ApiError, NETWORK_ERROR } from "@/lib/api/client";
+import { expiryMessage, subscribeToExpiry } from "@/lib/api/expiry";
 import * as customerAuth from "@/lib/store/auth";
 import {
   clearSession,
@@ -140,6 +147,38 @@ export function AuthProvider({ children }) {
       redirectTo: options.redirectTo ?? null,
     });
   }, []);
+
+  // --------------------------------------------------------
+  // THE SESSION ENDING ON ITS OWN
+  // --------------------------------------------------------
+  //
+  // A token that lapses mid-visit. The api client has already dropped
+  // it (lib/api/expiry.js), which is what signs the header out; the
+  // wishlist has to be pointed back at the guest list here, the same
+  // way signOut does it.
+  //
+  // Whether to say anything turns on `validated`. A token we had
+  // confirmed since this page loaded means the shopper was in the
+  // middle of something — placing an order, opening their account —
+  // and an unexplained bounce to signed-out would be baffling, so the
+  // dialog opens with the reason. A token that was already stale when
+  // they arrived means they have been away for days: sign them out
+  // quietly and let them browse.
+
+  useEffect(
+    () =>
+      subscribeToExpiry(({ scope, token: expired, code }) => {
+        if (scope !== "customer") return;
+
+        const wasLive = validated === expired;
+
+        setValidated(null);
+        repointWishlist(null);
+
+        if (wasLive) openAuth({ reason: expiryMessage(code) });
+      }),
+    [validated, openAuth],
+  );
 
   const value = useMemo(() => {
     /** Shared tail of both flows: adopt, remember, close, and go where asked. */

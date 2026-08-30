@@ -307,6 +307,55 @@ export async function getFabrics(products) {
 }
 
 /**
+ * The size ladder the shop actually stocks — `/shop`'s size filter.
+ *
+ * Built from `available_sizes`, so a size that exists only on sold-out
+ * variants never appears: every size offered here has at least one piece
+ * behind it. Sizes are free text in the database (`product_variants.size`),
+ * which is why they are ordered here rather than trusted to arrive sorted.
+ */
+export async function getSizes(products) {
+  const rows = products ?? (await getStorefrontProducts());
+  const seen = new Set();
+
+  for (const p of rows) {
+    for (const size of p.available_sizes) seen.add(size);
+  }
+
+  return [...seen].sort(compareSizes);
+}
+
+// Numeric sizes first, in numeric order — "6" before "38", which a string
+// sort gets backwards. Lettered sizes follow in rack order, and anything the
+// shop invents that is neither falls to the end alphabetically rather than
+// being dropped.
+const LETTER_SIZES = ["XXS", "XS", "S", "M", "L", "XL", "XXL", "XXXL", "XXXXL"];
+
+// This catalogue writes the big sizes both ways — "2XL" on some variants and
+// "XXL" on others — and they are one size on the rack, so they rank as one
+// here rather than sorting into two separate clumps.
+const canonicalSize = (size) =>
+  size.toUpperCase().replace(/^(\d+)X/, (_, count) => "X".repeat(Number(count)));
+
+function compareSizes(a, b) {
+  const numberA = /^\d+$/.test(a) ? Number(a) : null;
+  const numberB = /^\d+$/.test(b) ? Number(b) : null;
+
+  if (numberA !== null && numberB !== null) return numberA - numberB;
+  if (numberA !== null) return -1;
+  if (numberB !== null) return 1;
+
+  const rankA = LETTER_SIZES.indexOf(canonicalSize(a));
+  const rankB = LETTER_SIZES.indexOf(canonicalSize(b));
+
+  if (rankA !== -1 && rankB !== -1) return rankA - rankB;
+  if (rankA !== -1) return -1;
+  if (rankB !== -1) return 1;
+
+  return a.localeCompare(b);
+}
+
+/**
  * Everything the home page renders, computed once on the server.
  *
  * The whole catalogue ships with it: the shop section filters and re-sorts

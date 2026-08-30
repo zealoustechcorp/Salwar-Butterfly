@@ -17,9 +17,16 @@
  *
  * Failures arrive as a thrown `ApiError` carrying
  * { code, message, fields, status }.
+ *
+ * One failure is handled rather than only reported: a 401 saying the
+ * token has expired ends the session it belonged to before the error
+ * is thrown (see ./expiry.js). Callers still get their ApiError — the
+ * screen that made the call decides what to say — but nobody has to
+ * remember to sign the browser out.
  */
 
 import { readToken } from "@/lib/admin/session";
+import { expireSession, isSessionEnded } from "./expiry";
 
 // ============================================================
 // CONFIG
@@ -127,8 +134,18 @@ export async function request(path, options = {}) {
   const payload = await response.json().catch(() => null);
 
   if (!response.ok) {
+    const code = payload?.code ?? "REQUEST_FAILED";
+
+    // The credential we just sent is finished — expired, or no longer
+    // one the server will verify. Sign out of the session it came
+    // from, so a token that lapses mid-visit does not sit in storage
+    // failing every request after this one.
+    if (isSessionEnded(response.status, code)) {
+      expireSession(bearer, code);
+    }
+
     throw new ApiError(
-      payload?.code ?? "REQUEST_FAILED",
+      code,
       payload?.message ?? `Request failed with status ${response.status}`,
       // The backend calls its field map `errors`; the UI calls it
       // `fields`. Translate here so components see one shape.

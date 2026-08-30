@@ -1,86 +1,131 @@
 "use client";
 
 /**
- * Shared browse state for the home page.
+ * Shared browse state for the storefront.
  *
- * The header search, the category tiles and the fabric chips all steer the same
- * shop section further down the page, so the filter lives above them rather
- * than inside the grid. This is what keeps every control on the page real: with
- * no category or product routes built yet, "Anarkali Suits" filters the grid
- * and scrolls to it instead of pointing at a link that goes nowhere.
+ * The header search, the category tiles, the fabric chips and `/shop`'s
+ * sidebar all steer the same grid, so the filter lives above them rather than
+ * inside it. On the home page that grid is a section further down; on `/shop`
+ * it is the page. Both read the same state, which is why a category tile on
+ * the home page and a collection radio in the sidebar cannot disagree.
+ *
+ * This module holds the state and nothing else. What a filter *means* — which
+ * products a size or a price band admits — is in lib/store/filters.js, shared
+ * with the sidebar that has to count them.
  */
 
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
 
+import { countActive, NO_FILTERS } from "@/lib/store/filters";
+
 const BrowseContext = createContext(null);
 
-/**
- * Every tab sorts on something the snapshot actually records. There is no
- * "bestsellers" rail: the live shop publishes no sales figures, so ranking by
- * popularity would be invented.
- */
-export const TABS = [
-  { id: "new", label: "New In" },
-  { id: "offers", label: "On Offer" },
-  { id: "lowest", label: "Lowest Price" },
-  { id: "almost-gone", label: "Almost Gone" },
-];
+/** Add or remove one value from a multi-select dimension. */
+function toggle(values, value) {
+  return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
+}
 
 export function BrowseProvider({ children }) {
   const [tab, setTab] = useState("new");
-  const [categoryId, setCategoryId] = useState("all");
-  const [fabric, setFabric] = useState("all");
-  const [query, setQuery] = useState("");
+  const [categoryId, setCategoryId] = useState(NO_FILTERS.categoryId);
+  const [fabrics, setFabrics] = useState(NO_FILTERS.fabrics);
+  const [sizes, setSizes] = useState(NO_FILTERS.sizes);
+  const [price, setPrice] = useState(NO_FILTERS.price);
+  const [inStockOnly, setInStockOnly] = useState(NO_FILTERS.inStockOnly);
+  const [minRating, setMinRating] = useState(NO_FILTERS.minRating);
+  const [query, setQuery] = useState(NO_FILTERS.query);
 
   /** Bring the shop section into view after a control changes the filter. */
   const focusShop = useCallback(() => {
     document.getElementById("shop")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
 
+  /**
+   * The whole filter as one object — what lib/store/filters.js takes.
+   *
+   * Kept memoised because the sidebar's facet counts are memoised on it: a
+   * fresh object every render would recount every option on every keystroke
+   * in the search box.
+   */
+  const filters = useMemo(
+    () => ({ categoryId, fabrics, sizes, price, inStockOnly, minRating, query }),
+    [categoryId, fabrics, sizes, price, inStockOnly, minRating, query],
+  );
+
+  const toggleFabric = useCallback((name) => setFabrics((current) => toggle(current, name)), []);
+  const toggleSize = useCallback((size) => setSizes((current) => toggle(current, size)), []);
+
+  const clearFilters = useCallback(() => {
+    setCategoryId(NO_FILTERS.categoryId);
+    setFabrics(NO_FILTERS.fabrics);
+    setSizes(NO_FILTERS.sizes);
+    setPrice(NO_FILTERS.price);
+    setInStockOnly(NO_FILTERS.inStockOnly);
+    setMinRating(NO_FILTERS.minRating);
+    setQuery(NO_FILTERS.query);
+  }, []);
+
+  /**
+   * Start a fresh browse inside one collection.
+   *
+   * Every other dimension is dropped, not kept: a shopper who taps "Anarkali
+   * salwars" from the home page means to see that collection, and inheriting
+   * a size and a price band left over from an earlier look would open it on a
+   * near-empty grid that reads as an empty collection.
+   */
   const browseCategory = useCallback(
     (id) => {
+      clearFilters();
       setCategoryId(id);
-      setFabric("all");
       setTab("new");
       focusShop();
     },
-    [focusShop],
+    [clearFilters, focusShop],
   );
 
   const browseFabric = useCallback(
     (name) => {
-      setFabric((current) => (current === name ? "all" : name));
+      toggleFabric(name);
       focusShop();
     },
-    [focusShop],
+    [toggleFabric, focusShop],
   );
-
-  const clearFilters = useCallback(() => {
-    setCategoryId("all");
-    setFabric("all");
-    setQuery("");
-  }, []);
 
   /**
    * Overwrite the whole filter in one go. `/shop` calls this with the values it
    * read out of its own query string, so that page always shows what its URL
    * says — including the defaults for the keys the URL leaves out.
    */
-  const applyParams = useCallback(({ tab: nextTab, categoryId: nextCategory, fabric: nextFabric, query: nextQuery }) => {
-    setTab(nextTab);
-    setCategoryId(nextCategory);
-    setFabric(nextFabric);
-    setQuery(nextQuery);
+  const applyParams = useCallback((next) => {
+    const full = { ...NO_FILTERS, ...next };
+
+    setTab(next.tab ?? "new");
+    setCategoryId(full.categoryId);
+    setFabrics(full.fabrics);
+    setSizes(full.sizes);
+    setPrice(full.price);
+    setInStockOnly(full.inStockOnly);
+    setMinRating(full.minRating);
+    setQuery(full.query);
   }, []);
 
   const value = useMemo(
     () => ({
       tab,
       setTab,
+      filters,
       categoryId,
       setCategoryId,
-      fabric,
-      setFabric,
+      fabrics,
+      toggleFabric,
+      sizes,
+      toggleSize,
+      price,
+      setPrice,
+      inStockOnly,
+      setInStockOnly,
+      minRating,
+      setMinRating,
       query,
       setQuery,
       focusShop,
@@ -88,9 +133,27 @@ export function BrowseProvider({ children }) {
       browseFabric,
       clearFilters,
       applyParams,
-      isFiltered: categoryId !== "all" || fabric !== "all" || query.trim() !== "",
+      activeCount: countActive(filters),
+      isFiltered: countActive(filters) > 0,
     }),
-    [tab, categoryId, fabric, query, focusShop, browseCategory, browseFabric, clearFilters, applyParams],
+    [
+      tab,
+      filters,
+      categoryId,
+      fabrics,
+      toggleFabric,
+      sizes,
+      toggleSize,
+      price,
+      inStockOnly,
+      minRating,
+      query,
+      focusShop,
+      browseCategory,
+      browseFabric,
+      clearFilters,
+      applyParams,
+    ],
   );
 
   return <BrowseContext.Provider value={value}>{children}</BrowseContext.Provider>;

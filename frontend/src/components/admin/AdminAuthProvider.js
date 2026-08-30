@@ -15,6 +15,13 @@
  * fetched with — pairing them means a token change cannot leave a
  * stale identity behind, and there is no state to synchronise in an
  * effect.
+ *
+ * Expiry is not this provider's job to detect. The api client ends the
+ * session the moment any call comes back with an expired token
+ * (lib/api/expiry.js), which clears the store and lands here as an
+ * ordinary token change — status goes anonymous and RequireAdmin does
+ * the redirecting. All this listens for is the *reason*, so the login
+ * page can say why rather than appearing for no visible cause.
  */
 
 import {
@@ -36,6 +43,7 @@ import {
 
 import * as adminAuth from "@/lib/admin/auth";
 import { ApiError, NETWORK_ERROR } from "@/lib/api/client";
+import { expiryMessage, subscribeToExpiry } from "@/lib/api/expiry";
 
 const AdminAuthContext = createContext(null);
 
@@ -58,6 +66,14 @@ export function AdminAuthProvider({ children }) {
    * instead of bouncing to a login page that will also fail.
    */
   const [resolved, setResolved] = useState(null);
+
+  /**
+   * Why the session ended, when it ended by itself. Held here rather
+   * than in the login page because the page mounts *after* the
+   * redirect that the expiry caused — this provider wraps both, so it
+   * is the nearest thing that survives the trip.
+   */
+  const [expiry, setExpiry] = useState(null);
 
   // A resolution only counts if it was fetched with the token we
   // currently hold. Anything else is stale by definition.
@@ -114,6 +130,26 @@ export function AdminAuthProvider({ children }) {
   }, [token, resolved]);
 
   // --------------------------------------------------------
+  // THE SESSION ENDING ON ITS OWN
+  // --------------------------------------------------------
+  //
+  // The api client has already cleared the token by the time this
+  // runs; the store change is what actually signs the panel out. This
+  // only keeps the reason, and drops the identity that went with the
+  // dead token so nothing renders against it.
+
+  useEffect(
+    () =>
+      subscribeToExpiry(({ scope, code }) => {
+        if (scope !== "admin") return;
+
+        setResolved(null);
+        setExpiry(expiryMessage(code));
+      }),
+    [],
+  );
+
+  // --------------------------------------------------------
   // ACTIONS
   // --------------------------------------------------------
 
@@ -126,6 +162,7 @@ export function AdminAuthProvider({ children }) {
     // storing it, so the token change lands already resolved and the
     // panel never passes through a loading state on sign-in.
     setResolved({ token: result.token, admin: result.admin, outage: null });
+    setExpiry(null);
 
     writeToken(result.token);
 
@@ -139,6 +176,9 @@ export function AdminAuthProvider({ children }) {
     clearToken();
     setResolved(null);
 
+    // Leaving on purpose is not something to explain on the way back.
+    setExpiry(null);
+
     await adminAuth.logout(current);
   }, []);
 
@@ -146,6 +186,7 @@ export function AdminAuthProvider({ children }) {
     admin,
     status,
     outage,
+    expiry,
     isLoading: status === STATUS.LOADING,
     isSignedIn: status === STATUS.AUTHENTICATED,
     signIn,

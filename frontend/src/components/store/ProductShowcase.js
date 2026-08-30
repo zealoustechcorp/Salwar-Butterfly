@@ -3,22 +3,14 @@
 import { Search, SlidersHorizontal, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { applyRail, filterProducts, TABS } from "@/lib/store/filters";
 import { cn } from "@/lib/utils";
-import { TABS, useBrowse } from "./BrowseProvider";
+import { useBrowse } from "./BrowseProvider";
 import { ProductCard } from "./ProductCard";
 
 // 12 divides evenly by the 2-, 3- and 4-column grids, so no breakpoint ends on
 // a ragged row.
 const PAGE = 12;
-
-/** Sort orders behind the four tabs. Filtering happens before any of them. */
-const RAILS = {
-  new: (rows) => [...rows].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)),
-  offers: (rows) => rows.filter((p) => p.off > 0).sort((a, b) => b.off - a.off),
-  lowest: (rows) => [...rows].sort((a, b) => a.price - b.price),
-  "almost-gone": (rows) =>
-    rows.filter((p) => p.in_stock && p.is_low_stock).sort((a, b) => a.stock - b.stock),
-};
 
 const BLURB = {
   new: "The most recently added pieces, newest first.",
@@ -27,30 +19,26 @@ const BLURB = {
   "almost-gone": "Only a few of each left — these runs are ending.",
 };
 
-export function ProductShowcase({ products, categories }) {
-  const { tab, setTab, categoryId, setCategoryId, fabric, setFabric, query, setQuery, isFiltered, clearFilters } =
-    useBrowse();
+/**
+ * The grid, its tabs and its search box.
+ *
+ * Rendered in two places and they are not quite the same shape. On the home
+ * page it is a full-width section that owns its own margins; on `/shop` it
+ * sits in the right-hand column beside <ShopFilters>, where the page owns the
+ * margins and a fourth column would squeeze the cards. `withSidebar` is that
+ * difference and nothing else — the filtering underneath is identical, and it
+ * is the same filtering the rail counts with.
+ */
+export function ProductShowcase({ products, categories, withSidebar = false }) {
+  const { tab, setTab, filters, setQuery, clearFilters } = useBrowse();
   const [shown, setShown] = useState(PAGE);
 
-  const rows = useMemo(() => {
-    const term = query.trim().toLowerCase();
-    let filtered = products;
+  const rows = useMemo(
+    () => applyRail(filterProducts(products, filters), tab),
+    [products, filters, tab],
+  );
 
-    if (categoryId !== "all") filtered = filtered.filter((p) => p.category_id === categoryId);
-    if (fabric !== "all") filtered = filtered.filter((p) => p.fabric === fabric);
-    if (term)
-      filtered = filtered.filter((p) =>
-        [p.name, p.category_name, p.fabric, ...p.available_sizes]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase()
-          .includes(term),
-      );
-
-    return (RAILS[tab] || RAILS.new)(filtered);
-  }, [products, tab, categoryId, fabric, query]);
-
-  const activeCategory = categories.find((c) => c.id === categoryId);
+  const activeCategory = categories.find((c) => c.id === filters.categoryId);
 
   const chooseTab = (id) => {
     setTab(id);
@@ -60,7 +48,10 @@ export function ProductShowcase({ products, categories }) {
   return (
     <section
       id="shop"
-      className="mx-auto max-w-7xl scroll-mt-40 px-4 py-9 sm:px-6 sm:py-11 lg:px-8 lg:py-13 wide:scroll-mt-28"
+      className={cn(
+        "scroll-mt-40 wide:scroll-mt-28",
+        withSidebar ? "" : "mx-auto max-w-7xl px-4 py-9 sm:px-6 sm:py-11 lg:px-8 lg:py-13",
+      )}
     >
       <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
         <div>
@@ -78,7 +69,7 @@ export function ProductShowcase({ products, categories }) {
           />
           <input
             type="search"
-            value={query}
+            value={filters.query}
             onChange={(event) => {
               setQuery(event.target.value);
               setShown(PAGE);
@@ -110,27 +101,10 @@ export function ProductShowcase({ products, categories }) {
         ))}
       </div>
 
-      {/* Active filters — the only way back out of a category or fabric pick. */}
-      {isFiltered ? (
-        <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
-          <SlidersHorizontal className="size-4 text-sb-text-muted" aria-hidden="true" />
-          {activeCategory ? (
-            <FilterPill label={activeCategory.name} onClear={() => setCategoryId("all")} />
-          ) : null}
-          {fabric !== "all" ? <FilterPill label={fabric} onClear={() => setFabric("all")} /> : null}
-          {query.trim() ? <FilterPill label={`“${query.trim()}”`} onClear={() => setQuery("")} /> : null}
-          <button
-            type="button"
-            onClick={() => {
-              clearFilters();
-              setShown(PAGE);
-            }}
-            className="ml-1 text-sm font-semibold text-sb-link underline underline-offset-4 hover:text-sb-heading"
-          >
-            Clear all
-          </button>
-        </div>
-      ) : null}
+      <ActiveFilters
+        activeCategory={activeCategory}
+        onAnyChange={() => setShown(PAGE)}
+      />
 
       <p className="mt-4 text-xs text-sb-text-muted tabular">
         {rows.length} {rows.length === 1 ? "piece" : "pieces"}
@@ -138,7 +112,15 @@ export function ProductShowcase({ products, categories }) {
 
       {rows.length ? (
         <>
-          <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 sm:gap-x-5 sm:gap-y-8 lg:grid-cols-4 lg:gap-x-6">
+          <div
+            className={cn(
+              "mt-4 grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 sm:gap-x-5 sm:gap-y-8 lg:gap-x-6",
+              // Beside the rail there is a column's worth less room, so the
+              // fourth card waits for a wider screen rather than being ground
+              // down to a thumbnail.
+              withSidebar ? "xl:grid-cols-4" : "lg:grid-cols-4",
+            )}
+          >
             {rows.slice(0, shown).map((product, index) => (
               <ProductCard key={product.id} product={product} priority={index < 4} />
             ))}
@@ -175,6 +157,80 @@ export function ProductShowcase({ products, categories }) {
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * Everything currently narrowing the grid, each removable on its own.
+ *
+ * This is not a duplicate of the rail. It is the only way back out of a filter
+ * on the home page, which has no rail at all, and on `/shop` it is what a
+ * shopper who has scrolled past the top of the rail can still see and undo.
+ */
+function ActiveFilters({ activeCategory, onAnyChange }) {
+  const {
+    isFiltered,
+    setCategoryId,
+    fabrics,
+    toggleFabric,
+    sizes,
+    toggleSize,
+    price,
+    setPrice,
+    inStockOnly,
+    setInStockOnly,
+    minRating,
+    setMinRating,
+    query,
+    setQuery,
+    clearFilters,
+  } = useBrowse();
+
+  if (!isFiltered) return null;
+
+  const drop = (action) => () => {
+    action();
+    onAnyChange();
+  };
+
+  return (
+    <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
+      <SlidersHorizontal className="size-4 text-sb-text-muted" aria-hidden="true" />
+
+      {activeCategory ? (
+        <FilterPill label={activeCategory.name} onClear={drop(() => setCategoryId("all"))} />
+      ) : null}
+
+      {fabrics.map((name) => (
+        <FilterPill key={name} label={name} onClear={drop(() => toggleFabric(name))} />
+      ))}
+
+      {sizes.map((size) => (
+        <FilterPill key={size} label={`Size ${size}`} onClear={drop(() => toggleSize(size))} />
+      ))}
+
+      {price ? <FilterPill label={price.label} onClear={drop(() => setPrice(null))} /> : null}
+
+      {minRating ? (
+        <FilterPill label={`${minRating}★ & up`} onClear={drop(() => setMinRating(0))} />
+      ) : null}
+
+      {inStockOnly ? (
+        <FilterPill label="In stock only" onClear={drop(() => setInStockOnly(false))} />
+      ) : null}
+
+      {query.trim() ? (
+        <FilterPill label={`“${query.trim()}”`} onClear={drop(() => setQuery(""))} />
+      ) : null}
+
+      <button
+        type="button"
+        onClick={drop(clearFilters)}
+        className="ml-1 text-sm font-semibold text-sb-link underline underline-offset-4 hover:text-sb-heading"
+      >
+        Clear all
+      </button>
+    </div>
   );
 }
 

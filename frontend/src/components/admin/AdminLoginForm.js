@@ -17,7 +17,7 @@ import { useEffect, useId, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { Eye, EyeOff, Lock, TriangleAlert } from "lucide-react";
+import { Clock, Eye, EyeOff, Lock, TriangleAlert } from "lucide-react";
 
 import { useAdminAuth } from "./AdminAuthProvider";
 import { Button, Field, Input, Spinner, cx } from "./ui";
@@ -43,7 +43,7 @@ function safeDestination(next) {
 }
 
 export function AdminLoginForm() {
-  const { signIn, isSignedIn, isLoading } = useAdminAuth();
+  const { signIn, isSignedIn, isLoading, expiry } = useAdminAuth();
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -118,6 +118,11 @@ export function AdminLoginForm() {
 
   const formError = failure && !failure.field ? failure.error : null;
 
+  // An admin who was working a second ago and is now looking at a login
+  // page deserves a reason. It gives way to a real failure the moment
+  // they submit — two notices stacked above one form is one too many.
+  const expiryNotice = !formError ? expiry : null;
+
   // A live session is being resolved — do not flash a login form at
   // an admin who is about to be redirected away from it.
   if (isLoading || isSignedIn) {
@@ -163,6 +168,16 @@ export function AdminLoginForm() {
           noValidate
           className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-ink-200"
         >
+          {expiryNotice ? (
+            <div
+              role="status"
+              className="mb-5 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2.5 text-xs text-amber-800 ring-1 ring-inset ring-amber-200"
+            >
+              <Clock className="mt-px size-3.5 shrink-0" aria-hidden="true" />
+              <span>{expiryNotice}</span>
+            </div>
+          ) : null}
+
           {formError ? (
             <div
               id={formErrorId}

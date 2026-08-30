@@ -49,7 +49,10 @@ export function OfferBanner({ topDiscount, offerCount }) {
 }
 
 export function FabricStrip({ fabrics }) {
-  const { fabric, browseFabric } = useBrowse();
+  // `chosen` is the shopper's picks, `fabrics` is what the shop stocks. The
+  // picks are a list, not one value: the chips add up the same way the shop
+  // page's sidebar checkboxes do, because they are the same state.
+  const { fabrics: chosen, browseFabric } = useBrowse();
 
   return (
     <section className="mx-auto max-w-7xl px-4 pb-1 sm:px-6 lg:px-8">
@@ -61,10 +64,10 @@ export function FabricStrip({ fabrics }) {
               key={item.name}
               type="button"
               onClick={() => browseFabric(item.name)}
-              aria-pressed={fabric === item.name}
+              aria-pressed={chosen.includes(item.name)}
               className={cn(
                 "shrink-0 rounded-full border px-4 py-2 text-sm font-medium transition-colors",
-                fabric === item.name
+                chosen.includes(item.name)
                   ? "border-sb-heading bg-sb-heading text-sb-bg"
                   : "border-sb-gold/45 text-sb-text hover:border-sb-heading hover:bg-sb-surface/50",
               )}
