@@ -6,11 +6,24 @@ Express 5 + PostgreSQL (`pg`) API for Salwar Butterfly.
 
 ```bash
 cd backend
-cp .env.example .env   # fill in DATABASE_URL
+cp .env.example .env   # fill in DATABASE_URL and JWT_SECRET
 npm install
 npm run db:check       # verifies the PostgreSQL connection
+npm run db:migrate     # applies src/migrations/*.sql in order
 npm run dev            # http://localhost:4000
 ```
+
+### Creating an admin
+
+There is no admin sign-up endpoint — accounts are provisioned from
+the CLI. Omit `--password` and the script prompts for it with the
+input masked, so the password never reaches your shell history:
+
+```bash
+npm run admin:create -- --name "Your Name" --email you@example.com --role super_admin
+```
+
+Roles are `admin` and `super_admin`.
 
 ## Structure
 
@@ -46,7 +59,15 @@ Request flow: `routes → validators → controllers → services → models →
 
 ## Endpoints
 
-| Method | Path             | Description             |
-| ------ | ---------------- | ----------------------- |
-| GET    | `/api/health`    | process liveness        |
-| GET    | `/api/health/db` | database reachability   |
+| Method | Path                      | Auth        | Description                        |
+| ------ | ------------------------- | ----------- | ---------------------------------- |
+| GET    | `/api/health`             | —           | process liveness                   |
+| GET    | `/api/health/db`          | —           | database reachability              |
+| POST   | `/api/admin/auth/login`   | —           | issue an admin JWT (10 req/15 min) |
+| GET    | `/api/admin/auth/me`      | admin token | the signed-in admin                |
+| POST   | `/api/admin/auth/logout`  | admin token | audit-only; the client drops the token |
+
+Admin tokens carry `typ: "admin"`. Because every token in the system
+is signed with the same `JWT_SECRET`, `requireAdmin` checks that claim
+— without it a storefront customer token would verify perfectly well
+against an admin route.

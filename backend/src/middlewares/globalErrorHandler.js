@@ -35,7 +35,9 @@ export const globalErrorHandler = (err, req, res, next) => {
     return res.status(statusCode).json({
       success: false,
       message: err.message,
+      ...(err.code ? { code: err.code } : {}),
       ...(err.details ? { details: err.details } : {}),
+      ...(err.errors ? { errors: err.errors } : {}),
     });
   }
 

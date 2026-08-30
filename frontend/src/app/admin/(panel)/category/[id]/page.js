@@ -11,7 +11,7 @@
 import { FolderX } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { Button, EmptyState } from "@/components/admin/ui";
-import { useCategories } from "../../../../lib/categories/context";
+import { useCategories } from "@/lib/categories/context";
 import CategoryDetail from "@/components/categories/CategoryDetail";
 
 /**

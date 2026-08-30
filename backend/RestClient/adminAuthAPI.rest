@@ -1,0 +1,76 @@
+@baseUrl = http://localhost:4000/api
+@adminEmail = admin@salwarbutterfly.in
+@adminPassword = Admin@12345
+
+### ------------------------------------------------------------
+### Sign in
+### ------------------------------------------------------------
+### Captures the token for the requests below.
+
+# @name adminLogin
+POST {{baseUrl}}/admin/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+### Token from the response above
+@adminToken = {{adminLogin.response.body.data.token}}
+
+
+### ------------------------------------------------------------
+### Current admin
+### ------------------------------------------------------------
+
+GET {{baseUrl}}/admin/auth/me
+Authorization: Bearer {{adminToken}}
+
+
+### ------------------------------------------------------------
+### Sign out
+### ------------------------------------------------------------
+
+POST {{baseUrl}}/admin/auth/logout
+Authorization: Bearer {{adminToken}}
+
+
+### ------------------------------------------------------------
+### Failure cases
+### ------------------------------------------------------------
+
+### 400 — validation, with a per-field `errors` map
+POST {{baseUrl}}/admin/auth/login
+Content-Type: application/json
+
+{
+  "email": "not-an-email",
+  "password": ""
+}
+
+### 401 — same message for a wrong password and an unknown email,
+###       so the endpoint cannot be used to enumerate accounts
+POST {{baseUrl}}/admin/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "wrong-password"
+}
+
+### 401 — no token
+GET {{baseUrl}}/admin/auth/me
+
+### 403 — a valid token that is not an admin token
+GET {{baseUrl}}/admin/auth/me
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjIiwidHlwIjoiY3VzdG9tZXIifQ.invalid
+
+### 429 — the 11th attempt within 15 minutes from one IP
+POST {{baseUrl}}/admin/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "wrong-password"
+}

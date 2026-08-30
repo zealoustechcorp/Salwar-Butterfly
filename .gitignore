@@ -8,6 +8,7 @@ node_modules/
 backend/certs/
 
 # logs
+logs/
 *.log
 npm-debug.log*
 

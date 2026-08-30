@@ -22,7 +22,10 @@ export const authenticate = (req, res, next) => {
     // ----------------------------------------------------------
 
     if (!authHeader) {
-      throw new ApiError(401, "Authentication token is required");
+      throw ApiError.unauthorized(
+        "Authentication token is required",
+        "TOKEN_MISSING",
+      );
     }
 
     // ----------------------------------------------------------
@@ -32,11 +35,17 @@ export const authenticate = (req, res, next) => {
     const [scheme, token] = authHeader.trim().split(/\s+/);
 
     if (!scheme || scheme.toLowerCase() !== "bearer") {
-      throw new ApiError(401, "Invalid authentication scheme");
+      throw ApiError.unauthorized(
+        "Invalid authentication scheme",
+        "TOKEN_SCHEME_INVALID",
+      );
     }
 
     if (!token) {
-      throw new ApiError(401, "Authentication token is required");
+      throw ApiError.unauthorized(
+        "Authentication token is required",
+        "TOKEN_MISSING",
+      );
     }
 
     // ----------------------------------------------------------
@@ -55,17 +64,26 @@ export const authenticate = (req, res, next) => {
         path: req.originalUrl,
       });
 
-      throw new ApiError(401, "Invalid authentication token");
+      throw ApiError.unauthorized(
+        "Invalid authentication token",
+        "TOKEN_INVALID",
+      );
     }
 
     // ----------------------------------------------------------
     // Attach authenticated user
+    // ----------------------------------------------------------
+    //
+    // `typ` distinguishes an admin token from a storefront one.
+    // Authorization middleware reads it; see requireAdmin().
+    //
     // ----------------------------------------------------------
 
     req.user = {
       id: decoded.sub,
       email: decoded.email,
       role: decoded.role,
+      typ: decoded.typ,
     };
 
     next();
@@ -88,7 +106,10 @@ export const authenticate = (req, res, next) => {
         path: req.originalUrl,
       });
 
-      throw new ApiError(401, "Authentication token has expired");
+      throw ApiError.unauthorized(
+        "Authentication token has expired",
+        "TOKEN_EXPIRED",
+      );
     }
 
     if (error instanceof jwt.JsonWebTokenError) {
@@ -98,7 +119,10 @@ export const authenticate = (req, res, next) => {
         error: error.message,
       });
 
-      throw new ApiError(401, "Invalid authentication token");
+      throw ApiError.unauthorized(
+        "Invalid authentication token",
+        "TOKEN_INVALID",
+      );
     }
 
     // ----------------------------------------------------------
@@ -112,6 +136,9 @@ export const authenticate = (req, res, next) => {
       stack: error.stack,
     });
 
-    throw new ApiError(500, "Authentication service unavailable");
+    throw ApiError.internal(
+      "Authentication service unavailable",
+      "AUTH_UNAVAILABLE",
+    );
   }
 };

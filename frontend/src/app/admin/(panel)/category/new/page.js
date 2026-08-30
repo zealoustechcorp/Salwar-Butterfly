@@ -11,7 +11,7 @@
  */
 
 import { useRouter } from "next/navigation";
-import { useCategories } from "../../../../lib/categories/context";
+import { useCategories } from "@/lib/categories/context";
 import { useToast } from "@/components/admin/ui";
 import CategoryForm from "@/components/categories/CategoryForm";
 

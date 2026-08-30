@@ -12,7 +12,7 @@
  *   and `/admin/category/[id]/edit` (editor).
  */
 
-import { CategoryProvider } from "../../../lib/categories/context";
+import { CategoryProvider } from "@/lib/categories/context";
 
 /**
  * CategoriesLayout Component

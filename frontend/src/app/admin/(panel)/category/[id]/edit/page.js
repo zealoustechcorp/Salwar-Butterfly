@@ -13,7 +13,7 @@
 import { FolderX } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { Button, EmptyState, useToast } from "@/components/admin/ui";
-import { useCategories } from "../../../../../lib/categories/context";
+import { useCategories } from "@/lib/categories/context";
 import CategoryForm from "@/components/categories/CategoryForm";
 
 /**

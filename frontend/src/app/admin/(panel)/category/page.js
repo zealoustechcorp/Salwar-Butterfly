@@ -12,7 +12,7 @@
 
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/admin/ui";
-import { useCategories } from "../../../lib/categories/context";
+import { useCategories } from "@/lib/categories/context";
 import CategoryList from "@/components/categories/CategoryList";
 
 /**

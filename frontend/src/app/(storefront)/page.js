@@ -23,19 +23,13 @@ export default function StorefrontHome() {
     fabrics,
     topDiscount,
     offerCount,
-    entryPrice,
     catalogueSize,
     sizeRange,
   } = getHomePageData();
 
   return (
     <>
-      <Hero
-        shop={shop}
-        catalogueSize={catalogueSize}
-        entryPrice={entryPrice}
-        topDiscount={topDiscount}
-      />
+      <Hero shop={shop} topDiscount={topDiscount} />
       <TrustBar shop={shop} />
       <CategoryGrid categories={categories} />
       <FabricStrip fabrics={fabrics} />

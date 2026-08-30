@@ -1,6 +1,6 @@
 "use client";
 
-import { Menu } from "lucide-react";
+import { LogOut, Menu } from "lucide-react";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import Image from "next/image";
 import Link from "next/link";
@@ -8,6 +8,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 
 import { resetDemoData } from "@/lib/api/products";
+import { useAdminAuth } from "./AdminAuthProvider";
 import { Badge, Button, cx, ToastProvider, useToast } from "./ui";
 
 // Admin nav shows only features with screens in this UI — backend-side work
@@ -42,6 +43,78 @@ const FEATURES = [
   { id: "F-09", label: "Orders", href: null },
   { id: "F-11", label: "Dashboard & Reports", href: null },
 ];
+
+/** "Dharun Prakash J A" → "DA"; falls back to the email's first letter. */
+function initialsOf(name, email) {
+  const words = String(name ?? "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (words.length === 0) {
+    return String(email ?? "?")
+      .charAt(0)
+      .toUpperCase();
+  }
+
+  const first = words[0].charAt(0);
+  const last = words.length > 1 ? words[words.length - 1].charAt(0) : "";
+
+  return (first + last).toUpperCase();
+}
+
+const ROLE_LABELS = {
+  super_admin: "Super Admin",
+  admin: "Admin",
+};
+
+/**
+ * The signed-in admin, read from the session rather than hardcoded.
+ *
+ * Renders nothing when there is no admin — the panel is behind
+ * RequireAdmin, so that state is only ever momentary.
+ */
+function AdminUserCard() {
+  const { admin, signOut } = useAdminAuth();
+  const [busy, setBusy] = useState(false);
+
+  if (!admin) return null;
+
+  return (
+    <div className="border-t border-ink-200 px-4 py-3">
+      <div className="flex items-center gap-2.5">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gold-100 text-xs font-semibold text-gold-800">
+          {initialsOf(admin.name, admin.email)}
+        </span>
+
+        <div className="min-w-0 flex-1 leading-tight">
+          <p className="truncate text-xs font-medium text-ink-800">
+            {admin.name}
+          </p>
+          <p className="truncate text-[11px] text-ink-500">
+            {ROLE_LABELS[admin.role] ?? admin.role}
+          </p>
+        </div>
+
+        <Button
+          size="sm"
+          variant="ghost"
+          busy={busy}
+          aria-label="Sign out"
+          title="Sign out"
+          className="shrink-0 px-1.5"
+          onClick={async () => {
+            setBusy(true);
+            await signOut();
+            // No need to reset `busy` — RequireAdmin unmounts this.
+          }}
+        >
+          {busy ? null : <LogOut className="size-4" aria-hidden="true" />}
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 function ResetButton() {
   const toast = useToast();
@@ -180,17 +253,7 @@ function Sidebar({ pathname, onNavigate, idPrefix = "rail" }) {
         </ul>
       </nav>
 
-      <div className="border-t border-ink-200 px-4 py-3">
-        <div className="flex items-center gap-2.5">
-          <span className="flex size-8 items-center justify-center rounded-full bg-gold-100 text-xs font-semibold text-gold-800">
-            DP
-          </span>
-          <div className="min-w-0 flex-1 leading-tight">
-            <p className="truncate text-xs font-medium text-ink-800">Dharun Prakash J A</p>
-            <p className="text-[11px] text-ink-500">Super Admin</p>
-          </div>
-        </div>
-      </div>
+      <AdminUserCard />
     </div>
   );
 }
