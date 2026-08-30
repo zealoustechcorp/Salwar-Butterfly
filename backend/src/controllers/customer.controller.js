@@ -7,6 +7,7 @@ import {
   successResponse,
   createdResponse,
   noContentResponse,
+  paginatedResponse,
 } from "../utils/apiResponse.js";
 
 export const CustomerController = {
@@ -104,16 +105,24 @@ export const CustomerController = {
 
   getAll: asyncHandler(async (req, res) => {
     try {
-      const customers = await CustomerService.getAllCustomers();
+      const { page, limit, search, sort } = req.query ?? {};
+
+      const { customers, ...pagination } = await CustomerService.getAllCustomers(
+        { page, limit, search, sort },
+      );
 
       logger.info("Customers fetched successfully", {
         count: customers.length,
+        total: pagination.total,
         ip: req.ip,
       });
 
-      return successResponse({
+      return paginatedResponse({
         res,
         data: customers,
+        page: pagination.page,
+        limit: pagination.limit,
+        total: pagination.total,
         message: "Customers fetched successfully",
       });
     } catch (error) {

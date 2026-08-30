@@ -4,6 +4,12 @@ import bcrypt from "bcrypt";
 
 import { CreateCustomerDTO, UpdateCustomerDTO } from "../dto/customer.dto.js";
 
+import {
+  clampPagination,
+  CUSTOMER_SORTS,
+  DEFAULT_SORT,
+} from "../config/customer.query.js";
+
 import { CustomerRepository } from "../repository/customer.repository.js";
 import { CustomerMapper } from "../mapper/customer.mapper.js";
 import { ApiError } from "../utils/ApiError.js";
@@ -190,28 +196,57 @@ export const CustomerService = {
   // GET ALL CUSTOMERS
   // ============================================================
 
-  async getAllCustomers({ page = 1, limit = 25 } = {}) {
+  /**
+   * A page of customers, with the total the filter matched beside it.
+   *
+   * Returns the count as well as the rows because the admin list has to
+   * draw its pager before it knows how many pages there are — and the
+   * total describes every match, not the twenty-five on this page.
+   *
+   * @returns {Promise<{customers: Array, page: number, limit: number, total: number}>}
+   */
+  async getAllCustomers({ page, limit, search = "", sort = DEFAULT_SORT } = {}) {
+    const { page: safePage, limit: safeLimit } = clampPagination({
+      page,
+      limit,
+    });
+
+    const term = String(search ?? "").trim();
+
+    const safeSort = CUSTOMER_SORTS.includes(sort) ? sort : DEFAULT_SORT;
+
     try {
-      const safePage = Math.max(Number(page) || 1, 1);
-
-      const safeLimit = Math.min(Math.max(Number(limit) || 25, 1), 100);
-
-      const customers = await CustomerRepository.findAll({
-        page: safePage,
-        limit: safeLimit,
-      });
+      // Rows and total together — one is meaningless without the other,
+      // and they must be read under the same filter.
+      const [customers, total] = await Promise.all([
+        CustomerRepository.findAll({
+          page: safePage,
+          limit: safeLimit,
+          search: term,
+          sort: safeSort,
+        }),
+        CustomerRepository.countAll({ search: term }),
+      ]);
 
       logger.info("Customers fetched successfully", {
         count: customers.length,
+        total,
         page: safePage,
         limit: safeLimit,
+        sort: safeSort,
+        searched: Boolean(term),
       });
 
-      return CustomerMapper.toDTOList(customers);
+      return {
+        customers: CustomerMapper.toDTOList(customers),
+        page: safePage,
+        limit: safeLimit,
+        total,
+      };
     } catch (error) {
       logger.error("Unexpected error while fetching customers", {
-        page,
-        limit,
+        page: safePage,
+        limit: safeLimit,
         error: error.message,
         stack: error.stack,
       });

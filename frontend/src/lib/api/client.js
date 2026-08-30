@@ -4,11 +4,21 @@
  * Every admin module goes through here — admin authentication,
  * categories and products. The storefront still renders from the
  * static catalogue in src/lib/store/catalogue.js and is the last
- * thing left to move.
+ * thing left to move, and it does not import this file.
+ *
+ * Authentication. A call with no explicit `token` sends the stored
+ * admin JWT if there is one. That default exists because the API is
+ * being closed off a router at a time — /customers is behind
+ * `requireAdmin` now, the rest will follow — and without it every
+ * caller would have to thread a token down from a component that has
+ * one. Pass `token: null` to opt a genuinely public call out, so
+ * signing someone up does not carry an admin's credentials.
  *
  * Failures arrive as a thrown `ApiError` carrying
  * { code, message, fields, status }.
  */
+
+import { readToken } from "@/lib/admin/session";
 
 // ============================================================
 // CONFIG
@@ -51,13 +61,18 @@ export const NETWORK_ERROR = "NETWORK_ERROR";
  * @param {object|FormData} [options.body]  JSON-serialized, unless it is a
  *                                          FormData — routes that accept a
  *                                          file upload need multipart
- * @param {string} [options.token]  bearer token, when the route needs one
+ * @param {string|null} [options.token]  bearer token. Omitted, the stored
+ *                                       admin token is used if present;
+ *                                       `null` forces an anonymous call
  * @param {boolean} [options.envelope]  resolve to { data, meta } instead of
  *                                      just data — for paginated lists
  * @param {AbortSignal} [options.signal]
  */
 export async function request(path, options = {}) {
   const { method = "GET", body, token, signal, envelope = false } = options;
+
+  // `undefined` means "whatever we have"; `null` means "nothing".
+  const bearer = token === undefined ? readToken() : token;
 
   const headers = {};
 
@@ -70,8 +85,8 @@ export async function request(path, options = {}) {
     headers["Content-Type"] = "application/json";
   }
 
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
+  if (bearer) {
+    headers.Authorization = `Bearer ${bearer}`;
   }
 
   let response;

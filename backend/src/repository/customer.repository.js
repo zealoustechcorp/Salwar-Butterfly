@@ -1,4 +1,10 @@
 import { query } from "../config/db.js";
+import {
+  clampPagination,
+  customerSortSql,
+  DEFAULT_SORT,
+  escapeLikePattern,
+} from "../config/customer.query.js";
 import { logger } from "../utils/logger.js";
 
 // ============================================================
@@ -182,6 +188,44 @@ const handleDatabaseError = (error, operation, context = {}) => {
 };
 
 // ============================================================
+// LIST FILTERS
+// ============================================================
+
+/**
+ * The WHERE clause shared by findAll and countAll.
+ *
+ * One builder for both, deliberately: a total that was counted with a
+ * different filter than the rows is worse than no total at all — the
+ * screen would draw pages that come back empty.
+ */
+const buildListFilters = (search) => {
+  const conditions = ["deleted_at IS NULL"];
+  const values = [];
+
+  const term = String(search ?? "").trim();
+
+  if (term) {
+    // One parameter, three columns. An admin looking someone up has a
+    // name, an email or a phone number in front of them and should not
+    // have to say which.
+    values.push(`%${escapeLikePattern(term)}%`);
+
+    const placeholder = `$${values.length}`;
+
+    conditions.push(`(
+      name ILIKE ${placeholder} ESCAPE '\\'
+      OR email ILIKE ${placeholder} ESCAPE '\\'
+      OR phone ILIKE ${placeholder} ESCAPE '\\'
+    )`);
+  }
+
+  return {
+    where: `WHERE ${conditions.join(" AND ")}`,
+    values,
+  };
+};
+
+// ============================================================
 // REPOSITORY
 // ============================================================
 
@@ -342,15 +386,20 @@ export const CustomerRepository = Object.freeze({
   // FIND ALL CUSTOMERS
   // ==========================================================
 
-  async findAll({ page = 1, limit = 25 } = {}) {
-    const safePage = Math.max(Number.parseInt(page, 10) || 1, 1);
-
-    const safeLimit = Math.min(
-      Math.max(Number.parseInt(limit, 10) || 25, 1),
-      100,
-    );
+  async findAll({ page = 1, limit, search = "", sort = DEFAULT_SORT } = {}) {
+    const { page: safePage, limit: safeLimit } = clampPagination({
+      page,
+      limit,
+    });
 
     const offset = (safePage - 1) * safeLimit;
+
+    const { where, values } = buildListFilters(search);
+
+    // LIMIT/OFFSET are appended after the filter values, so their
+    // placeholder numbers depend on whether a search was supplied.
+    const limitPlaceholder = `$${values.length + 1}`;
+    const offsetPlaceholder = `$${values.length + 2}`;
 
     const text = `
       SELECT
@@ -361,21 +410,52 @@ export const CustomerRepository = Object.freeze({
         created_at,
         updated_at
       FROM customers
-      WHERE deleted_at IS NULL
-      ORDER BY created_at DESC
-      LIMIT $1
-      OFFSET $2
+      ${where}
+      ORDER BY ${customerSortSql(sort, "customers")}
+      LIMIT ${limitPlaceholder}
+      OFFSET ${offsetPlaceholder}
     `;
 
     try {
-      const result = await query(text, [safeLimit, offset]);
+      const result = await query(text, [...values, safeLimit, offset]);
 
       return result.rows;
     } catch (error) {
       throw handleDatabaseError(error, "findAll", {
         page: safePage,
         limit: safeLimit,
+        sort,
       });
+    }
+  },
+
+  // ==========================================================
+  // COUNT CUSTOMERS
+  // ==========================================================
+
+  /**
+   * How many customers the current filter matches.
+   *
+   * Its own round trip rather than a window function beside the rows,
+   * because the count has to survive an empty page — a search that
+   * matches nothing still needs to report zero, and a COUNT(*) OVER ()
+   * on no rows returns nothing at all.
+   */
+  async countAll({ search = "" } = {}) {
+    const { where, values } = buildListFilters(search);
+
+    const text = `
+      SELECT COUNT(*)::int AS total
+      FROM customers
+      ${where}
+    `;
+
+    try {
+      const result = await query(text, values);
+
+      return result.rows[0]?.total ?? 0;
+    } catch (error) {
+      throw handleDatabaseError(error, "countAll");
     }
   },
 

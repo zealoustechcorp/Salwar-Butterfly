@@ -6,9 +6,40 @@
 GET {{baseUrl}}/health
 
 
-### ============ CUSTOMER ENDPOINTS ============
+### ============================================================
+### ACCESS CONTROL  (F-05.05)
+###
+### Everything that reads or writes a customer record is behind an
+### admin token — a name, an email and a phone number are personal
+### data, and this API used to hand the whole list to anyone who
+### asked.
+###
+### Two routes stay public, for reasons that are not laziness:
+###
+###   /register         a person signing up has no token yet.
+###   /change-password  self-service, so an admin token is the wrong
+###                     key. Rate-limited until customer login (F-01.02)
+###                     gives it a real one.
+###
+### Sign in first and paste the token below.
+### ============================================================
 
-### Register Customer
+# @name adminLogin
+POST {{baseUrl}}/admin/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@example.com",
+  "password": "change-me"
+}
+
+###
+@adminToken = {{adminLogin.response.body.data.token}}
+
+
+### ============ PUBLIC ============
+
+### Register Customer  (F-05.01)
 POST {{baseUrl}}/customers/register
 Content-Type: application/json
 
@@ -19,23 +50,8 @@ Content-Type: application/json
   "password": "password123"
 }
 
-### Get All Customers
-GET {{baseUrl}}/customers/getAllCustomers
-
-### Get Customer by ID
-GET {{baseUrl}}/customers/getCustomerById/37eaec34-f7b4-4001-95b1-1f2c18535288
-
-### Update Customer
-PUT {{baseUrl}}/customers/updateCustomer/37eaec34-f7b4-4001-95b1-1f2c18535288
-Content-Type: application/json
-
-{
-  "name": "Jane Doe",
-  "email": "jane@example.com",
-  "phone": "9876543211"
-}
-
-### Change Customer Password
+### Change Customer Password  (F-05.06)
+### Rate-limited: 10 attempts per 15 minutes per IP.
 POST {{baseUrl}}/customers/37eaec34-f7b4-4001-95b1-1f2c18535288/change-password
 Content-Type: application/json
 
@@ -44,5 +60,51 @@ Content-Type: application/json
   "newPassword": "newpassword456"
 }
 
+
+### ============ ADMIN ONLY ============
+
+### Get All Customers  (F-05.04)
+### Answers { data, meta.pagination } — page, limit, total, totalPages,
+### hasNextPage, hasPreviousPage.
+GET {{baseUrl}}/customers/getAllCustomers
+Authorization: Bearer {{adminToken}}
+
+### Search by name, email or phone — one term, all three columns
+GET {{baseUrl}}/customers/getAllCustomers?search=john
+Authorization: Bearer {{adminToken}}
+
+### Paged and sorted
+### sort: recent (default) | oldest | name | updated
+GET {{baseUrl}}/customers/getAllCustomers?page=2&limit=25&sort=name
+Authorization: Bearer {{adminToken}}
+
+### Refused: limit above the 100 cap, rather than silently trimmed
+GET {{baseUrl}}/customers/getAllCustomers?limit=500
+Authorization: Bearer {{adminToken}}
+
+### Refused: 401, no token
+GET {{baseUrl}}/customers/getAllCustomers
+
+### Get Customer by ID  (F-05.04)
+GET {{baseUrl}}/customers/getCustomerById/37eaec34-f7b4-4001-95b1-1f2c18535288
+Authorization: Bearer {{adminToken}}
+
+### Refused: 400, not a UUID — the caller's mistake, not a 500
+GET {{baseUrl}}/customers/getCustomerById/not-a-uuid
+Authorization: Bearer {{adminToken}}
+
+### Update Customer  (F-05.06)
+PUT {{baseUrl}}/customers/updateCustomer/37eaec34-f7b4-4001-95b1-1f2c18535288
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "Jane Doe",
+  "email": "jane@example.com",
+  "phone": "9876543211"
+}
+
 ### Delete Customer (Soft Delete)
-DELETE {{baseUrl}}/customers/550e8400-e29b-41d4-a716-446655440000
+### The row stays — an order pointing at this customer still needs one.
+DELETE {{baseUrl}}/customers/deleteCustomer/550e8400-e29b-41d4-a716-446655440000
+Authorization: Bearer {{adminToken}}

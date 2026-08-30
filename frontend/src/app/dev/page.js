@@ -14,7 +14,7 @@ const FEATURES = [
   },
   { name: "Product Management", href: "/admin/products", status: "live" },
   { name: "Inventory Management", href: "/admin/inventory", status: "live" },
-  { id: "F-05", name: "Customer Management", href: null },
+  { name: "Customer Management", href: "/admin/customers", status: "live" },
   { id: "F-06", name: "Product Browsing & Search", href: "/" },
   { id: "F-07", name: "Cart", href: null },
   { id: "F-08", name: "Address & Checkout", href: null },

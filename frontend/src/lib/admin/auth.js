@@ -20,7 +20,13 @@ import { api, ApiError } from "@/lib/api/client";
  */
 export async function login(email, password) {
   try {
-    const data = await api.post("/admin/auth/login", { email, password });
+    // `token: null` — logging in is how you get a token, so this call
+    // must not carry the expired one that sent the admin back here.
+    const data = await api.post(
+      "/admin/auth/login",
+      { email, password },
+      { token: null },
+    );
 
     return {
       ok: true,

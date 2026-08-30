@@ -18,7 +18,12 @@ export const globalErrorHandler = (err, req, res, next) => {
   // LOG ERROR
   // ============================================================
 
-  logger.error("Request failed", {
+  // Below 500 the caller is at fault, not the server — a malformed body
+  // or a bad id is not an incident, and logging it at error level buries
+  // the ones that are.
+  const log = statusCode >= 500 ? logger.error : logger.warn;
+
+  log("Request failed", {
     method: req.method,
     url: req.originalUrl,
     statusCode,
@@ -44,11 +49,21 @@ export const globalErrorHandler = (err, req, res, next) => {
   // ============================================================
   // UNKNOWN ERROR
   // ============================================================
+  //
+  // Not every one of these is the server's fault. Express's own
+  // middleware throws errors that already carry a status — body-parser
+  // tags a malformed JSON body 400, multer tags an oversized upload
+  // 413 — and answering those with a 500 tells the caller to retry
+  // something that will never work. Honour the status the error came
+  // with; 500 is only the fallback for errors that named none.
 
-  return res.status(500).json({
+  const isServerFault = statusCode >= 500;
+
+  return res.status(statusCode).json({
     success: false,
 
-    message: env.isProd ? "Internal Server Error" : err.message,
+    message:
+      env.isProd && isServerFault ? "Internal Server Error" : err.message,
 
     ...(env.isProd
       ? {}

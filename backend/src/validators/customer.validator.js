@@ -3,11 +3,96 @@
 import { ApiError } from "../utils/ApiError.js";
 
 import {
+  CUSTOMER_SORTS,
+  MAX_PAGE_SIZE,
+  MAX_SEARCH_LENGTH,
+} from "../config/customer.query.js";
+
+import {
   validateName,
   validateEmail,
   validatePhone,
   validatePassword,
 } from "./customer.rules.js";
+
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+// ============================================================
+// CUSTOMER ID PARAM
+// ============================================================
+
+/**
+ * Rejects a malformed id before it reaches Postgres.
+ *
+ * Without this a non-UUID reaches the driver and comes back as a 22P02,
+ * which the repository translates into a 500 — an invalid id in the URL
+ * is the caller's mistake and should read as one.
+ */
+export const validateCustomerIdParam = (req, res, next) => {
+  const id = req.params?.id;
+
+  if (!UUID_REGEX.test(String(id ?? "").trim())) {
+    throw new ApiError(400, "Invalid customer ID format");
+  }
+
+  req.params.id = String(id).trim();
+
+  next();
+};
+
+// ============================================================
+// CUSTOMER LIST QUERY
+// ============================================================
+
+/**
+ * Shape checks for the admin list (F-05.04).
+ *
+ * The clamping itself happens in CustomerService, so a caller that
+ * asks for page 0 is corrected rather than refused. What is refused is
+ * a request that cannot be honestly answered — a limit above the cap
+ * would be silently reduced, and a screen that asked for 500 rows and
+ * received 100 without being told has no way to know it is showing a
+ * partial list.
+ */
+export const validateCustomerQuery = (req, res, next) => {
+  const { page, limit, search, sort } = req.query ?? {};
+
+  const errors = {};
+
+  if (
+    page !== undefined &&
+    (!Number.isInteger(Number(page)) || Number(page) < 1)
+  ) {
+    errors.page = "Page must be a positive whole number";
+  }
+
+  if (limit !== undefined) {
+    if (!Number.isInteger(Number(limit)) || Number(limit) < 1) {
+      errors.limit = "Limit must be a positive whole number";
+    } else if (Number(limit) > MAX_PAGE_SIZE) {
+      errors.limit = `Limit must not exceed ${MAX_PAGE_SIZE}`;
+    }
+  }
+
+  if (search !== undefined) {
+    if (typeof search !== "string") {
+      errors.search = "Search must be a string";
+    } else if (search.length > MAX_SEARCH_LENGTH) {
+      errors.search = `Search must not exceed ${MAX_SEARCH_LENGTH} characters`;
+    }
+  }
+
+  if (sort !== undefined && !CUSTOMER_SORTS.includes(sort)) {
+    errors.sort = `Unknown sort. Expected one of: ${CUSTOMER_SORTS.join(", ")}.`;
+  }
+
+  if (Object.keys(errors).length > 0) {
+    throw new ApiError(400, "Validation failed", errors);
+  }
+
+  next();
+};
 
 // ============================================================
 // CREATE CUSTOMER
