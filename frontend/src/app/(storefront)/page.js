@@ -8,14 +8,13 @@ import { getHomePageData } from "@/lib/store/catalogue";
 /**
  * Storefront home (F-06 Product Browsing).
  *
- * Rendered on the server from a committed snapshot of the live shop
- * (scripts/snapshot-live-catalogue.mjs) — real products, real prices, real
- * per-size stock and the shop's own photography, with no fetch, no API and no
- * database at runtime. The catalogue ships to the client once and every control
- * on the page filters that one list, so nothing links to a screen that does not
- * exist yet.
+ * Rendered on the server from the live catalogue — real products, real prices
+ * and real per-size stock, read from the API and cached for a minute (see
+ * lib/store/catalogue.js). The whole catalogue ships to the client once and
+ * every control on the page filters that one list, so browsing by category,
+ * fabric or search term costs no further requests.
  */
-export default function StorefrontHome() {
+export default async function StorefrontHome() {
   const {
     shop,
     products,
@@ -25,7 +24,7 @@ export default function StorefrontHome() {
     offerCount,
     catalogueSize,
     sizeRange,
-  } = getHomePageData();
+  } = await getHomePageData();
 
   return (
     <>

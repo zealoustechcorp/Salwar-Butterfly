@@ -1,4 +1,5 @@
 import { OrderConfirmation } from "@/components/store/OrderConfirmation";
+import { getShop } from "@/lib/store/catalogue";
 
 export const metadata = {
   title: "Order placed",
@@ -8,5 +9,6 @@ export const metadata = {
 };
 
 export default function CheckoutDonePage() {
-  return <OrderConfirmation />;
+  // The shop's name and logo, for the payment sheet this page can open.
+  return <OrderConfirmation shop={getShop()} />;
 }

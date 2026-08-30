@@ -66,7 +66,9 @@ export default function AccountPage() {
 
       <AccountPanel />
 
-      <OrderHistory />
+      {/* The shop's name and logo, for the payment sheet an unpaid order
+          can open from this list. */}
+      <OrderHistory shop={shop} />
 
       <h2 className="mt-10 font-display text-2xl font-semibold text-sb-heading sm:text-3xl">
         Before and after you order

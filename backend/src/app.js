@@ -50,6 +50,30 @@ app.use("/api", globalRateLimiter);
 // BODY PARSING
 // ============================================================
 
+/**
+ * The Razorpay webhook, and only it, keeps its body unparsed (F-10).
+ *
+ * The delivery is signed with an HMAC over the exact bytes Razorpay
+ * sent. Parsing the JSON and re-serialising it to check that signature
+ * would reorder keys and change the whitespace, producing a different
+ * digest — the endpoint would then reject every genuine delivery while
+ * accepting nothing, which looks from the outside like "webhooks don't
+ * work" rather than like a bug with a cause.
+ *
+ * Mounted before express.json so it wins for this path. body-parser
+ * marks a request it has handled, so the JSON parser below sees this one
+ * is done and leaves it alone; `req.body` stays the Buffer, and the
+ * handler reads it as `req.rawBody`.
+ */
+app.use(
+  "/api/payments/webhook",
+  express.raw({ type: "application/json", limit: "1mb" }),
+  (req, res, next) => {
+    req.rawBody = Buffer.isBuffer(req.body) ? req.body : null;
+    next();
+  },
+);
+
 app.use(
   express.json({
     limit: "1mb",

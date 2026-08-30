@@ -20,10 +20,10 @@ export const metadata = {
  * scroll to. The filter is carried in the query string and read back by
  * <ShopFilterSync>: `?tab=`, `?category=`, `?fabric=`, `?q=`.
  */
-export default function ShopPage() {
-  const products = getStorefrontProducts();
-  const categories = getStorefrontCategories(products);
-  const fabrics = getFabrics(products);
+export default async function ShopPage() {
+  const products = await getStorefrontProducts();
+  const categories = await getStorefrontCategories(products);
+  const fabrics = await getFabrics(products);
 
   return (
     <>

@@ -17,18 +17,32 @@ import {
  * A single piece (F-06 Product Browsing) — where a card on the home page, the
  * shop or the wishlist leads.
  *
- * The catalogue is a committed snapshot, so every one of its 197 pieces is
- * prerendered at build time: opening a product is a static document, with no
- * fetch and no spinner. An id that is not in the snapshot 404s rather than
- * rendering an empty frame.
+ * Every piece is prerendered at build time, so opening a product is a static
+ * document with no spinner, and each one revalidates on the same minute the
+ * rest of the storefront does. An id that is not in the catalogue 404s rather
+ * than rendering an empty frame.
+ *
+ * The build asks the API for the id list. If it cannot reach it, the build
+ * still succeeds and every product page renders on first request instead —
+ * `dynamicParams` is on by default, so an empty list here means "prerender
+ * none of them", not "these are the only ones that exist". A backend that is
+ * down should cost a cold first visit, not a failed deploy.
  */
-export function generateStaticParams() {
-  return getProductIds().map((id) => ({ id }));
+export async function generateStaticParams() {
+  try {
+    return (await getProductIds()).map((id) => ({ id }));
+  } catch (error) {
+    console.warn(
+      `[product] could not prerender product pages: ${error.message}`,
+    );
+
+    return [];
+  }
 }
 
 export async function generateMetadata({ params }) {
   const { id } = await params;
-  const product = getStorefrontProduct(id);
+  const product = await getStorefrontProduct(id);
 
   if (!product) return { title: "Piece not found" };
 
@@ -56,11 +70,11 @@ export async function generateMetadata({ params }) {
 
 export default async function ProductPage({ params }) {
   const { id } = await params;
-  const product = getStorefrontProduct(id);
+  const product = await getStorefrontProduct(id);
 
   if (!product) notFound();
 
-  const related = getRelatedProducts(product);
+  const related = await getRelatedProducts(product);
   const shop = getShop();
 
   return (

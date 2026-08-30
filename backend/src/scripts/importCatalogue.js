@@ -1,19 +1,22 @@
 /**
- * Load the shop's real catalogue into Postgres (F-06):
+ * Load a catalogue export into Postgres (F-06):
  *
- *   npm run db:import-catalogue
+ *   npm run db:import-catalogue -- ./some-export.json
  *
- * Where this data comes from, and why this script exists.
+ * Historical, and kept for one reason: it is how this database was
+ * filled, and it is what a re-import would run again.
  *
- * The storefront has been rendering from a committed snapshot of the
- * *old* shop's API — `frontend/src/lib/store/live-catalogue.json`, 197
- * real products with integer ids. This database, meanwhile, held a
- * handful of admin test rows. Two catalogues, no mapping between them.
+ * The shop's 197 real products originally lived in a committed JSON
+ * snapshot of the *old* shop's API, while this database held a handful
+ * of admin test rows — two catalogues with no mapping between them. That
+ * was survivable while the storefront only had to display things.
+ * Checkout ended it: an order line points at a `product_variants.id`,
+ * and a product that exists only in a JSON file has no such row.
  *
- * That was survivable while the storefront only had to display things.
- * Checkout ends it: an order line points at a `product_variants.id`,
- * and a product that exists only in a JSON file has no such row. So the
- * real catalogue has to live here.
+ * That import has since run, the catalogue lives here, and the storefront
+ * now reads it live through /storefront/getCatalogue — so the snapshot it
+ * used to default to is gone, and the source file must be named on the
+ * command line.
  *
  * Idempotent, by slug. Running it twice updates rather than duplicates,
  * which is what makes it safe to re-run after the shop's stock moves.
@@ -25,21 +28,17 @@
  */
 
 import { readFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 import { pool, closeDb } from "../config/db.js";
 
-const DEFAULT_SNAPSHOT = path.join(
-  fileURLToPath(new URL("../../../", import.meta.url)),
-  "frontend",
-  "src",
-  "lib",
-  "store",
-  "live-catalogue.json",
-);
+const snapshotPath = process.argv[2];
 
-const snapshotPath = process.argv[2] ?? DEFAULT_SNAPSHOT;
+if (!snapshotPath) {
+  console.error("[import] name the export to load:");
+  console.error("         npm run db:import-catalogue -- ./some-export.json");
+  process.exit(1);
+}
 
 /**
  * A URL-safe slug.

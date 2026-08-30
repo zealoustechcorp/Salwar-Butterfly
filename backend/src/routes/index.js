@@ -12,6 +12,9 @@ import inventoryRoutes from './inventory.routes.js';
 import orderRoutes from './order.routes.js';
 import subCategories from './sub_categories.router.js';
 import adminAuthRoutes from './admin.auth.routes.js';
+import storefrontRoutes from './storefront.routes.js';
+import paymentRoutes from './payment.routes.js';
+import wishlistRoutes from './wishlist.routes.js';
 
 import { authenticate } from '../middlewares/auth.middleware.js';
 import { requireAdmin } from '../middlewares/authorize.middleware.js';
@@ -25,15 +28,16 @@ import { requireAdmin } from '../middlewares/authorize.middleware.js';
  * new endpoint that forgets it, which is exactly how the catalogue
  * ended up with thirty unauthenticated writes.
  *
- * Reads are behind the guard too, and that is deliberate rather than
- * an oversight. The storefront renders from a committed snapshot and
- * never calls this API, so there is no public reader to serve today.
- * When F-06 moves the storefront onto live data, the catalogue's read
- * endpoints get split into their own public router and opened one at a
- * time — a decision worth taking on purpose, per endpoint, rather than
- * inheriting by leaving the door open now.
+ * The catalogue's reads stay behind the guard, and that is still
+ * deliberate. /products and /categories carry thirty writes between
+ * them, so opening them to serve the storefront would open those too.
+ * Instead the public reads live in their own router — /storefront —
+ * which is GET-only and whose columns are named one at a time in
+ * storefront.repository.js. Adding a public read means adding a line to
+ * that file, which is a decision somebody has to take on purpose rather
+ * than inherit by leaving a door open here.
  *
- * Two routers do their own thing and must not be blanket-guarded:
+ * The routers that do their own thing and must not be blanket-guarded:
  *
  *   /admin/auth   signing in cannot require being signed in. It gates
  *                 /me and /logout itself.
@@ -43,6 +47,9 @@ import { requireAdmin } from '../middlewares/authorize.middleware.js';
  *   /orders       three audiences at once — a guest places one, a
  *                 signed-in shopper reads their own, the shop moves
  *                 all of them. Guarded route by route in that file.
+ *   /payments     the same three, plus a fourth that has no token at
+ *                 all: Razorpay's webhook, whose credential is an HMAC
+ *                 over its body rather than a bearer token.
  */
 
 const router = Router();
@@ -52,6 +59,10 @@ const router = Router();
 // ============================================================
 
 router.use('/health', healthRoutes);
+
+// The customer's view of the catalogue (F-06). GET only, no tokens, and
+// no column the shop would not print on a price tag.
+router.use('/storefront', storefrontRoutes);
 
 // ============================================================
 // MIXED — these routers gate themselves, route by route
@@ -67,6 +78,21 @@ router.use('/customers', customerRoutes);
 // Checkout is public, "my orders" is behind a storefront token, and the
 // queue is behind an admin one. See order.routes.js.
 router.use('/orders', orderRoutes);
+
+// Opening a payment sheet is public, the checkout return is verified by
+// signature rather than by token, and the webhook belongs to Razorpay.
+// See payment.routes.js.
+router.use('/payments', paymentRoutes);
+
+// ============================================================
+// CUSTOMER ONLY
+// ============================================================
+//
+// Guarded at the mount, like the admin routers below, but with the
+// storefront's token rather than an admin's. Nothing here takes a
+// customer id — every endpoint is "mine", read off the token.
+
+router.use('/wishlist', wishlistRoutes);
 
 // ============================================================
 // ADMIN ONLY

@@ -4,8 +4,8 @@ const nextConfig = {
     // Two Cloudinary accounts are in play, so the pathname is left open
     // rather than pinned to one cloud name:
     //
-    //   the live shop's (ddvui6pi4) — storefront photography, arriving
-    //   through the committed snapshot (scripts/snapshot-live-catalogue.mjs)
+    //   the live shop's (ddvui6pi4) — the storefront photography that came
+    //   across with the catalogue and is still what most products point at
     //
     //   this project's own — everything the admin uploads, category
     //   covers and product galleries alike. Its cloud name lives in the

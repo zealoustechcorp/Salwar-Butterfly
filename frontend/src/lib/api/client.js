@@ -1,18 +1,19 @@
 /**
  * The one place the frontend talks to the Express API.
  *
- * Every admin module goes through here — admin authentication,
- * categories and products. The storefront still renders from the
- * static catalogue in src/lib/store/catalogue.js and is the last
- * thing left to move, and it does not import this file.
+ * Every admin module goes through here, and so does everything the
+ * storefront does in the browser — signing in, checkout, payment, the
+ * wishlist. The one thing that does not is the catalogue itself: it is
+ * read on the server, from src/lib/store/catalogue.js, which fetches
+ * with Next's caching options rather than through this client.
  *
  * Authentication. A call with no explicit `token` sends the stored
- * admin JWT if there is one. That default exists because the API is
- * being closed off a router at a time — /customers is behind
- * `requireAdmin` now, the rest will follow — and without it every
- * caller would have to thread a token down from a component that has
- * one. Pass `token: null` to opt a genuinely public call out, so
- * signing someone up does not carry an admin's credentials.
+ * admin JWT if there is one. That default exists because the API was
+ * closed off a router at a time, and without it every caller would have
+ * to thread a token down from a component that has one. Pass
+ * `token: null` to opt a genuinely public call out, so signing someone
+ * up does not carry an admin's credentials — and note that every
+ * storefront module names its token explicitly for that reason.
  *
  * Failures arrive as a thrown `ApiError` carrying
  * { code, message, fields, status }.

@@ -2,14 +2,15 @@ import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 
 // Only features with screens in this frontend (FRS §5 Screen Inventory).
-// F-01 Authentication & Authorization and F-10 Payment are backend-side work
-// (sessions, tokens, role checks, gateway integration) and are not tracked here.
+// F-01 Authentication & Authorization is backend-side work — sessions, tokens
+// and role checks — and is not tracked here.
 //
-// Three states, and the middle one is the honest one to keep: a storefront
-// screen can be finished and still not be reading the live database. The
-// catalogue pages render from the committed snapshot (lib/store/catalogue.js)
-// until the API grows a public read router, so they are not "live on API"
-// however complete they look.
+// There used to be a third state on this list, "UI on snapshot data", for
+// storefront screens that were finished but still rendering from a committed
+// JSON export rather than the database. There is nothing left in it: the API
+// grew a public read router (/storefront), lib/store/catalogue.js fetches it,
+// and the snapshot file is gone. Every screen below either reads the live API
+// or does not exist yet, which is why two states are now enough.
 const FEATURES = [
   // Built and running against the API, so these carry no FRS id.
   {
@@ -20,10 +21,13 @@ const FEATURES = [
   { name: "Product Management", href: "/admin/products", status: "live" },
   { name: "Inventory Management", href: "/admin/inventory", status: "live" },
   { name: "Customer Management", href: "/admin/customers", status: "live" },
-  { id: "F-06", name: "Product Browsing & Search", href: "/", status: "snapshot" },
-  { id: "F-07", name: "Cart", href: "/bag", status: "snapshot" },
+  { id: "F-06", name: "Product Browsing & Search", href: "/", status: "live" },
+  { id: "F-07", name: "Cart & Wishlist", href: "/bag", status: "live" },
   { id: "F-08", name: "Address & Checkout", href: "/checkout", status: "live" },
   { id: "F-09", name: "Order Management", href: "/admin/orders", status: "live" },
+  // The gateway itself is backend work, but it has a screen now: the
+  // confirmation page opens the payment sheet, and retries it.
+  { id: "F-10", name: "Payment", href: "/checkout/done", status: "live" },
   { id: "F-11", name: "Dashboard & Reports", href: null },
 ];
 
@@ -32,10 +36,6 @@ const STATUS_BADGE = {
     label: "Live on API",
     className:
       "bg-emerald-50 text-emerald-700 ring-emerald-200",
-  },
-  snapshot: {
-    label: "UI on snapshot data",
-    className: "bg-amber-50 text-amber-800 ring-amber-200",
   },
 };
 
@@ -54,6 +54,15 @@ export default function BuildTracker() {
           This tracker lists only the features with screens in this frontend. The customer
           storefront now owns <code className="font-mono text-xs text-brand-600">/</code>; this
           page moved to <code className="font-mono text-xs text-brand-600">/dev</code>.
+        </p>
+
+        <p className="mt-3 text-sm leading-relaxed text-ink-600">
+          The storefront reads the catalogue from{" "}
+          <code className="font-mono text-xs text-brand-600">GET /storefront/getCatalogue</code>{" "}
+          and revalidates every minute, so a sold-out size stops being offered without a
+          redeploy. Payment runs through Razorpay and confirms twice over — on the checkout
+          return and again on a signed webhook — so an order still confirms when the shopper
+          closes the tab.
         </p>
 
         <ul className="mt-8 divide-y divide-ink-200 overflow-hidden rounded-xl bg-white ring-1 ring-ink-200">
@@ -89,8 +98,8 @@ export default function BuildTracker() {
         </ul>
 
         <p className="mt-6 text-xs text-ink-400">
-          F-01 Authentication &amp; Authorization and F-10 Payment are backend work (sessions,
-          tokens, role checks, payment gateway) and are tracked outside this UI.
+          F-01 Authentication &amp; Authorization is backend work (sessions, tokens, role
+          checks) and is tracked outside this UI.
         </p>
       </main>
     </div>

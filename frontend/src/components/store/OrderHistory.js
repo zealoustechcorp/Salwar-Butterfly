@@ -22,8 +22,9 @@ import { ApiError, NETWORK_ERROR } from "@/lib/api/client";
 import { cancelOrder, fetchMyOrders } from "@/lib/store/orders";
 import { useAuth } from "./AuthProvider";
 import { OrderCard } from "./OrderSummary";
+import { PayNow } from "./PayNow";
 
-export function OrderHistory() {
+export function OrderHistory({ shop }) {
   const { token, isSignedIn } = useAuth();
 
   const [orders, setOrders] = useState(null); // null while loading
@@ -136,21 +137,37 @@ export function OrderHistory() {
               key={order.id}
               order={order}
               actions={
-                // Cancelling is offered only while it is still the shopper's
-                // to cancel. Past that the API refuses, and a button that is
-                // always going to fail is worse than no button.
+                // Both actions belong to the same moment and no other:
+                // an order awaiting payment can still be paid for, and
+                // can still be called off. Past that the API refuses
+                // both, and a button that is always going to fail is
+                // worse than no button.
                 order.status === "pending_payment" ? (
-                  <button
-                    type="button"
-                    onClick={() => onCancel(order)}
-                    disabled={busyId === order.id}
-                    className="inline-flex items-center gap-2 text-sm font-semibold text-sb-text-muted underline underline-offset-4 transition-colors hover:text-sb-link disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {busyId === order.id ? (
-                      <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
-                    ) : null}
-                    Cancel this order
-                  </button>
+                  <div className="flex flex-wrap items-center gap-x-5 gap-y-2.5">
+                    {/* Renders nothing when the shop has no gateway
+                        configured, leaving just the cancel link. */}
+                    <PayNow
+                      order={order}
+                      shop={shop}
+                      compact
+                      // Re-read rather than patching the row: paying moves
+                      // the order's status and its timestamps together, and
+                      // this list should agree with the shop's own view.
+                      onPaid={() => load()}
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => onCancel(order)}
+                      disabled={busyId === order.id}
+                      className="inline-flex items-center gap-2 text-sm font-semibold text-sb-text-muted underline underline-offset-4 transition-colors hover:text-sb-link disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {busyId === order.id ? (
+                        <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                      ) : null}
+                      Cancel this order
+                    </button>
+                  </div>
                 ) : null
               }
             />

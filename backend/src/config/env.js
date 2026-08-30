@@ -110,6 +110,58 @@ if (!cloudinaryApiSecret) {
 }
 
 // ============================================================
+// RAZORPAY (F-10)
+// ============================================================
+//
+// Optional, unlike everything above, and deliberately so. The shop was
+// taking payment by hand long before a gateway existed and the admin
+// "confirm payment" route is still there, so a backend with no keys is a
+// working backend — it just cannot open a payment sheet. Making these
+// required would mean nobody can run the API locally, or run the
+// migrations, without a Razorpay account.
+//
+// What that costs is a mode where /payments exists but cannot work, so
+// it is named rather than inferred: `razorpay.enabled` is checked once,
+// at the top of the service, and turns into a 503 that says which
+// variables are missing.
+//
+// The webhook secret is separate from the API secret because Razorpay
+// issues it separately — it is set on the dashboard when the webhook URL
+// is registered. Without it, deliveries cannot be verified and are
+// refused; the checkout return path still works, so this is the
+// difference between "payment works" and "payment works even when the
+// shopper closes the tab before the redirect".
+
+const razorpayKeyId = process.env.RAZORPAY_KEY_ID ?? null;
+const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET ?? null;
+const razorpayWebhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET ?? null;
+
+const razorpayEnabled = Boolean(razorpayKeyId && razorpayKeySecret);
+
+// A key id names its own mode: rzp_test_* against Razorpay's sandbox,
+// rzp_live_* against real money. Worth surfacing, because "why did the
+// order not appear in our bank" has been answered by this line before.
+const razorpayLive = Boolean(razorpayKeyId?.startsWith("rzp_live"));
+
+// console, not the logger: logger.js imports this module, and importing
+// it back would be a cycle. These run once, at boot.
+if (!razorpayEnabled) {
+  console.warn(
+    "[env] RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET not set — " +
+      "online payment is disabled; orders can still be confirmed by hand",
+  );
+} else if (!razorpayWebhookSecret) {
+  console.warn(
+    "[env] RAZORPAY_WEBHOOK_SECRET not set — webhook deliveries will be " +
+      "refused; payment will only confirm on the checkout return",
+  );
+}
+
+if (nodeEnv === "production" && razorpayEnabled && !razorpayLive) {
+  console.warn("[env] running in production against Razorpay TEST keys");
+}
+
+// ============================================================
 // EXPORT CONFIG
 // ============================================================
 
@@ -152,5 +204,17 @@ export const env = Object.freeze({
     cloudName: cloudinaryCloudName,
     apiKey: cloudinaryApiKey,
     apiSecret: cloudinaryApiSecret,
+  }),
+
+  // ==========================================================
+  // RAZORPAY
+  // ==========================================================
+
+  razorpay: Object.freeze({
+    enabled: razorpayEnabled,
+    live: razorpayLive,
+    keyId: razorpayKeyId,
+    keySecret: razorpayKeySecret,
+    webhookSecret: razorpayWebhookSecret,
   }),
 });

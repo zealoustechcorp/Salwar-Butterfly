@@ -8,16 +8,17 @@ import { ProductCard } from "./ProductCard";
 import { useStore } from "./StoreProvider";
 
 /**
- * The saved pieces, resolved out of the committed catalogue.
+ * The saved pieces, resolved out of the live catalogue.
  *
- * The wishlist itself is only a list of product ids in storage, so the card is
- * rendered from the snapshot rather than from anything stored on the device —
- * prices and stock stay current, and a piece that has since sold out says so
- * instead of quietly showing yesterday's price.
+ * The wishlist is only a list of product ids, so every card here is rendered
+ * from the catalogue rather than from anything stored alongside the id —
+ * prices and stock are whatever they are now, and a piece that has since sold
+ * out says so instead of quietly showing what it cost when it was saved.
  *
- * Saving does not need an account: a guest's list lives on the device and is
+ * Saving does not need an account. A guest's list lives on the device and is
  * folded into their account the moment they sign in, so nothing is lost by
- * hearting a piece first and deciding about an account later.
+ * hearting a piece first and deciding about an account later. Once there is an
+ * account the list lives on the server and follows them between devices.
  */
 export function WishlistView({ products }) {
   const { wishlist } = useStore();

@@ -6,8 +6,9 @@
  * derived itself, and screens should render that rather than recompute
  * it. What lives here is for the two cases the API cannot cover:
  *
- *   - the storefront, which still renders from the committed snapshot
- *     in lib/store/catalogue.js and has no `stockStatus` to read;
+ *   - the storefront, whose catalogue read model is deliberately narrow
+ *     (see backend/src/mapper/storefront.mapper.js) and carries raw
+ *     counts with no `stockStatus` beside them;
  *   - a form editing stock that has not been saved yet, where there is
  *     no server round trip to ask.
  *

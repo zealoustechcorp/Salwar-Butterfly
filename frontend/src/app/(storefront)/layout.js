@@ -23,8 +23,8 @@ export const metadata = {
  * wishlist all need to know who is signed in, and because it renders the sign-in
  * dialog that any of them can open.
  */
-export default function StorefrontLayout({ children }) {
-  const categories = getStorefrontCategories();
+export default async function StorefrontLayout({ children }) {
+  const categories = await getStorefrontCategories();
   const shop = getShop();
 
   return (

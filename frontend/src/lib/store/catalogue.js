@@ -1,34 +1,103 @@
 /**
  * Storefront read model (F-06 Product Browsing) — the customer's view of the
- * real Salwar Butterfly catalogue.
+ * live Salwar Butterfly catalogue.
  *
- * The data is a committed snapshot of the shop's own database
- * (`backend: npm run db:export-storefront` → `live-catalogue.json`): real
- * products, real prices, real per-size stock and the shop's own Cloudinary
- * photography. The storefront stays frontend-only — nothing here fetches at
- * runtime, so all 197 pieces prerender as static pages. Re-run the export
- * whenever stock moves.
+ * This module used to import a committed JSON snapshot. It now reads
+ * `GET /storefront/getCatalogue` from the API, which is the same data
+ * from the same database — the export script's SQL moved into
+ * storefront.repository.js — except that it is true at the moment it is
+ * read rather than at the moment somebody last remembered to run an
+ * export. A sold-out size now reads as sold out.
  *
- * Two things changed when checkout became real (F-07).
+ * What did *not* change is everything below the fetch. `decorate`,
+ * `getRelatedProducts`, `getFabrics` and the rest are the same pure
+ * functions over the same shapes, and every component that consumes them
+ * is untouched. That is why the API serves this snake_case read model
+ * rather than the admin API's camelCase: the storefront's vocabulary —
+ * `in_stock`, `piece_code`, `available_sizes` — is mostly derived here
+ * and has no column behind it, and renaming the four fields that do come
+ * from the database would have left every product object speaking two
+ * conventions at once. The reasoning is repeated at the other end, in
+ * backend/src/mapper/storefront.mapper.js.
  *
- * The snapshot now comes from *this* project's Postgres rather than the old
- * shop's API, so ids are UUIDs and a page points at a row that exists here.
- * They are opaque strings — never parse or compare them numerically.
+ * Every exported query is now async. They are called from server
+ * components only, so that costs an `await` at seven call sites and
+ * nothing else.
  *
- * Every size carries a `variant_id`. That is what a bag line is ordered
- * against: a size label alone identifies nothing the API can sell.
+ * Ids are UUIDs. They are opaque strings — never parse or compare them
+ * numerically. Every size carries a `variant_id`: that is what a bag
+ * line is ordered against, because a size label alone identifies nothing
+ * the API can sell.
  */
+
+import { cache } from "react";
 
 import { STOCK_STATUS, stockStatusFor } from "@/lib/stock";
 
-import snapshot from "./live-catalogue.json";
+import { SHOP } from "./shop";
+
+// --- the read -----------------------------------------------------------
+
+const API_BASE = (
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000/api"
+).replace(/\/+$/, "");
+
+/**
+ * How long a rendered page may go on showing the catalogue it was built
+ * with, in seconds.
+ *
+ * A minute is chosen against what actually goes stale. Prices and new
+ * arrivals can wait; per-size stock is the field that matters, and it is
+ * not what protects the shop from overselling — checkout re-reads stock
+ * inside a locked transaction and refuses the line if it has gone. So
+ * this window decides how quickly a sold-out size stops being *offered*,
+ * not whether it can be sold twice. Sixty seconds of that, in exchange
+ * for pages that serve from cache, is the right trade for a shop of this
+ * size.
+ */
+const REVALIDATE_SECONDS = 60;
+
+const EMPTY = { fetched_at: null, categories: [], products: [] };
+
+/**
+ * The catalogue, fetched once per render and cached across requests.
+ *
+ * Two layers of caching, doing different jobs. `cache()` dedupes within
+ * a single render — the layout, the page and its sections all ask for
+ * the catalogue and one request is made. Next's `revalidate` is what
+ * spans requests, so the second visitor in a minute costs the API
+ * nothing.
+ *
+ * A failure throws rather than degrading to an empty shop. An empty grid
+ * renders as "we sell nothing" with a 200 beside it, which is worse than
+ * an error in every way that matters: a shopper cannot tell it from the
+ * truth, and neither can a crawler. Throwing keeps the last good
+ * statically-rendered page in front of people while the API is down,
+ * which is exactly what stale-while-revalidate is for.
+ */
+const loadCatalogue = cache(async () => {
+  const response = await fetch(`${API_BASE}/storefront/getCatalogue`, {
+    next: { revalidate: REVALIDATE_SECONDS, tags: ["catalogue"] },
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Could not load the catalogue: the API answered ${response.status}. ` +
+        `Check that the backend is running at ${API_BASE}.`,
+    );
+  }
+
+  const payload = await response.json();
+
+  return payload?.data ?? EMPTY;
+});
 
 // --- presentation lookups ---------------------------------------------------
 
 /**
  * One-line merchandising copy per live category.
  *
- * Keyed by name, not id. The ids are UUIDs now and would change if the
+ * Keyed by name, not id. The ids are UUIDs and would change if the
  * catalogue were ever re-imported into a fresh database; the names are the
  * shop's own and do not.
  */
@@ -92,47 +161,61 @@ function decorate(product, categoryName) {
   };
 }
 
-// --- queries ----------------------------------------------------------------
+/** Shared by every query below: decorate the whole catalogue, newest first. */
+function decorateAll({ categories, products }) {
+  const names = new Map(categories.map((c) => [c.id, c.name]));
 
-/** The shop's own name, contacts, banners and trust badges. */
-export function getShop() {
-  return snapshot.shop;
+  return products
+    .map((p) => decorate(p, names.get(p.category_id) || "—"))
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 }
 
-export function getFetchedAt() {
-  return snapshot.fetched_at;
+// --- queries ----------------------------------------------------------------
+
+/**
+ * The shop's own name, contacts, banners and trust badges.
+ *
+ * Still synchronous, and still a constant — this is the one part of the
+ * storefront that has no database behind it. See shop.js.
+ */
+export function getShop() {
+  return SHOP;
+}
+
+/** When the catalogue in this render was read out of the database. */
+export async function getFetchedAt() {
+  return (await loadCatalogue()).fetched_at;
 }
 
 /** Everything a shopper can see, newest first. */
-export function getStorefrontProducts() {
-  const names = new Map(snapshot.categories.map((c) => [c.id, c.name]));
-
-  return snapshot.products
-    .map((p) => decorate(p, names.get(p.category_id) || "—"))
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+export async function getStorefrontProducts() {
+  return decorateAll(await loadCatalogue());
 }
 
 /**
  * One product, decorated exactly as the grid's cards are.
  *
  * Ids come out of a URL segment and are matched as opaque strings — an id
- * that is not in the snapshot is a miss rather than a crash, and the route
+ * that is not in the catalogue is a miss rather than a crash, and the route
  * turns that into a 404.
  */
-export function getStorefrontProduct(id) {
+export async function getStorefrontProduct(id) {
   const productId = String(id ?? "");
   if (!productId) return null;
 
-  const row = snapshot.products.find((p) => p.id === productId);
+  const { categories, products } = await loadCatalogue();
+
+  const row = products.find((p) => p.id === productId);
   if (!row) return null;
 
-  const names = new Map(snapshot.categories.map((c) => [c.id, c.name]));
+  const names = new Map(categories.map((c) => [c.id, c.name]));
   return decorate(row, names.get(row.category_id) || "—");
 }
 
 /** Every product id, as route segments — what the detail route prerenders. */
-export function getProductIds() {
-  return snapshot.products.map((p) => String(p.id));
+export async function getProductIds() {
+  const { products } = await loadCatalogue();
+  return products.map((p) => String(p.id));
 }
 
 /**
@@ -146,10 +229,10 @@ export function getProductIds() {
  * Sold-out pieces sink to the bottom; they are not hidden, because a run
  * ending is worth seeing, but they never displace something buyable.
  */
-export function getRelatedProducts(product, limit = 4) {
+export async function getRelatedProducts(product, limit = 4) {
   if (!product) return [];
 
-  const all = getStorefrontProducts().filter((p) => p.id !== product.id);
+  const all = (await getStorefrontProducts()).filter((p) => p.id !== product.id);
   const rank = (p) => (p.in_stock ? 0 : 1);
 
   const sameCategory = all
@@ -171,26 +254,40 @@ export function getRelatedProducts(product, limit = 4) {
   return [...sameCategory, ...sameFabric.sort((a, b) => rank(a) - rank(b))].slice(0, limit);
 }
 
-/** Active categories with the counts and entry price the tiles show. */
-export function getStorefrontCategories(products = getStorefrontProducts()) {
-  return snapshot.categories.map((category) => {
-    const rows = products.filter((p) => p.category_id === category.id);
+/**
+ * Active categories with the counts and entry price the tiles show.
+ *
+ * Takes the decorated products where the caller already has them, so a
+ * page that renders both a grid and its category tiles decorates the
+ * catalogue once rather than twice.
+ */
+export async function getStorefrontCategories(products) {
+  const { categories } = await loadCatalogue();
+  const rows = products ?? (await getStorefrontProducts());
+
+  return categories.map((category) => {
+    const mine = rows.filter((p) => p.category_id === category.id);
+
     return {
       ...category,
       blurb: CATEGORY_BLURB[category.name] || "",
-      from_price: rows.length ? Math.min(...rows.map((p) => p.price)) : null,
+      from_price: mine.length ? Math.min(...mine.map((p) => p.price)) : null,
       // Fall back to a product photo if the category has no cover image.
-      image: category.image || rows[0]?.image || null,
+      image: category.image || mine[0]?.image || null,
     };
   });
 }
 
 /** Distinct fabrics across the catalogue — the "shop by fabric" chips. */
-export function getFabrics(products = getStorefrontProducts()) {
+export async function getFabrics(products) {
+  const rows = products ?? (await getStorefrontProducts());
+
   const counts = new Map();
-  for (const p of products) {
+
+  for (const p of rows) {
     if (p.fabric) counts.set(p.fabric, (counts.get(p.fabric) || 0) + 1);
   }
+
   return [...counts.entries()]
     .map(([name, count]) => ({ name, count }))
     .sort((a, b) => b.count - a.count);
@@ -203,16 +300,17 @@ export function getFabrics(products = getStorefrontProducts()) {
  * client-side, so browsing by category, fabric or search term is instant and
  * needs no request.
  */
-export function getHomePageData() {
-  const products = getStorefrontProducts();
+export async function getHomePageData() {
+  const catalogue = await loadCatalogue();
+  const products = decorateAll(catalogue);
   const discounted = products.filter((p) => p.off > 0);
 
   return {
-    shop: snapshot.shop,
-    fetched_at: snapshot.fetched_at,
+    shop: SHOP,
+    fetched_at: catalogue.fetched_at,
     products,
-    categories: getStorefrontCategories(products),
-    fabrics: getFabrics(products),
+    categories: await getStorefrontCategories(products),
+    fabrics: await getFabrics(products),
     topDiscount: discounted.reduce((max, p) => Math.max(max, p.off), 0),
     offerCount: discounted.length,
     entryPrice: products.length ? Math.min(...products.map((p) => p.price)) : 0,
@@ -224,11 +322,14 @@ export function getHomePageData() {
 /** "36 – 46" from whatever numeric sizes the catalogue actually carries. */
 function sizeRange(products) {
   const numeric = new Set();
+
   for (const p of products) {
     for (const s of p.sizes) {
       if (/^\d+$/.test(s.size)) numeric.add(Number(s.size));
     }
   }
+
   if (!numeric.size) return null;
+
   return `${Math.min(...numeric)} – ${Math.max(...numeric)}`;
 }

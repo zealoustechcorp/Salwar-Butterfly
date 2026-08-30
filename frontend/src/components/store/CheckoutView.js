@@ -22,6 +22,12 @@
  * A refused checkout is not a failure state. "That size sold out while you
  * were checking out" arrives as a 409 with the piece named, and it is shown as
  * a sentence the shopper can act on, with the bag still intact behind it.
+ *
+ * Paying is not part of this form, and deliberately not. Placing the order is
+ * what reserves the stock, so it has to succeed on its own before money is
+ * asked for; the payment sheet opens on /checkout/done, from the same button
+ * that offers it again to anyone who closed it the first time. One code path
+ * for the first attempt and the retry — see <PayNow>.
  */
 
 import { AlertCircle, Loader2, Lock, ShoppingBag } from "lucide-react";

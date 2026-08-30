@@ -20,10 +20,11 @@
 
 import { CheckCircle2, Mail, Package } from "lucide-react";
 import Link from "next/link";
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 
 import { LAST_ORDER_KEY } from "./CheckoutView";
 import { OrderAddress, OrderLines, OrderStatusBadge } from "./OrderSummary";
+import { PayNow } from "./PayNow";
 
 /**
  * The order, read out of sessionStorage exactly once.
@@ -62,8 +63,21 @@ function read() {
 /** Nothing ever changes it after the first read, so there is nothing to notify. */
 const subscribe = () => () => {};
 
-export function OrderConfirmation() {
-  const order = useSyncExternalStore(subscribe, read, () => undefined);
+export function OrderConfirmation({ shop }) {
+  const stored = useSyncExternalStore(subscribe, read, () => undefined);
+
+  /**
+   * The order as it stands after paying, if they did.
+   *
+   * Kept beside the stored copy rather than written back into
+   * sessionStorage: the entry is cleared as it is read, and re-stashing it
+   * would put a confirmation back for the next person to open this tab. The
+   * page is already mounted, so state is enough — and a refresh lands on the
+   * "nothing to show here" screen either way, which points at /track.
+   */
+  const [paid, setPaid] = useState(null);
+
+  const order = paid ?? stored;
 
   if (order === undefined) {
     return <div className="min-h-[60vh]" aria-busy="true" />;
@@ -107,6 +121,11 @@ export function OrderConfirmation() {
   // THE RECEIPT
   // --------------------------------------------------------
 
+  // The API's word, not a guess: an order is awaiting payment until the
+  // server has verified one. Paying below replaces `order` with what the
+  // verify call returned, so this flips without a reload.
+  const awaitingPayment = order.status === "pending_payment";
+
   return (
     <section className="mx-auto max-w-3xl px-4 py-9 sm:px-6 sm:py-13 lg:px-8">
       <div className="flex items-center gap-2.5">
@@ -119,8 +138,9 @@ export function OrderConfirmation() {
       </h1>
 
       <p className="mt-3 max-w-xl text-sm leading-relaxed text-sb-text-muted">
-        Your pieces are held for you. The shop will confirm your payment and
-        start packing.
+        {awaitingPayment
+          ? "Your pieces are held for you. Pay below to confirm the order and start it on its way."
+          : "Payment received. Your pieces are being picked, and the shop will send them within 5 to 10 working days."}
       </p>
 
       {/* The number, given its own block. It is the one thing on this page
@@ -175,14 +195,41 @@ export function OrderConfirmation() {
         </div>
       </div>
 
-      <div className="mt-7 flex items-start gap-2.5 rounded-xl bg-sb-surface/40 px-4 py-3.5">
-        <Package className="mt-0.5 size-4 shrink-0 text-sb-gold-text" aria-hidden="true" />
-        <p className="text-xs leading-relaxed text-sb-text-muted">
-          Nothing has been charged yet. The shop will send a payment link —
-          GPay, PhonePe, Paytm, cards or net banking. Delivery takes 5 to 10
-          working days from confirmation. Free all over India.
-        </p>
-      </div>
+      {awaitingPayment ? (
+        <div className="mt-7 rounded-2xl border border-sb-gold/40 bg-sb-surface/30 px-5 py-5">
+          <p className="font-display text-lg font-semibold text-sb-heading">
+            Pay for your order
+          </p>
+          <p className="mt-1.5 max-w-lg text-xs leading-relaxed text-sb-text-muted">
+            UPI through GPay, PhonePe or Paytm, or cards and net banking.
+            Nothing has been charged yet, and your pieces stay held until you
+            pay — you can come back to this with your order number if you would
+            rather not now.
+          </p>
+
+          {/* Renders nothing at all when the shop has no gateway configured,
+              which is why the fallback line below is a sibling rather than an
+              else — both have to be true at once in that case. */}
+          <PayNow order={order} shop={shop} onPaid={setPaid} className="mt-4" />
+
+          <p className="mt-4 flex items-start gap-2.5 border-t border-sb-gold/25 pt-3.5 text-xs leading-relaxed text-sb-text-muted">
+            <Package className="mt-0.5 size-4 shrink-0 text-sb-gold-text" aria-hidden="true" />
+            <span>
+              If you would rather pay another way, the shop will be in touch on
+              WhatsApp. Delivery takes 5 to 10 working days from confirmation,
+              free all over India.
+            </span>
+          </p>
+        </div>
+      ) : (
+        <div className="mt-7 flex items-start gap-2.5 rounded-xl bg-sb-surface/40 px-4 py-3.5">
+          <Package className="mt-0.5 size-4 shrink-0 text-sb-gold-text" aria-hidden="true" />
+          <p className="text-xs leading-relaxed text-sb-text-muted">
+            Payment received. Delivery takes 5 to 10 working days, free all
+            over India, and every piece is QC-checked before it is dispatched.
+          </p>
+        </div>
+      )}
 
       <div className="mt-7 flex flex-wrap gap-3 border-t border-sb-gold/30 pt-5">
         <Link

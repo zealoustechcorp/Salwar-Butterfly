@@ -3,9 +3,9 @@ import { getStorefrontProducts } from "@/lib/store/catalogue";
 
 export const metadata = {
   title: "Your wishlist",
-  description: "The Salwar Butterfly pieces you have saved on this device.",
+  description: "The Salwar Butterfly pieces you have saved.",
 };
 
-export default function WishlistPage() {
-  return <WishlistView products={getStorefrontProducts()} />;
+export default async function WishlistPage() {
+  return <WishlistView products={await getStorefrontProducts()} />;
 }

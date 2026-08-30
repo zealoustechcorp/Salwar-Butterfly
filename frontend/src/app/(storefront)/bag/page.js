@@ -6,6 +6,6 @@ export const metadata = {
   description: "The Salwar Butterfly pieces in your bag, with free shipping all over India.",
 };
 
-export default function BagPage() {
-  return <BagView products={getStorefrontProducts()} shop={getShop()} />;
+export default async function BagPage() {
+  return <BagView products={await getStorefrontProducts()} shop={getShop()} />;
 }

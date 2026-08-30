@@ -37,6 +37,7 @@ import {
   paymentMeta,
   statusMeta,
 } from "@/lib/api/orders";
+import { attemptMeta, listOrderPayments, methodLabel } from "@/lib/api/payments";
 import { dateTime, money, number } from "@/lib/format";
 
 /**
@@ -426,6 +427,8 @@ export default function OrderDetailPage() {
             </div>
           </Card>
 
+          <PaymentAttempts orderId={order.id} reload={reload} />
+
           <Card>
             <CardHeader title="History" />
 
@@ -472,6 +475,119 @@ export default function OrderDetailPage() {
         onConflict={refresh}
       />
     </div>
+  );
+}
+
+/**
+ * Every gateway attempt on this order (F-10).
+ *
+ * Renders nothing when there are none, which is the common case and not an
+ * error: an order paid by bank transfer and confirmed by hand never opened a
+ * payment sheet, and neither did anything placed before the gateway existed.
+ * An empty card headed "Payments" would read as something having gone wrong.
+ *
+ * Its own request rather than a field on the order. It is a different question
+ * with a different audience — the rest of this screen is about a parcel — and
+ * the order list would be carrying it on every row for nothing.
+ *
+ * A failure here is shown but never allowed to take the screen down with it.
+ * This is supplementary; the order above it is what the shop came for, and it
+ * is already on screen.
+ */
+function PaymentAttempts({ orderId, reload }) {
+  const [state, setState] = useState({ status: "loading", rows: [], error: null });
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+
+    listOrderPayments(orderId, { signal: controller.signal })
+      .then((rows) => {
+        if (active) setState({ status: "ready", rows, error: null });
+      })
+      .catch((error) => {
+        if (active && error?.name !== "AbortError") {
+          setState({ status: "error", rows: [], error });
+        }
+      });
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [orderId, reload]);
+
+  if (state.status === "loading") return null;
+
+  if (state.status === "error") {
+    return (
+      <Card>
+        <CardHeader title="Payments" requirement="F-10" />
+        <p className="px-5 py-4 text-xs text-ink-500">
+          Could not load the payment history. The order above is unaffected.
+        </p>
+      </Card>
+    );
+  }
+
+  if (state.rows.length === 0) return null;
+
+  return (
+    <Card>
+      <CardHeader
+        title="Payments"
+        description="Every attempt through the gateway, newest first."
+        requirement="F-10"
+      />
+
+      <ol className="divide-y divide-ink-100">
+        {state.rows.map((attempt) => {
+          const meta = attemptMeta(attempt.status);
+          const method = methodLabel(attempt.method);
+
+          return (
+            <li key={attempt.id} className="space-y-1.5 px-5 py-3.5">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-sm font-medium text-ink-900 tabular-nums">
+                  {money(attempt.amount, { precise: true })}
+                </span>
+                <span
+                  className={`inline-flex shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${meta.tone}`}
+                >
+                  {meta.label}
+                </span>
+              </div>
+
+              <p className="text-xs text-ink-500">
+                {[
+                  method,
+                  attempt.isManual ? "Recorded by the shop" : attempt.provider,
+                  dateTime(attempt.paidAt ?? attempt.createdAt),
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+
+              {/* The gateway's own words. This is what a support call is
+                  actually about — "declined by the issuing bank" is an
+                  answer, "failed" is not. */}
+              {attempt.error ? (
+                <p className="text-xs text-red-700">{attempt.error.description}</p>
+              ) : null}
+
+              {/* The id to quote to Razorpay, and the only thread from this
+                  row to their dashboard. Wrapped rather than truncated: a
+                  reference that cannot be read in full cannot be quoted. */}
+              {attempt.providerPaymentId ? (
+                <p className="font-mono text-[11px] break-all text-ink-400">
+                  {attempt.providerPaymentId}
+                </p>
+              ) : null}
+            </li>
+          );
+        })}
+      </ol>
+    </Card>
   );
 }
 
