@@ -147,15 +147,23 @@ export function StoreProvider({ children }) {
   }, [toast]);
 
   const value = useMemo(() => {
-    const addToBag = (product, { size } = {}) => {
+    /**
+     * `qty` is how many to add, not the new total — a card adds one, the
+     * product page adds whatever its stepper says. The line is capped at the
+     * same 99 the bag's own stepper enforces.
+     */
+    const addToBag = (product, { size, qty = 1 } = {}) => {
       const pickedSize = size || product.available_sizes[0] || null;
       const key = `${product.id}:${pickedSize ?? "-"}`;
       const existing = bag.find((line) => line.key === key);
+      const adding = Math.max(1, Math.min(99, Math.trunc(Number(qty)) || 1));
 
       commit({
         wishlist,
         bag: existing
-          ? bag.map((line) => (line.key === key ? { ...line, qty: line.qty + 1 } : line))
+          ? bag.map((line) =>
+              line.key === key ? { ...line, qty: Math.min(99, line.qty + adding) } : line,
+            )
           : [
               ...bag,
               {
@@ -165,13 +173,19 @@ export function StoreProvider({ children }) {
                 price: product.price,
                 size: pickedSize,
                 image: product.image,
-                qty: 1,
+                qty: adding,
               },
             ],
       });
       setToast({
         title: "Added to bag",
-        detail: pickedSize ? `${product.name} · size ${pickedSize}` : product.name,
+        detail: [
+          product.name,
+          pickedSize ? `size ${pickedSize}` : null,
+          adding > 1 ? `× ${adding}` : null,
+        ]
+          .filter(Boolean)
+          .join(" · "),
       });
     };
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { Heart, ShoppingBag } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 
 import { money } from "@/lib/format";
@@ -14,6 +15,11 @@ import { useStore } from "./StoreProvider";
  *
  * There is deliberately no star rating here — the live shop publishes no review
  * data, and inventing one for a real business would be a lie on the page.
+ *
+ * The photo and the name open the piece's own page. They are two separate links
+ * rather than one wrapper, because the tile also carries the wishlist button
+ * and the size picker — controls cannot be nested inside an anchor, and the
+ * overlay link is layered under them so a tap on a size never navigates.
  */
 export function ProductCard({ product, priority = false }) {
   const { addToBag, toggleWish, wishlist } = useStore();
@@ -46,7 +52,17 @@ export function ProductCard({ product, priority = false }) {
             />
           </div>
 
-          <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-2.5 sm:p-3">
+          {/* Covers the photo only, and sits under every control on the tile. */}
+          <Link
+            href={`/product/${product.id}`}
+            aria-hidden="true"
+            // The product name below is the keyboard-reachable link to the same
+            // page, so this one is a pointer convenience and not a second tab stop.
+            tabIndex={-1}
+            className="absolute inset-0 z-0"
+          />
+
+          <div className="absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-2 p-2.5 sm:p-3">
             {product.off > 0 ? (
               <span className="rounded-full bg-sb-btn-rose px-2 py-0.5 text-[10px] font-bold text-sb-bg sm:px-2.5 sm:py-1 sm:text-[11px]">
                 {product.off}% off
@@ -127,7 +143,12 @@ export function ProductCard({ product, priority = false }) {
       <div className="flex flex-1 flex-col pt-3">
         <p className="sb-eyebrow text-[9px] text-sb-gold-text">{product.category_name}</p>
         <h3 className="mt-1 font-display text-lg leading-snug font-semibold text-sb-heading sm:text-xl">
-          {product.name}
+          <Link
+            href={`/product/${product.id}`}
+            className="underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sb-link"
+          >
+            {product.name}
+          </Link>
         </h3>
 
         {product.fabric ? (

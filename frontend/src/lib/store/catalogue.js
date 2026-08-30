@@ -95,6 +95,64 @@ export function getStorefrontProducts() {
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 }
 
+/**
+ * One product, decorated exactly as the grid's cards are.
+ *
+ * Ids come out of a URL segment, so anything that is not a real numeric id in
+ * the snapshot is a miss rather than a crash — the route turns that into a 404.
+ */
+export function getStorefrontProduct(id) {
+  const productId = Number(id);
+  if (!Number.isInteger(productId)) return null;
+
+  const row = snapshot.products.find((p) => p.id === productId);
+  if (!row) return null;
+
+  const names = new Map(snapshot.categories.map((c) => [c.id, c.name]));
+  return decorate(row, names.get(row.category_id) || "—");
+}
+
+/** Every product id, as route segments — what the detail route prerenders. */
+export function getProductIds() {
+  return snapshot.products.map((p) => String(p.id));
+}
+
+/**
+ * What to show under a product.
+ *
+ * The rest of its own collection comes first, nearest in price — the shopper
+ * who opened a ₹1,850 anarkali is looking at anarkalis around ₹1,850. If the
+ * collection is too thin to fill the row, it is topped up with the same fabric
+ * from elsewhere in the shop rather than padded with whatever is newest.
+ *
+ * Sold-out pieces sink to the bottom; they are not hidden, because a run
+ * ending is worth seeing, but they never displace something buyable.
+ */
+export function getRelatedProducts(product, limit = 4) {
+  if (!product) return [];
+
+  const all = getStorefrontProducts().filter((p) => p.id !== product.id);
+  const rank = (p) => (p.in_stock ? 0 : 1);
+
+  const sameCategory = all
+    .filter((p) => p.category_id === product.category_id)
+    .sort(
+      (a, b) =>
+        rank(a) - rank(b) ||
+        Math.abs(a.price - product.price) - Math.abs(b.price - product.price),
+    );
+
+  if (sameCategory.length >= limit) return sameCategory.slice(0, limit);
+
+  const sameFabric = product.fabric
+    ? all.filter(
+        (p) => p.fabric === product.fabric && p.category_id !== product.category_id,
+      )
+    : [];
+
+  return [...sameCategory, ...sameFabric.sort((a, b) => rank(a) - rank(b))].slice(0, limit);
+}
+
 /** Active categories with the counts and entry price the tiles show. */
 export function getStorefrontCategories(products = getStorefrontProducts()) {
   return snapshot.categories.map((category) => {

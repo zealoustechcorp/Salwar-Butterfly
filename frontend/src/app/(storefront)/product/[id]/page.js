@@ -1,0 +1,130 @@
+import { ChevronRight } from "lucide-react";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+
+import { PolicySection } from "@/components/store/HomeSections";
+import { ProductCard } from "@/components/store/ProductCard";
+import { ProductDetail } from "@/components/store/ProductDetail";
+import { money } from "@/lib/format";
+import {
+  getProductIds,
+  getRelatedProducts,
+  getShop,
+  getStorefrontProduct,
+} from "@/lib/store/catalogue";
+
+/**
+ * A single piece (F-06 Product Browsing) — where a card on the home page, the
+ * shop or the wishlist leads.
+ *
+ * The catalogue is a committed snapshot, so every one of its 197 pieces is
+ * prerendered at build time: opening a product is a static document, with no
+ * fetch and no spinner. An id that is not in the snapshot 404s rather than
+ * rendering an empty frame.
+ */
+export function generateStaticParams() {
+  return getProductIds().map((id) => ({ id }));
+}
+
+export async function generateMetadata({ params }) {
+  const { id } = await params;
+  const product = getStorefrontProduct(id);
+
+  if (!product) return { title: "Piece not found" };
+
+  const price = product.mrp
+    ? `${money(product.price)} (was ${money(product.mrp)}, ${product.off}% off)`
+    : money(product.price);
+
+  return {
+    title: product.name,
+    description: [
+      `${product.name} — ${product.fabric ? `${product.fabric}, ` : ""}${product.category_name.toLowerCase()} from Salwar Butterfly.`,
+      `${price}.`,
+      product.available_sizes.length
+        ? `Sizes ${product.available_sizes.join(", ")} in stock.`
+        : "This run has sold out.",
+      "Free shipping all over India.",
+    ].join(" "),
+    openGraph: {
+      title: product.name,
+      type: "website",
+      images: product.image ? [{ url: product.image }] : undefined,
+    },
+  };
+}
+
+export default async function ProductPage({ params }) {
+  const { id } = await params;
+  const product = getStorefrontProduct(id);
+
+  if (!product) notFound();
+
+  const related = getRelatedProducts(product);
+  const shop = getShop();
+
+  return (
+    <>
+      <Breadcrumb product={product} />
+
+      <ProductDetail product={product} shop={shop} />
+
+      {related.length ? (
+        <section className="mx-auto max-w-7xl px-4 py-9 sm:px-6 sm:py-11 lg:px-8 lg:py-13">
+          <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
+            <div>
+              <p className="sb-eyebrow text-[10px] text-sb-gold-text">Nearby On The Shelf</p>
+              <h2 className="mt-2 font-display text-3xl font-semibold text-sb-heading sm:text-4xl">
+                More from {product.category_name.toLowerCase()}
+              </h2>
+            </div>
+            <Link
+              href={`/shop?category=${product.category_id}`}
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-sb-link underline underline-offset-4 hover:text-sb-heading"
+            >
+              See the whole collection
+              <ChevronRight className="size-4" aria-hidden="true" />
+            </Link>
+          </div>
+
+          <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 sm:gap-x-5 lg:grid-cols-4 lg:gap-x-6">
+            {related.map((item) => (
+              <ProductCard key={item.id} product={item} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <PolicySection />
+    </>
+  );
+}
+
+function Breadcrumb({ product }) {
+  const trail = [
+    { label: "Home", href: "/" },
+    { label: "Shop", href: "/shop" },
+    { label: product.category_name, href: `/shop?category=${product.category_id}` },
+  ];
+
+  return (
+    <nav
+      aria-label="Breadcrumb"
+      className="mx-auto max-w-7xl px-4 pt-5 text-xs text-sb-text-muted sm:px-6 lg:px-8"
+    >
+      <ol className="sb-no-scrollbar flex items-center gap-1.5 overflow-x-auto whitespace-nowrap">
+        {trail.map((crumb) => (
+          <li key={crumb.href} className="flex items-center gap-1.5">
+            <Link href={crumb.href} className="hover:text-sb-link hover:underline">
+              {crumb.label}
+            </Link>
+            <ChevronRight className="size-3.5 shrink-0" aria-hidden="true" />
+          </li>
+        ))}
+        <li aria-current="page" className="font-semibold text-sb-text">
+          {product.name}
+        </li>
+      </ol>
+    </nav>
+  );
+}
