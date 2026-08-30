@@ -5,7 +5,7 @@ import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useAdminAuth } from "./AdminAuthProvider";
 import { Badge, Button, cx, ToastProvider } from "./ui";
@@ -14,9 +14,9 @@ import { Badge, Button, cx, ToastProvider } from "./ui";
 // (F-01 Authentication, F-10 Payment) is not navigable and stays out of the nav.
 const FEATURES = [
   /**
-   * Categories, Products, Inventory and Customers are live against the
-   * API, so they carry no spec badge. The remaining entries below are
-   * still FRS placeholders.
+   * Categories, Products, Inventory, Customers and Orders are live
+   * against the API, so they carry no spec badge. The remaining entry
+   * below is still an FRS placeholder.
    */
   {
     label: "Categories",
@@ -38,7 +38,7 @@ const FEATURES = [
   },
   { label: "Inventory", href: "/admin/inventory" },
   { label: "Customers", href: "/admin/customers" },
-  { id: "F-09", label: "Orders", href: null },
+  { label: "Orders", href: "/admin/orders" },
   { id: "F-11", label: "Dashboard & Reports", href: null },
 ];
 
@@ -115,10 +115,56 @@ function AdminUserCard() {
 }
 
 /**
+ * Which edges of a scroll container still have content beyond them, as
+ * `data-fade-*` attributes for `.admin-scroll-hint` to fade.
+ *
+ * Admin scrollbars are hidden (globals.css), so without this a rail taller
+ * than the viewport is cut off flat and reads as the end of the list. Driven
+ * by the element rather than by a media query because the cutoff depends on
+ * viewport height, nav length and browser chrome all at once.
+ *
+ * A ResizeObserver covers the cases a scroll listener cannot see: the window
+ * resizing, and the drawer's own open animation settling into its final height.
+ */
+function useScrollEdges() {
+  const ref = useRef(null);
+  const [edges, setEdges] = useState({ top: false, bottom: false });
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+
+    const update = () => {
+      const { scrollTop, scrollHeight, clientHeight } = el;
+      // 1px slack: fractional device-pixel ratios leave sub-pixel remainders
+      // at the ends, which would otherwise pin the fade on permanently.
+      setEdges({
+        top: scrollTop > 1,
+        bottom: scrollTop + clientHeight < scrollHeight - 1,
+      });
+    };
+
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+
+    return () => {
+      el.removeEventListener("scroll", update);
+      observer.disconnect();
+    };
+  }, []);
+
+  return [ref, edges];
+}
+
+/**
  * idPrefix keeps Motion layoutIds unique between the two mounted copies of the
  * sidebar (desktop rail + mobile drawer) — shared ids would animate across them.
  */
 function Sidebar({ pathname, onNavigate, idPrefix = "rail" }) {
+  const [navRef, navEdges] = useScrollEdges();
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2.5 px-5 py-5">
@@ -135,7 +181,15 @@ function Sidebar({ pathname, onNavigate, idPrefix = "rail" }) {
         </div>
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-3 pb-4">
+      {/* overscroll-contain: hitting the end of the rail must not start
+          scrolling the page behind it. admin-scroll-hint restores the "there
+          is more below" cue that hiding the scrollbar removed. */}
+      <nav
+        ref={navRef}
+        data-fade-top={navEdges.top}
+        data-fade-bottom={navEdges.bottom}
+        className="admin-scroll-hint flex-1 overflow-y-auto overscroll-contain px-3 pb-4"
+      >
         <p className="px-2 pb-1.5 pt-2 text-[10px] font-semibold tracking-wider text-ink-400 uppercase">
           Features
         </p>
@@ -259,8 +313,9 @@ export function AdminShell({ children }) {
     <MotionConfig reducedMotion="user">
       <ToastProvider>
         <div className="admin-root flex min-h-screen">
-          {/* Desktop static rail */}
-          <aside className="hidden w-64 shrink-0 border-r border-ink-200 bg-white lg:block">
+          {/* Desktop static rail — pinned to the viewport so the sign-out card
+              stays reachable instead of riding the bottom of a long page. */}
+          <aside className="hidden w-64 shrink-0 border-r border-ink-200 bg-white lg:sticky lg:top-0 lg:block lg:h-screen">
             <Sidebar pathname={pathname} idPrefix="rail" />
           </aside>
 

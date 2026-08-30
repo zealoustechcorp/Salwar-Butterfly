@@ -4,9 +4,14 @@ import Link from "next/link";
 // Only features with screens in this frontend (FRS §5 Screen Inventory).
 // F-01 Authentication & Authorization and F-10 Payment are backend-side work
 // (sessions, tokens, role checks, gateway integration) and are not tracked here.
+//
+// Three states, and the middle one is the honest one to keep: a storefront
+// screen can be finished and still not be reading the live database. The
+// catalogue pages render from the committed snapshot (lib/store/catalogue.js)
+// until the API grows a public read router, so they are not "live on API"
+// however complete they look.
 const FEATURES = [
-  // Built and running against the API, so it carries no FRS id — the rest
-  // of this list is still spec placeholders.
+  // Built and running against the API, so these carry no FRS id.
   {
     name: "Categories Management",
     href: "/admin/category",
@@ -15,12 +20,24 @@ const FEATURES = [
   { name: "Product Management", href: "/admin/products", status: "live" },
   { name: "Inventory Management", href: "/admin/inventory", status: "live" },
   { name: "Customer Management", href: "/admin/customers", status: "live" },
-  { id: "F-06", name: "Product Browsing & Search", href: "/" },
-  { id: "F-07", name: "Cart", href: null },
-  { id: "F-08", name: "Address & Checkout", href: null },
-  { id: "F-09", name: "Order Management", href: null },
+  { id: "F-06", name: "Product Browsing & Search", href: "/", status: "snapshot" },
+  { id: "F-07", name: "Cart", href: "/bag", status: "snapshot" },
+  { id: "F-08", name: "Address & Checkout", href: "/checkout", status: "live" },
+  { id: "F-09", name: "Order Management", href: "/admin/orders", status: "live" },
   { id: "F-11", name: "Dashboard & Reports", href: null },
 ];
+
+const STATUS_BADGE = {
+  live: {
+    label: "Live on API",
+    className:
+      "bg-emerald-50 text-emerald-700 ring-emerald-200",
+  },
+  snapshot: {
+    label: "UI on snapshot data",
+    className: "bg-amber-50 text-amber-800 ring-amber-200",
+  },
+};
 
 export default function BuildTracker() {
   return (
@@ -51,8 +68,12 @@ export default function BuildTracker() {
                     <span className="font-mono text-xs text-brand-600">{feature.id}</span>
                   ) : null}
                   <span className="text-sm font-medium text-ink-900">{feature.name}</span>
-                  <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200">
-                    {feature.status === "live" ? "Live on API" : "UI ready"}
+                  <span
+                    className={`ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${
+                      (STATUS_BADGE[feature.status] ?? STATUS_BADGE.live).className
+                    }`}
+                  >
+                    {(STATUS_BADGE[feature.status] ?? STATUS_BADGE.live).label}
                     <ArrowRight className="size-3" aria-hidden="true" />
                   </span>
                 </Link>

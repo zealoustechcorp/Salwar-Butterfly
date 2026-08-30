@@ -180,6 +180,75 @@ body {
   font-family: var(--font-karla), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
+/* ---------------------------------------------------------------------------
+   Admin scrollbars — hidden outright, everywhere inside the console (sidebar
+   rail, data tables, dialog bodies). Scoped to .admin-root and its subtree;
+   the storefront keeps its native bars.
+
+   Hiding the bar does NOT disable scrolling: wheel, trackpad, keyboard and
+   touch all still work, and the containers keep their overflow-auto. What is
+   lost is the visible affordance — nothing on screen announces that a region
+   scrolls, and there is no thumb to drag. Mouse-only users on a long orders
+   table have to discover the overflow by trying it.
+
+   scrollbar-width is inherited, so the one declaration on .admin-root covers
+   every descendant in Firefox. WebKit/Chromium has no inherited form — it
+   needs the pseudo-element, hence the descendant selector alongside the
+   element's own.
+   --------------------------------------------------------------------------- */
+.admin-root {
+  scrollbar-width: none;
+}
+
+.admin-root::-webkit-scrollbar,
+.admin-root *::-webkit-scrollbar {
+  display: none;
+}
+
+/* ---------------------------------------------------------------------------
+   Scroll hint — puts back the affordance the hidden scrollbar took away. The
+   last row of a scrollable region dissolves into the surface instead of being
+   sliced off flat, which is what tells you to keep scrolling: a clean cut
+   reads as the end of the list, a fade reads as "there is more".
+
+   A mask, not a background gradient. The usual scroll-shadow trick paints
+   gradients into `background`, which sits BEHIND the links — the text stays
+   fully opaque and only the edge picks up a faint shading. Masking fades the
+   content itself, which is the cue that actually reads.
+
+   Both edges are driven by the element's real scroll position (see
+   AdminShell's Sidebar): the data attributes swap the two lengths in, so an
+   edge fades only while there is content past it and a rail short enough to
+   fit shows no fade at all. At 0px both stops collapse and the mask is fully
+   opaque — a no-op, not an invisible 1px seam.
+   --------------------------------------------------------------------------- */
+.admin-scroll-hint {
+  --scroll-fade-top: 0px;
+  --scroll-fade-bottom: 0px;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--scroll-fade-top),
+    #000 calc(100% - var(--scroll-fade-bottom)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--scroll-fade-top),
+    #000 calc(100% - var(--scroll-fade-bottom)),
+    transparent 100%
+  );
+}
+
+.admin-scroll-hint[data-fade-top="true"] {
+  --scroll-fade-top: 28px;
+}
+
+.admin-scroll-hint[data-fade-bottom="true"] {
+  --scroll-fade-bottom: 36px;
+}
+
 /* The customer storefront paints its own cream ground so it never inherits the
    body's dark-mode fallback, and it carries Karla as the body face — Cormorant
    is headings-only (Docs/Design_Brand-Palette-and-Typography.md §5). */

@@ -31,6 +31,27 @@ export function shortDate(value) {
   return Number.isNaN(d.getTime()) ? "—" : dateFmt.format(d);
 }
 
+const dateTimeFmt = new Intl.DateTimeFormat("en-IN", {
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+/**
+ * Date and time to the minute.
+ *
+ * For records where the hour is part of the fact — when an order was
+ * placed, when it was handed to the courier. `shortDate` is right
+ * everywhere the day is enough.
+ */
+export function dateTime(value) {
+  if (!value) return "—";
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? "—" : dateTimeFmt.format(d);
+}
+
 export function relativeDate(value) {
   if (!value) return "—";
   const then = new Date(value).getTime();
