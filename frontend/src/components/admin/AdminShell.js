@@ -14,10 +14,16 @@ import { Badge, Button, cx, ToastProvider } from "./ui";
 // (F-01 Authentication, F-10 Payment) is not navigable and stays out of the nav.
 const FEATURES = [
   /**
-   * Categories, Products, Inventory, Customers and Orders are live
-   * against the API, so they carry no spec badge. The remaining entry
-   * below is still an FRS placeholder.
+   * Every entry is live against the API, so none carries a spec badge.
+   * The list held an F-11 placeholder until the dashboard and reports
+   * were built; there is nothing unbuilt left to mark.
+   *
+   * Dashboard is first because it is what /admin now lands on — the
+   * route used to redirect to Products for want of anything to show.
    */
+  // `exact` matters only here: every admin route begins with /admin, so
+  // a prefix match would light this entry up on every screen.
+  { label: "Dashboard", name: "Dashboard", href: "/admin", exact: true },
   {
     label: "Categories",
     href: "/admin/category",
@@ -39,8 +45,23 @@ const FEATURES = [
   { label: "Inventory", href: "/admin/inventory" },
   { label: "Customers", href: "/admin/customers" },
   { label: "Orders", href: "/admin/orders" },
-  { id: "F-11", label: "Dashboard & Reports", href: null },
+  { label: "Reports", name: "Reports", href: "/admin/reports" },
+  { label: "Reviews", name: "Reviews & Ratings", href: "/admin/reviews" },
 ];
+
+/**
+ * Whether a route belongs to a nav entry.
+ *
+ * Prefix by default, exact where the entry says so. Both the sidebar
+ * pill and the header title read from this, so they cannot disagree
+ * about which screen you are on.
+ */
+const featureMatches = (feature, pathname) => {
+  if (!feature.href) return false;
+  return feature.exact
+    ? pathname === feature.href
+    : pathname.startsWith(feature.href);
+};
 
 /** "Dharun Prakash J A" → "DA"; falls back to the email's first letter. */
 function initialsOf(name, email) {
@@ -195,7 +216,7 @@ function Sidebar({ pathname, onNavigate, idPrefix = "rail" }) {
         </p>
         <ul className="space-y-0.5">
           {FEATURES.map((feature) => {
-            const active = feature.href && pathname.startsWith(feature.href);
+            const active = featureMatches(feature, pathname);
             if (!feature.href)
               return (
                 <li key={feature.label}>
@@ -299,7 +320,7 @@ export function AdminShell({ children }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const currentFeature =
-    FEATURES.find((f) => f.href && pathname.startsWith(f.href)) ||
+    FEATURES.find((f) => featureMatches(f, pathname)) ||
     (pathname.startsWith("/admin/category")
       ? { name: "Categories Management" }
       : { name: "Product Management" });

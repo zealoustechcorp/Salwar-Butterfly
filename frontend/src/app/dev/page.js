@@ -28,7 +28,11 @@ const FEATURES = [
   // The gateway itself is backend work, but it has a screen now: the
   // confirmation page opens the payment sheet, and retries it.
   { id: "F-10", name: "Payment", href: "/checkout/done", status: "live" },
-  { id: "F-11", name: "Dashboard & Reports", href: null },
+  // The dashboard replaced the redirect that used to sit on /admin;
+  // reviews (F-11.06) are the admin-only page the FRS asks for, not a
+  // storefront feature — showing them on a product page is F-06.08.
+  { id: "F-11", name: "Dashboard & Reports", href: "/admin", status: "live" },
+  { id: "F-11.06", name: "Reviews & Ratings", href: "/admin/reviews", status: "live" },
 ];
 
 const STATUS_BADGE = {

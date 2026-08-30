@@ -15,6 +15,8 @@ import adminAuthRoutes from './admin.auth.routes.js';
 import storefrontRoutes from './storefront.routes.js';
 import paymentRoutes from './payment.routes.js';
 import wishlistRoutes from './wishlist.routes.js';
+import reportRoutes from './report.routes.js';
+import reviewRoutes from './review.routes.js';
 
 import { authenticate } from '../middlewares/auth.middleware.js';
 import { requireAdmin } from '../middlewares/authorize.middleware.js';
@@ -111,5 +113,18 @@ router.use('/productVariants', adminOnly, productVariantRoutes);
 router.use('/productAttributes', adminOnly, productAttributeRoutes);
 router.use('/productImages', adminOnly, productImageRoutes);
 router.use('/inventory', adminOnly, inventoryRoutes);
+
+// The dashboard and the reports (F-11). GET only, and every figure on
+// them is the shop's own business — a revenue total, and an order
+// report carrying customers' names and addresses in bulk. There is no
+// public subset of this to carve out, which is why it is guarded here
+// with the rest rather than gating itself.
+router.use('/reports', adminOnly, reportRoutes);
+
+// Reviews and ratings (F-11.06). Admin-only by design and not by
+// omission: the shop publishes what customers say on WhatsApp, so
+// there is no shopper write path. Showing these on a product page
+// (F-06.08) is a read for /storefront when it is built.
+router.use('/reviews', adminOnly, reviewRoutes);
 
 export default router;
