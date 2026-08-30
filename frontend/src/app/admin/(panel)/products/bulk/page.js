@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, ImagePlus, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
@@ -14,6 +14,7 @@ import {
   Field,
   Input,
   LinkButton,
+  Modal,
   Select,
   SkeletonRows,
   Textarea,
@@ -21,25 +22,34 @@ import {
   useToast,
 } from "@/components/admin/ui";
 import { AttributeFields } from "@/components/admin/ProductFields";
+import { StagedGallery } from "@/components/admin/ProductGallery";
 import { SizeStockEditor } from "@/components/admin/SizeStockEditor";
 import { listAttributeValues } from "@/lib/api/attributes";
+import { uploadImages } from "@/lib/api/images";
 import { bulkCreateProducts, getReference } from "@/lib/api/products";
 import { replaceVariants } from "@/lib/api/variants";
 import { money, number } from "@/lib/format";
 import { autoSlug } from "@/lib/slug";
 
 /**
- * Bulk upload — many products into one category, in a single request.
+ * Bulk upload — many products into one category (F-03.04).
  *
  * `POST /products/bulkCreateProducts` takes a shared `categoryId` and an
  * array of products, and inserts them in one statement. So the screen is
  * a shared header (category, description, price, offer, visibility) plus
  * a repeating row where only what actually differs per product is typed:
- * its name, its slug and any price override.
+ * its name, its slug, any price override — and its photographs.
  *
  * A blank price on a row inherits the shared one — that is the whole
  * point of the shared header, and it keeps a twenty-row upload to twenty
  * names instead of twenty forms.
+ *
+ * Photographs are the one thing that cannot be shared, which is what
+ * F-03.04 means by "different images at a time": the description, sizes
+ * and price are the same across the batch, but two anarkalis are not the
+ * same photograph. So each row stages its own files, exactly as the
+ * single create screen does, and they upload once the product rows
+ * exist and have ids to hang from.
  */
 
 const BLANK_SHARED = {
@@ -61,7 +71,14 @@ const DEFAULT_SIZES = ["S", "M", "L", "XL"].map((size) => ({
 }));
 
 let rowCounter = 0;
-const makeRow = () => ({ key: `row-${++rowCounter}`, name: "", slug: "", basePrice: "" });
+const makeRow = () => ({
+  key: `row-${++rowCounter}`,
+  name: "",
+  slug: "",
+  basePrice: "",
+  // Held in the browser until the product row exists to upload against.
+  photos: [],
+});
 
 export default function BulkUploadPage() {
   const router = useRouter();
@@ -74,6 +91,11 @@ export default function BulkUploadPage() {
   const [rows, setRows] = useState(() => [makeRow(), makeRow(), makeRow()]);
   const [failure, setFailure] = useState(null);
   const [busy, setBusy] = useState(false);
+
+  // Which row's gallery is open. A modal rather than a gallery inside
+  // the cell: eight thumbnails do not belong in a table row, and the
+  // create screen's StagedGallery already does the job properly.
+  const [photoRow, setPhotoRow] = useState(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -134,6 +156,8 @@ export default function BulkUploadPage() {
     return sum + Math.round(base * (100 - percent)) / 100;
   }, 0);
 
+  const totalPhotos = filled.reduce((sum, row) => sum + row.photos.length, 0);
+
   const ready =
     Boolean(shared.categoryId) &&
     filled.length > 0 &&
@@ -174,17 +198,57 @@ export default function BulkUploadPage() {
         sizeFailures = results.filter((r) => r.status === "rejected").length;
       }
 
-      if (sizeFailures) {
+      // Photographs need an id to hang from, so they upload now.
+      //
+      // Matched back to their row by slug rather than by array position:
+      // slugs are unique across the catalogue and the screen has already
+      // refused duplicates, whereas the order of a multi-row INSERT ...
+      // RETURNING is not something to hang a photograph on.
+      const bySlug = new Map(created.map((product) => [product.slug, product]));
+      const withPhotos = filled.filter((row) => row.photos.length > 0);
+
+      let photoFailures = 0;
+
+      if (withPhotos.length) {
+        const results = await Promise.allSettled(
+          withPhotos.map((row) => {
+            const product = bySlug.get(row.slug.trim() || autoSlug(row.name));
+
+            if (!product) {
+              return Promise.reject(new Error(`No product came back for "${row.name}"`));
+            }
+
+            return uploadImages(product.id, row.photos);
+          }),
+        );
+
+        photoFailures = results.filter((r) => r.status === "rejected").length;
+      }
+
+      // The products themselves are created either way, so a failure
+      // here is a warning about what still needs doing, not an error
+      // about what was lost.
+      const shortfalls = [
+        sizeFailures ? `${sizeFailures} did not get their sizes` : null,
+        photoFailures ? `${photoFailures} did not get their photographs` : null,
+      ].filter(Boolean);
+
+      if (shortfalls.length) {
         toast.error(
-          `${created.length} product${created.length === 1 ? "" : "s"} created, but ${sizeFailures} did not get their sizes.`,
-          "Open the ones without sizes and add them from the edit screen.",
+          `${created.length} product${created.length === 1 ? "" : "s"} created, but ${shortfalls.join(" and ")}.`,
+          "Open those products and finish them from the edit screen.",
         );
       } else {
+        const notes = [
+          sizes.length ? `${sizes.length} size${sizes.length === 1 ? "" : "s"} each` : null,
+          withPhotos.length
+            ? `${number(withPhotos.reduce((sum, row) => sum + row.photos.length, 0))} photographs`
+            : null,
+        ].filter(Boolean);
+
         toast.success(
           `${created.length} product${created.length === 1 ? "" : "s"} created.`,
-          sizes.length
-            ? `Each with ${sizes.length} size${sizes.length === 1 ? "" : "s"}.`
-            : undefined,
+          notes.join(", ") || undefined,
         );
       }
 
@@ -346,7 +410,7 @@ export default function BulkUploadPage() {
       <Card>
         <CardHeader
           title="Products"
-          description="One row per product. Empty rows are ignored."
+          description="One row per product — its own name, price and photographs. Empty rows are ignored."
           actions={
             <Button size="sm" variant="secondary" onClick={() => setRows((c) => [...c, makeRow()])}>
               <Plus className="size-3.5" aria-hidden="true" />
@@ -371,6 +435,7 @@ export default function BulkUploadPage() {
                 <th className="pb-2 pr-3">URL slug</th>
                 <th className="pb-2 pr-3 text-right">Price override</th>
                 <th className="pb-2 pr-3 text-right">Sells at</th>
+                <th className="pb-2 pr-3">Photos</th>
                 <th className="w-10 pb-2" />
               </tr>
             </thead>
@@ -415,6 +480,14 @@ export default function BulkUploadPage() {
                     <td className="tabular py-1.5 pr-3 text-right text-ink-700">
                       {filledRow ? money(Math.round(base * (100 - percent)) / 100) : "—"}
                     </td>
+                    <td className="py-1.5 pr-3">
+                      <RowPhotos
+                        files={row.photos}
+                        disabled={!filledRow}
+                        label={`row ${index + 1}`}
+                        onOpen={() => setPhotoRow(index)}
+                      />
+                    </td>
                     <td className="py-1.5 text-right">
                       <Button
                         size="sm"
@@ -438,6 +511,7 @@ export default function BulkUploadPage() {
         <div className="flex flex-wrap items-center gap-x-8 gap-y-3 p-5">
           <Summary label="Products" value={number(filled.length)} highlight />
           <Summary label="Sizes each" value={number(sizes.length)} />
+          <Summary label="Photographs" value={number(totalPhotos)} />
           <Summary label="Offer" value={percent > 0 ? `${percent}%` : "None"} />
           <Summary
             label="Status"
@@ -467,7 +541,91 @@ export default function BulkUploadPage() {
           </div>
         </div>
       </div>
+
+      <Modal
+        open={photoRow !== null}
+        onClose={() => setPhotoRow(null)}
+        size="lg"
+        title={
+          photoRow === null
+            ? "Photographs"
+            : `Photographs — ${rows[photoRow]?.name?.trim() || `row ${photoRow + 1}`}`
+        }
+        description="Chosen now, uploaded once the products are created. The first is the cover."
+        footer={
+          <Button variant="primary" onClick={() => setPhotoRow(null)}>
+            Done
+          </Button>
+        }
+      >
+        {photoRow === null ? null : (
+          <StagedGallery
+            files={rows[photoRow].photos}
+            onChange={(photos) => patchRow(photoRow, { photos })}
+            disabled={busy}
+          />
+        )}
+      </Modal>
     </div>
+  );
+}
+
+/**
+ * A row's photographs, as a table cell.
+ *
+ * Shows the cover and a count rather than the gallery itself — the
+ * point here is to confirm at a glance that the right files landed on
+ * the right row; managing them is the modal's job.
+ *
+ * The object URL is created for the cover alone and revoked when it
+ * changes, so a twenty-row batch does not pin twenty files in memory
+ * for the sake of twenty thumbnails.
+ */
+function RowPhotos({ files, onOpen, disabled, label }) {
+  const cover = files[0] ?? null;
+
+  const preview = useMemo(
+    () => (cover ? URL.createObjectURL(cover) : null),
+    [cover],
+  );
+
+  useEffect(
+    () => () => {
+      if (preview) URL.revokeObjectURL(preview);
+    },
+    [preview],
+  );
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      disabled={disabled}
+      title={disabled ? "Name this product first" : undefined}
+      className={cx(
+        "flex items-center gap-2 rounded-lg px-1.5 py-1 text-xs transition-colors",
+        disabled
+          ? "cursor-not-allowed text-ink-300"
+          : "text-ink-600 hover:bg-ink-100 hover:text-ink-900",
+      )}
+    >
+      {preview ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={preview}
+          alt=""
+          className="size-8 shrink-0 rounded object-cover ring-1 ring-ink-900/10"
+        />
+      ) : (
+        <span className="flex size-8 shrink-0 items-center justify-center rounded bg-ink-100 text-ink-400">
+          <ImagePlus className="size-3.5" aria-hidden="true" />
+        </span>
+      )}
+      <span className="whitespace-nowrap">
+        {files.length === 0 ? "Add" : `${files.length} photo${files.length === 1 ? "" : "s"}`}
+      </span>
+      <span className="sr-only">for {label}</span>
+    </button>
   );
 }
 

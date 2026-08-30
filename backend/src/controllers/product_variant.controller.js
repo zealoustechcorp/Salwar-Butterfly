@@ -208,6 +208,78 @@ export const ProductVariantController = {
     }
   }),
 
+  bulkSetActive: asyncHandler(async (req, res) => {
+    try {
+      const { variantIds, active } = req.body;
+
+      logger.info("Bulk variant status endpoint called", {
+        count: variantIds?.length,
+        active,
+      });
+
+      const result = await ProductVariantService.bulkSetActive({
+        variantIds,
+        active,
+      });
+
+      return okResponse({
+        res,
+        data: result.data,
+        meta: { count: result.count, missing: result.missing },
+        message: `${result.count} size${result.count === 1 ? "" : "s"} ${
+          active ? "put back on sale" : "taken off sale"
+        }`,
+      });
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+
+      logger.error("Bulk variant status endpoint error", {
+        error: error?.message,
+      });
+
+      throw new ApiError(500, "Failed to update those sizes");
+    }
+  }),
+
+  bulkDelete: asyncHandler(async (req, res) => {
+    try {
+      const { variantIds, force } = req.body;
+
+      logger.info("Bulk variant delete endpoint called", {
+        count: variantIds?.length,
+        force,
+      });
+
+      const result = await ProductVariantService.bulkDelete({
+        variantIds,
+        force,
+      });
+
+      // Always 200, never 207 or an error: a selection where some rows
+      // were protected is a normal outcome the screen renders, not a
+      // failed request.
+      return okResponse({
+        res,
+        data: result,
+        message: result.deleted
+          ? `${result.deleted} size${result.deleted === 1 ? "" : "s"} deleted${
+              result.blocked.length
+                ? `, ${result.blocked.length} kept because they still hold stock`
+                : ""
+            }`
+          : "Nothing was deleted — every selected size still holds stock",
+      });
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+
+      logger.error("Bulk variant delete endpoint error", {
+        error: error?.message,
+      });
+
+      throw new ApiError(500, "Failed to delete those sizes");
+    }
+  }),
+
   delete: asyncHandler(async (req, res) => {
     try {
       const { id } = req.params;

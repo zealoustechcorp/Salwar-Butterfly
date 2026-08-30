@@ -3,11 +3,14 @@
 import {
   ChevronLeft,
   ChevronRight,
+  Eye,
+  EyeOff,
   Minus,
   PackagePlus,
   Plus,
   Search,
   SearchX,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -37,6 +40,7 @@ import {
   STOCK_SORTS,
 } from "@/lib/api/inventory";
 import { getReference } from "@/lib/api/products";
+import { bulkDeleteVariants, bulkSetVariantActive } from "@/lib/api/variants";
 import { number, relativeDate } from "@/lib/format";
 import { STOCK_LABEL, STOCK_TONE } from "@/lib/stock";
 
@@ -92,6 +96,8 @@ export default function InventoryPage() {
   const [reference, setReference] = useState(null);
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [restockOpen, setRestockOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [selectionBusy, setSelectionBusy] = useState(false);
   const [rowBusy, setRowBusy] = useState(null);
 
   // Request and outcome in one object: comparing the stored query with
@@ -239,7 +245,39 @@ export default function InventoryPage() {
     }
   }
 
+  /**
+   * Takes the selected sizes off sale, or puts them back (F-03.11).
+   *
+   * Refetches rather than patching in place: a size that just went off
+   * sale becomes `unavailable`, which may well move it out of the
+   * current filter, and leaving it sitting there under a stale badge
+   * would be worse than the row moving.
+   */
+  async function setSaleStatus(active) {
+    setSelectionBusy(true);
+    try {
+      const result = await bulkSetVariantActive(
+        selection.map((row) => row.id),
+        active,
+      );
+      toast.success(
+        `${result.count} size${result.count === 1 ? "" : "s"} ${active ? "put back on sale" : "taken off sale"}.`,
+        result.missing ? `${result.missing} were no longer there.` : undefined,
+      );
+      setSelectedIds(new Set());
+      refresh();
+    } catch (err) {
+      toast.error(err.message || "Could not change those sizes.");
+    } finally {
+      setSelectionBusy(false);
+    }
+  }
+
   const allVisibleSelected = rows.length > 0 && selection.length === rows.length;
+
+  // Every selected size is already off sale, so offer the reverse.
+  const allSelectionInactive =
+    selection.length > 0 && selection.every((row) => !row.active);
 
   return (
     <div className="mx-auto max-w-[1400px] space-y-5">
@@ -358,11 +396,46 @@ export default function InventoryPage() {
             <span className="text-xs text-brand-700">
               holding {number(selection.reduce((sum, row) => sum + row.stockQuantity, 0))} units
             </span>
-            <div className="ml-auto flex items-center gap-2">
-              <Button size="sm" variant="secondary" onClick={() => setRestockOpen(true)}>
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={selectionBusy}
+                onClick={() => setRestockOpen(true)}
+              >
                 <PackagePlus className="size-3.5" aria-hidden="true" />
                 Adjust stock
               </Button>
+
+              <Button
+                size="sm"
+                variant="secondary"
+                busy={selectionBusy}
+                onClick={() => setSaleStatus(allSelectionInactive)}
+              >
+                {allSelectionInactive ? (
+                  <>
+                    <Eye className="size-3.5" aria-hidden="true" />
+                    Put on sale
+                  </>
+                ) : (
+                  <>
+                    <EyeOff className="size-3.5" aria-hidden="true" />
+                    Take off sale
+                  </>
+                )}
+              </Button>
+
+              <Button
+                size="sm"
+                variant="danger"
+                disabled={selectionBusy}
+                onClick={() => setDeleteOpen(true)}
+              >
+                <Trash2 className="size-3.5" aria-hidden="true" />
+                Delete
+              </Button>
+
               <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
                 Clear
               </Button>
@@ -489,6 +562,18 @@ export default function InventoryPage() {
         rows={selection}
         onApply={applyBulk}
       />
+
+      <DeleteSizesDialog
+        key={deleteOpen ? "delete-open" : "delete-closed"}
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        rows={selection}
+        onDeactivate={() => setSaleStatus(false)}
+        onDone={() => {
+          setSelectedIds(new Set());
+          refresh();
+        }}
+      />
     </div>
   );
 }
@@ -601,6 +686,161 @@ function InventoryRow({ row, busy, selected, onSelect, onMove, onCount }) {
 
       <td className="px-3 py-2 text-xs text-ink-500">{relativeDate(row.updatedAt)}</td>
     </tr>
+  );
+}
+
+/**
+ * Multi-select delete for sizes (F-03.11), and the business rule that
+ * governs it.
+ *
+ * Deleting a variant destroys the only record of its stock, so a size
+ * still holding units is kept back and reported rather than removed.
+ * Everything else in the selection still goes — one protected size does
+ * not block the other nine — and the override is offered only after the
+ * screen has named what would be lost.
+ *
+ * Taking sizes off sale is offered alongside, and is almost always the
+ * right answer: it retires a size without discarding its stock count.
+ */
+function DeleteSizesDialog({ open, onClose, rows, onDeactivate, onDone }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const [blocked, setBlocked] = useState([]);
+  const [emptied, setEmptied] = useState([]);
+
+  const holdingStock = rows.filter((row) => row.stockQuantity > 0);
+  const units = holdingStock.reduce((sum, row) => sum + row.stockQuantity, 0);
+
+  async function run(force) {
+    setBusy(true);
+    try {
+      // The override retries only what was held back. The rest of the
+      // selection is already gone, and re-sending it would just come
+      // back counted as missing.
+      const ids = force ? blocked.map((row) => row.id) : rows.map((row) => row.id);
+
+      const result = await bulkDeleteVariants(ids, { force });
+
+      // The dialog closes on a clean run, so anything worth knowing
+      // afterwards has to travel in the toast rather than stay behind
+      // in a panel nobody will see again.
+      const notes = [
+        result.blocked.length
+          ? `${result.blocked.length} kept because they still hold stock.`
+          : null,
+        result.emptiedProducts.length
+          ? `${result.emptiedProducts.length} product${result.emptiedProducts.length === 1 ? "" : "s"} now have no sizes and cannot be bought.`
+          : null,
+      ].filter(Boolean);
+
+      if (result.deleted) {
+        toast.success(
+          `${result.deleted} size${result.deleted === 1 ? "" : "s"} deleted.`,
+          notes.join(" ") || undefined,
+        );
+      } else {
+        toast.error("Nothing was deleted — every selected size still holds stock.");
+      }
+
+      setEmptied(result.emptiedProducts);
+
+      // Anything held back stays on screen with its reason, so the
+      // override can be taken without re-selecting the rows.
+      if (result.blocked.length) {
+        setBlocked(result.blocked);
+        setBusy(false);
+        return;
+      }
+
+      await onDone?.();
+      onClose();
+    } catch (err) {
+      toast.error(err.message || "Delete failed.");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Delete sizes"
+      description={`${rows.length} size${rows.length === 1 ? "" : "s"} selected.`}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={busy}>
+            Cancel
+          </Button>
+          <Button
+            variant="secondary"
+            busy={busy}
+            onClick={async () => {
+              await onDeactivate?.();
+              onClose();
+            }}
+          >
+            Take off sale instead
+          </Button>
+          <Button variant="danger" busy={busy} onClick={() => run(blocked.length > 0)}>
+            {blocked.length > 0 ? `Delete ${blocked.length} anyway` : `Delete ${rows.length}`}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="max-h-48 overflow-y-auto rounded-lg ring-1 ring-ink-200">
+          <ul className="divide-y divide-ink-100">
+            {rows.map((row) => (
+              <li key={row.id} className="flex items-center gap-3 px-3 py-2">
+                <span className="min-w-0 flex-1 truncate text-xs font-medium text-ink-800">
+                  {row.product.name}{" "}
+                  <span className="font-semibold text-ink-500">({row.size})</span>
+                </span>
+                <span className="tabular shrink-0 text-[11px] text-ink-400">
+                  {row.stockQuantity} in stock
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {blocked.length ? (
+          <div className="rounded-lg bg-amber-50 p-3 ring-1 ring-inset ring-amber-200">
+            <p className="text-[11px] font-semibold tracking-wide text-amber-800 uppercase">
+              {blocked.length} kept
+            </p>
+            <ul className="mt-1.5 space-y-1">
+              {blocked.map((row) => (
+                <li key={row.id} className="text-xs text-amber-900">
+                  <strong className="font-medium">{row.label}</strong> — {row.reason}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-[11px] text-amber-800/80">
+              Take them off sale to retire them and keep the count, or delete anyway to discard it.
+            </p>
+          </div>
+        ) : holdingStock.length ? (
+          <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900 ring-1 ring-inset ring-amber-200">
+            {holdingStock.length} of these still hold {number(units)} unit
+            {units === 1 ? "" : "s"}. Those will be kept back rather than deleted — deleting a size
+            discards its stock count, and there is no other record of it.
+          </p>
+        ) : (
+          <p className="text-[11px] text-ink-500">
+            Deleting is permanent. Taking a size off sale is the reversible way to retire one.
+          </p>
+        )}
+
+        {emptied.length ? (
+          <p className="rounded-lg bg-red-50 p-3 text-xs text-red-800 ring-1 ring-inset ring-red-200">
+            {emptied.length} product{emptied.length === 1 ? " has" : "s have"} no sizes left and
+            cannot be bought: {emptied.map((product) => product.name).join(", ")}. Add sizes on the
+            product&apos;s own screen.
+          </p>
+        ) : null}
+      </div>
+    </Modal>
   );
 }
 

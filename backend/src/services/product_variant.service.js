@@ -15,6 +15,9 @@ const UUID_REGEX =
 
 const MAX_SIZES_PER_PRODUCT = 50;
 
+/** How many sizes one multi-select action may touch. */
+const MAX_BULK_VARIANTS = 200;
+
 const assertUuid = (value, label) => {
   const normalized = String(value ?? "").trim();
   if (!normalized || !UUID_REGEX.test(normalized)) {
@@ -55,6 +58,32 @@ const normalizeStock = (value, context) => {
   }
 
   return stock;
+};
+
+/**
+ * A multi-select of variant ids: validated, de-duplicated and capped.
+ *
+ * De-duplicated because the counts reported back — "6 sizes deleted" —
+ * are what the screen tells the admin, and the same id twice would
+ * inflate them.
+ */
+const normalizeIdList = (value) => {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new ApiError(400, "At least one size must be selected");
+  }
+
+  if (value.length > MAX_BULK_VARIANTS) {
+    throw new ApiError(
+      400,
+      `At most ${MAX_BULK_VARIANTS} sizes can be changed at once`,
+    );
+  }
+
+  return [
+    ...new Set(
+      value.map((id, index) => assertUuid(id, `variant ID at index ${index}`)),
+    ),
+  ];
 };
 
 const normalizeBoolean = (value, fallback) => {
@@ -346,6 +375,133 @@ export const ProductVariantService = {
       });
 
       throw new ApiError(500, "Failed to update product variant");
+    }
+  },
+
+  /**
+   * Takes several sizes off sale, or puts them back (F-03.11).
+   *
+   * Deactivating is the reversible half of the multi-select pair: the
+   * size keeps its stock count and its history, and simply stops being
+   * offered. It is what retiring a size actually means, and it is why
+   * the delete path below can afford to be strict.
+   */
+  async bulkSetActive({ variantIds, active } = {}) {
+    try {
+      const ids = normalizeIdList(variantIds);
+      const wanted = normalizeBoolean(active, null);
+
+      if (wanted === null) {
+        throw new ApiError(400, "active must be true or false");
+      }
+
+      const found = await ProductVariantRepository.findByIds(ids);
+
+      if (found.length === 0) {
+        throw new ApiError(404, "None of those sizes exist");
+      }
+
+      const rows = await ProductVariantRepository.bulkSetActive(
+        found.map((row) => row.id),
+        wanted,
+      );
+
+      logger.info("Product variants bulk status change", {
+        count: rows.length,
+        active: wanted,
+      });
+
+      return {
+        data: ProductVariantMapper.toDTOList(rows),
+        count: rows.length,
+        // Ids that matched nothing — a stale page, or a size another
+        // admin removed while this one was selecting.
+        missing: ids.length - found.length,
+      };
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+
+      logger.error("ProductVariantService.bulkSetActive failed", {
+        error: error?.message,
+      });
+
+      throw new ApiError(500, "Failed to update those sizes");
+    }
+  },
+
+  /**
+   * Deletes several sizes (F-03.11), subject to the one rule that
+   * matters here: a size still holding stock is not deleted by accident.
+   *
+   * Deleting a variant destroys its stock count — there is no other
+   * record of it — so a size with units on hand is refused and reported
+   * back instead. `force` is the deliberate override, which the screen
+   * only offers once it has said what will be lost. Everything
+   * deletable in the selection still goes, so one protected size does
+   * not block the other nine.
+   */
+  async bulkDelete({ variantIds, force = false } = {}) {
+    try {
+      const ids = normalizeIdList(variantIds);
+      const override = normalizeBoolean(force, false);
+
+      const found = await ProductVariantRepository.findByIds(ids);
+
+      if (found.length === 0) {
+        throw new ApiError(404, "None of those sizes exist");
+      }
+
+      const label = (row) => `${row.product_name} (${row.size})`;
+
+      const blocked = override
+        ? []
+        : found
+            .filter((row) => Number(row.stock_quantity) > 0)
+            .map((row) => ({
+              id: row.id,
+              label: label(row),
+              reason: `still holds ${row.stock_quantity} in stock`,
+            }));
+
+      const blockedIds = new Set(blocked.map((row) => row.id));
+      const deletable = found.filter((row) => !blockedIds.has(row.id));
+
+      if (deletable.length === 0) {
+        return {
+          deleted: 0,
+          blocked,
+          emptiedProducts: [],
+          missing: ids.length - found.length,
+        };
+      }
+
+      const result = await ProductVariantRepository.bulkDelete(
+        deletable.map((row) => row.id),
+      );
+
+      logger.info("Product variants bulk deleted", {
+        count: result.deleted.length,
+        blocked: blocked.length,
+      });
+
+      return {
+        deleted: result.deleted.length,
+        blocked,
+        emptiedProducts: result.emptiedProducts.map((product) => ({
+          id: product.id,
+          name: product.name,
+          slug: product.slug,
+        })),
+        missing: ids.length - found.length,
+      };
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+
+      logger.error("ProductVariantService.bulkDelete failed", {
+        error: error?.message,
+      });
+
+      throw new ApiError(500, "Failed to delete those sizes");
     }
   },
 

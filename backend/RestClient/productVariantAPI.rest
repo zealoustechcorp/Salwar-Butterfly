@@ -3,6 +3,7 @@
 
 @productId = 41cee835-1c0c-4511-b091-246a213e8373
 @variantId = 8f2a1c44-1c0c-4511-b091-246a213e8373
+@otherVariantId = 6b13d902-77aa-4f22-9c31-5d2b0e441a90
 
 
 ### ============================================================
@@ -146,4 +147,89 @@ Content-Type: application/json
   "variants": [
     { "size": "M", "stockQuantity": -5 }
   ]
+}
+
+
+### ============================================================
+### MULTI-SELECT  (F-03.11)
+###
+### Two halves, and the difference is the whole point:
+###
+###   deactivate  reversible. The size keeps its stock count and
+###               its history and simply stops being offered. This
+###               is what retiring a size means.
+###
+###   delete      permanent, and it discards the stock count with
+###               the row. So a size still holding units is kept
+###               back and reported instead — `force` is the
+###               deliberate override.
+### ============================================================
+
+
+### ============================================================
+### Take several sizes off sale
+### ============================================================
+PATCH {{baseUrl}}/productVariants/bulkSetVariantActive
+Content-Type: application/json
+
+{
+  "variantIds": ["{{variantId}}", "{{otherVariantId}}"],
+  "active": false
+}
+
+
+### ============================================================
+### Put them back on sale
+### ============================================================
+PATCH {{baseUrl}}/productVariants/bulkSetVariantActive
+Content-Type: application/json
+
+{
+  "variantIds": ["{{variantId}}", "{{otherVariantId}}"],
+  "active": true
+}
+
+
+### ============================================================
+### Delete several sizes
+###
+### Answers 200 with { deleted, blocked, emptiedProducts, missing }.
+### A partly-refused selection is a normal outcome the screen
+### renders, not a failed request — so anything holding stock comes
+### back in `blocked` with its reason, and the rest still go.
+###
+### `emptiedProducts` lists products this left with no sizes at all.
+### Not refused, but nothing can be bought in them.
+### ============================================================
+DELETE {{baseUrl}}/productVariants/bulkDeleteVariants
+Content-Type: application/json
+
+{
+  "variantIds": ["{{variantId}}", "{{otherVariantId}}"]
+}
+
+
+### ============================================================
+### Delete them even though they hold stock
+###
+### Only after the screen has said what will be lost.
+### ============================================================
+DELETE {{baseUrl}}/productVariants/bulkDeleteVariants
+Content-Type: application/json
+
+{
+  "variantIds": ["{{variantId}}"],
+  "force": true
+}
+
+
+### ============================================================
+### Validation: nothing selected -> 400
+### ============================================================
+PATCH {{baseUrl}}/productVariants/bulkSetVariantActive
+Content-Type: application/json
+
+{
+  "variantIds": [],
+  "active": false
 }

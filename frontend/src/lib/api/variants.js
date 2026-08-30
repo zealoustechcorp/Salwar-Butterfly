@@ -128,3 +128,59 @@ export async function updateVariantStock(variantId, stockQuantity, { token } = {
 
   return toVariant(data);
 }
+
+// ============================================================
+// MULTI-SELECT  (F-03.11)
+// ============================================================
+
+/**
+ * Takes several sizes off sale, or puts them back.
+ *
+ * The reversible half of the pair: a deactivated size keeps its stock
+ * count and its history and simply stops being offered. This is what
+ * retiring a size means — deleting is for one entered by mistake.
+ *
+ * @param {string[]} variantIds
+ * @param {boolean} active
+ */
+export async function bulkSetVariantActive(variantIds, active, { token } = {}) {
+  const { data, meta } = await api.patch(
+    "/productVariants/bulkSetVariantActive",
+    { variantIds, active },
+    { token, envelope: true },
+  );
+
+  return {
+    variants: (data ?? []).map(toVariant),
+    count: meta?.count ?? (data ?? []).length,
+    missing: meta?.missing ?? 0,
+  };
+}
+
+/**
+ * Deletes several sizes.
+ *
+ * A size still holding stock comes back in `blocked` rather than being
+ * removed — deleting a variant destroys the only record of that stock.
+ * Everything else in the selection is still deleted, so one protected
+ * size does not block the other nine. Pass `force` to delete them
+ * anyway, once the screen has said what will be lost.
+ *
+ * @returns {Promise<{deleted: number, blocked: Array<{id, label, reason}>,
+ *                    emptiedProducts: Array<{id, name, slug}>, missing: number}>}
+ *          `emptiedProducts` are the products this left with no sizes at
+ *          all — not refused, but nothing can be bought in them.
+ */
+export async function bulkDeleteVariants(variantIds, { force = false, token } = {}) {
+  const data = await api.del("/productVariants/bulkDeleteVariants", {
+    body: { variantIds, force },
+    token,
+  });
+
+  return {
+    deleted: data?.deleted ?? 0,
+    blocked: data?.blocked ?? [],
+    emptiedProducts: data?.emptiedProducts ?? [],
+    missing: data?.missing ?? 0,
+  };
+}

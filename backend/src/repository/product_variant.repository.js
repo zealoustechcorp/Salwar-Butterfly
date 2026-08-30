@@ -211,6 +211,113 @@ export const ProductVariantRepository = {
   },
 
   /**
+   * Several variants by id, each carrying its product's name.
+   *
+   * The name is joined here because every caller of this is a
+   * multi-select action that has to *describe* what it is about to do —
+   * "delete 6 sizes" is not something anyone should confirm without
+   * seeing which six.
+   */
+  async findByIds(ids) {
+    if (!Array.isArray(ids) || ids.length === 0) return [];
+
+    const text = `
+      SELECT v.*, p.name AS product_name, p.slug AS product_slug
+      FROM product_variants v
+      JOIN products p ON p.id = v.product_id
+      WHERE v.id = ANY($1::uuid[])
+      ORDER BY p.name ASC, v.position ASC
+    `;
+
+    try {
+      const result = await query(text, [ids]);
+      return result.rows;
+    } catch (error) {
+      throw handleDatabaseError(error, "findByIds", { count: ids.length });
+    }
+  },
+
+  /**
+   * Takes several sizes off sale, or puts them back (F-03.11).
+   *
+   * One statement rather than a loop: the whole selection changes
+   * together or not at all, so a half-applied "deactivate every XXL"
+   * cannot leave the catalogue in a state nobody asked for.
+   */
+  async bulkSetActive(ids, active) {
+    const text = `
+      UPDATE product_variants
+      SET active = $2, updated_at = NOW()
+      WHERE id = ANY($1::uuid[])
+      RETURNING *
+    `;
+
+    try {
+      const result = await query(text, [ids, active]);
+
+      logger.info("Product variants bulk status change", {
+        count: result.rowCount,
+        active,
+      });
+
+      return result.rows;
+    } catch (error) {
+      throw handleDatabaseError(error, "bulkSetActive", { count: ids.length });
+    }
+  },
+
+  /**
+   * Deletes several sizes, and reports which products that leaves with
+   * none.
+   *
+   * Both halves run in one transaction so the second answer describes
+   * the catalogue the first half actually produced — asking afterwards
+   * could read a state something else had moved on from.
+   *
+   * @returns {Promise<{deleted: object[], emptiedProducts: object[]}>}
+   */
+  async bulkDelete(ids) {
+    try {
+      return await withTransaction(async (client) => {
+        const deleted = await client.query(
+          `DELETE FROM product_variants
+           WHERE id = ANY($1::uuid[])
+           RETURNING id, product_id, size`,
+          [ids],
+        );
+
+        const productIds = [...new Set(deleted.rows.map((row) => row.product_id))];
+
+        // A product with no sizes left has nothing a shopper can put in
+        // a bag. Not refused — clearing a size run to re-enter it is a
+        // legitimate thing to do — but the caller is told, so the screen
+        // can say so rather than leaving it to be discovered later.
+        const emptied =
+          productIds.length === 0
+            ? { rows: [] }
+            : await client.query(
+                `SELECT p.id, p.name, p.slug
+                 FROM products p
+                 WHERE p.id = ANY($1::uuid[])
+                   AND NOT EXISTS (
+                     SELECT 1 FROM product_variants v WHERE v.product_id = p.id
+                   )`,
+                [productIds],
+              );
+
+        logger.info("Product variants bulk deleted", {
+          count: deleted.rowCount,
+          emptiedProducts: emptied.rows.length,
+        });
+
+        return { deleted: deleted.rows, emptiedProducts: emptied.rows };
+      });
+    } catch (error) {
+      throw handleDatabaseError(error, "bulkDelete", { count: ids.length });
+    }
+  },
+
+  /**
    * Makes a product's size set exactly match `variants`, in one
    * transaction: sizes already present are updated, new ones inserted,
    * and any size no longer listed is removed.

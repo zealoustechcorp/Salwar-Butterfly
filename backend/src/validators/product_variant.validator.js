@@ -125,6 +125,81 @@ export const validateReplaceVariants = (req, res, next) => {
   }
 };
 
+/**
+ * Shape of a multi-select payload (F-03.11). The cap, the duplicates
+ * and the "does it exist" question are the service's, so that a
+ * selection acted on through any path is treated the same.
+ */
+const validateVariantIdList = (variantIds) => {
+  if (!Array.isArray(variantIds)) {
+    return "variantIds must be an array";
+  }
+
+  if (variantIds.length === 0) {
+    return "At least one size must be selected";
+  }
+
+  const bad = variantIds.findIndex(
+    (id) => !UUID_REGEX.test(String(id ?? "").trim()),
+  );
+
+  if (bad !== -1) {
+    return `Invalid variant ID format at index ${bad}`;
+  }
+
+  return null;
+};
+
+export const validateBulkVariantStatus = (req, res, next) => {
+  try {
+    const { variantIds, active } = req.body ?? {};
+
+    const errors = {};
+
+    const listError = validateVariantIdList(variantIds);
+    if (listError) errors.variantIds = listError;
+
+    if (active === undefined || active === null || active === "") {
+      errors.active = "active is required";
+    } else {
+      const activeError = validateActive(active, "Variant");
+      if (activeError) errors.active = activeError;
+    }
+
+    if (Object.keys(errors).length > 0) {
+      throw new ApiError(400, "Validation failed", errors);
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const validateBulkVariantDelete = (req, res, next) => {
+  try {
+    const { variantIds, force } = req.body ?? {};
+
+    const errors = {};
+
+    const listError = validateVariantIdList(variantIds);
+    if (listError) errors.variantIds = listError;
+
+    if (force !== undefined) {
+      const forceError = validateActive(force, "force");
+      if (forceError) errors.force = "force must be a boolean";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      throw new ApiError(400, "Validation failed", errors);
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const validateUpdateVariant = (req, res, next) => {
   try {
     const variantId = req.params?.id;
