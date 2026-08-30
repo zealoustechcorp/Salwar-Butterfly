@@ -6,7 +6,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { DiscountDialog } from "@/components/admin/DiscountDialog";
 import { ActiveDot, StatTile } from "@/components/admin/ProductBits";
-import { ProductThumb, swatchFor } from "@/components/admin/ProductThumb";
+import { GalleryThumbnail } from "@/components/admin/ProductGallery";
+import { ProductCover } from "@/components/admin/ProductThumb";
 import { StockBadge } from "@/components/admin/SizeStockEditor";
 import {
   Badge,
@@ -126,7 +127,7 @@ export default function ProductDetailPage() {
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex min-w-0 items-start gap-4">
-          <ProductThumb {...swatchFor(product)} size={64} rounded="rounded-xl" label={product.name} />
+          <ProductCover product={product} size={64} rounded="rounded-xl" />
           <div className="min-w-0">
             <h1 className="flex flex-wrap items-center gap-2 text-xl font-semibold tracking-tight text-ink-900">
               {product.name}
@@ -213,6 +214,49 @@ export default function ProductDetailPage() {
 
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="space-y-5 lg:col-span-2">
+          <Card>
+            <CardHeader
+              title="Photographs"
+              description={
+                product.images.length
+                  ? "The first is the cover shoppers see in the listing."
+                  : "What shoppers see this product as."
+              }
+              actions={
+                <LinkButton
+                  size="sm"
+                  variant="secondary"
+                  href={`/admin/products/${product.id}/edit?tab=photos`}
+                >
+                  Manage
+                </LinkButton>
+              }
+            />
+            {product.images.length === 0 ? (
+              <p className="px-5 py-6 text-sm text-ink-500">
+                No photographs yet — this product shows an illustrated swatch everywhere it
+                appears. Add them from the edit screen.
+              </p>
+            ) : (
+              <ul className="flex flex-wrap gap-3 px-5 py-4">
+                {product.images.map((image, index) => (
+                  <li key={image.id} className="relative">
+                    <GalleryThumbnail
+                      src={image.url}
+                      alt={image.altText || `${product.name}, photograph ${index + 1}`}
+                      className="size-24 rounded-lg ring-1 ring-ink-200"
+                    />
+                    {index === 0 ? (
+                      <span className="absolute top-1 left-1">
+                        <Badge tone="gold">Cover</Badge>
+                      </span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+
           <Card>
             <CardHeader
               title="Sizes & stock"

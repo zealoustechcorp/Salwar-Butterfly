@@ -1,17 +1,19 @@
 "use client";
 
+import { useState } from "react";
+
 import { readableOn } from "@/lib/format";
 import { cx } from "./ui";
 
 /**
- * Placeholder garment imagery, drawn as inline SVG.
+ * The fallback garment imagery, drawn as inline SVG.
  *
- * `products` has no image column and the API has no upload route, so
- * there is nothing to photograph a product with yet. Rather than ship a
- * grey box — or invent a stock photo that implies data we do not have —
- * every tile draws a fabric swatch derived from the product's own id, so
- * a product looks the same on every screen and nothing depends on a
- * network request.
+ * Products carry real photographs now (`product_images`, uploaded on the
+ * edit screen's Photos tab), and `ProductCover` below shows them. This
+ * swatch is what a product without one falls back to: rather than a grey
+ * box, every tile draws a fabric pattern derived from the product's own
+ * id, so an unphotographed product still looks the same on every screen
+ * and needs no network request.
  */
 
 const MOTIFS = ["booti", "paisley", "chevron", "dots"];
@@ -48,6 +50,60 @@ export function swatchFor(product) {
     typeof product === "string" ? product : (product?.id ?? product?.slug ?? "");
   const seed = hash(key);
   return { hex: PALETTE[seed % PALETTE.length], seed };
+}
+
+/**
+ * A product's cover photograph, falling back to its swatch.
+ *
+ * Every product screen shows a thumbnail, and a product may or may not
+ * have been photographed yet — putting the choice here means no screen
+ * has to decide, and an image that 404s degrades to the swatch instead
+ * of a broken-image icon.
+ *
+ * @param {object} props
+ * @param {{id?: string, name?: string, primaryImage?: {url: string, altText: string}}} props.product
+ */
+export function ProductCover({
+  product,
+  size = 40,
+  className,
+  rounded = "rounded-md",
+  ring = true,
+}) {
+  const [failed, setFailed] = useState(false);
+  const cover = product?.primaryImage;
+
+  if (cover?.url && !failed) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={cover.url}
+        alt={cover.altText || product?.name || "Product photograph"}
+        width={size}
+        height={size}
+        loading="lazy"
+        onError={() => setFailed(true)}
+        className={cx(
+          "block shrink-0 object-cover",
+          ring && "ring-1 ring-ink-900/10",
+          rounded,
+          className,
+        )}
+        style={{ width: size, height: size }}
+      />
+    );
+  }
+
+  return (
+    <ProductThumb
+      {...swatchFor(product)}
+      size={size}
+      className={className}
+      rounded={rounded}
+      ring={ring}
+      label={product?.name}
+    />
+  );
 }
 
 export function ProductThumb({

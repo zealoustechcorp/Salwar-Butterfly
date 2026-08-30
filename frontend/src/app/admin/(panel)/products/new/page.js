@@ -9,6 +9,7 @@ import {
   DetailsFields,
   PricingFields,
 } from "@/components/admin/ProductFields";
+import { StagedGallery } from "@/components/admin/ProductGallery";
 import { SizeStockEditor } from "@/components/admin/SizeStockEditor";
 import {
   Button,
@@ -21,6 +22,7 @@ import {
   useToast,
 } from "@/components/admin/ui";
 import { listAttributeValues } from "@/lib/api/attributes";
+import { uploadImages } from "@/lib/api/images";
 import { createProduct, getReference } from "@/lib/api/products";
 import { replaceVariants } from "@/lib/api/variants";
 import { autoSlug } from "@/lib/slug";
@@ -53,6 +55,9 @@ export default function NewProductPage() {
   const [attributeGroups, setAttributeGroups] = useState({});
   const [form, setForm] = useState(BLANK);
   const [sizes, setSizes] = useState(DEFAULT_SIZES);
+  // Held in the browser until the product exists — photographs are keyed
+  // by product id, so there is nothing to upload them against yet.
+  const [photos, setPhotos] = useState([]);
   const [errors, setErrors] = useState({});
   const [failure, setFailure] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -127,9 +132,29 @@ export default function NewProductPage() {
         }
       }
 
+      // Photographs are a third call, for the same reason sizes are a
+      // second one: they are keyed by product id.
+      if (photos.length) {
+        try {
+          await uploadImages(product.id, photos);
+        } catch (imageError) {
+          toast.error(
+            `"${product.name}" was created, but its photographs were not uploaded.`,
+            imageError.message,
+          );
+          router.push(`/admin/products/${product.id}/edit?tab=photos`);
+          return;
+        }
+      }
+
+      const added = [
+        sizes.length ? `${sizes.length} size${sizes.length === 1 ? "" : "s"}` : null,
+        photos.length ? `${photos.length} image${photos.length === 1 ? "" : "s"}` : null,
+      ].filter(Boolean);
+
       toast.success(
         `"${product.name}" created.`,
-        sizes.length ? `${sizes.length} size${sizes.length === 1 ? "" : "s"} added.` : undefined,
+        added.length ? `${added.join(" and ")} added.` : undefined,
       );
       router.push(`/admin/products/${product.id}`);
     } catch (err) {
@@ -179,6 +204,16 @@ export default function NewProductPage() {
         />
         <div className="p-5">
           <PricingFields form={form} setField={setField} errors={errors} />
+        </div>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Photographs"
+          description="Uploaded once the product is created. The first image becomes the cover."
+        />
+        <div className="p-5">
+          <StagedGallery files={photos} onChange={setPhotos} disabled={busy} />
         </div>
       </Card>
 

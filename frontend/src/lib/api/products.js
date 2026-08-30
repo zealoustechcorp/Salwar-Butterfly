@@ -31,6 +31,7 @@
 
 import { listCategories } from "./categories";
 import { api, ApiError } from "./client";
+import { toImage } from "./images";
 
 export { ApiError };
 
@@ -68,6 +69,11 @@ export function toProduct(dto) {
     ),
     // Free-form { fabric, work, sleeve, ... } from the JSONB column.
     attributes: dto.attributes ?? {},
+    // The gallery rides along on every product read, so a screen showing
+    // a thumbnail needs no second request. Managing it is its own client
+    // — see lib/api/images.js.
+    images: (dto.images ?? []).map(toImage),
+    primaryImage: dto.primaryImage ? toImage(dto.primaryImage) : null,
     isFeatured: Boolean(dto.isFeatured),
     active: Boolean(dto.active),
     createdAt: dto.createdAt ?? null,

@@ -1,6 +1,12 @@
+import { ProductImageMapper } from "./product_image.mapper.js";
+
 export const ProductMapper = {
   toDTO(product) {
     if (!product) return null;
+
+    // Present on the read queries, which aggregate the gallery onto the
+    // row; absent on a freshly INSERTed row, where it is simply empty.
+    const images = ProductImageMapper.fromProductRow(product.images);
 
     return {
       id: product.id,
@@ -13,6 +19,10 @@ export const ProductMapper = {
       discountPercentage: parseFloat(product.discount_percentage),
       currentPrice: parseFloat(product.current_price),
       attributes: product.attributes ?? {},
+      images,
+      // The cover, lifted out so a caller that only needs a thumbnail
+      // does not have to know that position 0 is what "primary" means.
+      primaryImage: images[0] ?? null,
       isFeatured: product.is_featured,
       active: product.active,
       createdAt: product.created_at,

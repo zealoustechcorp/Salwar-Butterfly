@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { DeleteDialog } from "@/components/admin/DeleteDialog";
 import { DiscountDialog } from "@/components/admin/DiscountDialog";
 import { ActiveDot, PriceCell, StatTile } from "@/components/admin/ProductBits";
-import { ProductThumb, swatchFor } from "@/components/admin/ProductThumb";
+import { ProductCover } from "@/components/admin/ProductThumb";
 import { StockBadge } from "@/components/admin/SizeStockEditor";
 import {
   Badge,
@@ -638,12 +638,11 @@ function ProductGridCard({ product, selected, busy, onToggleSelect, onToggleActi
       )}
     >
       <div className="relative aspect-[4/5]">
-        <ProductThumb
-          {...swatchFor(product)}
+        <ProductCover
+          product={product}
           size="100%"
           rounded="rounded-none"
           ring={false}
-          label={product.name}
           className="absolute inset-0"
         />
         <span className="absolute left-2 top-2 z-10 flex rounded-md bg-white/90 p-1 shadow-sm">
@@ -740,7 +739,7 @@ function ProductRow({ product, selected, busy, onToggleSelect, onToggleActive })
       </td>
       <td className="px-3 py-2.5">
         <div className="flex items-center gap-3">
-          <ProductThumb {...swatchFor(product)} size={40} label={product.name} />
+          <ProductCover product={product} size={40} />
           <div className="min-w-0">
             <Link
               href={`/admin/products/${product.id}`}

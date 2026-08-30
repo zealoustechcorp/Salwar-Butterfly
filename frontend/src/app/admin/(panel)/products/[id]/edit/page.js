@@ -10,6 +10,7 @@ import {
   DetailsFields,
   PricingFields,
 } from "@/components/admin/ProductFields";
+import { ProductGallery } from "@/components/admin/ProductGallery";
 import { SizeStockEditor } from "@/components/admin/SizeStockEditor";
 import {
   Badge,
@@ -30,6 +31,7 @@ import { shortDate } from "@/lib/format";
 
 const TABS = [
   { key: "details", label: "Details" },
+  { key: "photos", label: "Photos" },
   { key: "pricing", label: "Price & offer" },
   { key: "sizes", label: "Sizes & stock" },
 ];
@@ -58,6 +60,11 @@ function EditProduct() {
   // state and their own save — `null` until the first load lands.
   const [sizes, setSizes] = useState(null);
   const [savedSizes, setSavedSizes] = useState([]);
+  // Photographs are their own table too, but unlike sizes every change
+  // is written the moment it is made — an upload has already happened by
+  // the time the admin could press Save, so pretending otherwise would
+  // only invite them to "cancel" something that is already stored.
+  const [images, setImages] = useState([]);
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -77,6 +84,10 @@ function EditProduct() {
       .then(([product, reference, variantResult]) => {
         if (!active) return;
         setLoaded({ product, reference, error: null });
+
+        // The gallery rides along on the product read, so it needs no
+        // request of its own.
+        setImages(product.images ?? []);
 
         const rows = variantResult.variants.map((variant) => ({
           size: variant.size,
@@ -294,6 +305,30 @@ function EditProduct() {
             </div>
           </Card>
         </>
+      ) : null}
+
+      {tab === "photos" ? (
+        <Card>
+          <CardHeader
+            title="Photographs"
+            description="Front, back, drape, fabric. Changes here save immediately — they do not wait for the Save button."
+            actions={
+              images.length ? (
+                <Badge tone="neutral">
+                  {images.length} image{images.length === 1 ? "" : "s"}
+                </Badge>
+              ) : null
+            }
+          />
+          <div className="p-5">
+            <ProductGallery
+              productId={product.id}
+              images={images}
+              onChange={setImages}
+              disabled={saving}
+            />
+          </div>
+        </Card>
       ) : null}
 
       {tab === "pricing" ? (

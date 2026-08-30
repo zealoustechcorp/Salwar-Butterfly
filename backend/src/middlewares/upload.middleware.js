@@ -12,6 +12,13 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 
 const MAX_FILES = 1;
 
+// A product is photographed several times over — front, back, drape,
+// fabric — so its gallery accepts a batch where a category's single
+// cover image does not. Matches MAX_IMAGES_PER_PRODUCT in the service,
+// which is what actually enforces the per-product ceiling; this only
+// bounds one request.
+const MAX_PRODUCT_IMAGES = 8;
+
 // ============================================================
 // MULTER STORAGE
 // ============================================================
@@ -82,6 +89,20 @@ const upload = multer({
   limits: {
     fileSize: MAX_FILE_SIZE,
     files: MAX_FILES,
+  },
+
+  fileFilter,
+});
+
+// Same storage, same filter, a higher file count. A second instance
+// rather than raising `files` on the shared one: the single-image routes
+// rely on multer refusing a second file outright.
+const uploadMany = multer({
+  storage,
+
+  limits: {
+    fileSize: MAX_FILE_SIZE,
+    files: MAX_PRODUCT_IMAGES,
   },
 
   fileFilter,
@@ -234,57 +255,156 @@ export const validateUploadedImage = (req, res, next) => {
 export const uploadCategoryImage = upload.single("image");
 
 // ============================================================
-// MULTER ERROR HANDLER
+// PRODUCT IMAGE UPLOAD
 // ============================================================
+//
+// Expected multipart/form-data:
+//
+// images   = File (repeat the field for each image, up to 8)
+// altText  = String (optional, repeated positionally against the files)
+//
+// Example:
+//
+// uploadProductImages
+// validateUploadedImages
+//
 
-export const handleUploadError = (error, req, res, next) => {
-  if (!error) {
+export const uploadProductImages = uploadMany.array(
+  "images",
+  MAX_PRODUCT_IMAGES,
+);
+
+// ============================================================
+// VALIDATE UPLOADED IMAGES (MULTIPLE)
+// ============================================================
+//
+// The array counterpart of validateUploadedImage. Every file is checked
+// by its magic bytes, and one bad file rejects the whole batch — a
+// partial upload would leave the admin guessing which of the six photos
+// they selected actually landed.
+//
+
+export const validateUploadedImages = (req, res, next) => {
+  if (!req.files || req.files.length === 0) {
     return next();
   }
 
-  // ----------------------------------------------------------
-  // FILE SIZE
-  // ----------------------------------------------------------
+  for (const [index, file] of req.files.entries()) {
+    const position = index + 1;
 
-  if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
-    return next(new ApiError(400, "Image size must not exceed 5 MB"));
+    if (!Buffer.isBuffer(file.buffer)) {
+      return next(
+        new ApiError(400, `Image ${position} could not be read`),
+      );
+    }
+
+    const detectedMimeType = detectImageType(file.buffer);
+
+    if (!detectedMimeType) {
+      return next(
+        new ApiError(
+          400,
+          `Image ${position} (${file.originalname || "unnamed"}) is not a valid image. Only JPEG, PNG and WebP are allowed.`,
+        ),
+      );
+    }
+
+    file.detectedMimeType = detectedMimeType;
+    file.mimetype = detectedMimeType;
   }
 
-  // ----------------------------------------------------------
-  // FILE COUNT
-  // ----------------------------------------------------------
-
-  if (
-    error instanceof multer.MulterError &&
-    error.code === "LIMIT_FILE_COUNT"
-  ) {
-    return next(new ApiError(400, "Only one image can be uploaded"));
-  }
-
-  // ----------------------------------------------------------
-  // UNEXPECTED FILE
-  // ----------------------------------------------------------
-
-  if (
-    error instanceof multer.MulterError &&
-    error.code === "LIMIT_UNEXPECTED_FILE"
-  ) {
-    return next(
-      new ApiError(400, 'Unexpected image field. Use field name "image".'),
-    );
-  }
-
-  // ----------------------------------------------------------
-  // OTHER MULTER ERRORS
-  // ----------------------------------------------------------
-
-  if (error instanceof multer.MulterError) {
-    return next(new ApiError(400, `Image upload error: ${error.code}`));
-  }
-
-  // ----------------------------------------------------------
-  // CUSTOM API ERROR
-  // ----------------------------------------------------------
-
-  next(error);
+  next();
 };
+
+// ============================================================
+// MULTER ERROR HANDLER
+// ============================================================
+
+/**
+ * Builds the multer error handler for one route.
+ *
+ * The limits are passed in rather than read off the error, because multer
+ * reports LIMIT_FILE_COUNT with no `field` — there is nothing on the
+ * error itself that says whether the route wanted one cover image or a
+ * gallery of eight, and getting that wrong tells the admin to remove
+ * files they never sent.
+ *
+ * @param {object} [config]
+ * @param {number} [config.maxFiles]  how many files this route accepts
+ * @param {string} [config.field]     the multipart field name it reads
+ */
+export const uploadErrorHandler =
+  ({ maxFiles = MAX_FILES, field = "image" } = {}) =>
+  (error, req, res, next) => {
+    if (!error) {
+      return next();
+    }
+
+    // ----------------------------------------------------------
+    // FILE SIZE
+    // ----------------------------------------------------------
+
+    if (
+      error instanceof multer.MulterError &&
+      error.code === "LIMIT_FILE_SIZE"
+    ) {
+      return next(new ApiError(400, "Image size must not exceed 5 MB"));
+    }
+
+    // ----------------------------------------------------------
+    // FILE COUNT
+    // ----------------------------------------------------------
+
+    if (
+      error instanceof multer.MulterError &&
+      error.code === "LIMIT_FILE_COUNT"
+    ) {
+      return next(
+        new ApiError(
+          400,
+          maxFiles === 1
+            ? "Only one image can be uploaded"
+            : `At most ${maxFiles} images can be uploaded at once`,
+        ),
+      );
+    }
+
+    // ----------------------------------------------------------
+    // UNEXPECTED FILE
+    // ----------------------------------------------------------
+
+    if (
+      error instanceof multer.MulterError &&
+      error.code === "LIMIT_UNEXPECTED_FILE"
+    ) {
+      return next(
+        new ApiError(
+          400,
+          `Unexpected file field "${error.field ?? "unknown"}". Use field name "${field}".`,
+        ),
+      );
+    }
+
+    // ----------------------------------------------------------
+    // OTHER MULTER ERRORS
+    // ----------------------------------------------------------
+
+    if (error instanceof multer.MulterError) {
+      return next(new ApiError(400, `Image upload error: ${error.code}`));
+    }
+
+    // ----------------------------------------------------------
+    // CUSTOM API ERROR
+    // ----------------------------------------------------------
+
+    next(error);
+  };
+
+/** The single-cover-image default, for the category routes. */
+export const handleUploadError = uploadErrorHandler();
+
+/** The gallery variant, for the product image route. */
+export const handleProductUploadError = uploadErrorHandler({
+  maxFiles: MAX_PRODUCT_IMAGES,
+  field: "images",
+});

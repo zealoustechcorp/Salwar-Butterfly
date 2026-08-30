@@ -1,0 +1,175 @@
+### Base URL
+@baseUrl = http://localhost:4000/api
+
+@productId = 41cee835-1c0c-4511-b091-246a213e8373
+@imageId = 8f2a1c44-1c0c-4511-b091-246a213e8373
+@secondImageId = 5b7d9e21-1c0c-4511-b091-246a213e8373
+
+
+### ============================================================
+### PRODUCT IMAGE ENDPOINTS  (F-03.06)
+###
+### A product's photographs — front, back, drape, fabric — one row
+### per image, ordered. At most 8 per product, 5 MB each, JPEG /
+### PNG / WebP only (checked by magic bytes, not by MIME type).
+###
+### The cover is position 0. There is no primary flag anywhere:
+### "make this the cover" is a reorder.
+### ============================================================
+
+
+### ============================================================
+### Upload one or more images  (the gallery editor's upload)
+###
+### multipart/form-data:
+###   images   repeat the field for each file, up to 8
+###   altText  optional, repeated positionally against the files
+###
+### Appended after whatever the product already has. Uploads are
+### rolled back off Cloudinary if the registration fails, so a
+### rejected request leaves nothing behind.
+###
+### Replace the file paths below with real images on your machine.
+### ============================================================
+POST {{baseUrl}}/productImages/uploadProductImages/{{productId}}
+Content-Type: multipart/form-data; boundary=----Boundary
+
+------Boundary
+Content-Disposition: form-data; name="images"; filename="front.jpg"
+Content-Type: image/jpeg
+
+< ./samples/front.jpg
+------Boundary
+Content-Disposition: form-data; name="altText"
+
+Front view, rani pink Chanderi
+------Boundary
+Content-Disposition: form-data; name="images"; filename="back.jpg"
+Content-Type: image/jpeg
+
+< ./samples/back.jpg
+------Boundary
+Content-Disposition: form-data; name="altText"
+
+Back view, zari border
+------Boundary--
+
+
+### ============================================================
+### Get a product's gallery  (detail + edit screens)
+###
+### Returns meta.count, meta.maxImages and meta.primaryImage.
+### ============================================================
+GET {{baseUrl}}/productImages/getImagesByProduct/{{productId}}
+
+
+### ============================================================
+### Get every image, grouped by product  (admin list thumbnails)
+###
+### meta.galleries is keyed by product id, so the list renders a
+### thumbnail per row without one request per product.
+### ============================================================
+GET {{baseUrl}}/productImages/getAllProductImages?page=1&limit=500
+
+
+### ============================================================
+### Reorder the gallery  (drag order, and "make cover")
+###
+### Must list EVERY image the product has — a partial list is
+### refused, because it would silently demote whatever was left
+### out. The first id becomes the cover.
+### ============================================================
+PUT {{baseUrl}}/productImages/reorderProductImages/{{productId}}
+Content-Type: application/json
+
+{
+  "imageIds": [
+    "{{secondImageId}}",
+    "{{imageId}}"
+  ]
+}
+
+
+### ============================================================
+### Set an image's alt text
+###
+### null clears it — the storefront then falls back to the
+### product name.
+### ============================================================
+PATCH {{baseUrl}}/productImages/updateProductImage/{{imageId}}
+Content-Type: application/json
+
+{
+  "altText": "Fabric close-up, hand-block dhabu print"
+}
+
+
+### ============================================================
+### Delete an image
+###
+### Removed from the database and from Cloudinary, and the gap in
+### the ordering is closed — deleting the cover promotes the next
+### image rather than leaving the product coverless.
+### ============================================================
+DELETE {{baseUrl}}/productImages/deleteProductImage/{{imageId}}
+
+
+### ============================================================
+### Products carry their gallery  (no extra request needed)
+###
+### Every product read embeds `images` and `primaryImage`.
+### ============================================================
+GET {{baseUrl}}/products/getProductById/{{productId}}
+
+
+### ============================================================
+### Validation: unknown product -> 404
+###
+### Checked before anything is uploaded, so a bad product id never
+### costs a Cloudinary asset.
+### ============================================================
+POST {{baseUrl}}/productImages/uploadProductImages/11111111-1111-4111-8111-111111111111
+Content-Type: multipart/form-data; boundary=----Boundary
+
+------Boundary
+Content-Disposition: form-data; name="images"; filename="front.jpg"
+Content-Type: image/jpeg
+
+< ./samples/front.jpg
+------Boundary--
+
+
+### ============================================================
+### Validation: reorder with a partial list -> 400
+### ============================================================
+PUT {{baseUrl}}/productImages/reorderProductImages/{{productId}}
+Content-Type: application/json
+
+{
+  "imageIds": ["{{imageId}}"]
+}
+
+
+### ============================================================
+### Validation: reorder naming an image on another product -> 400
+### ============================================================
+PUT {{baseUrl}}/productImages/reorderProductImages/{{productId}}
+Content-Type: application/json
+
+{
+  "imageIds": [
+    "{{imageId}}",
+    "11111111-1111-4111-8111-111111111111"
+  ]
+}
+
+
+### ============================================================
+### Validation: alt text over 200 characters -> 400
+### ============================================================
+PATCH {{baseUrl}}/productImages/updateProductImage/{{imageId}}
+Content-Type: application/json
+
+{
+  "altText": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+}

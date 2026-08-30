@@ -34,6 +34,40 @@ const handleDatabaseError = (error, operation, context = {}) => {
   return error;
 };
 
+/**
+ * A product's gallery, aggregated onto the product row.
+ *
+ * Photographs are read on every product screen, so fetching them as a
+ * lateral rather than a follow-up query keeps a product list at one round
+ * trip instead of one per row. Ordered here, so the first element is
+ * always the cover image.
+ *
+ * Keys are camelCase because this JSON is passed to the client as-is by
+ * ProductImageMapper.fromProductRow — no snake_case round trip.
+ */
+const IMAGES_LATERAL = `
+  LEFT JOIN LATERAL (
+    SELECT COALESCE(
+      json_agg(
+        json_build_object(
+          'id', pi.id,
+          'productId', pi.product_id,
+          'imageUrl', pi.image_url,
+          'imagePublicId', pi.image_public_id,
+          'altText', pi.alt_text,
+          'position', pi.position,
+          'createdAt', pi.created_at,
+          'updatedAt', pi.updated_at
+        )
+        ORDER BY pi.position ASC, pi.created_at ASC
+      ),
+      '[]'::json
+    ) AS images
+    FROM product_images pi
+    WHERE pi.product_id = p.id
+  ) img ON TRUE
+`;
+
 export const ProductRepository = {
   async create({
     categoryId,
@@ -193,8 +227,10 @@ export const ProductRepository = {
 
   async findById(id) {
     const text = `
-      SELECT * FROM products
-      WHERE id = $1::uuid
+      SELECT p.*, img.images
+      FROM products p
+      ${IMAGES_LATERAL}
+      WHERE p.id = $1::uuid
       LIMIT 1
     `;
 
@@ -208,8 +244,10 @@ export const ProductRepository = {
 
   async findBySlug(slug) {
     const text = `
-      SELECT * FROM products
-      WHERE slug = $1
+      SELECT p.*, img.images
+      FROM products p
+      ${IMAGES_LATERAL}
+      WHERE p.slug = $1
       LIMIT 1
     `;
 
@@ -235,24 +273,28 @@ export const ProductRepository = {
     const values = [];
 
     if (categoryId) {
-      whereClause += ` AND category_id = $${values.length + 1}::uuid`;
+      whereClause += ` AND p.category_id = $${values.length + 1}::uuid`;
       values.push(categoryId);
     }
 
     if (activeOnly) {
-      whereClause += ` AND active = true`;
+      whereClause += ` AND p.active = true`;
     }
 
     const text = `
-      SELECT * FROM products
+      SELECT p.*, img.images
+      FROM products p
+      ${IMAGES_LATERAL}
       ${whereClause}
-      ORDER BY created_at DESC
+      ORDER BY p.created_at DESC
       LIMIT $${values.length + 1}
       OFFSET $${values.length + 2}
     `;
 
+    // No lateral here: the count does not need the galleries, and joining
+    // them in would make Postgres build every one only to discard it.
     const countText = `
-      SELECT COUNT(*)::INTEGER AS count FROM products ${whereClause}
+      SELECT COUNT(*)::INTEGER AS count FROM products p ${whereClause}
     `;
 
     try {
