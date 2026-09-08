@@ -7,6 +7,7 @@ import { useState } from "react";
 import { money } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Photo } from "./Photo";
+import { SizeChartButton } from "./SizeChart";
 import { Stars } from "./Stars";
 import { useStore } from "./StoreProvider";
 
@@ -111,24 +112,33 @@ export function ProductCard({ product, priority = false }) {
         */}
         <div className="border-t border-sb-gold/30 bg-sb-bg/95 p-3 transition-transform duration-300 group-hover:translate-y-0 group-focus-within:translate-y-0 [@media(hover:hover)]:absolute [@media(hover:hover)]:inset-x-0 [@media(hover:hover)]:bottom-0 [@media(hover:hover)]:translate-y-full">
           {product.available_sizes.length ? (
-            <div className="mb-2 flex flex-wrap gap-1">
-              {product.available_sizes.map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setSize(value)}
-                  aria-pressed={size === value}
-                  className={cn(
-                    "min-w-7 rounded-md border px-1.5 py-1 text-[11px] font-semibold transition-colors sm:min-w-8",
-                    size === value
-                      ? "border-sb-heading bg-sb-heading text-sb-bg"
-                      : "border-sb-gold/45 bg-sb-bg text-sb-text hover:border-sb-heading",
-                  )}
-                >
-                  {value}
-                </button>
-              ))}
-            </div>
+            <>
+              {/* The tile lets a shopper add to the bag without ever opening
+                  the piece, so the chart has to be reachable from here too —
+                  it is the same dialog the product page opens. */}
+              <div className="mb-1.5 flex items-center justify-between gap-2">
+                <span className="text-[10px] font-semibold text-sb-text-muted">Pick a size</span>
+                <SizeChartButton variant="compact" categoryName={product.category_name} />
+              </div>
+              <div className="mb-2 flex flex-wrap gap-1">
+                {product.available_sizes.map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setSize(value)}
+                    aria-pressed={size === value}
+                    className={cn(
+                      "min-w-7 rounded-md border px-1.5 py-1 text-[11px] font-semibold transition-colors sm:min-w-8",
+                      size === value
+                        ? "border-sb-heading bg-sb-heading text-sb-bg"
+                        : "border-sb-gold/45 bg-sb-bg text-sb-text hover:border-sb-heading",
+                    )}
+                  >
+                    {value}
+                  </button>
+                ))}
+              </div>
+            </>
           ) : (
             <p className="mb-2 text-[11px] text-sb-text-muted">No sizes in stock</p>
           )}

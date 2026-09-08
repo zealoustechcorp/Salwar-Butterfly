@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { AccountPanel } from "@/components/store/AccountPanel";
 import { OrderHistory } from "@/components/store/OrderHistory";
+import { SizeChartButton } from "@/components/store/SizeChart";
 import { getShop } from "@/lib/store/catalogue";
 
 export const metadata = {
@@ -47,7 +48,13 @@ export default function AccountPage() {
       id: "sizes",
       icon: Ruler,
       title: "Size guide",
-      body: "Sizes run 36 to 46, and each piece lists only the sizes still in stock. If you are between two sizes, take the larger one — a size issue can be exchanged. For the exact measurements of a particular piece, ask on WhatsApp before ordering.",
+      // No "a size issue can be exchanged" here: the published policy only
+      // covers a size *we* got wrong, so promising more would be a promise
+      // the shop does not keep.
+      body: "Sizes run 36 to 46, and each piece lists only the sizes still in stock. If you are between two sizes, take the larger one. A size you chose yourself is not a return reason, so for the exact measurements of a particular piece, ask on WhatsApp before you order.",
+      // The footer's "Size guide" link lands here, so the charts themselves
+      // have to be one click away from this card and not somewhere else.
+      action: <SizeChartButton variant="outline" label="View the size chart" />,
     },
     {
       id: "payment",
@@ -74,7 +81,7 @@ export default function AccountPage() {
         Before and after you order
       </h2>
       <div className="mt-5 grid gap-4 sm:grid-cols-2">
-        {help.map(({ id, icon: Icon, title, body }) => (
+        {help.map(({ id, icon: Icon, title, body, action }) => (
           <div
             key={id}
             id={id}
@@ -83,16 +90,17 @@ export default function AccountPage() {
             <Icon className="size-6 text-sb-gold-text" aria-hidden="true" />
             <p className="mt-3 font-display text-xl font-semibold text-sb-heading">{title}</p>
             <p className="mt-2 text-sm leading-relaxed text-sb-text">{body}</p>
+            {action ? <div className="mt-4">{action}</div> : null}
           </div>
         ))}
       </div>
 
       <p className="mt-6 text-sm text-sb-text-muted">
-        Exchanges are covered on the{" "}
-        <Link href="/#policy" className="font-semibold text-sb-link underline underline-offset-4">
-          returns policy
-        </Link>{" "}
-        on the home page. Reach the shop on WhatsApp, on{" "}
+        Returns, refunds and exchanges are set out in full in the{" "}
+        <Link href="/returns" className="font-semibold text-sb-link underline underline-offset-4">
+          return &amp; refund policy
+        </Link>
+        . Reach the shop on WhatsApp, on{" "}
         <a href={`tel:+91${shop.phone}`} className="font-semibold text-sb-link underline underline-offset-4 tabular">
           +91 {shop.phone}
         </a>

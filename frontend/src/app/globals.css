@@ -282,6 +282,14 @@ body {
   display: none;
 }
 
+/* Scrolling itself is untouched by the rule above — wheel, trackpad, keyboard
+   and touch all still work, and a container keeps its overflow-auto. What is
+   lost is the affordance: nothing on screen says a region scrolls, and there
+   is no thumb to drag. Worth it on a bar the shop would rather not show; the
+   cost lands on a mouse-only shopper, who has to discover the overflow by
+   trying it. WebKit needs the pseudo-element on the element that scrolls —
+   scrollbar-width is inherited in Firefox, ::-webkit-scrollbar is not. */
+
 @keyframes sb-marquee {
   from {
     transform: translateX(0);

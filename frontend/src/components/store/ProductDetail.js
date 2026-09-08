@@ -9,6 +9,7 @@ import { availabilityNotice } from "@/lib/stock";
 import { cn } from "@/lib/utils";
 import { WhatsAppGlyph } from "./Ornaments";
 import { Photo } from "./Photo";
+import { SizeChartButton } from "./SizeChart";
 import { Stars } from "./Stars";
 import { useStore } from "./StoreProvider";
 
@@ -133,11 +134,17 @@ export function ProductDetail({ product, shop }) {
 
         {/* Per-size stock: the reason this page exists */}
         <div className="mt-6">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
             <p className="text-sm font-bold text-sb-text">Select a size</p>
-            <p className="text-xs text-sb-text-muted">
-              {product.available_sizes.length} of {product.sizes.length} sizes in stock
-            </p>
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <p className="text-xs text-sb-text-muted">
+                {product.available_sizes.length} of {product.sizes.length} sizes in stock
+              </p>
+              {/* Next to the picker, because this is where the question is
+                  actually asked — and a size a shopper chose themselves is
+                  not a return reason. */}
+              <SizeChartButton categoryName={product.category_name} />
+            </div>
           </div>
 
           <div className="mt-3 flex flex-wrap gap-2">
@@ -269,7 +276,7 @@ export function ProductDetail({ product, shop }) {
           {[
             "Free shipping all over India, delivered in 5–10 working days.",
             "Online payment only — GPay, PhonePe, Paytm. No cash on delivery.",
-            "Exchanged if the size is wrong or the piece arrives damaged.",
+            "Returned if it arrives damaged, defective, or as the wrong piece or size.",
           ].map((line) => (
             <li key={line} className="flex gap-2.5">
               <Check className="mt-0.5 size-4 shrink-0 text-sb-gold-text" aria-hidden="true" />
@@ -395,8 +402,8 @@ function Spec({ product }) {
       </dl>
       <p className="mt-3 flex gap-2 text-xs leading-relaxed text-sb-text-muted">
         <X className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-        Colour and material preference is not an exchange reason — the fabric is stated above,
-        please read it before ordering.
+        Colour and material preference is not a return reason, and an order cannot be cancelled
+        once placed — the fabric is stated above, please read it before ordering.
       </p>
     </div>
   );

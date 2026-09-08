@@ -7,6 +7,7 @@ import { money } from "@/lib/format";
 import { useAuth } from "./AuthProvider";
 import { WhatsAppGlyph } from "./Ornaments";
 import { Photo } from "./Photo";
+import { SizeChartButton } from "./SizeChart";
 import { useStore } from "./StoreProvider";
 
 /**
@@ -212,6 +213,11 @@ export function BagView({ products, shop }) {
               <WhatsAppGlyph className="size-3.5" />
               Ask the shop a question
             </a>
+
+            {/* The last screen before checkout where a size can still be
+                changed — after this the shopper would have to come back and
+                re-add the piece. */}
+            <SizeChartButton variant="outline" label="Check the size chart" className="mt-2.5" />
 
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-sb-gold/30 pt-4">
               <Link

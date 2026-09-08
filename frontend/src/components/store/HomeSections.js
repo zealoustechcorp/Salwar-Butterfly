@@ -1,5 +1,6 @@
 import { BadgeCheck, PackageCheck, Repeat2, Ruler, ShieldCheck, Truck } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 
 import { Butterfly, WhatsAppGlyph } from "./Ornaments";
 
@@ -147,13 +148,20 @@ export function StorySection({ catalogueSize, categoryCount, sizeRange }) {
           </h2>
           <div className="sb-rule mt-4 h-px w-40" aria-hidden="true" />
           <p className="mt-4 max-w-xl text-sm leading-relaxed text-sb-text sm:text-base">
-            Salwar Butterfly is a single-seller dress shop. Every piece is bought in a short,
-            limited run — dhabu cotton, azrak block print, Chanderi silk, south cotton — and once a
-            run is gone, it is gone. That is why the shelf stays small and the fabric stays good.
+            Salwar Butterfly began with a simple love for salwar sets that are beautiful,
+            comfortable and easy to wear. A small dream became a single-seller dress shop, and a
+            place to find an outfit that makes you feel confident and yourself.
+          </p>
+          <p className="mt-3 max-w-xl text-sm leading-relaxed text-sb-text sm:text-base">
+            Every design is chosen to hold traditional beauty and modern style together, with
+            everyday comfort in mind — dhabu cotton, azrak block print, Chanderi silk, south
+            cotton — and bought in a short, limited run. Once a run is gone, it is gone, which is
+            why the shelf stays small and the fabric stays good.
           </p>
           <p className="mt-3 max-w-xl text-sm leading-relaxed text-sb-text sm:text-base">
             A QC team checks every outfit before it is dispatched, and the shop stays reachable on
-            WhatsApp before and after the sale.
+            WhatsApp before and after the sale. Every order here means something — thank you for
+            being part of the journey.
           </p>
 
           <dl className="mt-6 grid max-w-lg grid-cols-3 gap-4 border-t border-sb-gold/35 pt-4 sm:gap-6">
@@ -181,26 +189,31 @@ export function StorySection({ catalogueSize, categoryCount, sizeRange }) {
  *
  * This replaces a testimonials rail: the live shop publishes no review data,
  * and inventing customer quotes for a real business would be a lie on the page.
- * Its exchange policy is the more useful thing to put here anyway.
+ * Its returns policy is the more useful thing to put here anyway.
+ *
+ * These three cards are a summary of /returns, which is the binding version —
+ * nothing here may promise more than that page does. It notably does not cover
+ * a size the customer picked themselves, which an earlier version of this
+ * section wrongly said was exchangeable.
  */
 const POLICY = [
   {
-    icon: Ruler,
-    title: "Exchange for size issues",
+    icon: PackageCheck,
+    title: "Damaged or defective",
     detail:
-      "If the fit is wrong, the piece can be exchanged. On the borderline between two sizes, order the larger one.",
+      "Message us on WhatsApp within 48 hours of delivery with your order details, clear photos and an unedited unboxing video, and we will take it back.",
   },
   {
     icon: Repeat2,
-    title: "Exchange for damaged pieces",
+    title: "Wrong piece or wrong size sent",
     detail:
-      "A QC team checks every outfit before dispatch, so damage is rare — if it happens, it is exchanged.",
+      "If we dispatched the wrong thing, it is exchanged subject to availability and the return shipping is ours, not yours.",
   },
   {
-    icon: PackageCheck,
-    title: "Read the fabric first",
+    icon: Ruler,
+    title: "Check before you order",
     detail:
-      "Colour and material preference is not an exchange reason. Every listing states its fabric — please read it before ordering.",
+      "Change of mind, colour preference and screen colour variation are not return reasons, and an order cannot be cancelled once placed. Every listing states its fabric and sizes — read it, or ask us first.",
   },
 ];
 
@@ -216,8 +229,8 @@ export function PolicySection() {
           Stress-free, both ways
         </h2>
         <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-sb-text-muted">
-          A customer-friendly policy, before and after the purchase — here is exactly what it does
-          and does not cover.
+          Every outfit is checked before it leaves us — and here is exactly what a return does and
+          does not cover.
         </p>
       </div>
 
@@ -233,6 +246,14 @@ export function PolicySection() {
           </div>
         ))}
       </div>
+
+      <p className="mt-5 text-center text-sm text-sb-text-muted">
+        Returned pieces must be unused, unworn and still tagged.{" "}
+        <Link href="/returns" className="font-semibold text-sb-link underline underline-offset-4">
+          Read the full return &amp; refund policy
+        </Link>
+        .
+      </p>
     </section>
   );
 }
