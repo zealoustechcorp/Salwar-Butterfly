@@ -128,7 +128,7 @@ export function ProductDetail({ product, shop }) {
           </p>
         ) : notice?.urgent ? (
           <p className="mt-5 inline-flex rounded-xl bg-sb-surface-pink px-4 py-2.5 text-sm font-semibold text-sb-ink-on-pink">
-            {notice.text} across all sizes — runs are short.
+            {notice.text} across all sizes — order fast!
           </p>
         ) : null}
 

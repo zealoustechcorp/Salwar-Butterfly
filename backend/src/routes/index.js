@@ -15,6 +15,7 @@ import adminAuthRoutes from './admin.auth.routes.js';
 import storefrontRoutes from './storefront.routes.js';
 import paymentRoutes from './payment.routes.js';
 import wishlistRoutes from './wishlist.routes.js';
+import customerAddressRoutes from './customer_address.routes.js';
 import reportRoutes from './report.routes.js';
 import reviewRoutes from './review.routes.js';
 
@@ -95,6 +96,12 @@ router.use('/payments', paymentRoutes);
 // customer id — every endpoint is "mine", read off the token.
 
 router.use('/wishlist', wishlistRoutes);
+
+// The address book (F-05.03, F-08.05). Mounted here rather than under
+// /customers because that router owns /:id and is mostly admin — an
+// address book is neither, and the split would have to be argued route
+// by route in a file that already argues one.
+router.use('/addresses', customerAddressRoutes);
 
 // ============================================================
 // ADMIN ONLY

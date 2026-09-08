@@ -6,13 +6,16 @@
 //
 //   out of stock   0 units — actually none, not "nearly none", so every
 //                  unit the shop holds stays sellable.
-//   low stock      1 to 9 units. This is F-04.05's "order fast" warning.
+//   low stock      1 to 19 units. This is F-04.05's "order fast" warning.
 //
-// The FRS quotes 20 and 10 as examples. 10 is taken as the low-stock
-// line; out-of-stock stays at a true zero rather than the spec's
-// suggested reserve buffer, because this catalogue stocks one or two
-// pieces per size — holding back the last ten would take every product
-// in the shop off sale.
+// The low-stock line is the FRS's 20, as approved.
+//
+// F-04.06 also suggests a reserve buffer — out of stock once the count
+// falls below 10 — and that one is NOT applied here. This catalogue
+// stocks one or two pieces per size, so a floor of 10 would mark every
+// variant in the shop out of stock and take the whole storefront off
+// sale. Out-of-stock therefore stays at a true zero, and the deviation
+// is recorded rather than coded.
 //
 // Read by the variant mapper and the inventory read model, and mirrored
 // on the client in frontend/src/lib/stock.js. Changing a number here
@@ -23,7 +26,7 @@
 export const OUT_OF_STOCK_AT = 0;
 
 /** A quantity below this — and above OUT_OF_STOCK_AT — is low. */
-export const LOW_STOCK_BELOW = 10;
+export const LOW_STOCK_BELOW = 20;
 
 /**
  * The largest stock a single size may hold.

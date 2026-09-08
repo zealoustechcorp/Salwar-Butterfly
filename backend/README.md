@@ -193,6 +193,13 @@ is written to disk.
 | PATCH  | `/inventory/setStock/:id`         | admin | a stock-take; optimistically concurrent      |
 | PUT    | `/inventory/bulkAdjustStock`      | admin | a whole delivery, in one transaction         |
 
+Thresholds live in `config/stock.policy.js` and are mirrored on the
+client in `frontend/src/lib/stock.js`. Low stock is under 20 (F-04.05,
+the FRS's number). Out of stock is a true zero rather than the reserve
+buffer F-04.06 suggests — this catalogue stocks one or two pieces per
+size, so a floor of ten would take the whole shop off sale. That
+deviation is recorded, not coded.
+
 ### Customers — F-05
 
 | Method | Path                              | Auth     | Description                        |
@@ -203,6 +210,27 @@ is written to disk.
 | GET    | `/customers/getCustomerById/:id`  | admin    | F-05.04                            |
 | PUT    | `/customers/updateCustomer/:id`   | admin    | F-05.06                            |
 | DELETE | `/customers/deleteCustomer/:id`   | admin    | soft delete — orders keep their customer |
+
+### Addresses — F-05.03, F-08.05
+
+The shopper's own address book. Every route is "mine", read off the
+token — none of them takes a customer id.
+
+| Method | Path                                | Auth     | Description                            |
+| ------ | ----------------------------------- | -------- | -------------------------------------- |
+| GET    | `/addresses/getMyAddresses`         | customer | default first, then oldest             |
+| POST   | `/addresses/addAddress`             | customer | 409 `ADDRESS_LIMIT_REACHED` past three |
+| PUT    | `/addresses/updateAddress/:id`      | customer | a full replace, not a patch            |
+| PATCH  | `/addresses/setDefaultAddress/:id`  | customer | one default per customer               |
+| DELETE | `/addresses/deleteAddress/:id`      | customer | the oldest survivor inherits `default` |
+
+A saved address and the address on an order are two different things.
+`orders.shipping_*` is a snapshot frozen at the sale (see migration 008);
+this table is the book the shopper edits, and nothing joins one to the
+other. Editing an address here never changes where an old order went.
+
+The field rules are shared with checkout — `validators/address.rules.js`
+— so an address the book accepts is one an order can be placed with.
 
 ### Wishlist
 

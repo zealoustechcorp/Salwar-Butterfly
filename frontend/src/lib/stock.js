@@ -21,7 +21,7 @@
 export const OUT_OF_STOCK_AT = 0;
 
 /** A quantity below this — and above OUT_OF_STOCK_AT — is low. */
-export const LOW_STOCK_BELOW = 10;
+export const LOW_STOCK_BELOW = 20;
 
 export const STOCK_STATUS = {
   IN_STOCK: "in_stock",
@@ -81,10 +81,12 @@ export function worstStatusOf(sizes = []) {
  * What the shopper is told (F-04.05).
  *
  * An exact count rather than a band, because this shop stocks one or
- * two pieces of a print: with the low-stock line at 10, a generic
- * "Low stock" chip would sit on essentially every product in the
- * catalogue and stop meaning anything. "Only 2 left" says the same
- * thing, is true, and is worth reading.
+ * two pieces of a print: a generic "Low stock" chip would sit on
+ * essentially every product in the catalogue and stop meaning anything.
+ * "Only 2 left" says the same thing, is true, and is worth reading. The
+ * FRS's own wording — "Stock under 20, order fast!" — is carried in the
+ * second half of the line, so the alert reads as the spec asks without
+ * throwing away the number the shopper actually wants.
  *
  * @returns {{tone: string, text: string, urgent: boolean}|null}
  *          null when there is nothing worth saying — a healthy size
@@ -104,7 +106,7 @@ export function availabilityNotice(quantity, active = true) {
 
   if (status === STOCK_STATUS.LOW_STOCK) {
     return {
-      tone: "amber",
+      tone: "red",
       text: units === 1 ? "Only 1 left" : `Only ${units} left`,
       urgent: true,
     };

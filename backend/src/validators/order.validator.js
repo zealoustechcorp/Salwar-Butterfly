@@ -19,46 +19,27 @@ import {
   validatePhone,
 } from "./customer.rules.js";
 
+import {
+  validateAddressFields,
+  validateAddressText,
+} from "./address.rules.js";
+
 import { CUSTOMER_TOKEN_TYPE } from "../services/customer.auth.service.js";
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-/** Six digits, not starting at zero — the Indian PIN format. */
-const PINCODE_REGEX = /^[1-9][0-9]{5}$/;
-
 const isUuid = (value) => UUID_REGEX.test(String(value ?? "").trim());
 
 /**
- * A required free-text field of the address.
+ * A free-text field, of the address or of anything else here.
  *
- * Deliberately loose on what it accepts. An address line is whatever
- * the postal system will carry, and every character class an
- * over-eager validator rejects is a house somebody actually lives in.
- * What it does check is that something is there and that it is not long
- * enough to be an attack on the column width.
+ * The rule moved to address.rules.js when the address book (F-05.03)
+ * gave it a second caller. Aliased rather than renamed at every use
+ * site because the notes and reasons below are not address lines and
+ * read better under the old name.
  */
-const textField = (value, label, { required = true, max = 255 } = {}) => {
-  if (value === undefined || value === null) {
-    return required ? `${label} is required` : null;
-  }
-
-  if (typeof value !== "string") {
-    return `${label} must be a string`;
-  }
-
-  const trimmed = value.trim();
-
-  if (!trimmed) {
-    return required ? `${label} is required` : null;
-  }
-
-  if (trimmed.length > max) {
-    return `${label} must not exceed ${max} characters`;
-  }
-
-  return null;
-};
+const textField = validateAddressText;
 
 // ============================================================
 // ORDER ID PARAM
@@ -132,32 +113,17 @@ export const validateCreateOrder = (req, res, next) => {
   // SHIPPING ADDRESS
   // ----------------------------------------------------------
 
+  // The same field rules the address book applies, so that an address a
+  // shopper saved to their account cannot be refused when they try to
+  // buy something with it.
+
   if (!shippingAddress || typeof shippingAddress !== "object") {
     errors.shippingAddress = "A shipping address is required";
   } else {
-    const checks = [
-      ["line1", textField(shippingAddress.line1, "Address line 1")],
-      ["line2", textField(shippingAddress.line2, "Address line 2", { required: false })],
-      ["landmark", textField(shippingAddress.landmark, "Landmark", { required: false })],
-      ["city", textField(shippingAddress.city, "City", { max: 120 })],
-      ["state", textField(shippingAddress.state, "State", { max: 120 })],
-      ["country", textField(shippingAddress.country, "Country", { required: false, max: 80 })],
-    ];
-
-    for (const [field, error] of checks) {
-      if (error) errors[`shippingAddress.${field}`] = error;
-    }
-
-    const postalCode = String(shippingAddress.postalCode ?? "").trim();
-
-    if (!postalCode) {
-      errors["shippingAddress.postalCode"] = "PIN code is required";
-    } else if (!PINCODE_REGEX.test(postalCode)) {
-      // The shop ships within India only, so the format is knowable and
-      // worth checking — a wrong pincode is a parcel that goes to the
-      // wrong sorting hub and comes back three weeks later.
-      errors["shippingAddress.postalCode"] = "PIN code must be 6 digits";
-    }
+    Object.assign(
+      errors,
+      validateAddressFields(shippingAddress, { prefix: "shippingAddress" }),
+    );
   }
 
   // ----------------------------------------------------------

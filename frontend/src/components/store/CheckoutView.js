@@ -28,16 +28,29 @@
  * asked for; the payment sheet opens on /checkout/done, from the same button
  * that offers it again to anyone who closed it the first time. One code path
  * for the first attempt and the retry — see <PayNow>.
+ *
+ * A signed-in shopper picks a saved address instead of typing one (F-08.01,
+ * F-08.05), and the fields below stay exactly where they were — choosing a
+ * saved address fills them in rather than replacing them with a summary. It
+ * still has to be editable at the moment of buying: "the same address but send
+ * it to the office this time" is one field, not a new address book entry.
  */
 
-import { AlertCircle, Loader2, Lock, ShoppingBag } from "lucide-react";
+import { AlertCircle, Check, Loader2, Lock, MapPin, ShoppingBag } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { money } from "@/lib/format";
+import {
+  MAX_ADDRESSES,
+  createAddress,
+  fetchAddresses,
+  isSameAddress,
+} from "@/lib/store/addresses";
 import { placeOrder } from "@/lib/store/orders";
 import { cn } from "@/lib/utils";
+import { formatAddress } from "./AddressBook";
 import { useAuth } from "./AuthProvider";
 import { Photo } from "./Photo";
 import { useStore } from "./StoreProvider";
@@ -55,6 +68,35 @@ const STATES = [
   "Assam", "Jharkhand", "Chhattisgarh", "Uttarakhand", "Himachal Pradesh",
   "Goa", "Puducherry", "Jammu and Kashmir",
 ];
+
+/**
+ * The form fields that make up the address, as opposed to the contact details
+ * and the note sharing the same `values` object.
+ *
+ * Named once because three things need the same list: clearing the address for
+ * a new one, noticing that a prefilled address has been edited, and comparing
+ * what was typed against what is already saved.
+ */
+const ADDRESS_KEYS = ["line1", "line2", "landmark", "city", "state", "postalCode"];
+
+const BLANK_ADDRESS = {
+  line1: "",
+  line2: "",
+  landmark: "",
+  city: "",
+  state: "Tamil Nadu",
+  postalCode: "",
+};
+
+/** A saved address, in the shape this form's `values` holds. */
+const addressToValues = (address) => ({
+  line1: address.line1 ?? "",
+  line2: address.line2 ?? "",
+  landmark: address.landmark ?? "",
+  city: address.city ?? "",
+  state: address.state ?? "Tamil Nadu",
+  postalCode: address.postalCode ?? "",
+});
 
 function Field({ id, label, error, hint, children, className }) {
   return (
@@ -97,12 +139,71 @@ export function CheckoutView() {
   const [failure, setFailure] = useState(null); // { field, error }
   const [pending, setPending] = useState(false);
 
+  // --------------------------------------------------------
+  // SAVED ADDRESSES (F-08.01, F-08.05)
+  // --------------------------------------------------------
+  //
+  // Guests never see any of this: `token` is null for them, the fetch never
+  // runs, and the form below is exactly the form it always was.
+  //
+  // `chosen` is an address id, or "new" for the one they are typing. It is
+  // only ever a label for which radio is filled in — the order still sends
+  // whatever is in `values`, so editing a prefilled field is not a special
+  // case that has to be detected.
+
+  const [saved, setSaved] = useState([]);
+  const [chosen, setChosen] = useState("new");
+  const [saveToAccount, setSaveToAccount] = useState(false);
+
+  useEffect(() => {
+    if (!token) return;
+
+    const controller = new AbortController();
+
+    fetchAddresses(token, { signal: controller.signal })
+      .then((result) => {
+        if (!result.ok || result.addresses.length === 0) return;
+
+        setSaved(result.addresses);
+
+        // The default, or the first — the API sorts it to the front. Filling
+        // the form is the whole point: a returning shopper should be able to
+        // read the address, check it and pay without touching a field.
+        const preferred = result.addresses[0];
+
+        setChosen(preferred.id);
+        setValues((current) => ({ ...current, ...addressToValues(preferred) }));
+      })
+      .catch((cause) => {
+        // A checkout that cannot load the address book is a checkout with an
+        // empty address form, which still works. Nothing is shown for it.
+        if (cause?.name !== "AbortError") setSaved([]);
+      });
+
+    return () => controller.abort();
+  }, [token]);
+
   const set = (key) => (event) => {
     const { value } = event.target;
     setValues((current) => ({ ...current, [key]: value }));
 
+    // Typing in an address field means this is no longer the saved address it
+    // was filled from, whatever the radio says. Contact fields are left alone:
+    // a gift goes to a different name at the same address.
+    if (ADDRESS_KEYS.includes(key)) setChosen("new");
+
     // Clear the message the moment they start fixing the field it blamed.
     setFailure((current) => (current?.field?.endsWith(key) ? null : current));
+  };
+
+  /** Fills the form from a saved address, or empties it for a new one. */
+  const pick = (address) => {
+    setChosen(address?.id ?? "new");
+    setFailure(null);
+    setValues((current) => ({
+      ...current,
+      ...(address ? addressToValues(address) : BLANK_ADDRESS),
+    }));
   };
 
   /**
@@ -114,6 +215,23 @@ export function CheckoutView() {
   const unorderable = bag.filter((line) => !line.variant_id);
 
   const errorFor = (field) => (failure?.field === field ? failure.error : null);
+
+  /**
+   * Whether to offer to keep this address (F-08.05).
+   *
+   * Not offered when: they are a guest, they picked one that is already
+   * saved, the book is full, they have not typed enough of an address to be
+   * worth keeping, or what they typed would put a parcel in the same place as
+   * something already in there. That last one is the case that matters — a
+   * shopper who retypes their own address rather than picking it should not
+   * end up with two copies and one slot left.
+   */
+  const offerToSave =
+    isSignedIn &&
+    chosen === "new" &&
+    saved.length < MAX_ADDRESSES &&
+    Boolean(values.line1.trim() && values.city.trim() && values.postalCode.trim()) &&
+    !saved.some((address) => isSameAddress(address, values));
 
   async function onSubmit(event) {
     event.preventDefault();
@@ -163,6 +281,24 @@ export function CheckoutView() {
     // The order exists on the server now. Everything below is presentation,
     // and none of it may throw the shopper back onto a checkout form for an
     // order that already went through.
+
+    // Saving the address is a convenience bolted onto a sale that has already
+    // happened, so it runs here rather than before the order and its failure
+    // is swallowed. A shopper who paid does not need to hear that their
+    // address book is full.
+    if (offerToSave && saveToAccount) {
+      await createAddress(
+        {
+          ...BLANK_ADDRESS,
+          ...Object.fromEntries(ADDRESS_KEYS.map((key) => [key, values[key].trim()])),
+          label: "",
+          country: "India",
+          isDefault: saved.length === 0,
+        },
+        token,
+      ).catch(() => {});
+    }
+
     try {
       window.sessionStorage.setItem(LAST_ORDER_KEY, JSON.stringify(result.order));
     } catch {
@@ -312,6 +448,74 @@ export function CheckoutView() {
               Shipping address
             </h2>
 
+            {/*
+              The picker, for a shopper who has addresses saved. Radios rather
+              than a <select>: there are at most three, each is three lines
+              long, and a dropdown would hide the one thing worth reading —
+              which address this parcel is about to go to.
+            */}
+            {saved.length ? (
+              <div className="mt-3" role="radiogroup" aria-label="Delivery address">
+                {saved.map((address) => (
+                  <label
+                    key={address.id}
+                    className={cn(
+                      "mt-2 flex cursor-pointer gap-3 rounded-xl border px-4 py-3 transition-colors first:mt-0",
+                      chosen === address.id
+                        ? "border-sb-heading bg-sb-surface/40"
+                        : "border-sb-gold/40 hover:border-sb-heading/60",
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="co-saved-address"
+                      checked={chosen === address.id}
+                      onChange={() => pick(address)}
+                      className="mt-1 size-4 shrink-0 accent-sb-btn-primary"
+                    />
+                    <span className="min-w-0">
+                      <span className="flex flex-wrap items-center gap-2 text-sm font-semibold text-sb-heading">
+                        <MapPin className="size-3.5 shrink-0 text-sb-gold-text" aria-hidden="true" />
+                        {address.label || "Delivery address"}
+                        {address.isDefault ? (
+                          <span className="rounded-full bg-sb-surface-pink px-2 py-0.5 text-[10px] font-semibold text-sb-ink-on-pink">
+                            Default
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className="mt-1 block text-sm leading-relaxed text-sb-text-muted">
+                        {formatAddress(address)}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+
+                <label
+                  className={cn(
+                    "mt-2 flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-sm font-semibold transition-colors",
+                    chosen === "new"
+                      ? "border-sb-heading bg-sb-surface/40 text-sb-heading"
+                      : "border-sb-gold/40 text-sb-text hover:border-sb-heading/60",
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="co-saved-address"
+                    checked={chosen === "new"}
+                    onChange={() => pick(null)}
+                    className="size-4 shrink-0 accent-sb-btn-primary"
+                  />
+                  Send it somewhere else
+                </label>
+
+                <p className="mt-2.5 text-xs text-sb-text-muted">
+                  {chosen === "new"
+                    ? "Fill in the address below. This order will not change your saved ones."
+                    : "Edit anything below and it applies to this order only."}
+                </p>
+              </div>
+            ) : null}
+
             <div className="mt-3 grid gap-4 sm:grid-cols-2">
               <Field
                 id="co-line1"
@@ -407,6 +611,50 @@ export function CheckoutView() {
                 />
               </Field>
             </div>
+
+            {/*
+              Offered rather than assumed, and unticked by default. Keeping an
+              address is the shopper's decision to make — see `offerToSave`
+              above for the cases where it is not offered at all.
+            */}
+            {offerToSave ? (
+              <label className="mt-5 flex cursor-pointer items-start gap-2.5 text-sm text-sb-text">
+                <input
+                  type="checkbox"
+                  checked={saveToAccount}
+                  onChange={(event) => setSaveToAccount(event.target.checked)}
+                  className="mt-0.5 size-4 shrink-0 rounded border-sb-gold/50 accent-sb-btn-primary"
+                />
+                <span>
+                  Save this address to my account
+                  <span className="mt-0.5 block text-xs text-sb-text-muted">
+                    {saved.length
+                      ? `You have ${saved.length} of ${MAX_ADDRESSES} saved.`
+                      : "So you can pick it next time instead of typing it again."}
+                  </span>
+                </span>
+              </label>
+            ) : null}
+
+            {/*
+              The one case worth explaining rather than silently hiding the
+              box: they have filled the book, and nothing they do on this
+              form will change that.
+            */}
+            {isSignedIn && chosen === "new" && saved.length >= MAX_ADDRESSES ? (
+              <p className="mt-5 flex items-start gap-2 text-xs text-sb-text-muted">
+                <Check className="mt-0.5 size-3.5 shrink-0 text-sb-gold-text" aria-hidden="true" />
+                This order will go to the address above. Your {MAX_ADDRESSES} saved
+                addresses stay as they are —{" "}
+                <Link
+                  href="/account#addresses"
+                  className="font-semibold text-sb-link underline underline-offset-4"
+                >
+                  manage them in your account
+                </Link>
+                .
+              </p>
+            ) : null}
           </fieldset>
         </div>
 

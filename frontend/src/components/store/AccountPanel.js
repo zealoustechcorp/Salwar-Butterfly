@@ -19,6 +19,7 @@ import { LogOut, UserRound } from "lucide-react";
 import { useEffect, useRef } from "react";
 
 import { AccountSnapshot } from "./AccountSnapshot";
+import { AddressBook } from "./AddressBook";
 import { useAuth } from "./AuthProvider";
 import { ProfileCard } from "./ProfileCard";
 
@@ -91,6 +92,7 @@ export function AccountPanel() {
       </div>
 
       <ProfileCard />
+      <AddressBook />
       <AccountSnapshot />
     </>
   );

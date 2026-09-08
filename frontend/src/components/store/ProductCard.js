@@ -99,7 +99,7 @@ export function ProductCard({ product, priority = false }) {
             </span>
           ) : product.is_low_stock ? (
             <span className="absolute bottom-2.5 left-2.5 rounded-full bg-sb-surface-pink px-2.5 py-1 text-[10px] font-semibold text-sb-ink-on-pink sm:bottom-3 sm:left-3 sm:text-[11px]">
-              Only {product.stock} left
+              Only {product.stock} left — order fast!
             </span>
           ) : null}
         </div>
