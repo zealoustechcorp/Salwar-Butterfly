@@ -80,9 +80,12 @@ export const MEASURES_NOTE = {
  * overriding it with a copy the shop cannot edit would be the storefront
  * publishing measurements on its own authority.
  *
- * Every number is in inches and is transcribed from the shop's printed
- * cards. Nothing here is derived, interpolated or rounded — a row that
- * looks inconsistent with its neighbours is the shop's chart.
+ * Every measurement is in inches and is transcribed from the shop's
+ * printed cards. No measurement here is derived, interpolated or rounded
+ * — a row that looks inconsistent with its neighbours is the shop's
+ * chart. The size labels are the one thing that is not transcribed: the
+ * shop now sizes by the number rather than the letter the cards print,
+ * so each row is labelled with its own bust.
  */
 export const FALLBACK_SIZE_CHARTS = [
   {
@@ -91,18 +94,21 @@ export const FALLBACK_SIZE_CHARTS = [
     measures: "body",
     unit: "in",
     columns: ["size", "bust", "waist", "hip"],
-    // The size labels are the shop's own and are deliberately
-    // inconsistent past XL ("XXL", then "3X", "4X", then "5XL").
+    // The shop sizes by the number rather than the letter, and the
+    // number is the bust — so the size column repeats the bust column
+    // by construction. It is printed anyway: it is what the size chip
+    // on the product page says, and a chart a shopper cannot find their
+    // own size in is a chart they have to translate.
     rows: [
-      { size: "XS", bust: 34, waist: 28, hip: 36 },
-      { size: "S", bust: 36, waist: 30, hip: 38 },
-      { size: "M", bust: 38, waist: 32, hip: 40 },
-      { size: "L", bust: 40, waist: 34, hip: 42 },
-      { size: "XL", bust: 42, waist: 36, hip: 44 },
-      { size: "XXL", bust: 44, waist: 38, hip: 46 },
-      { size: "3X", bust: 46, waist: 40, hip: 48 },
-      { size: "4X", bust: 48, waist: 42, hip: 50 },
-      { size: "5XL", bust: 50, waist: 44, hip: 52 },
+      { size: "34", bust: 34, waist: 28, hip: 36 },
+      { size: "36", bust: 36, waist: 30, hip: 38 },
+      { size: "38", bust: 38, waist: 32, hip: 40 },
+      { size: "40", bust: 40, waist: 34, hip: 42 },
+      { size: "42", bust: 42, waist: 36, hip: 44 },
+      { size: "44", bust: 44, waist: 38, hip: 46 },
+      { size: "46", bust: 46, waist: 40, hip: 48 },
+      { size: "48", bust: 48, waist: 42, hip: 50 },
+      { size: "50", bust: 50, waist: 44, hip: 52 },
     ],
   },
   {
@@ -112,12 +118,15 @@ export const FALLBACK_SIZE_CHARTS = [
     unit: "in",
     columns: ["size", "bust", "waist", "hip", "shoulder"],
     rows: [
-      { size: "S", bust: 36, waist: 34, hip: 39, shoulder: 14 },
-      { size: "M", bust: 38, waist: 36, hip: 41, shoulder: 14.5 },
-      { size: "L", bust: 40, waist: 38, hip: 43, shoulder: 15 },
-      { size: "XL", bust: 42, waist: 40, hip: 45, shoulder: 15.5 },
-      { size: "2XL", bust: 44, waist: 42, hip: 47, shoulder: 16 },
-      { size: "3XL", bust: 46, waist: 44, hip: 49, shoulder: 16.5 },
+      // Garment measurements, so here the size and the bust part company
+      // below the waist: the number is still the body's bust, and the
+      // rest of the row is the piece laid flat.
+      { size: "36", bust: 36, waist: 34, hip: 39, shoulder: 14 },
+      { size: "38", bust: 38, waist: 36, hip: 41, shoulder: 14.5 },
+      { size: "40", bust: 40, waist: 38, hip: 43, shoulder: 15 },
+      { size: "42", bust: 42, waist: 40, hip: 45, shoulder: 15.5 },
+      { size: "44", bust: 44, waist: 42, hip: 47, shoulder: 16 },
+      { size: "46", bust: 46, waist: 44, hip: 49, shoulder: 16.5 },
     ],
   },
 ];

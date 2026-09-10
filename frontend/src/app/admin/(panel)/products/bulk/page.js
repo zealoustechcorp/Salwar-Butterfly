@@ -64,7 +64,7 @@ const BLANK_SHARED = {
 };
 
 /** Applied to every product in the batch. */
-const DEFAULT_SIZES = ["S", "M", "L", "XL"].map((size) => ({
+const DEFAULT_SIZES = ["36", "38", "40", "42"].map((size) => ({
   size,
   colour: "",
   stockQuantity: 0,

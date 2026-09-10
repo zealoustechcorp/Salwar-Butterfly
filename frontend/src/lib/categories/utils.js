@@ -14,7 +14,9 @@ export { autoSlug, SLUG_PATTERN } from "@/lib/slug";
  * Generates an empty default size chart measurement skeleton for a given garment fit type.
  * 
  * - For "Special Dress" (Anarkali gowns, occasion wear): Uses numerical dress sizing (4, 6, 8, 10).
- * - For all other fits ("Slim Fit", "Normal Fit"): Uses standard alphanumeric sizing (XS, S, M, L, XL).
+ * - For all other fits ("Slim Fit", "Normal Fit"): Uses the shop's own size ladder, which is
+ *   the bust in inches (34, 36, 38, 40, 42) — the same numbers the size chips on a product
+ *   offer, so a shopper reads their size straight off the chart.
  * 
  * Measurement columns provided for each row:
  * - `size`: The label for the garment size.
@@ -41,11 +43,11 @@ export function defaultSizeChartFor(fit) {
   return {
     fit,
     rows: [
-      { size: "XS", chest: "", waist: "", hip: "", length: "" },
-      { size: "S", chest: "", waist: "", hip: "", length: "" },
-      { size: "M", chest: "", waist: "", hip: "", length: "" },
-      { size: "L", chest: "", waist: "", hip: "", length: "" },
-      { size: "XL", chest: "", waist: "", hip: "", length: "" },
+      { size: "34", chest: "", waist: "", hip: "", length: "" },
+      { size: "36", chest: "", waist: "", hip: "", length: "" },
+      { size: "38", chest: "", waist: "", hip: "", length: "" },
+      { size: "40", chest: "", waist: "", hip: "", length: "" },
+      { size: "42", chest: "", waist: "", hip: "", length: "" },
     ],
   };
 }

@@ -25,8 +25,30 @@ import { api } from "./client";
  */
 export { STOCK_LABEL } from "../stock";
 
-/** The order sizes are offered in, and the order they are stored in. */
-export const STANDARD_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "3XL"];
+/**
+ * The order sizes are offered in, and the order they are stored in.
+ *
+ * The shop sizes by the number, not the letter: "40", not "L". The
+ * ladder is the bust measurement in inches, which is the same number the
+ * shop's Normal Fit chart already prints against every row — so a
+ * shopper who has measured themselves is reading the size off their own
+ * tape rather than translating it into a letter first.
+ *
+ * Strings, not numbers, because `product_variants.size` is free text at
+ * both ends: "Free Size" and a legacy "XL" are still valid sizes and
+ * still have to compare and sort against these.
+ */
+export const STANDARD_SIZES = [
+  "34",
+  "36",
+  "38",
+  "40",
+  "42",
+  "44",
+  "46",
+  "48",
+  "50",
+];
 
 const EMPTY_SUMMARY = {
   sizeCount: 0,

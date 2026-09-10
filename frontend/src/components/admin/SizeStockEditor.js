@@ -19,11 +19,12 @@ import { Badge, Button, cx, Input, Toggle, useToast } from "./ui";
  * hand.
  *
  * Both dimensions are chips — tapping one adds or removes it — because
- * the common case is a standard run (S–XL) in one or two colours, and
+ * the common case is a standard run (36–42) in one or two colours, and
  * typing that out for every product is the kind of friction that makes a
- * catalogue go un-entered. Anything non-standard ("38", "Free Size") is
- * added through the free-text field; a colour missing from the register
- * is added inline, which registers it for every other product too.
+ * catalogue go un-entered. Sizes are the shop's numbers, which are bust
+ * inches; anything off the ladder ("Free Size", a legacy "XL") is added
+ * through the free-text field, and a colour missing from the register is
+ * added inline, which registers it for every other product too.
  *
  * Colour is optional. A product with no colourway chosen is exactly what
  * a product was before colour existed — one row per size, colour "" —
@@ -34,7 +35,7 @@ import { Badge, Button, cx, Input, Toggle, useToast } from "./ui";
  * precedes M precedes S, which looks broken).
  *
  * Shape held by the parent:
- *   [{ size: "M", colour: "Maroon", stockQuantity: 12, active: true }, ...]
+ *   [{ size: "40", colour: "Maroon", stockQuantity: 12, active: true }, ...]
  */
 export function SizeStockEditor({
   rows,
@@ -72,7 +73,7 @@ export function SizeStockEditor({
    * Adds or removes a size across every colourway at once.
    *
    * Per-colourway, one size at a time would be the wrong unit: a shop
-   * that stops stocking XL stops stocking it in all three colours, and
+   * that stops stocking 42 stops stocking it in all three colours, and
    * making that three clicks invites getting it wrong in one of them.
    * A single row can still be dropped from its own line below.
    */
@@ -92,7 +93,7 @@ export function SizeStockEditor({
    * Two cases are deliberately not "add rows":
    *
    *   the first colour claims the existing rows. A product entered in
-   *   S–XL and then marked Maroon is a Maroon product — creating four
+   *   36–42 and then marked Maroon is a Maroon product — creating four
    *   empty Maroon rows beside four colourless ones would strand the
    *   stock already counted and leave a bucket nothing can be sold from.
    *
@@ -216,7 +217,7 @@ export function SizeStockEditor({
                 addCustomSize();
               }
             }}
-            placeholder="Other size — 38, Free Size…"
+            placeholder="Other size — Free Size, 52…"
             className="h-8 w-52 text-xs"
             aria-label="Add a custom size"
             maxLength={20}
@@ -546,7 +547,7 @@ const distinct = (values) => [...new Set(values.map((value) => value ?? ""))];
  *
  * Colourways keep the order they were added; sizes inside one run in the
  * standard order however the chips were clicked, with anything custom
- * ("38", "Free Size") after them in the order it was typed.
+ * ("Free Size", a legacy "XL") after them in the order it was typed.
  */
 function inReadingOrder(rows) {
   const colourOrder = distinct(rows.map((row) => row.colour ?? ""));

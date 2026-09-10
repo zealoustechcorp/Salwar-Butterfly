@@ -39,9 +39,11 @@
  *   gets a working wishlist on this device; it reconciles on the next load.
  */
 
+import Link from "next/link";
 import { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 import { readSession, readToken } from "@/lib/store/session";
+import { cn } from "@/lib/utils";
 import {
   fetchWishlist,
   mergeWishlist,
@@ -220,9 +222,11 @@ export function StoreProvider({ children }) {
   const { bag, wishlist } = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const [toast, setToast] = useState(null);
 
+  // A toast carrying a link stays up longer: 2.6s is enough to read a
+  // confirmation but not enough to notice a button, decide, and reach it.
   useEffect(() => {
     if (!toast) return undefined;
-    const timer = setTimeout(() => setToast(null), 2600);
+    const timer = setTimeout(() => setToast(null), toast.action ? 5200 : 2600);
     return () => clearTimeout(timer);
   }, [toast]);
 
@@ -296,6 +300,7 @@ export function StoreProvider({ children }) {
         ]
           .filter(Boolean)
           .join(" · "),
+        action: { href: "/bag", label: "View bag" },
       });
     };
 
@@ -346,9 +351,12 @@ export function StoreProvider({ children }) {
 
       commit({ bag, wishlist: next });
 
+      // Only the save offers the trip — after a remove there is nothing new
+      // on the wishlist to go and look at.
       setToast({
         title: saved ? "Removed from wishlist" : "Saved to wishlist",
         detail: product.name,
+        action: saved ? null : { href: "/wishlist", label: "View wishlist" },
       });
 
       const token = readToken();
@@ -392,21 +400,41 @@ export function StoreProvider({ children }) {
   return (
     <StoreContext.Provider value={value}>
       {children}
-      <Toast toast={toast} />
+      {/* Taking the link dismisses the strip rather than letting it ride the
+          navigation and sit on top of the page it just opened. */}
+      <Toast toast={toast} onAction={() => setToast(null)} />
     </StoreContext.Provider>
   );
 }
 
-function Toast({ toast }) {
+function Toast({ toast, onAction }) {
   return (
     <div
       aria-live="polite"
       className="pointer-events-none fixed inset-x-0 bottom-5 z-50 flex justify-center px-4"
     >
       {toast ? (
-        <div className="sb-enter flex items-center gap-3 rounded-full bg-sb-footer px-5 py-2.5 text-sb-bg shadow-lg shadow-sb-footer/25">
-          <span className="text-sm font-medium">{toast.title}</span>
-          <span className="hidden text-xs text-sb-bg/70 sm:inline">{toast.detail}</span>
+        // The strip itself stays click-through; only the button inside takes
+        // pointer events, so a toast over a product tile never eats a tap.
+        <div
+          className={cn(
+            "sb-enter flex max-w-full items-center gap-3 rounded-full bg-sb-footer py-2.5 pl-5 text-sb-bg shadow-lg shadow-sb-footer/25",
+            toast.action ? "pr-2" : "pr-5",
+          )}
+        >
+          <span className="shrink-0 text-sm font-medium">{toast.title}</span>
+          <span className="hidden min-w-0 truncate text-xs text-sb-bg/70 sm:inline">
+            {toast.detail}
+          </span>
+          {toast.action ? (
+            <Link
+              href={toast.action.href}
+              onClick={onAction}
+              className="pointer-events-auto shrink-0 rounded-full bg-sb-bg px-3.5 py-1.5 text-xs font-semibold whitespace-nowrap text-sb-footer transition-colors hover:bg-sb-btn-rose hover:text-sb-bg"
+            >
+              {toast.action.label}
+            </Link>
+          ) : null}
         </div>
       ) : null}
     </div>

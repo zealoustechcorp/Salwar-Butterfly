@@ -47,7 +47,7 @@ const BLANK = {
  * form converts these rows rather than adding beside them, so starting
  * with one would presume an answer the admin has not given.
  */
-const DEFAULT_SIZES = ["S", "M", "L", "XL"].map((size) => ({
+const DEFAULT_SIZES = ["36", "38", "40", "42"].map((size) => ({
   size,
   colour: "",
   stockQuantity: 0,

@@ -45,9 +45,12 @@ export const BLANK_CHART = {
   unit: "in",
   columns: ["size", "bust", "waist", "hip"],
   rows: [
-    { size: "S", bust: null, waist: null, hip: null },
-    { size: "M", bust: null, waist: null, hip: null },
-    { size: "L", bust: null, waist: null, hip: null },
+    // The shop's ladder is the bust in inches, so a new chart opens on
+    // the middle of it rather than on letters a product's size chips no
+    // longer offer.
+    { size: "38", bust: null, waist: null, hip: null },
+    { size: "40", bust: null, waist: null, hip: null },
+    { size: "42", bust: null, waist: null, hip: null },
   ],
   active: true,
 };
@@ -295,7 +298,7 @@ export default function SizeChartBuilder({ chart, onChange, errors = {} }) {
                         max={column === "size" ? undefined : LIMITS.measurement.max}
                         maxLength={column === "size" ? LIMITS.sizeLabel : undefined}
                         onChange={(e) => updateCell(index, column, e.target.value)}
-                        placeholder={column === "size" ? "M" : "—"}
+                        placeholder={column === "size" ? "40" : "—"}
                         className={cx(
                           "h-8 font-mono text-xs",
                           column === "size" && "bg-ink-50/40 font-semibold text-ink-900",

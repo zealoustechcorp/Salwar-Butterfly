@@ -213,6 +213,12 @@ CREATE INDEX IF NOT EXISTS idx_size_charts_published
 --
 -- Every number is in inches.
 --
+-- The letter labels below are what the cards printed when these charts
+-- were seeded. 016 renames them to the shop's numbers — the bust each
+-- row already carries — so a fresh database is seeded here and
+-- renumbered there, and ends up where an existing one does. The
+-- measurements are untouched by that; only the size column changes.
+--
 -- ON CONFLICT DO NOTHING, so this migration is safe to re-run and, more
 -- importantly, so re-running it never overwrites what an admin has since
 -- edited. The seed establishes these two charts; from here they belong

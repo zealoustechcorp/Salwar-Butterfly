@@ -114,7 +114,7 @@ export default function SizeChartEditor({ chart, onChange }) {
                     <Input
                       value={row[col]}
                       onChange={(e) => updateCell(i, col, e.target.value)}
-                      placeholder={col === "size" ? "S" : "80–84"}
+                      placeholder={col === "size" ? "40" : "80–84"}
                       className={`h-8 text-xs font-mono ${col === "size" ? "font-semibold text-ink-900 bg-ink-50/40" : ""
                         }`}
                     />

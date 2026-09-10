@@ -76,7 +76,14 @@ export function BagView({ products, shop }) {
 
             return (
               <li key={line.key} className="flex gap-4 py-5">
-                <div className="relative aspect-3/4 w-20 shrink-0 overflow-hidden rounded-xl border border-sb-gold/30 bg-sb-surface/40 sm:w-24">
+                {/* The photo and the name go back to the piece — the bag is
+                    where a shopper second-guesses a size or a fabric, and the
+                    only way back used to be the shop and a search. */}
+                <Link
+                  href={`/product/${line.product_id}`}
+                  aria-label={`View ${line.name}`}
+                  className="relative aspect-3/4 w-20 shrink-0 overflow-hidden rounded-xl border border-sb-gold/30 bg-sb-surface/40 transition-opacity hover:opacity-85 sm:w-24"
+                >
                   <Photo
                     src={line.image}
                     alt={line.name}
@@ -85,7 +92,7 @@ export function BagView({ products, shop }) {
                     sizes="96px"
                     className="object-cover"
                   />
-                </div>
+                </Link>
 
                 <div className="flex min-w-0 flex-1 flex-col">
                   <div className="flex items-start justify-between gap-3">
@@ -96,7 +103,12 @@ export function BagView({ products, shop }) {
                         </p>
                       ) : null}
                       <h2 className="mt-0.5 font-display text-lg leading-snug font-semibold text-sb-heading sm:text-xl">
-                        {line.name}
+                        <Link
+                          href={`/product/${line.product_id}`}
+                          className="underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sb-link"
+                        >
+                          {line.name}
+                        </Link>
                       </h2>
                       <p className="mt-0.5 text-xs text-sb-text-muted">
                         {line.size ? `Size ${line.size}` : "One size"}
