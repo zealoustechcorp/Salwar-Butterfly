@@ -50,6 +50,18 @@ const FEATURES = [
   { label: "Orders", href: "/admin/orders" },
   { label: "Reports", name: "Reports", href: "/admin/reports" },
   { label: "Reviews", name: "Reviews & Ratings", href: "/admin/reviews" },
+  // What the shop puts on the storefront's front page, as opposed to what
+  // it sells. Grouped rather than listed flat because the two screens
+  // under it edit the same page and are reached on the same errand.
+  {
+    label: "Home page",
+    name: "Home Page",
+    href: "/admin/home",
+    children: [
+      { href: "/admin/home/carousel", label: "Carousel" },
+      { href: "/admin/home/stories", label: "Customer stories" },
+    ],
+  },
 ];
 
 /**

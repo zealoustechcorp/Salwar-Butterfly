@@ -14,8 +14,15 @@ const ROTATE_MS = 5000;
 const SWIPE_PX = 44;
 
 /**
- * Opening statement. The imagery is the shop's own homepage banner set, pulled
- * from its settings — no stock photography and nothing generated.
+ * Opening statement. The imagery is the shop's own homepage banner set — no
+ * stock photography and nothing generated.
+ *
+ * The banners arrive as a prop, read from the API by the page above. They used
+ * to be a frozen array in lib/store/shop.js, which meant a festival banner
+ * could only reach this fold through a developer; they are now a table with an
+ * admin screen over it, seeded from exactly those five URLs. What a slide is
+ * did not change with the move: a photograph and a place in the order, with
+ * `alt=""` because the headline beside it is the text.
  *
  * The two columns split at `md`, not `lg`: at tablet widths a single column
  * left the right half of the fold empty and pushed the headline down the page.
@@ -26,14 +33,16 @@ const SWIPE_PX = 44;
  * placeholder — an invented rating in the first fold is the most conspicuous
  * possible place to put a claim the shop cannot support.
  */
-export function Hero({ shop, topDiscount, rating }) {
+export function Hero({ banners = [], topDiscount, rating }) {
   const { focusShop, setTab } = useBrowse();
-  const banners = shop.banners || [];
   // Banners that failed to load. They drop out of the carousel entirely — a
   // sliding track would otherwise stop on a blank frame — and when every one is
-  // down the illustrated lockup takes over.
+  // down the illustrated lockup takes over. That fallback is also what a shop
+  // with no banners at all gets, so an empty carousel needs no separate case.
   const [down, setDown] = useState(() => new Set());
-  const slides = banners.filter((src) => !down.has(src));
+  const slides = banners
+    .map((banner) => banner?.image)
+    .filter((src) => src && !down.has(src));
   const allDown = slides.length === 0;
 
   const markDown = useCallback((src) => {
@@ -118,7 +127,9 @@ export function Hero({ shop, topDiscount, rating }) {
         </div>
 
         {/* The shop's own banner set as a carousel — with the illustrated
-            lockup standing in while its Cloudinary account is disabled. */}
+            lockup standing in when there is nothing to show, whether that is
+            because the shop has published no banners or because none of the
+            photographs would load. */}
         <div className="relative mx-auto w-full max-w-md md:max-w-none">
           {allDown ? (
             <div className="grid grid-cols-3 items-end gap-2.5 sm:gap-4">

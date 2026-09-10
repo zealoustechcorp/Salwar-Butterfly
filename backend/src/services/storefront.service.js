@@ -19,6 +19,9 @@
 import { StorefrontRepository } from "../repository/storefront.repository.js";
 import { StorefrontMapper } from "../mapper/storefront.mapper.js";
 import { SizeChartMapper } from "../mapper/size_chart.mapper.js";
+import { BannerMapper } from "../mapper/banner.mapper.js";
+import { CustomerStoryMapper } from "../mapper/customer_story.mapper.js";
+import { MAX_STORIES_ON_HOME } from "../config/customer_story.policy.js";
 import { ApiError } from "../utils/ApiError.js";
 import { logger } from "../utils/logger.js";
 
@@ -62,6 +65,18 @@ let cache = null;
  */
 let chartsCache = null;
 
+/**
+ * The carousel, memoed on the same terms as the charts.
+ *
+ * Its own entry for the same reason: the home page is the only thing
+ * that asks for the banners, and folding them into the catalogue would
+ * make every product page carry a list it never renders.
+ */
+let bannersCache = null;
+
+/** The customer stories, memoed on the same terms as the banners. */
+let storiesCache = null;
+
 const readCache = () => {
   if (cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.value;
   return null;
@@ -71,6 +86,8 @@ const readCache = () => {
 export const clearStorefrontCache = () => {
   cache = null;
   chartsCache = null;
+  bannersCache = null;
+  storiesCache = null;
 };
 
 // ============================================================
@@ -214,6 +231,92 @@ export const StorefrontService = {
       });
 
       throw new ApiError(500, "Failed to load the size charts");
+    }
+  },
+
+  /**
+   * The slides the home page carousel is showing (F-06).
+   *
+   * Its own request rather than part of the catalogue, on the same
+   * terms as the size charts: this is one small document, and the
+   * catalogue is a large one that every page of the storefront loads.
+   * Only the home page renders these.
+   *
+   * An empty list is a real answer and not a failure. It means the shop
+   * has taken every banner down, and Hero.js falls back to its
+   * illustrated lockup — which is what it already did whenever the
+   * photographs failed to load, so there is no new case to handle.
+   */
+  async getBanners() {
+    if (bannersCache && Date.now() - bannersCache.at < CACHE_TTL_MS) {
+      return bannersCache.value;
+    }
+
+    try {
+      const rows = await StorefrontRepository.banners();
+
+      const banners = {
+        fetched_at: new Date().toISOString(),
+        banners: BannerMapper.toPublicList(rows),
+      };
+
+      bannersCache = { at: Date.now(), value: banners };
+
+      return banners;
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+
+      logger.error("StorefrontService.getBanners failed", {
+        error: error?.message,
+      });
+
+      throw new ApiError(500, "Failed to load the banners");
+    }
+  },
+
+  /**
+   * What customers have sent the shop (F-06.08), for the home page.
+   *
+   * Its own request rather than part of the catalogue, on the same terms
+   * as the banners: only the home page renders these, and folding them
+   * into the document every page loads would make a product page carry a
+   * rail it never draws.
+   *
+   * Capped at MAX_STORIES_ON_HOME rather than paginated. There is no
+   * "load more" on a section like this, and the cap is applied in the
+   * shop's own order — the first two dozen are the two dozen the shop
+   * put first.
+   *
+   * An empty list is a real answer and not a failure: it means the shop
+   * has published none, and the section is not rendered at all rather
+   * than appearing as a heading over nothing.
+   */
+  async getCustomerStories() {
+    if (storiesCache && Date.now() - storiesCache.at < CACHE_TTL_MS) {
+      return storiesCache.value;
+    }
+
+    try {
+      const rows = await StorefrontRepository.customerStories(
+        MAX_STORIES_ON_HOME,
+      );
+
+      const stories = {
+        fetched_at: new Date().toISOString(),
+        stories: CustomerStoryMapper.toPublicList(rows),
+      };
+
+      storiesCache = { at: Date.now(), value: stories };
+
+      return stories;
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+
+      logger.error("StorefrontService.getCustomerStories failed", {
+        error: error?.message,
+      });
+
+      throw new ApiError(500, "Failed to load the customer stories");
     }
   },
 

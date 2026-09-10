@@ -44,4 +44,26 @@ router.get("/getSizeCharts", StorefrontController.getSizeCharts);
 // enforced by that column list rather than by a filter downstream.
 router.get("/getProductReviews/:id", StorefrontController.getProductReviews);
 
+// The slides on the home page carousel (F-06).
+//
+// The fourth public read, added the way this file's header says one
+// should be: a single endpoint backed by a one-column list in
+// storefront.repository.js. The admin's own /banners router returns the
+// id, the position, the active flag and the Cloudinary public id — the
+// last of which is the handle that deletes the file — and none of them
+// are here. The difference is enforced by that column list rather than
+// by a filter downstream.
+router.get("/getBanners", StorefrontController.getBanners);
+
+// What customers have sent the shop, as printed on the home page
+// (F-06.08).
+//
+// The fifth public read. Its column list is the one worth reading
+// twice: it carries a customer's name, their words and their
+// photograph, which is exactly what the shop has chosen to publish and
+// nothing more. The admin's own /customerStories router returns the id,
+// the position, the published flag and the Cloudinary public id, and
+// none of those are here.
+router.get("/getCustomerStories", StorefrontController.getCustomerStories);
+
 export default router;

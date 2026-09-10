@@ -3,6 +3,8 @@
 import multer from "multer";
 
 import { ApiError } from "../utils/ApiError.js";
+import { MAX_BANNERS_PER_UPLOAD } from "../config/banner.policy.js";
+import { MAX_STORIES_PER_UPLOAD } from "../config/customer_story.policy.js";
 
 // ============================================================
 // CONFIGURATION
@@ -18,6 +20,18 @@ const MAX_FILES = 1;
 // which is what actually enforces the per-product ceiling; this only
 // bounds one request.
 const MAX_PRODUCT_IMAGES = 8;
+
+// The batch instance below is shared by the product gallery, the home
+// page carousel and the customer stories, so its ceiling is whichever of
+// the three wants most. Held as the max rather than as a number, because
+// a `files` limit lower than what a route's `.array()` asks for refuses
+// the extra files with a count multer got from the instance and a
+// message the route wrote — two different numbers for one refusal.
+const MAX_BATCH_FILES = Math.max(
+  MAX_PRODUCT_IMAGES,
+  MAX_BANNERS_PER_UPLOAD,
+  MAX_STORIES_PER_UPLOAD,
+);
 
 // ============================================================
 // MULTER STORAGE
@@ -102,7 +116,7 @@ const uploadMany = multer({
 
   limits: {
     fileSize: MAX_FILE_SIZE,
-    files: MAX_PRODUCT_IMAGES,
+    files: MAX_BATCH_FILES,
   },
 
   fileFilter,
@@ -275,6 +289,71 @@ export const uploadProductImages = uploadMany.array(
 );
 
 // ============================================================
+// BANNER IMAGE UPLOAD
+// ============================================================
+//
+// The home page carousel (F-06). Two routes, two shapes.
+//
+// Adding is a batch: a season's artwork is finished together and dragged
+// in together, and the admin screen's whole create form is a file
+// picker. Replacing is one file, because it swaps the artwork on one
+// slide that already exists.
+//
+// Expected multipart/form-data:
+//
+// images = File (repeat the field for each banner, up to the policy's
+//                MAX_BANNERS_PER_UPLOAD)
+//
+// Example:
+//
+// uploadBannerImages
+// handleBannerUploadError
+// validateUploadedImages
+//
+
+export const uploadBannerImages = uploadMany.array(
+  "images",
+  MAX_BANNERS_PER_UPLOAD,
+);
+
+/**
+ * The single-file variant, for replacing one slide's artwork.
+ *
+ * Built on `upload` rather than `uploadMany`: the single-image routes
+ * rely on multer refusing a second file outright, which is the whole
+ * reason there are two instances.
+ */
+export const uploadBannerImage = upload.single("image");
+
+// ============================================================
+// CUSTOMER STORY IMAGE UPLOAD
+// ============================================================
+//
+// What customers have sent the shop (F-06.08). The same two shapes as
+// the banners, and for the same reasons: a batch to add, one file to
+// replace.
+//
+// Expected multipart/form-data:
+//
+// images = File (repeat the field for each story, up to the policy's
+//                MAX_STORIES_PER_UPLOAD)
+//
+// A story created this way carries nothing but its photograph. The name
+// and the quote are typed afterwards, on the few that have one.
+//
+
+export const uploadStoryImages = uploadMany.array(
+  "images",
+  MAX_STORIES_PER_UPLOAD,
+);
+
+/**
+ * The single-file variant, for replacing one story's photograph — or
+ * giving one to a story that was words alone.
+ */
+export const uploadStoryImage = upload.single("image");
+
+// ============================================================
 // VALIDATE UPLOADED IMAGES (MULTIPLE)
 // ============================================================
 //
@@ -406,5 +485,24 @@ export const handleUploadError = uploadErrorHandler();
 /** The gallery variant, for the product image route. */
 export const handleProductUploadError = uploadErrorHandler({
   maxFiles: MAX_PRODUCT_IMAGES,
+  field: "images",
+});
+
+/**
+ * The carousel variant, for the banner batch route.
+ *
+ * Its own handler rather than the product one despite both reading
+ * `images`: the two ceilings are separate numbers that happen to agree
+ * today, and sharing the handler would tell an admin uploading banners
+ * about a limit named after products the moment one of them moves.
+ */
+export const handleBannerUploadError = uploadErrorHandler({
+  maxFiles: MAX_BANNERS_PER_UPLOAD,
+  field: "images",
+});
+
+/** The customer stories variant. Its own ceiling, for the same reason. */
+export const handleStoryUploadError = uploadErrorHandler({
+  maxFiles: MAX_STORIES_PER_UPLOAD,
   field: "images",
 });

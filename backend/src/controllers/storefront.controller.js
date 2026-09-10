@@ -63,6 +63,52 @@ export const StorefrontController = {
   }),
 
   /**
+   * GET /api/storefront/getBanners
+   *
+   * The slides the home page carousel is showing, in rotation order.
+   *
+   * Cached on the size charts' terms rather than the catalogue's. Stock
+   * is what makes the catalogue stale in a minute; a banner set changes
+   * when the shop changes its artwork — a few times a season — and five
+   * minutes in front of it keeps the first fold of the home page free to
+   * serve.
+   */
+  getBanners: asyncHandler(async (req, res) => {
+    const banners = await StorefrontService.getBanners();
+
+    res.set("Cache-Control", "public, max-age=300, stale-while-revalidate=600");
+
+    return okResponse({
+      res,
+      data: banners,
+      message: "Banners fetched successfully",
+      meta: { counts: { banners: banners.banners.length } },
+    });
+  }),
+
+  /**
+   * GET /api/storefront/getCustomerStories
+   *
+   * What customers have sent the shop, as the home page prints it.
+   *
+   * Cached on the banners' terms. A story is published once and does not
+   * change afterwards, so five minutes in front of it costs nothing a
+   * visitor would notice.
+   */
+  getCustomerStories: asyncHandler(async (req, res) => {
+    const stories = await StorefrontService.getCustomerStories();
+
+    res.set("Cache-Control", "public, max-age=300, stale-while-revalidate=600");
+
+    return okResponse({
+      res,
+      data: stories,
+      message: "Customer stories fetched successfully",
+      meta: { counts: { stories: stories.stories.length } },
+    });
+  }),
+
+  /**
    * GET /api/storefront/getProductReviews/:id
    *
    * Published reviews for one piece (F-06.08), with the average and the

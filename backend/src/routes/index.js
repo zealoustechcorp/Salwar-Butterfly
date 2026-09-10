@@ -19,6 +19,8 @@ import customerAddressRoutes from './customer_address.routes.js';
 import reportRoutes from './report.routes.js';
 import reviewRoutes from './review.routes.js';
 import sizeChartRoutes from './size_chart.routes.js';
+import bannerRoutes from './banner.routes.js';
+import customerStoryRoutes from './customer_story.routes.js';
 
 import { authenticate } from '../middlewares/auth.middleware.js';
 import { requireAdmin } from '../middlewares/authorize.middleware.js';
@@ -140,5 +142,19 @@ router.use('/reports', adminOnly, reportRoutes);
 // there is no shopper write path. Showing these on a product page
 // (F-06.08) is a read for /storefront when it is built.
 router.use('/reviews', adminOnly, reviewRoutes);
+
+// The home page carousel (F-06). Guarded with the catalogue's other
+// writers, and for a sharper reason than most: a banner row carries the
+// Cloudinary public id of its own file, which is the handle that deletes
+// it. What a shopper reads is /storefront/getBanners, which is a
+// different column list in a GET-only router.
+router.use('/banners', adminOnly, bannerRoutes);
+
+// What customers have sent the shop (F-06.08). Admin-only by design and
+// not by omission, exactly as /reviews is: the shop publishes what
+// customers send it privately, so there is no shopper write path here
+// and there is nothing on this router a visitor should reach. What they
+// read is /storefront/getCustomerStories.
+router.use('/customerStories', adminOnly, customerStoryRoutes);
 
 export default router;

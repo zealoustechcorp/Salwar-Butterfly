@@ -294,6 +294,71 @@ const SIZE_CHARTS_SQL = `
   ORDER BY sc.position ASC, sc.fit ASC
 `;
 
+// ============================================================
+// BANNERS (F-06)
+// ============================================================
+//
+// One column, and the four that are missing are the point.
+//
+// `id` and `position` are the admin screen's business — the rotation
+// order is already expressed by the ORDER BY, and a shopper has no use
+// for the id of the row a photograph came from. `active` would tell an
+// anonymous reader how many banners the shop has taken down.
+//
+// `image_public_id` is the one that would actually matter. It is
+// Cloudinary's handle for the file and the only argument its destroy
+// call accepts, so publishing it on an endpoint with no token in front
+// of it would put the delete key for the shop's own artwork in the page
+// source. The admin API next door returns it because the admin screen is
+// what deletes banners; this reader must never see it.
+
+const BANNERS_SQL = `
+  SELECT b.image
+  FROM banners b
+  WHERE b.active
+  ORDER BY b.position ASC, b.created_at ASC, b.id ASC
+`;
+
+// ============================================================
+// CUSTOMER STORIES (F-06.08)
+// ============================================================
+//
+// Five columns, and the same four are missing as everywhere else here:
+// the story's own id, its position, its published flag and its
+// Cloudinary public id.
+//
+// `product_id` is the exception, and it is here because it is the
+// point: a story that names a piece is a card that links to it, and the
+// id is what the link is built from. It is not a disclosure — product
+// ids are already in the catalogue and in every product URL.
+//
+// The join is filtered by `p.active`, so a story pointing at a piece the
+// shop has taken off sale comes back with a null name and is rendered as
+// a card that does not link anywhere. The story itself is still shown:
+// what a customer said about their order does not stop being true when
+// the run sells out.
+//
+// LIMIT rather than the whole table. The shop may keep sixty; a visitor
+// is served the first N by the shop's own order, which is its ordering
+// decision being honoured rather than a truncation it did not choose.
+
+const CUSTOMER_STORIES_SQL = `
+  SELECT
+    cs.customer_name,
+    cs.body,
+    cs.image,
+    cs.product_id,
+    p.name   AS product_name,
+    p.active AS product_active
+  FROM customer_stories cs
+  LEFT JOIN products p
+    ON p.id = cs.product_id
+   AND p.active = TRUE
+  WHERE cs.published
+  ORDER BY cs.position ASC, cs.created_at DESC, cs.id ASC
+  LIMIT $1
+`;
+
 export const StorefrontRepository = {
   async categories() {
     try {
@@ -320,6 +385,26 @@ export const StorefrontRepository = {
       return result.rows;
     } catch (error) {
       throw handleDatabaseError(error, "sizeCharts");
+    }
+  },
+
+  /** The slides the carousel is currently showing, in rotation order. */
+  async banners() {
+    try {
+      const result = await query(BANNERS_SQL);
+      return result.rows;
+    } catch (error) {
+      throw handleDatabaseError(error, "banners");
+    }
+  },
+
+  /** The stories the shop is publishing, in the order it chose. */
+  async customerStories(limit) {
+    try {
+      const result = await query(CUSTOMER_STORIES_SQL, [limit]);
+      return result.rows;
+    } catch (error) {
+      throw handleDatabaseError(error, "customerStories");
     }
   },
 
