@@ -203,6 +203,35 @@ const PRODUCT_VISIBLE_SQL = `
   ) AS found
 `;
 
+// ============================================================
+// SIZE CHARTS (F-06)
+// ============================================================
+//
+// Six columns, and the three that are missing are the point: `id`,
+// `position` and `active` are the admin screen's business. A shopper
+// reading a size chart has no use for the id of the row it came from,
+// the order the shop chose to print them in is already expressed by the
+// ORDER BY, and `active` would tell an anonymous reader how many charts
+// the shop has taken down.
+//
+// `active` still appears in the WHERE, which is the whole difference
+// between this reader and the admin one next door: a chart the shop has
+// withdrawn cannot be reached here at all, rather than being fetched and
+// filtered somewhere downstream.
+
+const SIZE_CHARTS_SQL = `
+  SELECT
+    sc.fit,
+    sc.title,
+    sc.measures,
+    sc.unit,
+    sc.column_keys,
+    sc.measurements
+  FROM size_charts sc
+  WHERE sc.active
+  ORDER BY sc.position ASC, sc.fit ASC
+`;
+
 export const StorefrontRepository = {
   async categories() {
     try {
@@ -219,6 +248,16 @@ export const StorefrontRepository = {
       return result.rows;
     } catch (error) {
       throw handleDatabaseError(error, "products");
+    }
+  },
+
+  /** The charts the shop currently publishes, in print order. */
+  async sizeCharts() {
+    try {
+      const result = await query(SIZE_CHARTS_SQL);
+      return result.rows;
+    } catch (error) {
+      throw handleDatabaseError(error, "sizeCharts");
     }
   },
 

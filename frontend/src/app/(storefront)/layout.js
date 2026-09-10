@@ -1,9 +1,11 @@
 import { AuthProvider } from "@/components/store/AuthProvider";
 import { BrowseProvider } from "@/components/store/BrowseProvider";
+import { SizeChartProvider } from "@/components/store/SizeChart";
 import { StoreFooter } from "@/components/store/StoreFooter";
 import { StoreHeader } from "@/components/store/StoreHeader";
 import { StoreProvider } from "@/components/store/StoreProvider";
 import { getShop, getStorefrontCategories } from "@/lib/store/catalogue";
+import { getSizeCharts } from "@/lib/store/sizeCharts";
 
 export const metadata = {
   // Absolute: the storefront title is the brand, so it must not pick up the
@@ -22,9 +24,18 @@ export const metadata = {
  * <AuthProvider> is outermost because the header, the account page and the
  * wishlist all need to know who is signed in, and because it renders the sign-in
  * dialog that any of them can open.
+ *
+ * The size charts (F-06) are fetched here rather than in the pages that show
+ * them, because the chart dialog opens from four places — the product page,
+ * every product tile, the bag and the account page — and this is the only
+ * component above all four. One request per render serves all of them; a null
+ * means the read failed, and <SizeChartProvider> decides what to do about it.
  */
 export default async function StorefrontLayout({ children }) {
-  const categories = await getStorefrontCategories();
+  const [categories, sizeCharts] = await Promise.all([
+    getStorefrontCategories(),
+    getSizeCharts(),
+  ]);
   const shop = getShop();
 
   return (
@@ -32,9 +43,11 @@ export default async function StorefrontLayout({ children }) {
       <AuthProvider>
         <StoreProvider>
           <BrowseProvider>
-            <StoreHeader categories={categories} shop={shop} />
-            <main className="flex-1">{children}</main>
-            <StoreFooter shop={shop} />
+            <SizeChartProvider charts={sizeCharts}>
+              <StoreHeader categories={categories} shop={shop} />
+              <main className="flex-1">{children}</main>
+              <StoreFooter shop={shop} />
+            </SizeChartProvider>
           </BrowseProvider>
         </StoreProvider>
       </AuthProvider>

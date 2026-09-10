@@ -39,6 +39,30 @@ export const StorefrontController = {
   }),
 
   /**
+   * GET /api/storefront/getSizeCharts
+   *
+   * The charts the shop publishes, in the order it prints them.
+   *
+   * Cached for longer than the catalogue is, and for the same reason the
+   * reviews are: stock is what makes the catalogue stale in a minute,
+   * while a size chart changes when the shop reprints a card — a few
+   * times a year. Five minutes in front of it keeps the chart dialog
+   * free on every page that can open it.
+   */
+  getSizeCharts: asyncHandler(async (req, res) => {
+    const charts = await StorefrontService.getSizeCharts();
+
+    res.set("Cache-Control", "public, max-age=300, stale-while-revalidate=600");
+
+    return okResponse({
+      res,
+      data: charts,
+      message: "Size charts fetched successfully",
+      meta: { counts: { charts: charts.charts.length } },
+    });
+  }),
+
+  /**
    * GET /api/storefront/getProductReviews/:id
    *
    * Published reviews for one piece (F-06.08), with the average and the

@@ -43,6 +43,10 @@ const FEATURES = [
     ],
   },
   { label: "Inventory", href: "/admin/inventory" },
+  // Under the catalogue rather than beside Reports: a size chart is part
+  // of what the shop publishes about a garment, and the shop reaches for
+  // it while it is editing products.
+  { label: "Size charts", name: "Size Charts", href: "/admin/size-charts" },
   { label: "Customers", href: "/admin/customers" },
   { label: "Orders", href: "/admin/orders" },
   { label: "Reports", name: "Reports", href: "/admin/reports" },

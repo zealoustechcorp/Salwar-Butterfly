@@ -18,6 +18,7 @@ import wishlistRoutes from './wishlist.routes.js';
 import customerAddressRoutes from './customer_address.routes.js';
 import reportRoutes from './report.routes.js';
 import reviewRoutes from './review.routes.js';
+import sizeChartRoutes from './size_chart.routes.js';
 
 import { authenticate } from '../middlewares/auth.middleware.js';
 import { requireAdmin } from '../middlewares/authorize.middleware.js';
@@ -120,6 +121,12 @@ router.use('/productVariants', adminOnly, productVariantRoutes);
 router.use('/productAttributes', adminOnly, productAttributeRoutes);
 router.use('/productImages', adminOnly, productImageRoutes);
 router.use('/inventory', adminOnly, inventoryRoutes);
+
+// The published size charts (F-06). Guarded with the catalogue's other
+// writers: every endpoint here changes a table printed beside a Buy
+// button. What a shopper reads is /storefront/getSizeCharts, which is a
+// different column list in a GET-only router.
+router.use('/sizeCharts', adminOnly, sizeChartRoutes);
 
 // The dashboard and the reports (F-11). GET only, and every figure on
 // them is the shop's own business — a revenue total, and an order

@@ -134,6 +134,7 @@ line to that file.
 | Method | Path                            | Auth | Description                                    |
 | ------ | ------------------------------- | ---- | ---------------------------------------------- |
 | GET    | `/storefront/getCatalogue`      | —    | the whole shelf: categories, products, sizes, stock, ratings |
+| GET    | `/storefront/getSizeCharts`     | —    | the published size charts, in print order (F-06) |
 | GET    | `/storefront/getProductReviews/:id` | — | published reviews and the score for one piece (F-06.08) |
 
 ### Categories — F-02
@@ -199,6 +200,41 @@ the FRS's number). Out of stock is a true zero rather than the reserve
 buffer F-04.06 suggests — this catalogue stocks one or two pieces per
 size, so a floor of ten would take the whole shop off sale. That
 deviation is recorded, not coded.
+
+### Size charts — F-06
+
+The tables the storefront prints beside every size picker. Shop-wide,
+not per category: the shop publishes a chart per *fit*, and a shopper
+picks between them with a tab. Adding a fit is a row here, not a
+deployment.
+
+| Method | Path                                    | Auth  | Description                                  |
+| ------ | --------------------------------------- | ----- | -------------------------------------------- |
+| GET    | `/sizeCharts/getSizeCharts`             | admin | every chart, published or not, in print order |
+| GET    | `/sizeCharts/getSizeChartById/:id`      | admin |                                              |
+| POST   | `/sizeCharts/createSizeChart`           | admin | a new fit; lands last in the print order     |
+| PUT    | `/sizeCharts/updateSizeChart/:id`       | admin | a full replace, not a patch                  |
+| PATCH  | `/sizeCharts/setSizeChartActive/:id`    | admin | take it off the storefront, or put it back   |
+| PATCH  | `/sizeCharts/reorderSizeCharts`         | admin | `{ ids }` — the whole set, in print order    |
+| DELETE | `/sizeCharts/deleteSizeChart/:id`       | admin | permanent; hiding is what setActive is for   |
+
+What a chart may contain lives in `config/size_chart.policy.js`: the
+closed set of column keys (`size`, then `bust`, `waist`, `hip`,
+`shoulder`, …), the two `measures` values (`body` or `garment`, which
+changes how every number is read), the units, and the bounds. Those are
+mirrored as CHECK constraints in
+`migrations/014_create_size_charts.sql`, which also **seeds the shop's
+two published charts** — Normal Fit and Slim Fit — verbatim from what
+used to be hardcoded in `frontend/src/lib/sizing.js`.
+
+Pant length is deliberately *not* here. It does not vary by size, so it
+is a property of the garment rather than a row in any chart, and it
+stays in `frontend/src/lib/sizing.js` with the shop's standing guidance
+on how to read a chart.
+
+The update is a replace because there is no partial update of a
+measurement grid that means anything: dropping a column and clearing it
+are different edits, and a per-field patch cannot tell them apart.
 
 ### Customers — F-05
 

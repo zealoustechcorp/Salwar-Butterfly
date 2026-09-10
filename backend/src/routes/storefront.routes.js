@@ -24,6 +24,16 @@ const router = express.Router();
 
 router.get("/getCatalogue", StorefrontController.getCatalogue);
 
+// The size charts the shop publishes (F-06).
+//
+// The third public read, and added the way this file's header says one
+// should be: a single endpoint backed by a six-column list in
+// storefront.repository.js. The admin's own /sizeCharts router returns
+// the id, the print position and the published flag; none of those are
+// here, and the difference is enforced by that column list rather than
+// by a filter downstream.
+router.get("/getSizeCharts", StorefrontController.getSizeCharts);
+
 // What shoppers have said about one piece (F-06.08).
 //
 // The second public read, added the way this file's header says a

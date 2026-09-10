@@ -18,6 +18,7 @@
 
 import { StorefrontRepository } from "../repository/storefront.repository.js";
 import { StorefrontMapper } from "../mapper/storefront.mapper.js";
+import { SizeChartMapper } from "../mapper/size_chart.mapper.js";
 import { ApiError } from "../utils/ApiError.js";
 import { logger } from "../utils/logger.js";
 
@@ -52,6 +53,15 @@ const UUID_REGEX =
 
 let cache = null;
 
+/**
+ * The size charts, memoed on the same terms.
+ *
+ * Its own entry rather than a field on the catalogue's, because the two
+ * are fetched by different endpoints: a page that only opens the chart
+ * dialog should not pull two hundred products to do it.
+ */
+let chartsCache = null;
+
 const readCache = () => {
   if (cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.value;
   return null;
@@ -60,6 +70,7 @@ const readCache = () => {
 /** Dropped on demand by tests, and by nothing else. */
 export const clearStorefrontCache = () => {
   cache = null;
+  chartsCache = null;
 };
 
 // ============================================================
@@ -163,6 +174,46 @@ export const StorefrontService = {
       });
 
       throw new ApiError(500, "Failed to load the catalogue");
+    }
+  },
+
+  /**
+   * The size charts the shop publishes (F-06).
+   *
+   * Its own request rather than part of the catalogue, and for the
+   * opposite reason to the reviews below: the reviews are per product
+   * and would bloat a shared document, while the charts are one small
+   * document shared by every page — including the bag and the account
+   * page, which have no catalogue to ride along on.
+   *
+   * An empty list is a real answer, not a failure. It means the shop has
+   * taken every chart down, and the storefront renders no size-chart
+   * button rather than falling back to numbers of its own.
+   */
+  async getSizeCharts() {
+    if (chartsCache && Date.now() - chartsCache.at < CACHE_TTL_MS) {
+      return chartsCache.value;
+    }
+
+    try {
+      const rows = await StorefrontRepository.sizeCharts();
+
+      const charts = {
+        fetched_at: new Date().toISOString(),
+        charts: SizeChartMapper.toPublicList(rows),
+      };
+
+      chartsCache = { at: Date.now(), value: charts };
+
+      return charts;
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+
+      logger.error("StorefrontService.getSizeCharts failed", {
+        error: error?.message,
+      });
+
+      throw new ApiError(500, "Failed to load the size charts");
     }
   },
 
