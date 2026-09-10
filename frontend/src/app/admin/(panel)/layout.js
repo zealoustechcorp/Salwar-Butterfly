@@ -4,7 +4,7 @@ import { RequireAdmin } from "@/components/admin/RequireAdmin";
 export const metadata = {
   title: "Product Management — Salwar Butterfly Admin",
   description:
-    "F-03 Product Management console for the Salwar Butterfly storefront.",
+    "Product Management console for the Salwar Butterfly storefront.",
 };
 
 /**

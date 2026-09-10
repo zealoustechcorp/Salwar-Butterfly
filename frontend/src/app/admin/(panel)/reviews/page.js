@@ -286,7 +286,6 @@ export default function ReviewsPage() {
       <Card>
         <CardHeader
           title="All reviews"
-          requirement="F-11.06"
           description={
             pagination && !loading
               ? `${number(pagination.total)} ${
@@ -706,7 +705,6 @@ function ReviewDialog({ open, review, products, onClose, onSaved }) {
       open={open}
       onClose={saving ? () => {} : onClose}
       title={creating ? "Add a review" : "Edit review"}
-      requirement="F-11.06"
       description={
         creating
           ? "What a customer told the shop, published in their name."

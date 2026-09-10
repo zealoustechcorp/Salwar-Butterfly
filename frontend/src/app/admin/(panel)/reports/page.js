@@ -61,9 +61,9 @@ import { STOCK_LABEL, STOCK_TONE } from "@/lib/stock";
  */
 
 const TABS = [
-  { id: "sales", label: "Sales", requirement: "F-11.02" },
-  { id: "orders", label: "Orders", requirement: "F-11.03" },
-  { id: "inventory", label: "Inventory", requirement: "F-11.04" },
+  { id: "sales", label: "Sales" },
+  { id: "orders", label: "Orders" },
+  { id: "inventory", label: "Inventory" },
 ];
 
 export default function ReportsPage() {
@@ -278,7 +278,6 @@ function SalesReport({ range, period, reload, onRetry }) {
       <Card>
         <CardHeader
           title="Orders and revenue over time"
-          requirement="F-11.02"
           description={
             state.range
               ? `${shortDate(state.range.from)} — ${shortDate(
@@ -322,7 +321,6 @@ function SalesReport({ range, period, reload, onRetry }) {
       <Card>
         <CardHeader
           title="Best sellers"
-          requirement="F-11.04"
           description="Ranked over the same range. Cancelled orders are excluded — those pieces went back on the shelf."
           actions={
             <Select
@@ -604,7 +602,6 @@ function OrderReport({ range, reload, onRetry }) {
       <Card>
         <CardHeader
           title="Order summary"
-          requirement="F-11.03"
           description={
             filtered
               ? "The tiles above describe the whole range — narrowing the status below does not change them."
@@ -859,7 +856,6 @@ function InventoryReport({ reload, onRetry }) {
       <Card>
         <CardHeader
           title="By category"
-          requirement="F-11.04"
           description="Every category, including the empty ones — a category with nothing in it is worth seeing."
         />
 
@@ -932,7 +928,6 @@ function InventoryReport({ reload, onRetry }) {
       <div className="grid gap-5 xl:grid-cols-2">
         <StockListCard
           title="Sold out"
-          requirement="F-11.02"
           tone="red"
           list={data?.outOfStock}
           loading={loading}
@@ -940,7 +935,6 @@ function InventoryReport({ reload, onRetry }) {
         />
         <StockListCard
           title="Running low"
-          requirement="F-11.02"
           tone="amber"
           list={data?.lowStock}
           loading={loading}
@@ -951,7 +945,7 @@ function InventoryReport({ reload, onRetry }) {
   );
 }
 
-function StockListCard({ title, requirement, tone, list, loading, empty }) {
+function StockListCard({ title, tone, list, loading, empty }) {
   const rows = list?.rows ?? [];
   const total = list?.total ?? 0;
 
@@ -959,7 +953,6 @@ function StockListCard({ title, requirement, tone, list, loading, empty }) {
     <Card>
       <CardHeader
         title={title}
-        requirement={requirement}
         description={
           // The list is capped, so the full count has to be stated —
           // otherwise twenty-five rows read as "that is all of them".

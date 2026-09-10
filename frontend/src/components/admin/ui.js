@@ -302,33 +302,15 @@ export function Card({ className, children, ...props }) {
   );
 }
 
-export function CardHeader({ title, description, actions, requirement }) {
+export function CardHeader({ title, description, actions }) {
   return (
     <header className="flex flex-wrap items-start justify-between gap-3 border-b border-ink-200/80 px-5 py-4">
       <div className="min-w-0">
-        <h2 className="flex items-center gap-2 text-sm font-semibold text-ink-900">
-          {title}
-          {requirement ? <RequirementTag id={requirement} /> : null}
-        </h2>
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-ink-900">{title}</h2>
         {description ? <p className="mt-1 text-xs text-ink-500">{description}</p> : null}
       </div>
       {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
     </header>
-  );
-}
-
-/** Traceability chip back to the FRS clause a control implements. */
-export function RequirementTag({ id, className }) {
-  return (
-    <span
-      title={`FRS requirement ${id}`}
-      className={cx(
-        "rounded border border-gold-300 bg-gold-50 px-1.5 py-px font-mono text-[10px] font-semibold text-gold-700",
-        className,
-      )}
-    >
-      {id}
-    </span>
   );
 }
 
@@ -379,7 +361,7 @@ export function SkeletonRows({ rows = 6, className }) {
 
 // --- Modal ------------------------------------------------------------------
 
-export function Modal({ open, onClose, title, description, requirement, children, footer, size = "md" }) {
+export function Modal({ open, onClose, title, description, children, footer, size = "md" }) {
   const ref = useRef(null);
   const titleId = useId();
 
@@ -436,7 +418,6 @@ export function Modal({ open, onClose, title, description, requirement, children
               <div>
                 <h2 id={titleId} className="flex items-center gap-2 text-sm font-semibold text-ink-900">
                   {title}
-                  {requirement ? <RequirementTag id={requirement} /> : null}
                 </h2>
                 {description ? <p className="mt-1 text-xs text-ink-500">{description}</p> : null}
               </div>

@@ -201,7 +201,6 @@ export default function CustomerDetailPage() {
       <Card>
         <CardHeader
           title="Details"
-          requirement="F-05.06"
           description="Correct a name, email or phone number. The customer can change these themselves from their account."
         />
 
@@ -318,7 +317,6 @@ function CloseAccountDialog({ open, customer, onClose, onDone }) {
       open={open}
       onClose={onClose}
       title="Close this account?"
-      requirement="F-05.05"
       description={`${customer.name} will no longer be able to sign in.`}
       footer={
         <>

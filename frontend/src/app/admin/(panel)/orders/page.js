@@ -209,7 +209,6 @@ export default function OrdersPage() {
       <Card>
         <CardHeader
           title="All orders"
-          requirement="F-09.04"
           description={
             pagination && !loading
               ? `${number(pagination.total)} ${

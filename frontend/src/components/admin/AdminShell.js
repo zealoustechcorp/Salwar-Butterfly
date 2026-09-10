@@ -8,15 +8,14 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { useAdminAuth } from "./AdminAuthProvider";
-import { Badge, Button, cx, ToastProvider } from "./ui";
+import { Button, cx, ToastProvider } from "./ui";
 
 // Admin nav shows only features with screens in this UI — backend-side work
-// (F-01 Authentication, F-10 Payment) is not navigable and stays out of the nav.
+// (authentication, payment) is not navigable and stays out of the nav.
 const FEATURES = [
   /**
-   * Every entry is live against the API, so none carries a spec badge.
-   * The list held an F-11 placeholder until the dashboard and reports
-   * were built; there is nothing unbuilt left to mark.
+   * Entries are labels only: spec ids are an internal numbering and are
+   * never shown in the UI.
    *
    * Dashboard is first because it is what /admin now lands on — the
    * route used to redirect to Products for want of anything to show.
@@ -225,12 +224,7 @@ function Sidebar({ pathname, onNavigate, idPrefix = "rail" }) {
               return (
                 <li key={feature.label}>
                   <span className="flex cursor-not-allowed items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-sm text-ink-400">
-                    <span className="flex items-center gap-2">
-                      {feature.id ? (
-                        <span className="font-mono text-[10px] text-ink-300">{feature.id}</span>
-                      ) : null}
-                      {feature.label}
-                    </span>
+                    <span className="flex items-center gap-2">{feature.label}</span>
                     <span className="text-[10px] text-ink-300">later</span>
                   </span>
                 </li>
@@ -252,16 +246,6 @@ function Sidebar({ pathname, onNavigate, idPrefix = "rail" }) {
                       className="absolute inset-0 rounded-lg bg-brand-50"
                       aria-hidden="true"
                     />
-                  ) : null}
-                  {feature.id ? (
-                    <span
-                      className={cx(
-                        "relative font-mono text-[10px]",
-                        active ? "text-brand-500" : "text-ink-400",
-                      )}
-                    >
-                      {feature.id}
-                    </span>
                   ) : null}
                   <span className="relative">{feature.label}</span>
                 </Link>
@@ -292,16 +276,6 @@ function Sidebar({ pathname, onNavigate, idPrefix = "rail" }) {
                               />
                             ) : null}
                             <span className="relative">{link.label}</span>
-                            {link.requirement ? (
-                              <span
-                                className={cx(
-                                  "relative font-mono text-[10px]",
-                                  linkActive ? "text-white/50" : "text-ink-300",
-                                )}
-                              >
-                                {link.requirement}
-                              </span>
-                            ) : null}
                           </Link>
                         </li>
                       );
@@ -332,7 +306,6 @@ export function AdminShell({ children }) {
   const featureTitle =
     currentFeature.name ||
     (currentFeature.label ? `${currentFeature.label} Management` : "Admin Console");
-  const featureBadge = currentFeature.id;
 
   return (
     <MotionConfig reducedMotion="user">
@@ -388,7 +361,6 @@ export function AdminShell({ children }) {
               </Button>
               <div className="flex min-w-0 items-center gap-2">
                 <span className="truncate text-sm font-semibold text-ink-900">{featureTitle}</span>
-                {featureBadge ? <Badge tone="brand">{featureBadge}</Badge> : null}
               </div>
             </header>
 

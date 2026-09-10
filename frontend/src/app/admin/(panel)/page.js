@@ -198,7 +198,6 @@ export default function DashboardPage() {
         <Card>
           <CardHeader
             title="Latest orders"
-            requirement="F-11.03"
             description={`${number(orders.allTime.orders)} placed all time · ${money(
               orders.allTime.revenue,
             )} taken`}
@@ -296,7 +295,6 @@ export default function DashboardPage() {
         <Card>
           <CardHeader
             title="Needs reordering"
-            requirement="F-11.02"
             description={`${number(stock.outOfStock.sizes)} sold out · ${number(
               stock.lowStock.sizes,
             )} under ${stock.thresholds.lowStockBelow}`}

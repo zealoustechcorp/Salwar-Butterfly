@@ -127,7 +127,6 @@ export default function CustomersPage() {
       <Card>
         <CardHeader
           title="All customers"
-          requirement="F-05.04"
           description={
             pagination && !loading
               ? `${number(pagination.total)} ${

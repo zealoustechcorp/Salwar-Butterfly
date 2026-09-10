@@ -5,7 +5,7 @@
   "type": "module",
   "main": "src/server.js",
   "scripts": {
-    "dev": "nodemon --watch --env-file=.env src/server.js",
+    "dev": "nodemon --env-file=.env src/server.js",
     "start": "nodemon --env-file=.env src/server.js",
     "db:check": "node --env-file=.env src/scripts/checkDb.js",
     "db:migrate": "node --env-file=.env src/scripts/migrate.js",

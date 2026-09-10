@@ -1,9 +1,10 @@
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 
-// Only features with screens in this frontend (FRS §5 Screen Inventory).
-// F-01 Authentication & Authorization is backend-side work — sessions, tokens
-// and role checks — and is not tracked here.
+// Only features with screens in this frontend. Authentication & authorization
+// is backend-side work — sessions, tokens and role checks — and is not tracked
+// here. Features are listed by name only: the spec's numbering is internal and
+// is never shown in the UI.
 //
 // There used to be a third state on this list, "UI on snapshot data", for
 // storefront screens that were finished but still rendering from a committed
@@ -12,7 +13,6 @@ import Link from "next/link";
 // and the snapshot file is gone. Every screen below either reads the live API
 // or does not exist yet, which is why two states are now enough.
 const FEATURES = [
-  // Built and running against the API, so these carry no FRS id.
   {
     name: "Categories Management",
     href: "/admin/category",
@@ -21,18 +21,18 @@ const FEATURES = [
   { name: "Product Management", href: "/admin/products", status: "live" },
   { name: "Inventory Management", href: "/admin/inventory", status: "live" },
   { name: "Customer Management", href: "/admin/customers", status: "live" },
-  { id: "F-06", name: "Product Browsing & Search", href: "/", status: "live" },
-  { id: "F-07", name: "Cart & Wishlist", href: "/bag", status: "live" },
-  { id: "F-08", name: "Address & Checkout", href: "/checkout", status: "live" },
-  { id: "F-09", name: "Order Management", href: "/admin/orders", status: "live" },
+  { name: "Product Browsing & Search", href: "/", status: "live" },
+  { name: "Cart & Wishlist", href: "/bag", status: "live" },
+  { name: "Address & Checkout", href: "/checkout", status: "live" },
+  { name: "Order Management", href: "/admin/orders", status: "live" },
   // The gateway itself is backend work, but it has a screen now: the
   // confirmation page opens the payment sheet, and retries it.
-  { id: "F-10", name: "Payment", href: "/checkout/done", status: "live" },
+  { name: "Payment", href: "/checkout/done", status: "live" },
   // The dashboard replaced the redirect that used to sit on /admin;
-  // reviews (F-11.06) are the admin-only page the FRS asks for, not a
-  // storefront feature — showing them on a product page is F-06.08.
-  { id: "F-11", name: "Dashboard & Reports", href: "/admin", status: "live" },
-  { id: "F-11.06", name: "Reviews & Ratings", href: "/admin/reviews", status: "live" },
+  // reviews are the admin-only page the spec asks for, not a storefront
+  // feature — showing them on a product page is a separate screen.
+  { name: "Dashboard & Reports", href: "/admin", status: "live" },
+  { name: "Reviews & Ratings", href: "/admin/reviews", status: "live" },
 ];
 
 const STATUS_BADGE = {
@@ -54,7 +54,7 @@ export default function BuildTracker() {
           Single-Seller E-Commerce — build tracker
         </h1>
         <p className="mt-3 text-sm leading-relaxed text-ink-600">
-          Features ship one at a time in the FRS order: Database → API → UI → Integration → Test.
+          Features ship one at a time, in order: Database → API → UI → Integration → Test.
           This tracker lists only the features with screens in this frontend. The customer
           storefront now owns <code className="font-mono text-xs text-brand-600">/</code>; this
           page moved to <code className="font-mono text-xs text-brand-600">/dev</code>.
@@ -77,9 +77,6 @@ export default function BuildTracker() {
                   href={feature.href}
                   className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-brand-50"
                 >
-                  {feature.id ? (
-                    <span className="font-mono text-xs text-brand-600">{feature.id}</span>
-                  ) : null}
                   <span className="text-sm font-medium text-ink-900">{feature.name}</span>
                   <span
                     className={`ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${
@@ -93,7 +90,6 @@ export default function BuildTracker() {
               </li>
             ) : (
               <li key={feature.name} className="flex items-center gap-3 px-4 py-3">
-                <span className="font-mono text-xs text-ink-300">{feature.id}</span>
                 <span className="text-sm text-ink-400">{feature.name}</span>
                 <span className="ml-auto text-[11px] text-ink-300">not started</span>
               </li>
@@ -102,7 +98,7 @@ export default function BuildTracker() {
         </ul>
 
         <p className="mt-6 text-xs text-ink-400">
-          F-01 Authentication &amp; Authorization is backend work (sessions, tokens, role
+          Authentication &amp; Authorization is backend work (sessions, tokens, role
           checks) and is tracked outside this UI.
         </p>
       </main>

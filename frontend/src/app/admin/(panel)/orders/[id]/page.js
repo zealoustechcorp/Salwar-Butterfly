@@ -331,7 +331,7 @@ export default function OrderDetailPage() {
 
         <div className="space-y-5">
           <Card>
-            <CardHeader title="Move this order along" requirement="F-09.05" />
+            <CardHeader title="Move this order along" />
 
             <div className="space-y-3 px-5 py-4">
               <p className="text-xs text-ink-500">{orderStatus.blurb}</p>
@@ -522,7 +522,7 @@ function PaymentAttempts({ orderId, reload }) {
   if (state.status === "error") {
     return (
       <Card>
-        <CardHeader title="Payments" requirement="F-10" />
+        <CardHeader title="Payments" />
         <p className="px-5 py-4 text-xs text-ink-500">
           Could not load the payment history. The order above is unaffected.
         </p>
@@ -537,7 +537,6 @@ function PaymentAttempts({ orderId, reload }) {
       <CardHeader
         title="Payments"
         description="Every attempt through the gateway, newest first."
-        requirement="F-10"
       />
 
       <ol className="divide-y divide-ink-100">
@@ -625,7 +624,6 @@ function ConfirmPaymentDialog({ open, order, onClose, onDone, onConflict }) {
       open={open}
       onClose={onClose}
       title="Confirm this payment?"
-      requirement="F-09.05"
       description={`${order.orderNumber} · ${money(order.total, { precise: true })} from ${order.contact.name}.`}
       size="sm"
       footer={
@@ -700,7 +698,6 @@ function CancelOrderDialog({ open, order, onClose, onDone, onConflict }) {
       open={open}
       onClose={onClose}
       title="Cancel this order?"
-      requirement="F-09.05"
       description={`${order.orderNumber} · ${number(order.unitCount)} ${
         order.unitCount === 1 ? "piece" : "pieces"
       } from ${order.contact.name}.`}

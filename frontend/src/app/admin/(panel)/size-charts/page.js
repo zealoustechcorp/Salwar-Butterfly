@@ -224,7 +224,6 @@ export default function SizeChartsPage() {
       <Card>
         <CardHeader
           title="Size charts"
-          requirement="F-06"
           description={
             state.status === "ready"
               ? `${state.charts.length} chart${state.charts.length === 1 ? "" : "s"}, ${published} on the storefront. Listed in the order their tabs appear to a shopper.`
@@ -302,7 +301,6 @@ export default function SizeChartsPage() {
         open={Boolean(draft)}
         onClose={() => (saving ? null : setDraft(null))}
         size="xl"
-        requirement="F-06"
         title={editingId ? `Edit ${draft?.fit || "chart"}` : "Add a fit"}
         description="Whatever is saved here is what a shopper reads next to the size picker."
         footer={
