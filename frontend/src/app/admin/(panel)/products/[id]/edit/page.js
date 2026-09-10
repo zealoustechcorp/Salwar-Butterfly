@@ -116,7 +116,6 @@ function EditProduct() {
             slug: product.slug,
             description: product.description,
             categoryId: product.categoryId,
-            subCategoryId: product.subCategoryId,
             basePrice: product.basePrice,
             discountPercentage: product.discountPercentage,
             attributes: product.attributes ?? {},

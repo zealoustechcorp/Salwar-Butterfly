@@ -3,10 +3,15 @@
 /**
  * @file CategoryForm.js
  * @description Comprehensive Category Editor & Creation Form.
- * Organizes category management attributes across 3 tabs:
+ * Organizes category management attributes across 2 tabs:
  * 1. "General Information": Name, auto-generated SEO slug, description, image upload, storefront visibility toggle.
  * 2. "Associated Products": Searchable checklist for moving products into this category.
- * 3. "Size Charts": Fit variant selection and interactive measurement matrix editor.
+ *
+ * Size charts are not here. They are shop-wide rather than per category —
+ * one set of tables published from /admin/size-charts and read by the
+ * storefront from the `size_charts` table. The `categories.fits` column
+ * this form used to write was never projected to the storefront, so the
+ * tab that filled it published nothing.
  *
  * Every field maps onto a column the API actually stores. The banner is
  * sent as a file, not a data URL: `POST/PUT /api/categories` is multipart
@@ -45,11 +50,9 @@ import {
   validateDescription,
   validateName,
 } from "@/lib/validate";
-import { FIT_TYPES } from "../../lib/categories/constants";
-import { autoSlug, defaultSizeChartFor, SLUG_PATTERN } from "../../lib/categories/utils";
+import { autoSlug, SLUG_PATTERN } from "../../lib/categories/utils";
 import Toggle from "./Toggle";
 import CategoryBadge from "./Badge";
-import SizeChartEditor, { chartProblem } from "./SizeChartEditor";
 
 /**
  * CategoryForm Component
@@ -93,20 +96,7 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
   );
 
   /**
-   * Set of active fit names (e.g., 'Slim Fit', 'Normal Fit') enabled for this category.
-   */
-  const [enabledFits, setEnabledFits] = useState(
-    new Set((initial?.sizeCharts ?? []).map((s) => s.fit)),
-  );
-
-  /**
-   * Array of configured size chart objects containing measurement matrices.
-   * Persisted to the category's `fits` JSONB column.
-   */
-  const [sizeCharts, setSizeCharts] = useState(initial?.sizeCharts ?? []);
-
-  /**
-   * Active tab identifier: 'general' | 'products' | 'sizes'.
+   * Active tab identifier: 'general' | 'products'.
    */
   const [activeTab, setActiveTab] = useState("general");
 
@@ -225,39 +215,6 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
   };
 
   /**
-   * Toggles a garment fit variant on or off.
-   * - If enabled: Adds fit to set and scaffolds a default size chart via `defaultSizeChartFor(fit)`.
-   * - If disabled: Removes fit from set and deletes its corresponding size chart table.
-   *
-   * @param {string} fit - Garment fit name ("Slim Fit", "Normal Fit", "Special Dress")
-   */
-  const toggleFit = (fit) => {
-    setEnabledFits((prev) => {
-      const next = new Set(prev);
-      if (next.has(fit)) {
-        next.delete(fit);
-        setSizeCharts((sc) => sc.filter((c) => c.fit !== fit));
-      } else {
-        next.add(fit);
-        setSizeCharts((sc) =>
-          sc.find((c) => c.fit === fit) ? sc : [...sc, defaultSizeChartFor(fit)],
-        );
-      }
-      return next;
-    });
-  };
-
-  /**
-   * Replaces one fit's measurement matrix.
-   *
-   * @param {string} fit - Fit whose chart changed
-   * @param {Object} chart - The updated chart object
-   */
-  const updateChart = (fit, chart) => {
-    setSizeCharts((prev) => prev.map((c) => (c.fit === fit ? chart : c)));
-  };
-
-  /**
    * Toggles a product's association with this category.
    *
    * @param {string} pid - Product ID to link
@@ -318,18 +275,6 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
       return;
     }
 
-    // The size charts are on their own tab and go up as opaque JSON — the
-    // API stores the `fits` column without looking inside it, so a cell
-    // holding "-5" or "0" would be published to the storefront exactly as
-    // typed. This is the only thing standing between that and a shopper.
-    const badChart = sizeCharts.map(chartProblem).find(Boolean);
-
-    if (badChart) {
-      setActiveTab("sizes");
-      toast.error("Check the size charts", badChart);
-      return;
-    }
-
     setSaving(true);
     setSaveError(null);
     setFieldErrors({});
@@ -342,7 +287,6 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
         description,
         active,
         productIds: selectedProductIds,
-        sizeCharts,
         imageFile,
       });
     } catch (error) {
@@ -366,12 +310,11 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
   const apiFields = saveError?.fields ?? {};
 
   /**
-   * Tab definitions showing live count badges for associated products and enabled size charts.
+   * Tab definitions showing a live count badge for associated products.
    */
   const tabs = [
     { id: "general", label: "General Information" },
     { id: "products", label: `Associated Products (${selectedProductIds.length})` },
-    { id: "sizes", label: `Size Charts (${sizeCharts.length})` },
   ];
 
   /**
@@ -403,7 +346,7 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
           {initial ? `Edit Category: ${initial.name}` : "Create New Category"}
         </h1>
         <p className="mt-1 text-xs text-ink-500 sm:text-sm">
-          Define category names, SEO slugs, storefront image, and size chart measurements.
+          Define category names, SEO slugs, storefront image, and linked products.
         </p>
       </div>
 
@@ -657,55 +600,6 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
               ) : null}
             </div>
           </Card>
-        )}
-
-        {/* PANEL 3: Size Charts */}
-        {activeTab === "sizes" && (
-          <div className="space-y-5">
-            <Card className="p-5 space-y-3">
-              <div>
-                <p className="text-sm font-semibold text-ink-900">Fit Variants</p>
-                <p className="text-xs text-ink-500">
-                  Enable a fit to configure its measurement matrix. Charts are stored on
-                  the category record and shown on the storefront size guide.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                {FIT_TYPES.map((fit) => {
-                  const enabled = enabledFits.has(fit);
-                  return (
-                    <button
-                      key={fit}
-                      type="button"
-                      onClick={() => toggleFit(fit)}
-                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition-colors ${enabled
-                          ? "bg-brand-600 text-white ring-brand-600"
-                          : "bg-white text-ink-600 ring-ink-200 hover:bg-ink-50"
-                        }`}
-                    >
-                      {enabled ? <Check className="size-3.5" /> : null}
-                      {fit}
-                    </button>
-                  );
-                })}
-              </div>
-            </Card>
-
-            {sizeCharts.length === 0 ? (
-              <Card className="p-8 text-center text-xs text-ink-400">
-                No fits enabled — pick one above to start a size chart.
-              </Card>
-            ) : (
-              sizeCharts.map((chart) => (
-                <SizeChartEditor
-                  key={chart.fit}
-                  chart={chart}
-                  onChange={(next) => updateChart(chart.fit, next)}
-                />
-              ))
-            )}
-          </div>
         )}
       </div>
 

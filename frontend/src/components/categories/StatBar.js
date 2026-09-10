@@ -7,7 +7,6 @@
  * 1. Total Categories & Active/Inactive breakdown.
  * 2. Active storefront categories visible to customers.
  * 3. Total unique linked products mapped across all categories.
- * 4. Total size chart matrices configured across the catalogue.
  */
 
 import { StatTile } from "@/components/admin/ProductBits";
@@ -20,7 +19,7 @@ import { StatTile } from "@/components/admin/ProductBits";
  *
  * @param {Object} props - Component properties
  * @param {Array<Object>} props.categories - List of all category objects
- * @returns {JSX.Element} 4-column responsive KPI stats grid
+ * @returns {JSX.Element} 3-column responsive KPI stats grid
  */
 export default function StatBar({ categories }) {
   /**
@@ -46,17 +45,8 @@ export default function StatBar({ categories }) {
     ...new Set(categories.flatMap((c) => c.productIds ?? [])),
   ].length;
 
-  /**
-   * Total fit matrices configured across every category — the measurement
-   * tables stored in each category's `fits` column.
-   */
-  const totalCharts = categories.reduce(
-    (sum, c) => sum + (c.sizeCharts?.length ?? 0),
-    0,
-  );
-
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {/* Total Categories Metric Card */}
       <StatTile
         label="Categories"
@@ -77,13 +67,6 @@ export default function StatBar({ categories }) {
         label="Linked products"
         value={totalProducts}
         sub="across all categories"
-      />
-
-      {/* Configured Size Charts Metric Card */}
-      <StatTile
-        label="Size charts"
-        value={totalCharts}
-        sub="fit matrices configured"
       />
     </div>
   );

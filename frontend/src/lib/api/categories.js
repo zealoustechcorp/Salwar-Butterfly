@@ -6,17 +6,16 @@
  * a category can show what is in it, and reassigning products to a
  * category). Nothing here is mocked.
  *
- * Two shape translations happen in this file and nowhere else:
- *
- *   `fits` <-> `sizeCharts`
- *       The column is JSONB and the API validator rejects a bare array
- *       ("Fits must be a valid JSON object"), so the ordered chart list
- *       is wrapped as { charts: [...] } on the wire and unwrapped here.
+ * One shape translation happens in this file and nowhere else:
  *
  *   multipart on write
  *       createCategory/updateCategory accept an optional `imageFile`.
  *       The backend uploads it to Cloudinary and stores the secure URL,
  *       so the browser never sends an image URL — only the file itself.
+ *
+ * The `fits` column is deliberately not read or written here. Size charts
+ * are shop-wide (`size_charts`, see lib/api/sizeCharts.js), and nothing
+ * ever projected `categories.fits` to the storefront.
  */
 
 import { api } from "./client";
@@ -24,17 +23,6 @@ import { api } from "./client";
 // ============================================================
 // WIRE <-> UI SHAPE
 // ============================================================
-
-/**
- * `fits` is whatever was last written to the JSONB column, so read it
- * defensively: the wrapper object is what this app writes, a bare array
- * is tolerated in case a row was seeded by hand.
- */
-function readSizeCharts(fits) {
-  if (Array.isArray(fits)) return fits;
-  if (fits && Array.isArray(fits.charts)) return fits.charts;
-  return [];
-}
 
 /** API DTO -> the shape every category component already expects. */
 export function toCategory(dto) {
@@ -48,20 +36,18 @@ export function toCategory(dto) {
     image: dto.image ?? "",
     imagePublicId: dto.imagePublicId ?? null,
     active: Boolean(dto.active),
-    sizeCharts: readSizeCharts(dto.fits),
     createdAt: dto.createdAt ?? null,
     updatedAt: dto.updatedAt ?? null,
   };
 }
 
 /**
- * Only the five fields the validators allow — an unknown key is a 400
+ * Only the fields the validators allow — an unknown key is a 400
  * ("Field ... is not allowed"), so this must not leak `id`, `productIds`
  * or anything else the form carries around.
  *
- * Multipart values are all strings on arrival; the backend parses `fits`
- * and normalizes `active`, so JSON-encoding and stringifying here is what
- * it expects.
+ * Multipart values are all strings on arrival; the backend normalizes
+ * `active`, so stringifying here is what it expects.
  */
 function toFormData(fields, { partial = false } = {}) {
   const form = new FormData();
@@ -70,10 +56,6 @@ function toFormData(fields, { partial = false } = {}) {
   if (include("name")) form.append("name", fields.name ?? "");
   if (include("slug")) form.append("slug", fields.slug ?? "");
   if (include("description")) form.append("description", fields.description ?? "");
-
-  if (include("sizeCharts")) {
-    form.append("fits", JSON.stringify({ charts: fields.sizeCharts ?? [] }));
-  }
 
   if (include("active")) {
     form.append("active", String(fields.active ?? true));

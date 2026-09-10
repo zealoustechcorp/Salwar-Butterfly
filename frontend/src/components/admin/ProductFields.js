@@ -75,7 +75,6 @@ export const FIELD_TAB = {
   slug: "details",
   description: "details",
   categoryId: "details",
-  subCategoryId: "details",
   basePrice: "pricing",
   discountPercentage: "pricing",
 };
@@ -83,12 +82,6 @@ export const FIELD_TAB = {
 /** Identity, description and where the product sits in the catalogue. */
 export function DetailsFields({ form, setField, errors = {}, reference, lockCategory = false }) {
   const categories = reference?.categories ?? [];
-
-  // A sub-category belongs to one category, so the picker only offers the
-  // ones under the category currently selected.
-  const subCategories = (reference?.subCategories ?? []).filter(
-    (sub) => sub.categoryId === form.categoryId,
-  );
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
@@ -156,46 +149,13 @@ export function DetailsFields({ form, setField, errors = {}, reference, lockCate
           value={form.categoryId}
           invalid={Boolean(errors.categoryId)}
           disabled={lockCategory}
-          onChange={(e) => {
-            setField("categoryId", e.target.value);
-            // The old sub-category belongs to the old category.
-            setField("subCategoryId", "");
-          }}
+          onChange={(e) => setField("categoryId", e.target.value)}
         >
           <option value="">Select a category…</option>
           {categories.map((category) => (
             <option key={category.id} value={category.id}>
               {category.name}
               {category.active ? "" : " — inactive"}
-            </option>
-          ))}
-        </Select>
-      </Field>
-
-      <Field
-        label="Sub-category"
-        error={errors.subCategoryId}
-        hint={
-          form.categoryId
-            ? "Optional. Only sub-categories of the chosen category are listed."
-            : "Pick a category first."
-        }
-      >
-        <Select
-          value={form.subCategoryId}
-          invalid={Boolean(errors.subCategoryId)}
-          disabled={!form.categoryId || subCategories.length === 0}
-          onChange={(e) => setField("subCategoryId", e.target.value)}
-        >
-          <option value="">
-            {form.categoryId && subCategories.length === 0
-              ? "No sub-categories in this category"
-              : "None"}
-          </option>
-          {subCategories.map((sub) => (
-            <option key={sub.id} value={sub.id}>
-              {sub.name}
-              {sub.active ? "" : " — inactive"}
             </option>
           ))}
         </Select>

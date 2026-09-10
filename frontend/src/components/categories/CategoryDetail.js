@@ -5,14 +5,15 @@
  * @description Category Detail Inspector View.
  * Displays full deep-dive metadata and analytics for a selected category:
  * - Header with category title, SEO URL slug, description, active switch, and Edit trigger.
- * - Key metrics row: Created Date, Linked Products count, Live Products, and Configured Fit Variants.
- * - Two-column dashboard layout:
- *    1. Associated Products List: Scrollable catalog cards with slug, current price, and preview modal trigger.
- *    2. Size Charts Multi-Tab Table: Interactive tabbed view of size measurements (cm) across fit types.
+ * - Key metrics row: Created Date, Linked Products count, and Live Products.
+ * - Associated Products List: Scrollable catalog cards with slug, current price, and preview modal trigger.
  * - Product Preview Modal: Quick-view dialog displaying pricing, publication state, and category linkage.
+ *
+ * Size charts are not shown here — they are shop-wide rather than per
+ * category and live on /admin/size-charts.
  */
 
-import { ArrowLeft, Check, Package, Pencil, Ruler } from "lucide-react";
+import { ArrowLeft, Check, Package, Pencil } from "lucide-react";
 import { useState } from "react";
 import { Badge, Button, Card, CardHeader, Modal } from "@/components/admin/ui";
 import { StatTile } from "@/components/admin/ProductBits";
@@ -39,24 +40,9 @@ export default function CategoryDetail({
   onToggle,
 }) {
   /**
-   * Active index for the size charts fit tab selector (e.g. 0 = Slim Fit, 1 = Normal Fit).
-   */
-  const [chartTab, setChartTab] = useState(0);
-
-  /**
    * Product object selected for modal dialog preview, or null if modal is closed.
    */
   const [selectedProduct, setSelectedProduct] = useState(null);
-
-  /**
-   * Fit matrices stored in the category's `fits` column.
-   */
-  const sizeCharts = category.sizeCharts ?? [];
-
-  /**
-   * Currently active size chart matrix based on selected tab index.
-   */
-  const chart = sizeCharts[chartTab];
 
   /**
    * Products in this category that are published to the storefront.
@@ -114,10 +100,10 @@ export default function CategoryDetail({
       {/* 
         ========================================================================
         KEY PERFORMANCE METRICS (KPI ROW)
-        High-level metrics: Created Date, Product Count, Total Stock, Fit Variants.
+        High-level metrics: Created Date, Product Count, Live Products.
         ========================================================================
       */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <StatTile
           label="Created Date"
           value={shortDate(category.createdAt)}
@@ -134,21 +120,14 @@ export default function CategoryDetail({
           sub="published to storefront"
           tone="brand"
         />
-        <StatTile
-          label="Fit Variants"
-          value={sizeCharts.length}
-          sub="configured size charts"
-        />
       </div>
 
-      {/* 
+      {/*
         ========================================================================
-        TWO COLUMN CONTENT DASHBOARD:
-        Left: Associated Products List | Right: Fit Size Chart Tabular Viewer
+        ASSOCIATED PRODUCTS
         ========================================================================
       */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* COLUMN 1: Associated Products */}
+      <div>
         <Card className="flex flex-col overflow-hidden">
           <CardHeader
             title="Associated Products"
@@ -194,83 +173,6 @@ export default function CategoryDetail({
               ))
             )}
           </div>
-        </Card>
-
-        {/* COLUMN 2: Size Charts by Fit Variant */}
-        <Card className="flex flex-col overflow-hidden">
-          <CardHeader
-            title="Size Charts"
-            description="Measurements in centimetres by fit variant."
-          />
-
-          {sizeCharts.length === 0 ? (
-            <div className="flex flex-1 flex-col items-center justify-center p-8 text-center text-ink-400">
-              <Ruler className="size-8 stroke-[1.5] text-ink-300" />
-              <p className="mt-2 text-xs font-medium text-ink-600">No size charts configured</p>
-              <p className="text-[11px] text-ink-400">
-                Edit this category to configure size measurements.
-              </p>
-            </div>
-          ) : (
-            <div>
-              {/* Fit Tabs Selector: Slim Fit / Normal Fit / Special Dress */}
-              <div className="flex border-b border-ink-200 bg-ink-50/50 px-3 pt-2">
-                {sizeCharts.map((sc, idx) => {
-                  const isSelected = chartTab === idx;
-                  return (
-                    <button
-                      key={sc.fit}
-                      type="button"
-                      onClick={() => setChartTab(idx)}
-                      className={`relative -mb-px px-4 py-2 text-xs font-semibold transition-colors ${isSelected
-                          ? "border-b-2 border-brand-600 text-brand-700 font-bold bg-white rounded-t-lg"
-                          : "text-ink-500 hover:text-ink-800"
-                        }`}
-                    >
-                      {sc.fit}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Measurement Matrix Table */}
-              {chart && (
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse text-left">
-                    <thead>
-                      <tr className="border-b border-ink-200 bg-ink-50/30">
-                        {["Size", "Chest", "Waist", "Hip", "Length"].map((h) => (
-                          <th
-                            key={h}
-                            className="px-4 py-2.5 font-mono text-[11px] font-semibold tracking-wider text-ink-600 uppercase"
-                          >
-                            {h}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-ink-100">
-                      {chart.rows.map((row, i) => (
-                        <tr key={i} className="hover:bg-ink-50/40 transition-colors">
-                          <td className="px-4 py-2.5 font-mono text-xs font-bold text-brand-700">
-                            {row.size}
-                          </td>
-                          {["chest", "waist", "hip", "length"].map((k) => (
-                            <td
-                              key={k}
-                              className="px-4 py-2.5 font-mono text-xs text-ink-800"
-                            >
-                              {row[k] || "—"}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
         </Card>
       </div>
 

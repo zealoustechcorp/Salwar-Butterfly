@@ -187,8 +187,8 @@ export function CategoryProvider({ children }) {
    * really "link somewhere else" — the form reflects that by locking
    * products that are already here.
    *
-   * @param {Object} data - name, slug, description, active, sizeCharts,
-   *                        imageFile, productIds, and `id` when editing
+   * @param {Object} data - name, slug, description, active, imageFile,
+   *                        productIds, and `id` when editing
    * @returns {Promise<Object>} the saved category
    */
   const saveCategory = useCallback(

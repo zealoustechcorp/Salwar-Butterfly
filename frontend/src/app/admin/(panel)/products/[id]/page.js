@@ -80,12 +80,10 @@ export default function ProductDetailPage() {
   const { product, reference, variants, summary, error } = result;
 
   const names = useMemo(() => {
-    if (!product) return { category: "—", subCategory: null };
+    if (!product) return { category: "—" };
     return {
       category:
         reference?.categories.find((c) => c.id === product.categoryId)?.name ?? "—",
-      subCategory:
-        reference?.subCategories.find((s) => s.id === product.subCategoryId)?.name ?? null,
     };
   }, [product, reference]);
 
@@ -140,12 +138,6 @@ export default function ProductDetailPage() {
               <span className="font-mono">/{product.slug}</span>
               <span aria-hidden="true">·</span>
               <span>{names.category}</span>
-              {names.subCategory ? (
-                <>
-                  <span aria-hidden="true">·</span>
-                  <span>{names.subCategory}</span>
-                </>
-              ) : null}
               <span aria-hidden="true">·</span>
               <ActiveDot active={product.active} />
             </p>
@@ -361,7 +353,6 @@ export default function ProductDetailPage() {
             <dl className="divide-y divide-ink-100 px-5 text-sm">
               <Row label="Product ID" value={<span className="font-mono text-[11px]">{product.id}</span>} />
               <Row label="Category" value={names.category} />
-              <Row label="Sub-category" value={names.subCategory || "—"} />
               <Row label="Base price" value={money(product.basePrice)} />
               <Row
                 label="Discount"

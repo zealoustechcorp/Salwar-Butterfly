@@ -41,7 +41,6 @@ const BLANK = {
   slug: "",
   description: "",
   categoryId: "",
-  subCategoryId: "",
   basePrice: "",
   discountPercentage: 0,
   attributes: {},

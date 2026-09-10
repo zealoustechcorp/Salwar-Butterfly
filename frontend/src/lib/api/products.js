@@ -58,7 +58,6 @@ export function toProduct(dto) {
     slug: dto.slug ?? "",
     description: dto.description ?? "",
     categoryId: dto.categoryId == null ? "" : String(dto.categoryId),
-    subCategoryId: dto.subCategoryId == null ? "" : String(dto.subCategoryId),
     basePrice,
     discountPercentage,
     // `current_price` is written by the API from base price and
@@ -92,7 +91,6 @@ function toCreateBody(fields) {
     slug: fields.slug?.trim().toLowerCase() ?? "",
     description: fields.description?.trim() || null,
     categoryId: fields.categoryId,
-    subCategoryId: fields.subCategoryId || null,
     basePrice: Number(fields.basePrice),
     discountPercentage: Number(fields.discountPercentage) || 0,
     attributes: fields.attributes ?? {},
@@ -113,8 +111,6 @@ function toUpdateBody(patch) {
   if (patch.slug !== undefined) body.slug = patch.slug.trim().toLowerCase();
   if (patch.description !== undefined)
     body.description = patch.description?.trim() || null;
-  if (patch.subCategoryId !== undefined)
-    body.subCategoryId = patch.subCategoryId || null;
   if (patch.basePrice !== undefined) body.basePrice = Number(patch.basePrice);
   if (patch.discountPercentage !== undefined)
     body.discountPercentage = Number(patch.discountPercentage) || 0;
@@ -129,54 +125,21 @@ function toUpdateBody(patch) {
 // REFERENCE DATA
 // ============================================================
 
-function toSubCategory(dto) {
-  if (!dto) return null;
-
-  return {
-    id: String(dto.id),
-    name: dto.name ?? "",
-    categoryId: dto.categoryId == null ? "" : String(dto.categoryId),
-    active: Boolean(dto.isActive),
-  };
-}
-
-/**
- * Sub-categories, all of them. `page` on this endpoint is an offset,
- * not a page number (see SubCategoryController.getAll).
- */
-export async function listSubCategories({ token, signal } = {}) {
-  const rows = [];
-
-  for (let offset = 0; ; offset += MAX_PAGE_SIZE) {
-    const { data } = await api.get(
-      `/subCategories/getAllSubCategories?limit=${MAX_PAGE_SIZE}&page=${offset}`,
-      { token, signal, envelope: true },
-    );
-
-    rows.push(...(data ?? []).map(toSubCategory));
-
-    if (!data?.length || data.length < MAX_PAGE_SIZE) break;
-  }
-
-  return rows;
-}
-
 /**
  * Everything the product forms need besides products themselves: the
- * categories a product can belong to and their sub-categories.
+ * categories a product can belong to.
  *
- * Sub-categories are optional on a product, so their endpoint failing
- * degrades to an empty list rather than blocking the form.
+ * The API also exposes `/subCategories`, and `products` carries a
+ * `sub_category_id` column, but no admin screen creates a sub-category
+ * and nothing on the storefront reads one — so the forms do not offer
+ * the field and this does not fetch the list.
  *
- * @returns {Promise<{categories: Array, subCategories: Array}>}
+ * @returns {Promise<{categories: Array}>}
  */
 export async function getReference({ token, signal } = {}) {
-  const [categoryResult, subCategories] = await Promise.all([
-    listCategories({ token, signal }),
-    listSubCategories({ token, signal }).catch(() => []),
-  ]);
+  const { categories } = await listCategories({ token, signal });
 
-  return { categories: categoryResult.categories, subCategories };
+  return { categories };
 }
 
 // ============================================================

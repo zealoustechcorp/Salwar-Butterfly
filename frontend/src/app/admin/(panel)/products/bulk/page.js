@@ -64,7 +64,6 @@ import {
 
 const BLANK_SHARED = {
   categoryId: "",
-  subCategoryId: "",
   description: "",
   basePrice: "",
   discountPercentage: 0,
@@ -156,11 +155,6 @@ export default function BulkUploadPage() {
     }
   }
 
-  const subCategories = useMemo(
-    () => (reference?.subCategories ?? []).filter((sub) => sub.categoryId === shared.categoryId),
-    [reference, shared.categoryId],
-  );
-
   function setSharedField(key, value) {
     setShared((current) => ({ ...current, [key]: value }));
   }
@@ -245,7 +239,6 @@ export default function BulkUploadPage() {
           name: row.name,
           slug: row.slug.trim() || autoSlug(row.name),
           description: shared.description,
-          subCategoryId: shared.subCategoryId,
           attributes: shared.attributes,
           basePrice: row.basePrice === "" ? shared.basePrice : row.basePrice,
           discountPercentage: shared.discountPercentage,
@@ -354,38 +347,13 @@ export default function BulkUploadPage() {
           <Field label="Category" required hint="One category for the whole batch.">
             <Select
               value={shared.categoryId}
-              onChange={(e) => {
-                setSharedField("categoryId", e.target.value);
-                setSharedField("subCategoryId", "");
-              }}
+              onChange={(e) => setSharedField("categoryId", e.target.value)}
             >
               <option value="">Select a category…</option>
               {(reference?.categories ?? []).map((category) => (
                 <option key={category.id} value={category.id}>
                   {category.name}
                   {category.active ? "" : " — inactive"}
-                </option>
-              ))}
-            </Select>
-          </Field>
-
-          <Field
-            label="Sub-category"
-            hint={shared.categoryId ? "Optional." : "Pick a category first."}
-          >
-            <Select
-              value={shared.subCategoryId}
-              disabled={!shared.categoryId || subCategories.length === 0}
-              onChange={(e) => setSharedField("subCategoryId", e.target.value)}
-            >
-              <option value="">
-                {shared.categoryId && subCategories.length === 0
-                  ? "No sub-categories in this category"
-                  : "None"}
-              </option>
-              {subCategories.map((sub) => (
-                <option key={sub.id} value={sub.id}>
-                  {sub.name}
                 </option>
               ))}
             </Select>
