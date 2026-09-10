@@ -42,6 +42,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { money } from "@/lib/format";
+import { orderableQty } from "@/lib/stock";
 import {
   MAX_ADDRESSES,
   createAddress,
@@ -214,6 +215,24 @@ export function CheckoutView() {
    */
   const unorderable = bag.filter((line) => !line.variant_id);
 
+  /**
+   * Lines the bag already knows the shop cannot fill: a size that has sold
+   * out, or a quantity above what its shelf held when the bag page last read
+   * the catalogue.
+   *
+   * This is a courtesy check over a count that may be a minute old, not a
+   * guarantee — the API reserves inside a locked transaction and is the only
+   * thing that can actually answer. But where the answer is already known,
+   * there is no reason to make somebody fill in an address first.
+   *
+   * `stock === undefined` is a line saved before quantities were tracked on
+   * the bag. Unknown is not "sold out", so those pass through and the API
+   * decides.
+   */
+  const oversold = bag.filter(
+    (line) => line.stock !== undefined && line.qty > orderableQty(line.stock),
+  );
+
   const errorFor = (field) => (failure?.field === field ? failure.error : null);
 
   /**
@@ -381,6 +400,37 @@ export function CheckoutView() {
                     Remove them in your bag
                   </Link>{" "}
                   and add them again.
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+          {oversold.length ? (
+            <div className="mb-6 flex gap-3 rounded-xl border border-sb-link/40 bg-sb-link/5 px-4 py-3.5">
+              <AlertCircle className="mt-0.5 size-4 shrink-0 text-sb-link" aria-hidden="true" />
+              <div className="text-sm">
+                <p className="font-semibold text-sb-heading">
+                  {oversold.length === 1
+                    ? "One piece in your bag is no longer available in that quantity"
+                    : `${oversold.length} pieces in your bag are no longer available in those quantities`}
+                </p>
+                <p className="mt-1 leading-relaxed text-sb-text-muted">
+                  {oversold
+                    .map(
+                      (line) =>
+                        `${line.name}${line.size ? ` (size ${line.size})` : ""} — ${
+                          line.stock > 0 ? `only ${line.stock} left` : "sold out"
+                        }`,
+                    )
+                    .join("; ")}
+                  .{" "}
+                  <Link
+                    href="/bag"
+                    className="font-semibold text-sb-link underline underline-offset-4"
+                  >
+                    Adjust your bag
+                  </Link>{" "}
+                  and come back — every run here is small and they go quickly.
                 </p>
               </div>
             </div>
@@ -724,7 +774,7 @@ export function CheckoutView() {
 
             <button
               type="submit"
-              disabled={pending || unorderable.length > 0}
+              disabled={pending || unorderable.length > 0 || oversold.length > 0}
               className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-sb-btn-primary px-5 py-3.5 text-sm font-semibold text-sb-bg transition-colors hover:bg-sb-btn-rose disabled:cursor-not-allowed disabled:bg-sb-text-muted/40"
             >
               {pending ? (

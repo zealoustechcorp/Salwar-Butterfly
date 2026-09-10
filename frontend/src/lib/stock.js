@@ -23,6 +23,17 @@ export const OUT_OF_STOCK_AT = 0;
 /** A quantity below this — and above OUT_OF_STOCK_AT — is low. */
 export const LOW_STOCK_BELOW = 20;
 
+/**
+ * The most of one size a single order may carry.
+ *
+ * Mirrors MAX_LINE_QUANTITY in backend/src/config/order.policy.js, which
+ * is the rule that actually holds. Duplicated here for the same reason
+ * the thresholds above are: a stepper cannot wait on a request to know
+ * where to stop, and a bag allowed to grow past the API's ceiling would
+ * only be refused at the last step — after the address had been typed.
+ */
+export const MAX_LINE_QTY = 20;
+
 export const STOCK_STATUS = {
   IN_STOCK: "in_stock",
   LOW_STOCK: "low_stock",
@@ -55,6 +66,28 @@ export function stockStatusFor(quantity, active = true) {
   if (units < LOW_STOCK_BELOW) return STOCK_STATUS.LOW_STOCK;
 
   return STOCK_STATUS.IN_STOCK;
+}
+
+/**
+ * How many of one size a bag line may actually hold: what the shelf
+ * carries, capped by the per-order ceiling. Zero means there is nothing
+ * to add.
+ *
+ * This is a courtesy and not a promise. The count it is given was read
+ * from the catalogue at most a minute ago (see REVALIDATE_SECONDS in
+ * lib/store/catalogue.js) and somebody else may be checking out with the
+ * same piece right now. What actually stops the shop overselling is the
+ * checkout transaction, which locks the variant row and refuses the line
+ * if the stock has gone — see backend/src/repository/order.repository.js.
+ * What this does is stop a shopper filling a bag with twenty of
+ * something the shop holds two of, and finding out at the last screen.
+ */
+export function orderableQty(stock) {
+  const units = Math.trunc(Number(stock) || 0);
+
+  if (units <= OUT_OF_STOCK_AT) return 0;
+
+  return Math.min(units, MAX_LINE_QTY);
 }
 
 /**

@@ -51,23 +51,71 @@ export function query(text, params = []) {
 }
 
 /**
+ * Postgres SQLSTATEs that mean "this transaction did not happen — run it again".
+ *
+ * 40P01 deadlock_detected      two transactions took the same rows in
+ *                              opposite orders and Postgres shot one of them.
+ * 40001 serialization_failure  a concurrent write made this snapshot
+ *                              unusable.
+ *
+ * Both arrive only after a full rollback, so nothing was committed and the
+ * work can simply be redone. Retrying is safe for exactly that reason, and is
+ * safe for nothing else: every other error is passed straight up. In
+ * particular a checkout refused for want of stock is a *decision*, not a
+ * failure, and running it again would not change the answer.
+ *
+ * This matters at the till. Two shoppers buying the same two pieces in
+ * opposite order is a deadlock the checkout query is written to avoid — it
+ * locks variants in id order — but a cancellation restoring stock while a
+ * checkout reserves it can still collide, and a rush hour is precisely when
+ * that stops being theoretical. Without this, one of the two shoppers gets a
+ * 500 for a transaction that would have succeeded a millisecond later.
+ */
+const RETRYABLE_SQLSTATES = new Set(['40001', '40P01']);
+
+/**
  * Run `fn(client)` inside a transaction. Commits on success, rolls back on throw.
+ *
+ * `fn` may run more than once — see RETRYABLE_SQLSTATES — so it must not carry
+ * side effects outside the transaction it is handed. Everything it needs to
+ * redo must go through `client`.
+ *
  * @template T
  * @param {(client: import('pg').PoolClient) => Promise<T>} fn
+ * @param {{retries?: number}} [options] how many times to re-run after a
+ *        deadlock or serialization failure. Zero restores the old behaviour.
  * @returns {Promise<T>}
  */
-export async function withTransaction(fn) {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const result = await fn(client);
-    await client.query('COMMIT');
-    return result;
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally {
-    client.release();
+export async function withTransaction(fn, { retries = 2 } = {}) {
+  for (let attempt = 0; ; attempt += 1) {
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+      const result = await fn(client);
+      await client.query('COMMIT');
+      return result;
+    } catch (err) {
+      // The rollback's own failure must not replace the error that caused it —
+      // a dead connection reports "connection terminated" and the real reason
+      // is lost.
+      await client.query('ROLLBACK').catch(() => {});
+
+      if (attempt >= retries || !RETRYABLE_SQLSTATES.has(err?.code)) throw err;
+
+      console.warn(
+        `[db] ${err.code} on attempt ${attempt + 1}, retrying the transaction`,
+      );
+
+      // Both sides of a deadlock retry at once otherwise, and collide again.
+      // The jitter is what breaks the tie; the growth keeps a busy minute from
+      // turning into a retry storm.
+      await new Promise((resolve) =>
+        setTimeout(resolve, 25 * (attempt + 1) + Math.random() * 25),
+      );
+    } finally {
+      client.release();
+    }
   }
 }
 

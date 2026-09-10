@@ -37,11 +37,33 @@
  *
  *   Nothing here blocks on the network. A shopper with no connection still
  *   gets a working wishlist on this device; it reconciles on the next load.
+ *
+ * How much of a piece a bag line may hold, in one place so it is not scattered
+ * either:
+ *
+ *   Every line carries `stock` — what the chosen size's shelf held when the
+ *   catalogue was last read — and no line may grow past `orderableQty(stock)`.
+ *   That is the shelf, capped by the twenty-per-size the order API enforces.
+ *   Tapping "Add to bag" eleven times on a piece the shop holds three of adds
+ *   three and says so, rather than building a bag of eleven that checkout will
+ *   refuse after the address has been typed.
+ *
+ *   A stored bag goes stale — that is the nature of a list kept on a device —
+ *   so `syncStock` re-reads those counts from a fresh catalogue whenever a
+ *   screen has one, and brings lines down that the shop can no longer fill.
+ *
+ *   None of this is what keeps the shop from overselling. The bag is a list on
+ *   one browser and cannot know what the twenty people checking out beside it
+ *   are holding. The order transaction locks the variant row, decrements under
+ *   a guard and refuses the line if the piece has gone — that is the authority,
+ *   and everything here exists so a shopper meets a "sold out" on the page they
+ *   are looking at rather than on the last screen before paying.
  */
 
 import Link from "next/link";
 import { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
+import { MAX_LINE_QTY, orderableQty } from "@/lib/stock";
 import { readSession, readToken } from "@/lib/store/session";
 import { cn } from "@/lib/utils";
 import {
@@ -244,23 +266,79 @@ export function StoreProvider({ children }) {
   }, []);
 
   const value = useMemo(() => {
+    /** "Kalamkari salwar · size 40", for a toast. */
+    const describe = (name, size) =>
+      [name, size ? `size ${size}` : null].filter(Boolean).join(" · ");
+
+    /**
+     * Why a line cannot grow — the shelf, or the per-order ceiling.
+     *
+     * Worth distinguishing. "Only 2 left" is a reason to hurry; "20 per size"
+     * is a shop rule and hurrying will not help. Telling a shopper the wrong
+     * one of those sends them to WhatsApp asking a question with no answer.
+     */
+    const ceilingReason = (shelf) =>
+      shelf > MAX_LINE_QTY
+        ? `${MAX_LINE_QTY} of one size is the most a single order may carry.`
+        : shelf === 1
+          ? "That is the last one on the shelf."
+          : `The shop has ${shelf} of that size, and they are all in your bag.`;
+
     /**
      * `qty` is how many to add, not the new total — a card adds one, the
-     * product page adds whatever its stepper says. The line is capped at the
-     * same 99 the bag's own stepper enforces.
+     * product page adds whatever its stepper says.
+     *
+     * What lands is whatever of that the shop can actually fill: the line is
+     * capped at `orderableQty` of the chosen size's shelf, and a request for
+     * more than that adds the remainder and says how many. Adding one at a
+     * time cannot walk past the cap either, which is the whole point — the
+     * ceiling is applied to the resulting total, not to each tap.
      *
      * The line records `variant_id`, looked up from the chosen size. That is
      * the only field checkout actually orders against — the API prices and
      * reserves against a product_variants row, and a size label identifies
      * nothing it can sell. The rest is display: enough to render the bag
      * without re-reading the catalogue, and re-priced by the server anyway.
+     *
+     * `stock` is the count that size held in the catalogue this add came
+     * from. Kept on the line so the bag's stepper and checkout have a ceiling
+     * without re-reading the catalogue, and refreshed by `syncStock`.
      */
     const addToBag = (product, { size, qty = 1 } = {}) => {
       const pickedSize = size || product.available_sizes[0] || null;
       const variant = product.sizes?.find((row) => row.size === pickedSize) ?? null;
       const key = `${product.id}:${pickedSize ?? "-"}`;
       const existing = bag.find((line) => line.key === key);
-      const adding = Math.max(1, Math.min(99, Math.trunc(Number(qty)) || 1));
+
+      const shelf = Math.max(0, Math.trunc(Number(variant?.stock) || 0));
+      const ceiling = orderableQty(shelf);
+
+      // Sold out between the page being rendered and the button being
+      // pressed, or a size that was never on the shelf. Nothing is added and
+      // the bag is left exactly as it was.
+      if (ceiling === 0) {
+        setToast({
+          title: "Sold out",
+          detail: `${describe(product.name, pickedSize)} — there are none left to add.`,
+        });
+        return;
+      }
+
+      const wanted = Math.max(1, Math.trunc(Number(qty)) || 1);
+      const already = existing?.qty ?? 0;
+      const total = Math.min(already + wanted, ceiling);
+      const added = total - already;
+
+      // Already holding everything the shop can sell them. Said plainly
+      // rather than silently doing nothing, which reads as a broken button.
+      if (added <= 0) {
+        setToast({
+          title: "That is all of it already",
+          detail: ceilingReason(shelf),
+          action: { href: "/bag", label: "View bag" },
+        });
+        return;
+      }
 
       commit({
         wishlist,
@@ -269,7 +347,8 @@ export function StoreProvider({ children }) {
               line.key === key
                 ? {
                     ...line,
-                    qty: Math.min(99, line.qty + adding),
+                    qty: total,
+                    stock: shelf,
                     // Heals a line saved before the variant ids existed, so a
                     // bag left on a device before this change can still check
                     // out instead of failing at the last step.
@@ -287,33 +366,110 @@ export function StoreProvider({ children }) {
                 price: product.price,
                 size: pickedSize,
                 image: product.image,
-                qty: adding,
+                qty: added,
+                stock: shelf,
               },
             ],
       });
+
       setToast({
-        title: "Added to bag",
-        detail: [
-          product.name,
-          pickedSize ? `size ${pickedSize}` : null,
-          adding > 1 ? `× ${adding}` : null,
-        ]
-          .filter(Boolean)
-          .join(" · "),
+        title: added < wanted ? "Added what was left" : "Added to bag",
+        detail:
+          added < wanted
+            ? `${describe(product.name, pickedSize)} — ${ceilingReason(shelf)}`
+            : [describe(product.name, pickedSize), added > 1 ? `× ${added}` : null]
+                .filter(Boolean)
+                .join(" · "),
         action: { href: "/bag", label: "View bag" },
       });
     };
 
-    /** Quantity stepper on the bag page. Dropping to zero removes the line. */
+    /**
+     * Quantity stepper on the bag page. Dropping to zero removes the line.
+     *
+     * The ceiling only ever stops a line *growing*. Reducing one is always
+     * allowed, including on a size that has sold out since it was added —
+     * refusing that would leave a shopper unable to bring a line down to a
+     * quantity the shop could actually fill.
+     */
     const setQty = (key, qty) => {
-      const next = Math.max(0, Math.min(99, Math.trunc(Number(qty)) || 0));
+      const line = bag.find((entry) => entry.key === key);
+      if (!line) return;
+
+      const requested = Math.max(0, Math.trunc(Number(qty)) || 0);
+
+      // `stock` is absent on a line saved before this existed. There is no
+      // count to cap against, so the per-order ceiling is all that applies
+      // until the bag page's sync fills one in.
+      const shelf = line.stock === undefined ? null : Math.max(0, Number(line.stock) || 0);
+      const ceiling = shelf === null ? MAX_LINE_QTY : orderableQty(shelf);
+
+      // Never below what the line already holds: that would turn a "+" on a
+      // sold-out line into a quantity drop, or a line removal.
+      const next =
+        requested > line.qty ? Math.min(requested, Math.max(ceiling, line.qty)) : requested;
+
+      if (next === line.qty) {
+        if (requested > line.qty && shelf !== null) {
+          setToast({ title: "That is all of it already", detail: ceilingReason(shelf) });
+        }
+        return;
+      }
+
       commit({
         wishlist,
         bag:
           next === 0
-            ? bag.filter((line) => line.key !== key)
-            : bag.map((line) => (line.key === key ? { ...line, qty: next } : line)),
+            ? bag.filter((entry) => entry.key !== key)
+            : bag.map((entry) => (entry.key === key ? { ...entry, qty: next } : entry)),
       });
+    };
+
+    /**
+     * Re-reads every line's shelf count from a freshly rendered catalogue,
+     * and brings down any line the shop can no longer fill.
+     *
+     * Called by the bag, which is a server component route and so holds a
+     * catalogue at most a minute old. The bag itself lives in localStorage and
+     * may have been sitting there for a week — the count a line was added
+     * against is the first thing about it to go stale, and it is the number
+     * every ceiling on the bag page is derived from.
+     *
+     * A size that has sold out entirely keeps its line and its quantity. The
+     * line is not silently deleted and not silently zeroed: the shopper put it
+     * there, and being told "this sold out, remove it" is the only version of
+     * that they can act on. <BagView> renders it as such and blocks checkout.
+     *
+     * A no-op when nothing moved, so calling it from an effect on every render
+     * settles after one pass instead of looping.
+     */
+    const syncStock = (products = []) => {
+      const byId = new Map(products.map((product) => [product.id, product]));
+      let changed = false;
+
+      const next = bag.map((line) => {
+        const product = byId.get(line.product_id);
+        // Not in this catalogue read at all — withdrawn, or a partial list.
+        // Leaving the line untouched is the honest answer; checkout is what
+        // will say for certain.
+        if (!product) return line;
+
+        const variant = product.sizes?.find((row) => row.size === line.size);
+        if (!variant) return line;
+
+        const shelf = Math.max(0, Math.trunc(Number(variant.stock) || 0));
+        const qty = shelf > 0 ? Math.min(line.qty, orderableQty(shelf)) : line.qty;
+        const variantId = line.variant_id ?? variant.variant_id ?? null;
+
+        if (shelf === line.stock && qty === line.qty && variantId === line.variant_id) {
+          return line;
+        }
+
+        changed = true;
+        return { ...line, stock: shelf, qty, variant_id: variantId };
+      });
+
+      if (changed) commit({ wishlist, bag: next });
     };
 
     const removeLine = (key) => {
@@ -388,6 +544,7 @@ export function StoreProvider({ children }) {
       wishlist,
       addToBag,
       setQty,
+      syncStock,
       removeLine,
       clearBag,
       toggleWish,

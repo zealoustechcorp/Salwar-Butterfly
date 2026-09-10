@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { money, shortDate } from "@/lib/format";
-import { availabilityNotice } from "@/lib/stock";
+import { MAX_LINE_QTY, availabilityNotice, orderableQty } from "@/lib/stock";
 import { cn } from "@/lib/utils";
 import { WhatsAppGlyph } from "./Ornaments";
 import { Photo } from "./Photo";
@@ -36,25 +36,46 @@ import { useStore } from "./StoreProvider";
  * and only on a piece that genuinely has one.
  */
 export function ProductDetail({ product, shop }) {
-  const { addToBag, toggleWish, wishlist } = useStore();
+  const { addToBag, bag, toggleWish, wishlist } = useStore();
   const [size, setSize] = useState(null);
   const [qty, setQty] = useState(1);
 
   const shots = [product.image, product.image2].filter(Boolean);
   const wished = wishlist.includes(product.id);
 
+  /**
+   * How many more of one size may still be added.
+   *
+   * Nothing can be added without a size, so the ceiling is the chosen size's
+   * own shelf — never the product total, which is spread across six sizes —
+   * capped by what one order may carry, and reduced by whatever the bag is
+   * already holding of that size. The bag and this stepper draw on the same
+   * pieces: offering three of a size the bag already holds two of would be an
+   * offer the shop cannot keep, and the store would silently trim it anyway.
+   */
+  const remainingFor = (row) => {
+    if (!row) return 0;
+
+    const held = bag.find((line) => line.key === `${product.id}:${row.size}`)?.qty ?? 0;
+
+    return Math.max(0, orderableQty(row.stock) - held);
+  };
+
   const chosen = product.sizes.find((row) => row.size === size) ?? null;
-  // Nothing can be added without a size, so the ceiling is the chosen size's
-  // own shelf — never the product total, which is spread across six sizes.
-  const ceiling = Math.max(1, Math.min(chosen?.stock ?? 1, 99));
-  const canAdd = product.in_stock && Boolean(chosen?.stock);
+  const remaining = remainingFor(chosen);
+  const canAdd = product.in_stock && remaining > 0;
+
+  // The stepper never shows a number the shop cannot fill. Derived rather than
+  // written back into state, so an add that shrinks what is left re-clamps on
+  // the next render instead of needing an effect to chase it.
+  const wanted = Math.min(qty, Math.max(1, remaining));
 
   /** Picking a size re-clamps a quantity the previous size allowed. */
   const chooseSize = (value) => {
     const row = product.sizes.find((entry) => entry.size === value);
     if (!row?.stock) return;
     setSize(value);
-    setQty((current) => Math.min(current, Math.max(1, Math.min(row.stock, 99))));
+    setQty((current) => Math.min(current, Math.max(1, remainingFor(row))));
   };
 
   const notice = product.in_stock ? availabilityNotice(product.stock) : null;
@@ -203,30 +224,38 @@ export function ProductDetail({ product, shop }) {
           <div className="flex items-center gap-1 rounded-full border border-sb-gold/45 bg-sb-bg p-1">
             <StepButton
               label="Reduce quantity"
-              disabled={!canAdd || qty <= 1}
-              onClick={() => setQty((current) => Math.max(1, current - 1))}
+              disabled={!canAdd || wanted <= 1}
+              onClick={() => setQty(Math.max(1, wanted - 1))}
             >
               <Minus className="size-4" aria-hidden="true" />
             </StepButton>
             <span
               aria-live="polite"
-              aria-label={`Quantity ${qty}`}
+              aria-label={`Quantity ${wanted}`}
               className="min-w-8 text-center text-sm font-bold text-sb-text tabular"
             >
-              {qty}
+              {wanted}
             </span>
             <StepButton
               label="Increase quantity"
-              disabled={!canAdd || qty >= ceiling}
-              onClick={() => setQty((current) => Math.min(ceiling, current + 1))}
+              disabled={!canAdd || wanted >= remaining}
+              onClick={() => setQty(Math.min(remaining, wanted + 1))}
             >
               <Plus className="size-4" aria-hidden="true" />
             </StepButton>
           </div>
 
-          {canAdd && qty >= ceiling ? (
+          {/* Which ceiling was hit, in the shopper's terms. "Only 2 left" is a
+              reason to hurry; "20 per order" is a shop rule, and hurrying will
+              not help — telling them the wrong one is a WhatsApp message the
+              shop cannot answer. */}
+          {canAdd && wanted >= remaining ? (
             <p className="text-xs text-sb-text-muted">
-              That is every size {chosen.size} on the shelf.
+              {chosen.stock > MAX_LINE_QTY
+                ? `${MAX_LINE_QTY} of one size is the most a single order may carry.`
+                : remaining < orderableQty(chosen.stock)
+                  ? `That is every size ${chosen.size} the shop has, counting what is in your bag.`
+                  : `That is every size ${chosen.size} on the shelf.`}
             </p>
           ) : null}
         </div>
@@ -236,11 +265,20 @@ export function ProductDetail({ product, shop }) {
           <button
             type="button"
             disabled={!canAdd}
-            onClick={() => addToBag(product, { size, qty })}
+            onClick={() => addToBag(product, { size, qty: wanted })}
             className="flex flex-1 items-center justify-center gap-2 rounded-full bg-sb-btn-primary px-6 py-3.5 text-sm font-semibold text-sb-bg transition-colors hover:bg-sb-btn-rose disabled:cursor-not-allowed disabled:bg-sb-text-muted/40"
           >
             <ShoppingBag className="size-4 shrink-0" aria-hidden="true" />
-            {!product.in_stock ? "Sold out" : canAdd ? "Add to bag" : "Select a size"}
+            {!product.in_stock
+              ? "Sold out"
+              : !chosen
+                ? "Select a size"
+                : // Disabled with a size chosen means the bag already holds
+                  // everything of it the shop can sell — say which, rather
+                  // than leaving a greyed-out "Add to bag" to be puzzled over.
+                  remaining === 0
+                  ? "All of it is in your bag"
+                  : "Add to bag"}
           </button>
 
           <button
