@@ -14,6 +14,73 @@
 
 import { Plus, Trash2 } from "lucide-react";
 import { Badge, Button, Input } from "@/components/admin/ui";
+import { validateMeasurementText, validateSizeLabel } from "@/lib/validate";
+
+/**
+ * The measurement columns, and the row header that names them.
+ *
+ * Exported because CategoryForm checks the same grid before it saves, and
+ * two lists of column keys would drift the moment one gains a column.
+ */
+export const CHART_COLUMNS = ["size", "chest", "waist", "hip", "length"];
+
+/**
+ * What is wrong with one cell of a category size chart, or null.
+ *
+ * These cells are free text rather than `type="number"`, and deliberately:
+ * the shop is transcribing a printed card that says "80–84", and a numeric
+ * input cannot hold a range. That freedom is also why they need checking —
+ * nothing stopped "-5" or "0" going into the `fits` column, which the API
+ * stores as opaque JSON and the storefront prints verbatim.
+ *
+ * Exported for the same reason as CHART_COLUMNS.
+ */
+export function chartCellProblem(rows, rowIndex, column) {
+  const row = rows[rowIndex];
+  const value = String(row?.[column] ?? "").trim();
+
+  if (column !== "size") return validateMeasurementText(value, "Measurement");
+
+  // A blank row the shop has just added is not yet wrong. The save says so.
+  if (!value) return null;
+
+  const duplicated = rows.some(
+    (other, index) =>
+      index !== rowIndex &&
+      String(other?.size ?? "").trim().toLowerCase() === value.toLowerCase(),
+  );
+
+  if (duplicated) return "This size is listed twice";
+
+  return validateSizeLabel(value, "This size label");
+}
+
+/**
+ * The whole grid, as one sentence naming the first cell at fault.
+ *
+ * @returns {string|null}
+ */
+export function chartProblem(chart) {
+  const rows = chart?.rows ?? [];
+
+  if (rows.length === 0) return `${chart?.fit ?? "That fit"} has no size rows`;
+
+  for (let index = 0; index < rows.length; index += 1) {
+    if (!String(rows[index]?.size ?? "").trim()) {
+      return `${chart.fit}, row ${index + 1}: a size label is required`;
+    }
+
+    for (const column of CHART_COLUMNS) {
+      const problem = chartCellProblem(rows, index, column);
+
+      if (problem) {
+        return `${chart.fit}, row ${index + 1} (${rows[index].size}): ${column} — ${problem}`;
+      }
+    }
+  }
+
+  return null;
+}
 
 /**
  * SizeChartEditor Component
@@ -29,7 +96,7 @@ export default function SizeChartEditor({ chart, onChange }) {
   /**
    * Standard column keys representing garment measurement dimensions.
    */
-  const cols = ["size", "chest", "waist", "hip", "length"];
+  const cols = CHART_COLUMNS;
 
   /**
    * Updates a single cell's measurement value in the chart matrix.
@@ -109,17 +176,28 @@ export default function SizeChartEditor({ chart, onChange }) {
           <tbody className="divide-y divide-ink-100">
             {chart.rows.map((row, i) => (
               <tr key={i} className="hover:bg-ink-50/50 transition-colors">
-                {cols.map((col) => (
-                  <td key={col} className="p-1.5">
-                    <Input
-                      value={row[col]}
-                      onChange={(e) => updateCell(i, col, e.target.value)}
-                      placeholder={col === "size" ? "40" : "80–84"}
-                      className={`h-8 text-xs font-mono ${col === "size" ? "font-semibold text-ink-900 bg-ink-50/40" : ""
-                        }`}
-                    />
-                  </td>
-                ))}
+                {cols.map((col) => {
+                  const problem = chartCellProblem(chart.rows, i, col);
+
+                  return (
+                    <td key={col} className="p-1.5">
+                      <Input
+                        value={row[col]}
+                        onChange={(e) => updateCell(i, col, e.target.value)}
+                        placeholder={col === "size" ? "40" : "80–84"}
+                        maxLength={col === "size" ? 20 : 40}
+                        invalid={Boolean(problem)}
+                        aria-invalid={Boolean(problem) || undefined}
+                        // No room for a message under every cell in a grid
+                        // this dense, so the reason rides the input. Saving
+                        // the category says the same thing in a sentence.
+                        title={problem ?? undefined}
+                        className={`h-8 text-xs font-mono ${col === "size" ? "font-semibold text-ink-900 bg-ink-50/40" : ""
+                          }`}
+                      />
+                    </td>
+                  );
+                })}
                 {/* Row deletion button */}
                 <td className="p-1.5 text-center">
                   <button

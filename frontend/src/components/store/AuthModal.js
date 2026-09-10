@@ -11,12 +11,23 @@
  * a screen reader, none of which the header's drawer needs to get right.
  */
 
-import { Eye, EyeOff, Loader2, X } from "lucide-react";
+import { AlertCircle, Eye, EyeOff, Loader2, X } from "lucide-react";
 import { Dialog as DialogPrimitive } from "radix-ui";
 import { useState } from "react";
 
+import {
+  collect,
+  hasErrors,
+  summarizeErrors,
+  validateEmail,
+  validateLoginPassword,
+  validateName,
+  validatePassword,
+  validatePhone,
+} from "@/lib/validate";
 import { cn } from "@/lib/utils";
 import { Butterfly } from "./Ornaments";
+import { useStoreToast } from "./Toast";
 
 const FIELD_CLASS =
   "h-11 w-full rounded-xl border border-sb-gold/45 bg-white/70 px-3.5 text-sm text-sb-text placeholder:text-sb-text-muted/60 focus:border-sb-link focus:bg-white focus:outline-none";
@@ -40,10 +51,37 @@ function Field({ id, label, error, children, hint }) {
 }
 
 /**
+ * Every field this form will accept, checked before anything is sent.
+ *
+ * Signing in checks less than signing up, and that is a security decision
+ * rather than a shortcut. The 8-character rule belongs to a password being
+ * *set*; applying it to one being *checked* would refuse an account whose
+ * password predates the rule, and would tell whoever is guessing which
+ * candidates are worth submitting at all.
+ */
+function validateAuth(values, isSignUp) {
+  if (!isSignUp) {
+    return collect([
+      ["email", validateEmail(values.email)],
+      ["password", validateLoginPassword(values.password)],
+    ]);
+  }
+
+  return collect([
+    ["name", validateName(values.name)],
+    ["email", validateEmail(values.email)],
+    ["phone", validatePhone(values.phone)],
+    ["password", validatePassword(values.password)],
+  ]);
+}
+
+/**
  * Remounted on every open, because Radix unmounts the dialog's content when it
  * closes — so a half-typed password never survives a dismissal.
  */
 function AuthForm({ intent, signIn, signUp, closeAuth }) {
+  const toast = useStoreToast();
+
   const [mode, setMode] = useState(intent.mode);
   const [values, setValues] = useState({
     name: "",
@@ -51,33 +89,83 @@ function AuthForm({ intent, signIn, signUp, closeAuth }) {
     phone: "",
     password: "",
   });
-  const [failure, setFailure] = useState(null); // { field, error }
+
+  /**
+   * `{ field: message }`, filled either by the checks above or by the API.
+   * One shape for both, so a message lands under its input whether it was
+   * caught here or refused there.
+   */
+  const [errors, setErrors] = useState({});
+
+  /** A refusal that named no field — a wrong password, or the API being down. */
+  const [banner, setBanner] = useState(null);
+
   const [pending, setPending] = useState(false);
 
   const isSignUp = mode === "signup";
   const set = (key) => (event) => {
     setValues((current) => ({ ...current, [key]: event.target.value }));
+
     // Clear the message the moment they start fixing the field it blamed.
-    setFailure((current) => (current?.field === key ? null : current));
+    setErrors((current) => {
+      if (!current[key]) return current;
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
   };
-  const errorFor = (field) => (failure?.field === field ? failure.error : null);
+  const errorFor = (field) => errors[field] ?? null;
 
   const swapMode = () => {
     setMode(isSignUp ? "signin" : "signup");
-    setFailure(null);
+    setErrors({});
+    setBanner(null);
   };
 
   const onSubmit = async (event) => {
     event.preventDefault();
     if (pending) return;
 
+    setBanner(null);
+
+    // Caught here, every bad field is named at once. Left to the API, the
+    // first one it happens to check is the only one reported, and a shopper
+    // fixes four mistakes over four round trips.
+    const invalid = validateAuth(values, isSignUp);
+
+    if (hasErrors(invalid)) {
+      setErrors(invalid);
+      toast.error(
+        isSignUp ? "Check your details" : "Check your sign-in details",
+        summarizeErrors(invalid),
+      );
+      return;
+    }
+
     setPending(true);
-    setFailure(null);
+    setErrors({});
+
     const result = isSignUp ? await signUp(values) : await signIn(values);
+
     // On success the provider closes this dialog, which unmounts the form —
     // so only the failure path has any state left to set.
     if (!result.ok) {
-      setFailure({ field: result.field, error: result.error });
+      // The API names the field it refused where it can: a duplicate email
+      // is a 409 naming `email`. Where it cannot — a wrong password reads
+      // the same as an unknown address, deliberately — the message goes to
+      // the banner instead of being pinned on a guess.
+      if (Object.keys(result.fields ?? {}).length > 0) {
+        setErrors(result.fields);
+      } else if (result.field) {
+        setErrors({ [result.field]: result.error });
+      } else {
+        setBanner(result.error);
+      }
+
+      toast.error(
+        isSignUp ? "Could not create your account" : "Could not sign you in",
+        result.error,
+      );
       setPending(false);
     }
   };
@@ -163,6 +251,18 @@ function AuthForm({ intent, signIn, signUp, closeAuth }) {
           error={errorFor("password")}
         />
       </div>
+
+      {/* A refusal with no field to sit under. The toast that went up with
+          it is gone in six seconds; this stays until they try again. */}
+      {banner ? (
+        <p
+          role="alert"
+          className="mt-4 flex gap-2 rounded-xl border border-sb-link/40 bg-sb-link/5 px-3.5 py-2.5 text-xs leading-relaxed font-medium text-sb-link"
+        >
+          <AlertCircle className="mt-px size-3.5 shrink-0" aria-hidden="true" />
+          {banner}
+        </p>
+      ) : null}
 
       <button
         type="submit"

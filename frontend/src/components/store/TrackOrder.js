@@ -20,31 +20,72 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { trackOrder } from "@/lib/store/orders";
+import {
+  collect,
+  hasErrors,
+  normalizeOrderNumber,
+  summarizeErrors,
+  validateEmail,
+  validateOrderNumber,
+} from "@/lib/validate";
+import { cn } from "@/lib/utils";
 import { OrderCard } from "./OrderSummary";
+import { useStoreToast } from "./Toast";
 
 const FIELD_CLASS =
   "h-11 w-full rounded-xl border border-sb-gold/45 bg-white/70 px-3.5 text-sm text-sb-text placeholder:text-sb-text-muted/60 focus:border-sb-link focus:bg-white focus:outline-none";
 
 export function TrackOrder() {
+  const toast = useStoreToast();
+
   const [values, setValues] = useState({ orderNumber: "", email: "" });
   const [order, setOrder] = useState(null);
+  const [errors, setErrors] = useState({});
   const [error, setError] = useState(null);
   const [pending, setPending] = useState(false);
 
   const set = (key) => (event) => {
     setValues((current) => ({ ...current, [key]: event.target.value }));
     setError(null);
+    setErrors((current) => {
+      if (!current[key]) return current;
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
   };
 
   async function onSubmit(event) {
     event.preventDefault();
     if (pending) return;
 
-    setPending(true);
     setError(null);
 
+    // Both fields are checked because both are required, and required for
+    // the same reason: order numbers run in sequence, so the email is what
+    // stops the page being walked. A blank one has to fail here rather than
+    // arriving as a lookup the API answers "not found" — that reads as a
+    // missing order rather than a missing field.
+    const invalid = collect([
+      ["orderNumber", validateOrderNumber(values.orderNumber)],
+      ["email", validateEmail(values.email)],
+    ]);
+
+    if (hasErrors(invalid)) {
+      setErrors(invalid);
+      toast.error("Check what you entered", summarizeErrors(invalid));
+      return;
+    }
+
+    setErrors({});
+    setPending(true);
+
     const result = await trackOrder({
-      orderNumber: values.orderNumber.trim(),
+      // "1042" and "sb-1042" both become the "SB-001042" on the
+      // confirmation. Somebody reading a number off a screen types the
+      // digits, and refusing that would be the form being difficult about
+      // a number it understood perfectly well.
+      orderNumber: normalizeOrderNumber(values.orderNumber),
       email: values.email.trim(),
     });
 
@@ -53,10 +94,15 @@ export function TrackOrder() {
     if (!result.ok) {
       setOrder(null);
       setError(result.error);
+      toast.error("No order found", "Check the number and the email it was placed with.");
       return;
     }
 
     setOrder(result.order);
+    toast.success(
+      `Order ${result.order.orderNumber} found`,
+      "It is shown below with everything on it.",
+    );
   }
 
   return (
@@ -82,8 +128,16 @@ export function TrackOrder() {
               onChange={set("orderNumber")}
               placeholder="SB-001042"
               autoComplete="off"
-              className={`${FIELD_CLASS} mt-1.5 tabular`}
+              maxLength={24}
+              aria-invalid={Boolean(errors.orderNumber)}
+              aria-describedby={errors.orderNumber ? "track-number-error" : undefined}
+              className={cn(FIELD_CLASS, "mt-1.5 tabular", errors.orderNumber && "border-sb-link")}
             />
+            {errors.orderNumber ? (
+              <p id="track-number-error" className="mt-1.5 text-xs font-medium text-sb-link">
+                {errors.orderNumber}
+              </p>
+            ) : null}
           </div>
 
           <div>
@@ -97,13 +151,23 @@ export function TrackOrder() {
               onChange={set("email")}
               placeholder="you@example.com"
               autoComplete="email"
-              className={`${FIELD_CLASS} mt-1.5`}
+              aria-invalid={Boolean(errors.email)}
+              aria-describedby={errors.email ? "track-email-error" : undefined}
+              className={cn(FIELD_CLASS, "mt-1.5", errors.email && "border-sb-link")}
             />
+            {errors.email ? (
+              <p id="track-email-error" className="mt-1.5 text-xs font-medium text-sb-link">
+                {errors.email}
+              </p>
+            ) : null}
           </div>
         </fieldset>
 
         {error ? (
-          <p className="mt-4 flex gap-2 rounded-xl border border-sb-link/40 bg-sb-link/5 px-4 py-3 text-sm font-medium text-sb-link">
+          <p
+            role="alert"
+            className="mt-4 flex gap-2 rounded-xl border border-sb-link/40 bg-sb-link/5 px-4 py-3 text-sm font-medium text-sb-link"
+          >
             <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             {error}
           </p>

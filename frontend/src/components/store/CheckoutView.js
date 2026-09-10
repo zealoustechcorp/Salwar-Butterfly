@@ -50,11 +50,22 @@ import {
   isSameAddress,
 } from "@/lib/store/addresses";
 import { placeOrder } from "@/lib/store/orders";
+import {
+  collect,
+  hasErrors,
+  summarizeErrors,
+  validateAddressFields,
+  validateEmail,
+  validateName,
+  validateNote,
+  validatePhone,
+} from "@/lib/validate";
 import { cn } from "@/lib/utils";
 import { formatAddress } from "./AddressBook";
 import { useAuth } from "./AuthProvider";
 import { Photo } from "./Photo";
 import { useStore } from "./StoreProvider";
+import { useStoreToast } from "./Toast";
 
 const FIELD_CLASS =
   "h-11 w-full rounded-xl border border-sb-gold/45 bg-white/70 px-3.5 text-sm text-sb-text placeholder:text-sb-text-muted/60 focus:border-sb-link focus:bg-white focus:outline-none";
@@ -79,6 +90,22 @@ const STATES = [
  * what was typed against what is already saved.
  */
 const ADDRESS_KEYS = ["line1", "line2", "landmark", "city", "state", "postalCode"];
+
+/**
+ * The fields that have an input on this page.
+ *
+ * Used to decide whether a message the API sent back has somewhere to go.
+ * `shippingAddress.city` flattens to `city` and lands under an input;
+ * `items[2].variantId` and `country` flatten to nothing anybody can see and
+ * belong in the banner instead, where at least they are read.
+ */
+const KNOWN_FIELDS = new Set([
+  "name",
+  "email",
+  "phone",
+  ...ADDRESS_KEYS,
+  "customerNote",
+]);
 
 const BLANK_ADDRESS = {
   line1: "",
@@ -117,9 +144,36 @@ function Field({ id, label, error, hint, children, className }) {
   );
 }
 
+/**
+ * Everything the order API will check, checked here first.
+ *
+ * The inputs on this page are flat — `city`, not `shippingAddress.city` —
+ * so the address half is validated under no prefix and the map comes back
+ * keyed the way the fields are named. The API uses the prefixed form and
+ * its keys are flattened on arrival (see `onSubmit`), which is what lets
+ * both sources of truth render through one `errorFor`.
+ *
+ * The bag is not validated here. Whether a size is still on the shelf is
+ * not a question this browser can answer — the order transaction locks the
+ * variant row and decides — and the two banners above the form already say
+ * what is known about it.
+ */
+function validateCheckout(values) {
+  return {
+    ...collect([
+      ["name", validateName(values.name)],
+      ["email", validateEmail(values.email)],
+      ["phone", validatePhone(values.phone)],
+      ["customerNote", validateNote(values.customerNote)],
+    ]),
+    ...validateAddressFields({ ...values, country: "India" }),
+  };
+}
+
 export function CheckoutView() {
   const { bag, bagTotal, bagCount, clearBag } = useStore();
   const { user, isSignedIn, token, openAuth } = useAuth();
+  const toast = useStoreToast();
   const router = useRouter();
 
   // Prefilled from the account where there is one, and still editable: a gift
@@ -137,7 +191,15 @@ export function CheckoutView() {
     customerNote: "",
   });
 
-  const [failure, setFailure] = useState(null); // { field, error }
+  /**
+   * `{ field: message }` — filled by the checks above, or by the API when
+   * it refuses something this page could not have known about.
+   */
+  const [errors, setErrors] = useState({});
+
+  /** A refusal with no field at fault: sold out, or the API is down. */
+  const [banner, setBanner] = useState(null);
+
   const [pending, setPending] = useState(false);
 
   // --------------------------------------------------------
@@ -194,13 +256,19 @@ export function CheckoutView() {
     if (ADDRESS_KEYS.includes(key)) setChosen("new");
 
     // Clear the message the moment they start fixing the field it blamed.
-    setFailure((current) => (current?.field?.endsWith(key) ? null : current));
+    setErrors((current) => {
+      if (!current[key]) return current;
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
   };
 
   /** Fills the form from a saved address, or empties it for a new one. */
   const pick = (address) => {
     setChosen(address?.id ?? "new");
-    setFailure(null);
+    setErrors({});
+    setBanner(null);
     setValues((current) => ({
       ...current,
       ...(address ? addressToValues(address) : BLANK_ADDRESS),
@@ -233,7 +301,7 @@ export function CheckoutView() {
     (line) => line.stock !== undefined && line.qty > orderableQty(line.stock),
   );
 
-  const errorFor = (field) => (failure?.field === field ? failure.error : null);
+  const errorFor = (field) => errors[field] ?? null;
 
   /**
    * Whether to offer to keep this address (F-08.05).
@@ -256,7 +324,22 @@ export function CheckoutView() {
     event.preventDefault();
     if (pending) return;
 
-    setFailure(null);
+    setBanner(null);
+
+    // Checked before anything is sent, and every bad field named at once.
+    // This is the form where that matters most: a shopper who has typed
+    // eleven fields and pressed "Place order" should not learn about their
+    // PIN code, then their phone number, then their landmark, one refused
+    // request at a time.
+    const invalid = validateCheckout(values);
+
+    if (hasErrors(invalid)) {
+      setErrors(invalid);
+      toast.error("Check your details", summarizeErrors(invalid));
+      return;
+    }
+
+    setErrors({});
     setPending(true);
 
     const result = await placeOrder(
@@ -286,13 +369,23 @@ export function CheckoutView() {
     if (!result.ok) {
       setPending(false);
 
-      // The API names the offending field as `contact.email` or
-      // `shippingAddress.city`; the inputs here are flat, so the last segment
-      // is what identifies one.
-      setFailure({
-        field: result.field ? result.field.split(".").pop() : null,
-        error: result.error,
-      });
+      // The API names its fields as `contact.email` or
+      // `shippingAddress.city`; the inputs here are flat, so the last
+      // segment is what identifies one. Keys with no input behind them —
+      // `items[2].variantId`, say — fall through to the banner, because
+      // there is no field on this page for them to sit under.
+      const named = collect(
+        Object.entries(result.fields ?? {}).map(([field, message]) => {
+          const flat = field.split(".").pop();
+
+          return [flat, KNOWN_FIELDS.has(flat) ? message : null];
+        }),
+      );
+
+      if (hasErrors(named)) setErrors(named);
+      else setBanner(result.error);
+
+      toast.error("Your order was not placed", result.error);
 
       return;
     }
@@ -324,7 +417,15 @@ export function CheckoutView() {
       /* the confirmation page falls back to asking them to look it up */
     }
 
-    clearBag();
+    // Silent: the bag being emptied is a consequence of the sale, not
+    // something the shopper asked for, and "Bag emptied" riding the
+    // navigation onto the confirmation page would say the wrong thing
+    // about a purchase that just succeeded.
+    clearBag({ silent: true });
+    toast.success(
+      `Order ${result.order.orderNumber} placed`,
+      "Your sizes are held for you. The shop sends a payment link next.",
+    );
     router.replace("/checkout/done");
   }
 
@@ -765,10 +866,26 @@ export function CheckoutView() {
             {/* A refusal that named no field — sold out, or the API is down.
                 Shown against the button rather than beside an input, because
                 there is no input at fault. */}
-            {failure && !failure.field ? (
-              <p className="mt-4 flex gap-2 rounded-xl border border-sb-link/40 bg-sb-link/5 px-3.5 py-2.5 text-xs leading-relaxed font-medium text-sb-link">
+            {banner ? (
+              <p
+                role="alert"
+                className="mt-4 flex gap-2 rounded-xl border border-sb-link/40 bg-sb-link/5 px-3.5 py-2.5 text-xs leading-relaxed font-medium text-sb-link"
+              >
                 <AlertCircle className="mt-px size-3.5 shrink-0" aria-hidden="true" />
-                {failure.error}
+                {banner}
+              </p>
+            ) : null}
+
+            {/* Fields did fail, but they are up the page and out of sight
+                from a sticky summary. Said here so the button does not look
+                like it simply did nothing. */}
+            {!banner && hasErrors(errors) ? (
+              <p
+                role="alert"
+                className="mt-4 flex gap-2 rounded-xl border border-sb-link/40 bg-sb-link/5 px-3.5 py-2.5 text-xs leading-relaxed font-medium text-sb-link"
+              >
+                <AlertCircle className="mt-px size-3.5 shrink-0" aria-hidden="true" />
+                {summarizeErrors(errors)}
               </p>
             ) : null}
 

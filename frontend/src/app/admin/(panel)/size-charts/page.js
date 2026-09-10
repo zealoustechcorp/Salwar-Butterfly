@@ -65,6 +65,12 @@ import {
   updateSizeChart,
 } from "@/lib/api/sizeCharts";
 import { COLUMN_LABEL, measurement } from "@/lib/sizing";
+import {
+  collect,
+  hasErrors,
+  summarizeErrors,
+  validateSizeChartRows,
+} from "@/lib/validate";
 
 export default function SizeChartsPage() {
   const toast = useToast();
@@ -114,6 +120,28 @@ export default function SizeChartsPage() {
   // --- writes ---------------------------------------------------------------
 
   async function save() {
+    // The grid is checked before the request, not after it. A cell holding
+    // 0 or -5 is refused by the API with a perfectly good message that
+    // arrives once the shop has transcribed forty rows off a printed card;
+    // the same message here arrives while they are still looking at it.
+    const invalid = collect([
+      ["fit", draft.fit.trim() ? null : "A fit name is required"],
+      ["title", draft.title.trim() ? null : "A title is required"],
+      [
+        "columns",
+        draft.columns.length >= 2
+          ? null
+          : "A chart needs at least 2 columns: size, and something to measure",
+      ],
+      ["rows", validateSizeChartRows(draft.rows, draft.columns)],
+    ]);
+
+    if (hasErrors(invalid)) {
+      setFieldErrors(invalid);
+      toast.error("Check the chart", summarizeErrors(invalid));
+      return;
+    }
+
     setSaving(true);
     setFieldErrors({});
 

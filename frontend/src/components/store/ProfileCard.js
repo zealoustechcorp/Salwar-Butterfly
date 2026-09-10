@@ -22,8 +22,19 @@
 import { Check, KeyRound, Loader2, Pencil, UserRound, X } from "lucide-react";
 import { useState } from "react";
 
+import {
+  collect,
+  hasErrors,
+  summarizeErrors,
+  validateEmail,
+  validateLoginPassword,
+  validateName,
+  validatePassword,
+  validatePhone,
+} from "@/lib/validate";
 import { cn } from "@/lib/utils";
 import { useAuth } from "./AuthProvider";
+import { useStoreToast } from "./Toast";
 
 const FIELD_CLASS =
   "h-11 w-full rounded-xl border border-sb-gold/45 bg-white/70 px-3.5 text-sm text-sb-text placeholder:text-sb-text-muted/60 focus:border-sb-link focus:bg-white focus:outline-none";
@@ -57,6 +68,7 @@ function Row({ label, value }) {
 
 export function ProfileCard() {
   const { user } = useAuth();
+  const toast = useStoreToast();
 
   const [editing, setEditing] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
@@ -119,6 +131,7 @@ export function ProfileCard() {
           onSaved={() => {
             setEditing(false);
             setFlash("Your details were updated.");
+            toast.success("Details updated");
           }}
         />
       ) : changingPassword ? (
@@ -127,6 +140,7 @@ export function ProfileCard() {
           onSaved={() => {
             setChangingPassword(false);
             setFlash("Your password was changed.");
+            toast.success("Password changed", "You stay signed in on this device.");
           }}
         />
       ) : (
@@ -142,6 +156,7 @@ export function ProfileCard() {
 
 function DetailsForm({ user, onCancel, onSaved }) {
   const { updateProfile } = useAuth();
+  const toast = useStoreToast();
 
   const [values, setValues] = useState({
     name: user.name,
@@ -174,9 +189,30 @@ function DetailsForm({ user, onCancel, onSaved }) {
     event.preventDefault();
     if (pending || changed.length === 0) return;
 
+    setBanner(null);
+
+    // Only what they actually touched. Validating an unchanged field would
+    // block the form on a value the shop is already storing — an account
+    // created before a rule tightened is not a form the shopper can fix.
+    const invalid = collect(
+      changed.map((key) => [
+        key,
+        key === "name"
+          ? validateName(values.name)
+          : key === "email"
+            ? validateEmail(values.email)
+            : validatePhone(values.phone),
+      ]),
+    );
+
+    if (hasErrors(invalid)) {
+      setErrors(invalid);
+      toast.error("Check your details", summarizeErrors(invalid));
+      return;
+    }
+
     setPending(true);
     setErrors({});
-    setBanner(null);
 
     const result = await updateProfile(
       Object.fromEntries(changed.map((key) => [key, values[key].trim()])),
@@ -187,7 +223,7 @@ function DetailsForm({ user, onCancel, onSaved }) {
       return;
     }
 
-    if (Object.keys(result.fields ?? {}).length > 0) {
+    if (hasErrors(result.fields)) {
       setErrors(result.fields);
     } else if (result.field) {
       setErrors({ [result.field]: result.error });
@@ -195,6 +231,7 @@ function DetailsForm({ user, onCancel, onSaved }) {
       setBanner(result.error);
     }
 
+    toast.error("Could not save your details", result.error);
     setPending(false);
   };
 
@@ -258,6 +295,7 @@ function DetailsForm({ user, onCancel, onSaved }) {
 
 function PasswordForm({ onCancel, onSaved }) {
   const { changePassword } = useAuth();
+  const toast = useStoreToast();
 
   const [values, setValues] = useState({ oldPassword: "", newPassword: "" });
   const [errors, setErrors] = useState({});
@@ -278,9 +316,33 @@ function PasswordForm({ onCancel, onSaved }) {
     event.preventDefault();
     if (pending) return;
 
+    setBanner(null);
+
+    // The current password gets only the presence check — whether it is
+    // right is the server's to answer, and the strength rules belong to the
+    // one being set. The new one gets the full rule, and is refused here if
+    // it matches the old: the API would accept it, and a shopper who thinks
+    // they changed their password and has not is worse off than one who was
+    // told no.
+    const invalid = collect([
+      ["oldPassword", validateLoginPassword(values.oldPassword)],
+      [
+        "newPassword",
+        validatePassword(values.newPassword) ??
+          (values.newPassword === values.oldPassword
+            ? "That is your current password"
+            : null),
+      ],
+    ]);
+
+    if (hasErrors(invalid)) {
+      setErrors(invalid);
+      toast.error("Check your passwords", summarizeErrors(invalid));
+      return;
+    }
+
     setPending(true);
     setErrors({});
-    setBanner(null);
 
     const result = await changePassword(values);
 
@@ -289,7 +351,7 @@ function PasswordForm({ onCancel, onSaved }) {
       return;
     }
 
-    if (Object.keys(result.fields ?? {}).length > 0) {
+    if (hasErrors(result.fields)) {
       setErrors(result.fields);
     } else if (result.field) {
       setErrors({ [result.field]: result.error });
@@ -297,6 +359,7 @@ function PasswordForm({ onCancel, onSaved }) {
       setBanner(result.error);
     }
 
+    toast.error("Could not change your password", result.error);
     setPending(false);
   };
 

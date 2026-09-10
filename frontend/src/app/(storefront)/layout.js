@@ -4,6 +4,7 @@ import { SizeChartProvider } from "@/components/store/SizeChart";
 import { StoreFooter } from "@/components/store/StoreFooter";
 import { StoreHeader } from "@/components/store/StoreHeader";
 import { StoreProvider } from "@/components/store/StoreProvider";
+import { ToastProvider } from "@/components/store/Toast";
 import { getShop, getStorefrontCategories } from "@/lib/store/catalogue";
 import { getSizeCharts } from "@/lib/store/sizeCharts";
 
@@ -21,7 +22,12 @@ export const metadata = {
  * providers sit above both the header and the page so the header search can
  * steer the shop grid below it.
  *
- * <AuthProvider> is outermost because the header, the account page and the
+ * <ToastProvider> is outermost so that everything below it — the sign-in
+ * dialog included — can put up a notice. It holds no state of its own beyond
+ * the queue on screen, so nothing depends on where it sits other than being
+ * above whoever pushes to it.
+ *
+ * <AuthProvider> is next because the header, the account page and the
  * wishlist all need to know who is signed in, and because it renders the sign-in
  * dialog that any of them can open.
  *
@@ -40,17 +46,19 @@ export default async function StorefrontLayout({ children }) {
 
   return (
     <div className="sb-root flex min-h-screen flex-col font-body">
-      <AuthProvider>
-        <StoreProvider>
-          <BrowseProvider>
-            <SizeChartProvider charts={sizeCharts}>
-              <StoreHeader categories={categories} shop={shop} />
-              <main className="flex-1">{children}</main>
-              <StoreFooter shop={shop} />
-            </SizeChartProvider>
-          </BrowseProvider>
-        </StoreProvider>
-      </AuthProvider>
+      <ToastProvider>
+        <AuthProvider>
+          <StoreProvider>
+            <BrowseProvider>
+              <SizeChartProvider charts={sizeCharts}>
+                <StoreHeader categories={categories} shop={shop} />
+                <main className="flex-1">{children}</main>
+                <StoreFooter shop={shop} />
+              </SizeChartProvider>
+            </BrowseProvider>
+          </StoreProvider>
+        </AuthProvider>
+      </ToastProvider>
     </div>
   );
 }

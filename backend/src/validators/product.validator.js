@@ -7,6 +7,7 @@ import {
   validateProductSubCategoryId,
   validateProductBasePrice,
   validateProductDiscountPercentage,
+  validateProductSalePrice,
   validateProductIsFeatured,
   validateProductActive,
   validateProductAttributes,
@@ -62,7 +63,14 @@ export const validateCreateProduct = (req, res, next) => {
     const basePriceError = validateProductBasePrice(basePrice, true);
     if (basePriceError) errors.basePrice = basePriceError;
 
-    const discountError = validateProductDiscountPercentage(discountPercentage);
+    // The pair, not just each field. Both can be valid alone and still
+    // leave the customer paying nothing between them — see
+    // validateProductSalePrice. Create has both to hand; update may send
+    // only one, so its version of this check lives in the service, where
+    // the sent field is merged with the stored one.
+    const discountError =
+      validateProductDiscountPercentage(discountPercentage) ??
+      validateProductSalePrice(basePrice, discountPercentage);
     if (discountError) errors.discountPercentage = discountError;
 
     const attributesError = validateProductAttributes(attributes);

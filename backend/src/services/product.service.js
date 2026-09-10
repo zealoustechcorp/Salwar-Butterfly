@@ -219,10 +219,10 @@ export const ProductService = {
         }
 
         const price = parseFloat(p.basePrice);
-        if (isNaN(price) || price < 0) {
+        if (!Number.isFinite(price) || price < 0.01) {
           throw new ApiError(
             400,
-            `Product at index ${i}: basePrice must be a positive number`,
+            `Product at index ${i}: basePrice must be at least 0.01`,
           );
         }
 
@@ -235,6 +235,21 @@ export const ProductService = {
         }
 
         const currentPrice = calculateCurrentPrice(price, discount);
+
+        // The same rule the single-product create applies, and it matters
+        // more here: this path inserts up to a thousand rows in one
+        // statement, so a discount that zeroes them out is a catalogue of
+        // free products rather than one.
+        if (currentPrice < 0.01) {
+          throw new ApiError(
+            400,
+            `Product at index ${i}: ${
+              discount >= 100
+                ? "a 100% discount would make this product free"
+                : "that discount leaves the customer paying 0"
+            }`,
+          );
+        }
 
         processedProducts.push({
           name: p.name.trim(),
@@ -541,18 +556,41 @@ export const ProductService = {
             ? parseFloat(updateData.discountPercentage)
             : parseFloat(product.discount_percentage);
 
-        if (isNaN(base) || base < 0) {
-          throw new ApiError(400, "Base price must be a positive number");
+        // A paisa, not "more than zero": prices are DECIMAL(10,2), so
+        // 0.004 is a positive number the column stores as 0.00.
+        if (!Number.isFinite(base) || base < 0.01) {
+          throw new ApiError(400, "Base price must be at least 0.01", {
+            basePrice: "Base price must be at least 0.01",
+          });
         }
 
         if (discount < 0 || discount > 100) {
           throw new ApiError(
             400,
             "Discount percentage must be between 0 and 100",
+            { discountPercentage: "Discount percentage must be between 0 and 100" },
           );
         }
 
         finalData.currentPrice = calculateCurrentPrice(base, discount);
+
+        // The guard on the derived figure, and the reason it lives here
+        // rather than in the validator: an update may send only one of the
+        // two prices, so what the customer would end up paying is not
+        // knowable until the sent field is merged with the stored one —
+        // which is exactly what the lines above just did.
+        //
+        // Both fields can be valid on their own and still leave a free
+        // product between them: 100% off, or a base small enough that the
+        // discount rounds it away.
+        if (finalData.currentPrice < 0.01) {
+          const message =
+            discount >= 100
+              ? "A 100% discount would make this product free"
+              : "That discount leaves the customer paying 0";
+
+          throw new ApiError(400, message, { discountPercentage: message });
+        }
       }
 
       logger.info("Updating product", {

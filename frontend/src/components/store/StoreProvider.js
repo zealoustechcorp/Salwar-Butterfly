@@ -60,18 +60,17 @@
  *   are looking at rather than on the last screen before paying.
  */
 
-import Link from "next/link";
-import { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { createContext, useContext, useEffect, useMemo, useSyncExternalStore } from "react";
 
 import { MAX_LINE_QTY, orderableQty } from "@/lib/stock";
 import { readSession, readToken } from "@/lib/store/session";
-import { cn } from "@/lib/utils";
 import {
   fetchWishlist,
   mergeWishlist,
   removeFromWishlist,
   saveToWishlist,
 } from "@/lib/store/wishlist";
+import { useStoreToast } from "./Toast";
 
 const BAG_KEY = "sb.bag";
 const GUEST_WISH_KEY = "sb.wishlist";
@@ -242,15 +241,10 @@ const StoreContext = createContext(null);
 
 export function StoreProvider({ children }) {
   const { bag, wishlist } = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-  const [toast, setToast] = useState(null);
 
-  // A toast carrying a link stays up longer: 2.6s is enough to read a
-  // confirmation but not enough to notice a button, decide, and reach it.
-  useEffect(() => {
-    if (!toast) return undefined;
-    const timer = setTimeout(() => setToast(null), toast.action ? 5200 : 2600);
-    return () => clearTimeout(timer);
-  }, [toast]);
+  // The strip itself lives in <ToastProvider>, above this one in the layout,
+  // because the bag is no longer the only thing with something to say.
+  const toast = useStoreToast();
 
   /**
    * The returning shopper: already signed in when the page loaded, so no
@@ -317,10 +311,10 @@ export function StoreProvider({ children }) {
       // pressed, or a size that was never on the shelf. Nothing is added and
       // the bag is left exactly as it was.
       if (ceiling === 0) {
-        setToast({
-          title: "Sold out",
-          detail: `${describe(product.name, pickedSize)} — there are none left to add.`,
-        });
+        toast.info(
+          "Sold out",
+          `${describe(product.name, pickedSize)} — there are none left to add.`,
+        );
         return;
       }
 
@@ -332,9 +326,7 @@ export function StoreProvider({ children }) {
       // Already holding everything the shop can sell them. Said plainly
       // rather than silently doing nothing, which reads as a broken button.
       if (added <= 0) {
-        setToast({
-          title: "That is all of it already",
-          detail: ceilingReason(shelf),
+        toast.info("That is all of it already", ceilingReason(shelf), {
           action: { href: "/bag", label: "View bag" },
         });
         return;
@@ -372,16 +364,15 @@ export function StoreProvider({ children }) {
             ],
       });
 
-      setToast({
-        title: added < wanted ? "Added what was left" : "Added to bag",
-        detail:
-          added < wanted
-            ? `${describe(product.name, pickedSize)} — ${ceilingReason(shelf)}`
-            : [describe(product.name, pickedSize), added > 1 ? `× ${added}` : null]
-                .filter(Boolean)
-                .join(" · "),
-        action: { href: "/bag", label: "View bag" },
-      });
+      toast.success(
+        added < wanted ? "Added what was left" : "Added to bag",
+        added < wanted
+          ? `${describe(product.name, pickedSize)} — ${ceilingReason(shelf)}`
+          : [describe(product.name, pickedSize), added > 1 ? `× ${added}` : null]
+              .filter(Boolean)
+              .join(" · "),
+        { action: { href: "/bag", label: "View bag" } },
+      );
     };
 
     /**
@@ -411,7 +402,7 @@ export function StoreProvider({ children }) {
 
       if (next === line.qty) {
         if (requested > line.qty && shelf !== null) {
-          setToast({ title: "That is all of it already", detail: ceilingReason(shelf) });
+          toast.info("That is all of it already", ceilingReason(shelf));
         }
         return;
       }
@@ -475,12 +466,18 @@ export function StoreProvider({ children }) {
     const removeLine = (key) => {
       const line = bag.find((entry) => entry.key === key);
       commit({ wishlist, bag: bag.filter((entry) => entry.key !== key) });
-      if (line) setToast({ title: "Removed from bag", detail: line.name });
+      if (line) toast.success("Removed from bag", line.name);
     };
 
-    const clearBag = () => {
+    /**
+     * `silent` is for checkout, which empties the bag because the order was
+     * placed rather than because the shopper asked. "Bag emptied" riding the
+     * navigation onto the confirmation page would say the wrong thing about
+     * a purchase that succeeded.
+     */
+    const clearBag = ({ silent = false } = {}) => {
       commit({ wishlist, bag: [] });
-      setToast({ title: "Bag emptied", detail: "Nothing left to check out" });
+      if (!silent) toast.success("Bag emptied", "Nothing left to check out");
     };
 
     /**
@@ -509,11 +506,11 @@ export function StoreProvider({ children }) {
 
       // Only the save offers the trip — after a remove there is nothing new
       // on the wishlist to go and look at.
-      setToast({
-        title: saved ? "Removed from wishlist" : "Saved to wishlist",
-        detail: product.name,
-        action: saved ? null : { href: "/wishlist", label: "View wishlist" },
-      });
+      toast.success(
+        saved ? "Removed from wishlist" : "Saved to wishlist",
+        product.name,
+        { action: saved ? null : { href: "/wishlist", label: "View wishlist" } },
+      );
 
       const token = readToken();
       const userId = activeUserId;
@@ -532,10 +529,10 @@ export function StoreProvider({ children }) {
 
         commitServerWishlist(userId, previous);
 
-        setToast({
-          title: saved ? "Could not remove that" : "Could not save that",
-          detail: result.error,
-        });
+        toast.error(
+          saved ? "Could not remove that" : "Could not save that",
+          result.error,
+        );
       });
     };
 
@@ -552,50 +549,9 @@ export function StoreProvider({ children }) {
       bagTotal: bag.reduce((sum, line) => sum + line.qty * line.price, 0),
       wishCount: wishlist.length,
     };
-  }, [bag, wishlist]);
+  }, [bag, wishlist, toast]);
 
-  return (
-    <StoreContext.Provider value={value}>
-      {children}
-      {/* Taking the link dismisses the strip rather than letting it ride the
-          navigation and sit on top of the page it just opened. */}
-      <Toast toast={toast} onAction={() => setToast(null)} />
-    </StoreContext.Provider>
-  );
-}
-
-function Toast({ toast, onAction }) {
-  return (
-    <div
-      aria-live="polite"
-      className="pointer-events-none fixed inset-x-0 bottom-5 z-50 flex justify-center px-4"
-    >
-      {toast ? (
-        // The strip itself stays click-through; only the button inside takes
-        // pointer events, so a toast over a product tile never eats a tap.
-        <div
-          className={cn(
-            "sb-enter flex max-w-full items-center gap-3 rounded-full bg-sb-footer py-2.5 pl-5 text-sb-bg shadow-lg shadow-sb-footer/25",
-            toast.action ? "pr-2" : "pr-5",
-          )}
-        >
-          <span className="shrink-0 text-sm font-medium">{toast.title}</span>
-          <span className="hidden min-w-0 truncate text-xs text-sb-bg/70 sm:inline">
-            {toast.detail}
-          </span>
-          {toast.action ? (
-            <Link
-              href={toast.action.href}
-              onClick={onAction}
-              className="pointer-events-auto shrink-0 rounded-full bg-sb-bg px-3.5 py-1.5 text-xs font-semibold whitespace-nowrap text-sb-footer transition-colors hover:bg-sb-btn-rose hover:text-sb-bg"
-            >
-              {toast.action.label}
-            </Link>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
-  );
+  return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
 
 export function useStore() {

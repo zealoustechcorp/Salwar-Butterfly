@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 
 import { applyDiscount, removeDiscount } from "@/lib/api/products";
 import { money } from "@/lib/format";
+import { calculateSalePrice, MIN_PRICE, validateDiscountPercentage } from "@/lib/validate";
 import { Button, Field, Input, Modal, useToast } from "./ui";
 
 const PRESETS = [5, 10, 15, 20, 25, 30, 40, 50];
@@ -32,12 +33,56 @@ function DiscountForm({ onClose, products = [], onDone }) {
   const preview = useMemo(() => {
     const sample = products[0];
     if (!sample) return null;
-    const base = Number(sample.basePrice) || 0;
-    const value = Number(percent) || 0;
-    return { label: sample.name, base, next: Math.round(base * (100 - value)) / 100 };
+
+    return {
+      label: sample.name,
+      base: Number(sample.basePrice) || 0,
+      // The API's own arithmetic, not a second version of it — the old
+      // line rounded differently from the server for any percentage that
+      // was not whole, so the preview showed a price nobody would pay.
+      next: calculateSalePrice(sample.basePrice, percent),
+    };
   }, [products, percent]);
 
+  /**
+   * The products this percentage would make free.
+   *
+   * Applied across a selection, one percentage meets many base prices, so
+   * "100% is too much" is not the only way to get there — a low-priced
+   * piece rounds to ₹0 well before a high-priced one does. The check is on
+   * the outcome for each product, which is the only thing that answers it.
+   */
+  const wouldBeFree = products.filter(
+    (product) => calculateSalePrice(product.basePrice, percent) < MIN_PRICE,
+  );
+
+  /**
+   * The percentage, but only when it is about to be used.
+   *
+   * `min` and `max` on the input are browser hints and nothing more —
+   * there is no form submit here for constraint validation to block, so
+   * 150 and -5 both reach this function as typed. Removing an offer sends
+   * no percentage at all, so it is not checked on that path.
+   */
+  const percentError =
+    validateDiscountPercentage(percent) ??
+    (wouldBeFree.length
+      ? wouldBeFree.length === products.length
+        ? "That leaves every selected product at ₹0"
+        : `That leaves ${wouldBeFree.length} of the selected products at ₹0`
+      : null);
+
   async function run(mode) {
+    if (mode === "apply") {
+      const problem = percentError ?? (String(percent).trim() ? null : "A percentage is required");
+
+      if (problem) {
+        setError({ fields: { percent: problem } });
+        toast.error("That offer was not applied", problem);
+        return;
+      }
+    }
+
     setBusy(true);
     setError(null);
 
@@ -57,6 +102,10 @@ function DiscountForm({ onClose, products = [], onDone }) {
       onClose();
     } catch (err) {
       setError(err);
+      toast.error(
+        mode === "apply" ? "Could not apply the offer" : "Could not remove the offer",
+        err.message,
+      );
     } finally {
       setBusy(false);
     }
@@ -76,7 +125,12 @@ function DiscountForm({ onClose, products = [], onDone }) {
           <Button variant="danger" busy={busy} onClick={() => run("remove")}>
             Remove offer
           </Button>
-          <Button variant="primary" busy={busy} onClick={() => run("apply")}>
+          <Button
+            variant="primary"
+            busy={busy}
+            disabled={Boolean(percentError)}
+            onClick={() => run("apply")}
+          >
             Apply {Number(percent) || 0}%
           </Button>
         </>
@@ -103,16 +157,23 @@ function DiscountForm({ onClose, products = [], onDone }) {
         <Field
           label="Discount percentage"
           required
-          error={error?.fields?.percent ?? error?.fields?.discountPercentage}
-          hint="0–100. Setting 0 is how an offer is removed at the database level."
+          // The live check first: a percentage that is out of range is
+          // wrong as soon as it is typed, and waiting for the button to be
+          // pressed to say so is a preview showing a price nobody can set.
+          error={
+            percentError ??
+            error?.fields?.percent ??
+            error?.fields?.discountPercentage
+          }
+          hint="0–99. Setting 0 is how an offer is removed at the database level."
         >
           <Input
             type="number"
             min={0}
-            max={100}
+            max={99}
             step={0.5}
             value={percent}
-            invalid={Boolean(error?.fields?.percent)}
+            invalid={Boolean(percentError || error?.fields?.percent)}
             onChange={(e) => setPercent(e.target.value)}
           />
         </Field>

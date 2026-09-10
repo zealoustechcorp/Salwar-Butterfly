@@ -34,13 +34,22 @@ import {
   Input,
   Spinner,
   Textarea,
+  useToast,
 } from "@/components/admin/ui";
+import { rejectionReason } from "@/lib/api/images";
 import { money } from "@/lib/format";
+import {
+  collect,
+  hasErrors,
+  summarizeErrors,
+  validateDescription,
+  validateName,
+} from "@/lib/validate";
 import { FIT_TYPES } from "../../lib/categories/constants";
 import { autoSlug, defaultSizeChartFor, SLUG_PATTERN } from "../../lib/categories/utils";
 import Toggle from "./Toggle";
 import CategoryBadge from "./Badge";
-import SizeChartEditor from "./SizeChartEditor";
+import SizeChartEditor, { chartProblem } from "./SizeChartEditor";
 
 /**
  * CategoryForm Component
@@ -53,6 +62,8 @@ import SizeChartEditor from "./SizeChartEditor";
  * @returns {JSX.Element} The rendered multi-tab category form
  */
 export default function CategoryForm({ initial, products = [], onSave, onCancel }) {
+  const toast = useToast();
+
   /**
    * Category display name input state.
    */
@@ -117,6 +128,13 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
   const [saveError, setSaveError] = useState(null);
 
   /**
+   * `{ field: message }` from the checks this form runs itself, kept apart
+   * from `saveError.fields` so a stale message from the API does not
+   * outlive the field the admin has since corrected.
+   */
+  const [fieldErrors, setFieldErrors] = useState({});
+
+  /**
    * Whether the admin has engaged with the slug yet — gates when its
    * validation message is allowed to appear. Editing starts touched,
    * because an existing category already has a slug to be wrong about.
@@ -160,6 +178,7 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
    */
   const handleNameChange = (v) => {
     setName(v);
+    setFieldErrors(({ name: _dropped, ...rest }) => rest);
 
     if (initial) return;
 
@@ -180,7 +199,29 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
    */
   const handleImageFile = (e) => {
     const file = e.target.files?.[0];
-    if (file) setImageFile(file);
+    if (!file) return;
+
+    // Refused before it is staged rather than after it has been uploaded.
+    // A 6 MB banner otherwise rides the whole multipart request up to
+    // Cloudinary before multer rejects it on size — the admin waits out
+    // the upload to be told it was never going to work.
+    //
+    // The product gallery's own check, because the category banner goes
+    // through the same multer limits and two copies of "5 MB" would drift.
+    const problem = rejectionReason(file);
+
+    if (problem) {
+      // Cleared so the same file can be picked again after it has been
+      // resized: an <input type="file"> whose value has not changed fires
+      // no second change event.
+      e.target.value = "";
+      setFieldErrors((current) => ({ ...current, image: problem }));
+      toast.error("That image was not attached", problem);
+      return;
+    }
+
+    setFieldErrors(({ image: _dropped, ...rest }) => rest);
+    setImageFile(file);
   };
 
   /**
@@ -255,10 +296,43 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
    * on the form so the admin does not lose what they typed.
    */
   const handleSave = async () => {
-    if (!canSave) return;
+    if (saving) return;
+
+    // The full set, not just the slug the button already gates on. A name
+    // of one character passes `canSave` and is refused by the API, and the
+    // admin has by then switched tabs twice and lost sight of the field.
+    const invalid = collect([
+      ["name", validateName(name)],
+      ["slug", slugError],
+      ["description", validateDescription(description)],
+      // Only a staged file can be wrong here — a stored banner was already
+      // accepted once, and `rejectionReason(null)` is about a missing pick.
+      ["image", imageFile ? rejectionReason(imageFile) : null],
+    ]);
+
+    if (hasErrors(invalid)) {
+      setFieldErrors(invalid);
+      setSlugTouched(true);
+      setActiveTab("general"); // every field above lives on that tab
+      toast.error("Check the category details", summarizeErrors(invalid));
+      return;
+    }
+
+    // The size charts are on their own tab and go up as opaque JSON — the
+    // API stores the `fits` column without looking inside it, so a cell
+    // holding "-5" or "0" would be published to the storefront exactly as
+    // typed. This is the only thing standing between that and a shopper.
+    const badChart = sizeCharts.map(chartProblem).find(Boolean);
+
+    if (badChart) {
+      setActiveTab("sizes");
+      toast.error("Check the size charts", badChart);
+      return;
+    }
 
     setSaving(true);
     setSaveError(null);
+    setFieldErrors({});
 
     try {
       await onSave({
@@ -274,6 +348,14 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
     } catch (error) {
       setSaveError(error);
       setSaving(false);
+
+      // The <ErrorNotice> above the tabs carries the same message, and
+      // stays. The toast is for the admin whose eyes were on the button
+      // they just pressed at the bottom of a long form.
+      toast.error(
+        initial ? "Could not save those changes" : "Could not create the category",
+        summarizeErrors(error?.fields) ?? error?.message,
+      );
     }
   };
 
@@ -368,13 +450,14 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
                   label="Category Name"
                   required
                   hint="e.g. Silk Sarees, Cotton Kurtis"
-                  error={apiFields.name}
+                  error={fieldErrors.name || apiFields.name}
                 >
                   <Input
                     value={name}
                     onChange={(e) => handleNameChange(e.target.value)}
                     placeholder="Enter category name"
-                    invalid={Boolean(apiFields.name)}
+                    maxLength={255}
+                    invalid={Boolean(fieldErrors.name || apiFields.name)}
                   />
                 </Field>
 
@@ -394,9 +477,11 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
                       onChange={(e) => {
                         setSlug(e.target.value);
                         setSlugTouched(true);
+                        setFieldErrors(({ slug: _dropped, ...rest }) => rest);
                       }}
                       onBlur={() => setSlugTouched(true)}
                       placeholder="e.g. silk-sarees"
+                      maxLength={255}
                       className="pl-6 font-mono text-xs"
                       invalid={Boolean(apiFields.slug || visibleSlugError)}
                     />
@@ -408,13 +493,17 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
               <Field
                 label="Description"
                 hint="Optional summary displayed on the storefront category page"
-                error={apiFields.description}
+                error={fieldErrors.description || apiFields.description}
               >
                 <Textarea
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  onChange={(e) => {
+                    setDescription(e.target.value);
+                    setFieldErrors(({ description: _dropped, ...rest }) => rest);
+                  }}
                   placeholder="Describe this category..."
                   rows={3}
+                  invalid={Boolean(fieldErrors.description || apiFields.description)}
                 />
               </Field>
 
@@ -460,10 +549,16 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
                         className="hidden"
                       />
                     </label>
-                    <p className="text-[11px] leading-relaxed text-ink-400">
-                      Recommended: 600×400px JPG, PNG, or WebP, up to 5 MB. Uploaded to
-                      Cloudinary when you save.
-                    </p>
+                    {fieldErrors.image ? (
+                      <p role="alert" className="text-xs text-red-600">
+                        {fieldErrors.image}
+                      </p>
+                    ) : (
+                      <p className="text-[11px] leading-relaxed text-ink-400">
+                        Recommended: 600×400px JPG, PNG, or WebP, up to 5 MB. Uploaded to
+                        Cloudinary when you save.
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>

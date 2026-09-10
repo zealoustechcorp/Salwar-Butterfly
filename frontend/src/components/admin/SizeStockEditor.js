@@ -7,6 +7,7 @@ import { COLOUR_FALLBACK_HEX, COLOUR_GROUP, createAttributeValue } from "@/lib/a
 import { STANDARD_SIZES, variantKey } from "@/lib/api/variants";
 import { number, readableOn } from "@/lib/format";
 import { STOCK_LABEL, STOCK_TONE, stockStatusFor } from "@/lib/stock";
+import { validateStock } from "@/lib/validate";
 import { Badge, Button, cx, Input, Toggle, useToast } from "./ui";
 
 /**
@@ -338,6 +339,12 @@ function ColourwayTable({
             // ambiguous the moment a product has two colourways.
             const label = colour ? `${colour} ${row.size}` : row.size;
 
+            // `min={0}` is a browser hint and nothing more: this grid does
+            // not submit a form, so constraint validation never runs and a
+            // typed -5 or 2.5 goes to the API as-is. Marked as it is typed;
+            // the save refuses it and names the row.
+            const problem = validateStock(row.stockQuantity, "Stock");
+
             return (
               <tr key={key} className={cx(!row.active && "bg-ink-50/60")}>
                 <td className="px-3 py-2 font-semibold text-ink-800">{row.size}</td>
@@ -345,8 +352,12 @@ function ColourwayTable({
                   <Input
                     type="number"
                     min={0}
+                    step={1}
                     disabled={disabled}
                     value={row.stockQuantity}
+                    invalid={Boolean(problem)}
+                    aria-invalid={Boolean(problem) || undefined}
+                    title={problem ?? undefined}
                     onChange={(e) => onPatchRow(key, { stockQuantity: e.target.value })}
                     className="tabular h-8 w-24 px-2 py-0 text-right"
                     aria-label={`Stock for ${label}`}

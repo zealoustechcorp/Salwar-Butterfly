@@ -314,7 +314,10 @@ export function BagView({ products, shop }) {
               </Link>
               <button
                 type="button"
-                onClick={clearBag}
+                // Wrapped rather than passed directly: clearBag takes an
+                // options object, and a click handler would hand it the
+                // event.
+                onClick={() => clearBag()}
                 className="text-sm text-sb-text-muted underline underline-offset-4 hover:text-sb-link"
               >
                 Empty the bag

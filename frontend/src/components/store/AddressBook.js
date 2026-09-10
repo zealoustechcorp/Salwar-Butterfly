@@ -35,8 +35,10 @@ import {
   setDefaultAddress,
   updateAddress,
 } from "@/lib/store/addresses";
+import { hasErrors, summarizeErrors, validateAddressFields } from "@/lib/validate";
 import { cn } from "@/lib/utils";
 import { useAuth } from "./AuthProvider";
+import { useStoreToast } from "./Toast";
 
 const FIELD_CLASS =
   "h-11 w-full rounded-xl border border-sb-gold/45 bg-white/70 px-3.5 text-sm text-sb-text placeholder:text-sb-text-muted/60 focus:border-sb-link focus:bg-white focus:outline-none";
@@ -211,6 +213,7 @@ function AddressFields({ idPrefix, values, errors, onChange, disabled }) {
 /** The fields, wrapped in a form that saves them to the address book. */
 function AddressForm({ address, canDefault, onCancel, onSaved }) {
   const { token } = useAuth();
+  const toast = useStoreToast();
 
   const [values, setValues] = useState(() => ({
     ...EMPTY,
@@ -237,9 +240,22 @@ function AddressForm({ address, canDefault, onCancel, onSaved }) {
     event.preventDefault();
     if (pending) return;
 
+    setBanner(null);
+
+    // The same rules the API applies, run here first — literally the same
+    // function, ported from backend/src/validators/address.rules.js. A PIN
+    // code with five digits is answered under the PIN code field rather
+    // than after a round trip that scrolls the page back to the top.
+    const invalid = validateAddressFields(values);
+
+    if (hasErrors(invalid)) {
+      setErrors(invalid);
+      toast.error("Check the address", summarizeErrors(invalid));
+      return;
+    }
+
     setPending(true);
     setErrors({});
-    setBanner(null);
 
     const payload = { ...values, isDefault: makeDefault };
 
@@ -254,11 +270,16 @@ function AddressForm({ address, canDefault, onCancel, onSaved }) {
 
     // The API names the field it refused, the same way the profile form's
     // duplicate-email check does, so the message lands under the input.
-    if (Object.keys(result.fields ?? {}).length > 0) {
+    if (hasErrors(result.fields)) {
       setErrors(result.fields);
     } else {
       setBanner(result.error);
     }
+
+    toast.error(
+      address ? "Could not save those changes" : "Could not save that address",
+      summarizeErrors(result.fields) ?? result.error,
+    );
 
     setPending(false);
   };
@@ -410,6 +431,7 @@ function SavedAddress({ address, busy, onEdit, onMakeDefault, onDelete }) {
 
 export function AddressBook() {
   const { token, isSignedIn } = useAuth();
+  const toast = useStoreToast();
 
   const [addresses, setAddresses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -439,6 +461,9 @@ export function AddressBook() {
       .finally(() => setLoading(false));
 
     return () => controller.abort();
+    // Not toasted. A first load that fails leaves a message where the list
+    // would have been, which is where the shopper is already looking — a
+    // notice at the bottom of the screen about the top of it helps nobody.
   }, [token]);
 
   // Every write returns the address or the list, so the card re-renders from
@@ -448,7 +473,15 @@ export function AddressBook() {
     if (result.ok) setAddresses(result.addresses);
   }, [token]);
 
-  const run = async (action, message) => {
+  /**
+   * The one-click writes — making an address the default, removing one.
+   *
+   * Both outcomes are said twice on purpose. The flash stays in the card so
+   * the shopper can look back at what happened to a list that just changed
+   * under them; the toast is what catches the eye of somebody whose
+   * attention was on the button they pressed rather than on the list.
+   */
+  const run = async (action, message, failureTitle) => {
     setBusy(true);
     setFlash(null);
     setError(null);
@@ -459,8 +492,10 @@ export function AddressBook() {
       if (result.addresses) setAddresses(result.addresses);
       else await refresh();
       setFlash(message);
+      toast.success(message);
     } else {
       setError(result.error);
+      toast.error(failureTitle, result.error);
     }
 
     setBusy(false);
@@ -528,6 +563,7 @@ export function AddressBook() {
             setEditingId(null);
             await refresh();
             setFlash("That address was updated.");
+            toast.success("Address updated", "Orders already placed keep the address they were sent to.");
           }}
         />
       ) : adding ? (
@@ -538,6 +574,7 @@ export function AddressBook() {
             setAdding(false);
             await refresh();
             setFlash("That address was saved.");
+            toast.success("Address saved", "Pick it at checkout instead of typing it again.");
           }}
         />
       ) : addresses.length === 0 ? (
@@ -562,10 +599,15 @@ export function AddressBook() {
                   run(
                     () => setDefaultAddress(address.id, token),
                     "Default address updated.",
+                    "Could not change the default",
                   )
                 }
                 onDelete={() =>
-                  run(() => deleteAddress(address.id, token), "That address was removed.")
+                  run(
+                    () => deleteAddress(address.id, token),
+                    "That address was removed.",
+                    "Could not remove that address",
+                  )
                 }
               />
             ))}

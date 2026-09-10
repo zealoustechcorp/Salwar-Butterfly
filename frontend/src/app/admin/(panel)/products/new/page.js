@@ -8,6 +8,7 @@ import {
   AttributeFields,
   DetailsFields,
   PricingFields,
+  validateProductForm,
 } from "@/components/admin/ProductFields";
 import { StagedGallery } from "@/components/admin/ProductGallery";
 import { SizeStockEditor } from "@/components/admin/SizeStockEditor";
@@ -26,6 +27,13 @@ import { uploadImages } from "@/lib/api/images";
 import { createProduct, getReference } from "@/lib/api/products";
 import { replaceVariants } from "@/lib/api/variants";
 import { autoSlug } from "@/lib/slug";
+import {
+  hasErrors,
+  summarizeErrors,
+  validateBasePrice,
+  validateSalePrice,
+  validateVariantRows,
+} from "@/lib/validate";
 
 const BLANK = {
   name: "",
@@ -129,9 +137,33 @@ export default function NewProductPage() {
   }
 
   async function submit() {
+    setFailure(null);
+
+    // The whole form is checked before the first of three requests goes
+    // out. That ordering matters here more than on most screens: creating
+    // a product writes the row, then its sizes, then its photographs, and
+    // a validation failure on the first leaves nothing behind — whereas a
+    // failure discovered later can leave a product with no sizes on it.
+    const invalid = validateProductForm(form);
+
+    if (hasErrors(invalid)) {
+      setErrors(invalid);
+      toast.error("Check the product details", summarizeErrors(invalid));
+      return;
+    }
+
+    // The matrix is the second of the three requests. Refused now rather
+    // than then: a product written with no sizes on it is the awkward
+    // half-finished state this whole ordering exists to avoid.
+    const badRow = validateVariantRows(sizes);
+
+    if (badRow) {
+      toast.error("Check the size matrix", badRow);
+      return;
+    }
+
     setBusy(true);
     setErrors({});
-    setFailure(null);
     try {
       const product = await createProduct({
         ...form,
@@ -192,7 +224,13 @@ export default function NewProductPage() {
   if (!reference && !failure) return <SkeletonRows rows={10} className="mx-auto max-w-4xl" />;
 
   const readyDetails = Boolean(form.name && form.categoryId);
-  const readyPricing = form.basePrice !== "" && Number(form.basePrice) >= 0;
+
+  // `>= 0` used to be enough here, which let a product through at ₹0 —
+  // a Buy button for nothing. The full rule, so the checklist at the
+  // bottom of the page agrees with what submitting will actually accept.
+  const readyPricing =
+    !validateBasePrice(form.basePrice) &&
+    !validateSalePrice(form.basePrice, form.discountPercentage);
 
   return (
     <div className="mx-auto max-w-4xl space-y-5 pb-24">

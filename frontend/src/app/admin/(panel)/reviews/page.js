@@ -50,6 +50,7 @@ import {
   updateReview,
 } from "@/lib/api/reviews";
 import { number, shortDate } from "@/lib/format";
+import { hasErrors, summarizeErrors, validateReviewFields } from "@/lib/validate";
 
 /**
  * Reviews and ratings (F-11.06).
@@ -615,9 +616,17 @@ function Stars({ rating }) {
  * more honestly.
  */
 function ReviewDialog({ open, review, products, onClose, onSaved }) {
+  const toast = useToast();
+
   const [form, setForm] = useState(BLANK_FORM);
   const [productSearch, setProductSearch] = useState("");
   const [saving, setSaving] = useState(false);
+
+  /**
+   * Either the ApiError from a refused save, or a `{ fields }` object from
+   * the checks below. One shape, because `fieldError` reads `.fields` off
+   * it either way and the inputs do not care which side refused them.
+   */
   const [error, setError] = useState(null);
 
   const creating = !review;
@@ -675,6 +684,16 @@ function ReviewDialog({ open, review, products, onClose, onSaved }) {
   const fieldError = (name) => error?.fields?.[name];
 
   const save = async () => {
+    // Editing cannot change the product, so there is no product field to
+    // require — see the "A review cannot be moved" note on the form below.
+    const invalid = validateReviewFields(form, { requireProduct: creating });
+
+    if (hasErrors(invalid)) {
+      setError({ fields: invalid });
+      toast.error("Check the review", summarizeErrors(invalid));
+      return;
+    }
+
     setSaving(true);
     setError(null);
 
@@ -695,6 +714,10 @@ function ReviewDialog({ open, review, products, onClose, onSaved }) {
       onSaved(saved, creating);
     } catch (err) {
       setError(err);
+      toast.error(
+        creating ? "Could not add the review" : "Could not save the review",
+        summarizeErrors(err.fields) ?? err.message,
+      );
     } finally {
       setSaving(false);
     }

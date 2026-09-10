@@ -21,10 +21,25 @@ import { api, ApiError } from "@/lib/api/client";
 /** The most a shopper may save. Mirrors MAX_ADDRESSES in the service. */
 export const MAX_ADDRESSES = 3;
 
+/**
+ * `fields` is carried through, not dropped.
+ *
+ * The address validator answers a bad address with every field it refused —
+ * `{ city: "City is required", postalCode: "PIN code must be 6 digits" }` —
+ * and the form renders each message under its own input. Flattening that to
+ * `error` alone would put "Validation failed" in a banner over a form with
+ * seven fields and no clue which two are wrong.
+ */
 function toFailure(error) {
   if (!(error instanceof ApiError)) throw error;
 
-  return { ok: false, code: error.code, status: error.status, error: error.message };
+  return {
+    ok: false,
+    code: error.code,
+    status: error.status,
+    error: error.message,
+    fields: error.fields ?? {},
+  };
 }
 
 /**

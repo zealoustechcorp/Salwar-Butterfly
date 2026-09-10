@@ -8,7 +8,9 @@ import { DeleteDialog } from "@/components/admin/DeleteDialog";
 import {
   AttributeFields,
   DetailsFields,
+  FIELD_TAB,
   PricingFields,
+  validateProductForm,
 } from "@/components/admin/ProductFields";
 import { ProductGallery } from "@/components/admin/ProductGallery";
 import { SizeStockEditor } from "@/components/admin/SizeStockEditor";
@@ -28,6 +30,7 @@ import { listAttributeValues, listColours } from "@/lib/api/attributes";
 import { getProduct, getReference, updateProduct } from "@/lib/api/products";
 import { getVariantsForProduct, replaceVariants } from "@/lib/api/variants";
 import { shortDate } from "@/lib/format";
+import { hasErrors, summarizeErrors, validateVariantRows } from "@/lib/validate";
 
 const TABS = [
   { key: "details", label: "Details" },
@@ -186,7 +189,44 @@ function EditProduct() {
   const sizesDirty =
     sizes !== null && JSON.stringify(sizes) !== JSON.stringify(savedSizes);
 
+  /**
+   * Puts a refused field in front of the admin.
+   *
+   * This screen has four tabs and one Save button, so a message can land
+   * on a card that is not currently rendered. Switching to the tab holding
+   * the first failure is what turns "the button did nothing" into "the
+   * base price is wrong".
+   */
+  function revealFirstError(fieldErrors) {
+    const [first] = Object.keys(fieldErrors);
+    const owner = FIELD_TAB[first];
+
+    if (owner && owner !== tab) switchTab(owner);
+  }
+
   async function save() {
+    // Checked before the request, and before the sizes request behind it.
+    const invalid = validateProductForm(form);
+
+    if (hasErrors(invalid)) {
+      setErrors(invalid);
+      revealFirstError(invalid);
+      toast.error("Check the product details", summarizeErrors(invalid));
+      return;
+    }
+
+    // The matrix is its own table and its own request, so it gets its own
+    // check. Refused here, because the API answers a bad row with a key
+    // like `variants.2.stockQuantity` and there is no input by that name
+    // for the message to appear under — the grid would simply not save.
+    const badRow = sizesDirty ? validateVariantRows(sizes) : null;
+
+    if (badRow) {
+      switchTab("sizes");
+      toast.error("Check the size matrix", badRow);
+      return;
+    }
+
     setSaving(true);
     setErrors({});
     try {
@@ -207,10 +247,16 @@ function EditProduct() {
         setSavedSizes(rows);
       }
 
-      toast.success("Product saved.");
+      toast.success(
+        "Product saved.",
+        sizesDirty ? "Details and the size matrix were both written." : undefined,
+      );
     } catch (err) {
-      if (err.fields) setErrors(err.fields);
-      toast.error(err.message || "Save failed.");
+      if (hasErrors(err.fields)) {
+        setErrors(err.fields);
+        revealFirstError(err.fields);
+      }
+      toast.error(err.message || "Save failed.", summarizeErrors(err.fields) ?? undefined);
     } finally {
       setSaving(false);
     }

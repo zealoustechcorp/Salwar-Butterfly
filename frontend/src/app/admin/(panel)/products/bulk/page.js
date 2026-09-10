@@ -30,6 +30,16 @@ import { bulkCreateProducts, getReference } from "@/lib/api/products";
 import { replaceVariants } from "@/lib/api/variants";
 import { money, number } from "@/lib/format";
 import { autoSlug } from "@/lib/slug";
+import {
+  calculateSalePrice,
+  MIN_PRICE,
+  validateBasePrice,
+  validateDiscountPercentage,
+  validateProductName,
+  validateSalePrice,
+  validateSlug,
+  validateVariantRows,
+} from "@/lib/validate";
 
 /**
  * Bulk upload — many products into one category (F-03.04).
@@ -165,26 +175,67 @@ export default function BulkUploadPage() {
   const slugs = filled.map((row) => row.slug.trim() || autoSlug(row.name));
   const duplicateSlug = slugs.length !== new Set(slugs).size;
 
-  const sharedPrice = Number(shared.basePrice) || 0;
   const percent = Number(shared.discountPercentage) || 0;
 
-  const totalValue = filled.reduce((sum, row) => {
-    const base = row.basePrice === "" ? sharedPrice : Number(row.basePrice) || 0;
-    return sum + Math.round(base * (100 - percent)) / 100;
-  }, 0);
+  /** What a row will actually be sent as — its own price, or the shared one. */
+  const priceFor = (row) => (row.basePrice === "" ? shared.basePrice : row.basePrice);
+
+  const totalValue = filled.reduce(
+    (sum, row) => sum + calculateSalePrice(priceFor(row), percent),
+    0,
+  );
 
   const totalPhotos = filled.reduce((sum, row) => sum + row.photos.length, 0);
 
-  const ready =
-    Boolean(shared.categoryId) &&
-    filled.length > 0 &&
-    !duplicateSlug &&
-    filled.every((row) => {
-      const base = row.basePrice === "" ? shared.basePrice : row.basePrice;
-      return base !== "" && Number(base) >= 0;
-    });
+  /**
+   * What is wrong with the batch, as one sentence naming the row.
+   *
+   * Every rule the single-product screen applies, run over each row —
+   * this screen writes straight to `bulkCreateProducts`, which inserts
+   * the lot in one statement, so a row the API refuses takes the whole
+   * batch down with it and the shop has to work out which of forty rows
+   * it was. Worth naming here.
+   *
+   * The price rules are the ones this screen was loosest about: `ready`
+   * asked only for `Number(base) >= 0`, so a row at ₹0 — or a shared 100%
+   * discount over every row — uploaded as a catalogue full of free
+   * products.
+   */
+  const batchProblem = (() => {
+    if (!shared.categoryId) return "Pick a category for the batch";
+    if (filled.length === 0) return "Fill in at least one row";
+    if (duplicateSlug) return "Two rows would have the same URL slug";
+
+    const sharedDiscount = validateDiscountPercentage(shared.discountPercentage);
+    if (sharedDiscount) return sharedDiscount;
+
+    for (const [index, row] of filled.entries()) {
+      const where = `Row ${index + 1}`;
+      const name = row.name.trim();
+
+      const problem =
+        validateProductName(name) ??
+        validateSlug(row.slug.trim() || autoSlug(name), { label: "URL slug" }) ??
+        validateBasePrice(priceFor(row)) ??
+        validateSalePrice(priceFor(row), shared.discountPercentage);
+
+      if (problem) return `${where} (${name}): ${problem}`;
+    }
+
+    return validateVariantRows(sizes);
+  })();
+
+  const ready = !batchProblem;
 
   async function submit() {
+    // `ready` already gates the button, so this is the belt to its braces
+    // — and the thing that says *why* if the button is ever reached with
+    // the batch in a state it cannot go up in.
+    if (batchProblem) {
+      toast.error("Check the batch", batchProblem);
+      return;
+    }
+
     setBusy(true);
     setFailure(null);
     try {
@@ -352,25 +403,36 @@ export default function BulkUploadPage() {
             />
           </Field>
 
-          <Field label="Base price (₹)" required hint="A row can override this.">
+          <Field
+            label="Base price (₹)"
+            required
+            hint="A row can override this. Must be more than ₹0."
+            error={validateBasePrice(shared.basePrice, false)}
+          >
             <Input
               type="number"
-              min={0}
+              min={1}
               step={1}
               value={shared.basePrice}
+              invalid={Boolean(validateBasePrice(shared.basePrice, false))}
               onChange={(e) => setSharedField("basePrice", e.target.value)}
               className="tabular"
-              placeholder="0"
+              placeholder="1499"
             />
           </Field>
 
-          <Field label="Discount %" hint="0–100, applied to every product in the batch.">
+          <Field
+            label="Discount %"
+            hint="0–99, applied to every product in the batch."
+            error={validateDiscountPercentage(shared.discountPercentage)}
+          >
             <Input
               type="number"
               min={0}
-              max={100}
+              max={99}
               step={0.5}
               value={shared.discountPercentage}
+              invalid={Boolean(validateDiscountPercentage(shared.discountPercentage))}
               onChange={(e) => setSharedField("discountPercentage", e.target.value)}
               className="tabular"
             />
@@ -465,8 +527,12 @@ export default function BulkUploadPage() {
             <tbody>
               {rows.map((row, index) => {
                 const derivedSlug = row.slug.trim() || autoSlug(row.name);
-                const base = row.basePrice === "" ? sharedPrice : Number(row.basePrice) || 0;
                 const filledRow = Boolean(row.name.trim());
+
+                // The API's own arithmetic. A row that would sell for
+                // nothing shows its ₹0 in red rather than sitting in the
+                // column looking like every other figure.
+                const sells = calculateSalePrice(priceFor(row), percent);
 
                 return (
                   <tr key={row.key} className={cx(!filledRow && "opacity-60")}>
@@ -492,16 +558,27 @@ export default function BulkUploadPage() {
                     <td className="py-1.5 pr-3">
                       <Input
                         type="number"
-                        min={0}
+                        min={1}
                         value={row.basePrice}
+                        // Blank is not wrong — it means "use the shared
+                        // price" — so the row's own box is only checked
+                        // once something has been typed into it.
+                        invalid={Boolean(validateBasePrice(row.basePrice, false))}
                         onChange={(e) => patchRow(index, { basePrice: e.target.value })}
                         placeholder={shared.basePrice === "" ? "—" : String(shared.basePrice)}
                         className="tabular w-28 text-right"
                         aria-label={`Price for row ${index + 1}`}
                       />
                     </td>
-                    <td className="tabular py-1.5 pr-3 text-right text-ink-700">
-                      {filledRow ? money(Math.round(base * (100 - percent)) / 100) : "—"}
+                    <td
+                      className={cx(
+                        "tabular py-1.5 pr-3 text-right",
+                        filledRow && sells < MIN_PRICE
+                          ? "font-semibold text-red-600"
+                          : "text-ink-700",
+                      )}
+                    >
+                      {filledRow ? money(sells) : "—"}
                     </td>
                     <td className="py-1.5 pr-3">
                       <RowPhotos
@@ -549,10 +626,13 @@ export default function BulkUploadPage() {
 
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-ink-200 bg-white/95 backdrop-blur lg:left-64">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-3 px-4 py-3 sm:px-6">
-          <p className="text-xs text-ink-500">
-            {filled.length
-              ? `Will create ${filled.length} product${filled.length === 1 ? "" : "s"} in one request.`
-              : "Name at least one product."}
+          {/* Why the button is off, rather than a disabled button and no
+              explanation — the row at fault can be off-screen in a batch
+              of forty. */}
+          <p className={cx("text-xs", batchProblem ? "text-red-600" : "text-ink-500")}>
+            {batchProblem
+              ? batchProblem
+              : `Will create ${filled.length} product${filled.length === 1 ? "" : "s"} in one request.`}
           </p>
           <div className="ml-auto flex items-center gap-2">
             <LinkButton variant="ghost" href="/admin/products">

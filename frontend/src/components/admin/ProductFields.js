@@ -5,7 +5,19 @@ import { useState } from "react";
 import { ATTRIBUTE_GROUPS, createAttributeValue } from "@/lib/api/attributes";
 import { money } from "@/lib/format";
 import { autoSlug } from "@/lib/slug";
-import { Badge, Button, Field, Input, Select, Textarea, Toggle, useToast } from "./ui";
+import {
+  calculateSalePrice,
+  collect,
+  MIN_PRICE,
+  validateBasePrice,
+  validateChoice,
+  validateDescription,
+  validateDiscountPercentage,
+  validateProductName,
+  validateSalePrice,
+  validateSlug,
+} from "@/lib/validate";
+import { Badge, Button, cx, Field, Input, Select, Textarea, Toggle, useToast } from "./ui";
 
 /**
  * The product form, split into the two cards every write screen shows.
@@ -14,6 +26,59 @@ import { Badge, Button, Field, Input, Select, Textarea, Toggle, useToast } from 
  * `base_price` — so a form object can be handed to createProduct /
  * updateProduct without a translation step.
  */
+
+/**
+ * Every rule the product endpoints apply, run before the request.
+ *
+ * Lives here rather than on either page because both the create screen
+ * and the edit screen post the same object, and two copies of this would
+ * drift into a product the one screen accepts and the other refuses.
+ *
+ * The slug is checked as it will actually be sent: blank means "derive it
+ * from the name", which is what both pages do on submit, so validating the
+ * empty string would refuse a form that was about to work.
+ *
+ * The last rule is about the two price fields together rather than either
+ * one. Each can be perfectly valid and still leave the customer paying
+ * nothing between them — 100% off, or a base so small the discount rounds
+ * it away — and `current_price` is what the storefront prints on the Buy
+ * button. `base_price >= 0` is all the column enforces, so this is the
+ * only thing standing between a fat-fingered discount and a free product.
+ *
+ * Sizes are not checked here. They are their own table, their own request
+ * and their own editor, which does its own arithmetic on stock counts.
+ */
+export function validateProductForm(form) {
+  return collect([
+    ["name", validateProductName(form.name)],
+    ["slug", validateSlug(form.slug || autoSlug(form.name), { label: "URL slug" })],
+    ["description", validateDescription(form.description)],
+    ["categoryId", validateChoice(form.categoryId, "Category")],
+    ["basePrice", validateBasePrice(form.basePrice)],
+    [
+      "discountPercentage",
+      validateDiscountPercentage(form.discountPercentage) ??
+        validateSalePrice(form.basePrice, form.discountPercentage),
+    ],
+  ]);
+}
+
+/**
+ * Which tab on the edit screen each field lives on.
+ *
+ * A price refused while the admin is looking at the Details tab is a
+ * message nobody can see and a Save button that appears to do nothing, so
+ * the screen moves to the tab holding the first failure.
+ */
+export const FIELD_TAB = {
+  name: "details",
+  slug: "details",
+  description: "details",
+  categoryId: "details",
+  subCategoryId: "details",
+  basePrice: "pricing",
+  discountPercentage: "pricing",
+};
 
 /** Identity, description and where the product sits in the catalogue. */
 export function DetailsFields({ form, setField, errors = {}, reference, lockCategory = false }) {
@@ -286,58 +351,116 @@ function AttributeSelect({ group, values, selected, onSelect, onRegister }) {
 export function PricingFields({ form, setField, errors = {} }) {
   const base = Number(form.basePrice) || 0;
   const percent = Number(form.discountPercentage) || 0;
-  const sale = Math.round(base * (100 - percent)) / 100;
+
+  // The API's own arithmetic rather than a second version of it. The old
+  // line here — `Math.round(base * (100 - percent)) / 100` — quietly
+  // disagreed with the server for any percentage that was not a whole
+  // number, so the preview showed a price the product would not be sold at.
+  const sale = calculateSalePrice(form.basePrice, form.discountPercentage);
+
+  // Live, so the shop sees the problem while typing the number that caused
+  // it rather than when they reach the Save button at the bottom of the
+  // page. The same rules run again on submit — this is the courtesy, the
+  // one in validateProductForm is the gate.
+  //
+  // `required = false` on purpose: an empty box on a form nobody has
+  // filled in yet has not failed, it is simply empty, and the asterisk
+  // already says it is needed. What is checked live is a value that is
+  // *wrong* — 0, negative, or not a number.
+  const priceProblem = errors.basePrice ?? validateBasePrice(form.basePrice, false);
+  const discountProblem =
+    errors.discountPercentage ??
+    validateDiscountPercentage(form.discountPercentage) ??
+    validateSalePrice(form.basePrice, form.discountPercentage);
+
+  // A product nobody can be charged for. Worth shouting about in the one
+  // place that shows the figure the shopper would actually see — but only
+  // once there is a price to be wrong about. Against the paisa floor
+  // rather than zero, so the panel agrees with the rule that refuses it.
+  const free = String(form.basePrice ?? "").trim() !== "" && sale < MIN_PRICE;
 
   return (
     <div className="grid gap-4 md:grid-cols-3">
       <Field
         label="Base price (₹)"
         required
-        error={errors.basePrice}
-        hint="Before any offer."
+        error={priceProblem}
+        hint="Before any offer. Must be more than ₹0."
       >
         <Input
           type="number"
-          min={0}
+          // `min` is a browser hint only: nothing here submits a form, so
+          // constraint validation never runs and a typed -5 reaches the
+          // API. The check above is what actually refuses it.
+          min={1}
           step={1}
           value={form.basePrice}
-          invalid={Boolean(errors.basePrice)}
+          invalid={Boolean(priceProblem)}
           onChange={(e) => setField("basePrice", e.target.value)}
           className="tabular"
-          placeholder="0"
+          placeholder="1499"
         />
       </Field>
 
       <Field
         label="Discount %"
-        error={errors.discountPercentage}
-        hint="0–100. Set 0 to remove the offer."
+        error={discountProblem}
+        hint="0–99. Set 0 to remove the offer."
       >
         <Input
           type="number"
           min={0}
-          max={100}
+          max={99}
           step={0.5}
           value={form.discountPercentage}
-          invalid={Boolean(errors.discountPercentage)}
+          invalid={Boolean(discountProblem)}
           onChange={(e) => setField("discountPercentage", e.target.value)}
           className="tabular"
         />
       </Field>
 
-      <div className="rounded-lg bg-brand-50 px-3 py-2.5 ring-1 ring-inset ring-brand-200">
-        <p className="text-[11px] font-semibold tracking-wide text-brand-700 uppercase">
+      <div
+        className={cx(
+          "rounded-lg px-3 py-2.5 ring-1 ring-inset",
+          free ? "bg-red-50 ring-red-200" : "bg-brand-50 ring-brand-200",
+        )}
+      >
+        <p
+          className={cx(
+            "text-[11px] font-semibold tracking-wide uppercase",
+            free ? "text-red-700" : "text-brand-700",
+          )}
+        >
           Customer pays
         </p>
         <p className="tabular mt-1 flex items-baseline gap-2">
-          <span className="text-xl font-semibold text-brand-800">{money(sale)}</span>
-          {percent > 0 ? (
+          <span
+            className={cx(
+              "text-xl font-semibold",
+              free ? "text-red-800" : "text-brand-800",
+            )}
+          >
+            {money(sale)}
+          </span>
+          {percent > 0 && !free ? (
             <span className="text-sm text-brand-500 line-through">{money(base)}</span>
           ) : null}
         </p>
-        <p className="mt-1 text-[11px] text-brand-700/80">
-          Derived, never typed — the API writes <code className="font-mono">current_price</code>{" "}
-          from the base price and the percentage.
+        <p
+          className={cx(
+            "mt-1 text-[11px]",
+            free ? "text-red-700" : "text-brand-700/80",
+          )}
+        >
+          {free ? (
+            "Nothing can be sold for ₹0. Raise the base price or lower the discount."
+          ) : (
+            <>
+              Derived, never typed — the API writes{" "}
+              <code className="font-mono">current_price</code> from the base price and
+              the percentage.
+            </>
+          )}
         </p>
       </div>
 

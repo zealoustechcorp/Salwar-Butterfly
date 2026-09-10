@@ -26,10 +26,10 @@
  * file does with that is put the sign-in dialog up with the reason,
  * rather than letting the header quietly go blank mid-checkout.
  *
- * The modal is rendered here, next to `children`, exactly as
- * StoreProvider renders its toast. That is what lets any component
- * anywhere in the storefront put up the sign-in dialog with
- * `openAuth()` and no prop drilling.
+ * The modal is rendered here, next to `children`, the same way
+ * <ToastProvider> renders the notification strip above it. That is what
+ * lets any component anywhere in the storefront put up the sign-in
+ * dialog with `openAuth()` and no prop drilling.
  *
  * What is gated, and what is not:
  *
@@ -64,6 +64,7 @@ import {
 } from "@/lib/store/session";
 import { AuthModal } from "./AuthModal";
 import { adoptGuestWishlist, repointWishlist } from "./StoreProvider";
+import { useStoreToast } from "./Toast";
 
 const AuthContext = createContext(null);
 
@@ -86,6 +87,7 @@ export function AuthProvider({ children }) {
 
   const router = useRouter();
   const pathname = usePathname();
+  const toast = useStoreToast();
 
   // --------------------------------------------------------
   // CONFIRM THE STORED TOKEN
@@ -216,15 +218,37 @@ export function AuthProvider({ children }) {
        */
       token,
 
+      /**
+       * The confirmations live here rather than in the dialog because the
+       * dialog is unmounted by the time either of these succeeds — closing
+       * it is what `land` does. A form cannot toast its own success when
+       * success is what takes the form off the screen.
+       */
       signIn: async (credentials) => {
         const result = await customerAuth.signIn(credentials);
-        if (result.ok) land(result.user, result.token);
+
+        if (result.ok) {
+          land(result.user, result.token);
+          toast.success(
+            `Welcome back, ${result.user.name || "you"}`,
+            "Your wishlist follows you now.",
+          );
+        }
+
         return result;
       },
 
       signUp: async (details) => {
         const result = await customerAuth.register(details);
-        if (result.ok) land(result.user, result.token);
+
+        if (result.ok) {
+          land(result.user, result.token);
+          toast.success(
+            "Account created",
+            "Anything you had saved on this device is now on your account.",
+          );
+        }
+
         return result;
       },
 
@@ -236,6 +260,7 @@ export function AuthProvider({ children }) {
         clearSession();
         setValidated(null);
         repointWishlist(null);
+        toast.success("Signed out", "Your bag stays on this device.");
 
         await customerAuth.signOut(current);
       },
@@ -254,7 +279,7 @@ export function AuthProvider({ children }) {
       openAuth,
       closeAuth,
     };
-  }, [user, token, intent, router, pathname, openAuth, closeAuth]);
+  }, [user, token, intent, router, pathname, openAuth, closeAuth, toast]);
 
   return (
     <AuthContext.Provider value={value}>

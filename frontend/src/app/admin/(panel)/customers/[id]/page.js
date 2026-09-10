@@ -19,6 +19,14 @@ import {
 } from "@/components/admin/ui";
 import { deleteCustomer, getCustomer, updateCustomer } from "@/lib/api/customers";
 import { shortDate } from "@/lib/format";
+import {
+  collect,
+  hasErrors,
+  summarizeErrors,
+  validateEmail,
+  validateName,
+  validatePhone,
+} from "@/lib/validate";
 
 /**
  * One customer (F-05.04), and the two things an admin may do to them.
@@ -28,7 +36,9 @@ import { shortDate } from "@/lib/format";
  * them when someone rings up to say the phone number on their order is
  * wrong. Email and phone are unique across live accounts, so a clash
  * comes back from the API named — and lands under the offending input
- * rather than in a toast that does not say which field to fix.
+ * rather than only in a toast that does not say which field to fix. The
+ * toast goes up as well, naming the same thing: the fields are up the
+ * page and the Save button is at the bottom of it.
  *
  * Closing an account is a soft delete on the API side. The row stays
  * and is stamped, which matters once orders exist: an order has to keep
@@ -105,6 +115,26 @@ export default function CustomerDetailPage() {
   async function save() {
     if (changed.length === 0) return;
 
+    // Only the fields they touched, matching what is actually sent. A
+    // rule that has tightened since an account was created must not lock
+    // the admin out of correcting a different field on it.
+    const invalid = collect(
+      changed.map((key) => [
+        key,
+        key === "name"
+          ? validateName(form.name)
+          : key === "email"
+            ? validateEmail(form.email)
+            : validatePhone(form.phone),
+      ]),
+    );
+
+    if (hasErrors(invalid)) {
+      setFieldErrors(invalid);
+      toast.error("Check the customer's details", summarizeErrors(invalid));
+      return;
+    }
+
     setSaving(true);
     setFieldErrors({});
 
@@ -124,9 +154,12 @@ export default function CustomerDetailPage() {
       toast.success("Customer details updated.");
     } catch (err) {
       // A 409 names the field that clashed; a 400 names the ones that
-      // failed validation. Either way the message belongs on the input.
-      if (err?.fields && Object.keys(err.fields).length > 0) {
+      // failed validation. Either way the message belongs on the input —
+      // and is said again in a toast, because the inputs are up the page
+      // and the admin's eyes are on the Save button they just pressed.
+      if (hasErrors(err?.fields)) {
         setFieldErrors(err.fields);
+        toast.error("Could not save those details", summarizeErrors(err.fields));
       } else {
         toast.error(err?.message || "Could not save those details.");
       }

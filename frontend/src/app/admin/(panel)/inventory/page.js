@@ -44,6 +44,7 @@ import { getReference } from "@/lib/api/products";
 import { bulkDeleteVariants, bulkSetVariantActive } from "@/lib/api/variants";
 import { number, relativeDate } from "@/lib/format";
 import { STOCK_LABEL, STOCK_TONE } from "@/lib/stock";
+import { validateStock } from "@/lib/validate";
 
 /**
  * Inventory (F-04) — stock across the whole catalogue, one row per size.
@@ -591,6 +592,8 @@ export default function InventoryPage() {
 }
 
 function InventoryRow({ row, busy, selected, onSelect, onMove, onCount }) {
+  const toast = useToast();
+
   // The field holds a draft so a keystroke does not fight the saved
   // value mid-edit. When the saved value does change — this row was
   // just written, or a bulk adjustment moved it — the draft is
@@ -604,20 +607,32 @@ function InventoryRow({ row, busy, selected, onSelect, onMove, onCount }) {
     setDraft(String(row.stockQuantity));
   }
 
-  const commit = () => {
-    const value = Number(draft);
+  // What this row is called out loud. "M" alone identifies nothing once
+  // a product is sold in more than one colourway.
+  const label = row.colour ? `${row.colour} ${row.size}` : `size ${row.size}`;
 
-    if (!Number.isInteger(value) || value < 0) {
+  const commit = () => {
+    const problem = validateStock(draft, "A stock count");
+
+    // Blank is not a count — it is a field being retyped, or a row the
+    // admin thought better of. Put the saved number back and say nothing.
+    if (!String(draft).trim()) {
       setDraft(String(row.stockQuantity));
       return;
     }
 
-    onCount(value);
-  };
+    if (problem) {
+      setDraft(String(row.stockQuantity));
 
-  // What this row is called out loud. "M" alone identifies nothing once
-  // a product is sold in more than one colourway.
-  const label = row.colour ? `${row.colour} ${row.size}` : `size ${row.size}`;
+      // Said, not swallowed. The number snapping back on its own is the
+      // field looking broken; the admin needs to know it was refused and
+      // why, or they retype the same thing.
+      toast.error(`${row.product.name} (${label}) was not changed`, problem);
+      return;
+    }
+
+    onCount(Number(draft));
+  };
 
   return (
     <tr className={cx(selected && "bg-brand-50/40", !row.active && "bg-ink-50/50")}>

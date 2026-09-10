@@ -4,13 +4,20 @@
  * Admin sign-in form.
  *
  * Follows the storefront AuthModal's conventions — controlled inputs,
- * a `pending` flag, a single `failure` object, aria-invalid wired to
- * aria-describedby — but talks to the real API instead of a
+ * a `pending` flag, a `{ field: message }` error map, aria-invalid wired
+ * to aria-describedby — but talks to the real API instead of a
  * localStorage shim.
  *
  * The server answers a wrong email and a wrong password with the same
  * message on purpose, so this form never tells a visitor which half
- * they got right.
+ * they got right. The checks run before submitting keep to that rule:
+ * a malformed email and a missing password are refused for being
+ * malformed and missing, which says nothing about whether an account
+ * with that address exists.
+ *
+ * Nothing here toasts. The admin ToastProvider lives inside AdminShell,
+ * which this page deliberately renders without — and a sign-in form has
+ * one thing to say and one place to say it, directly above the fields.
  */
 
 import { useEffect, useId, useState } from "react";
@@ -19,6 +26,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { Clock, Eye, EyeOff, Lock, TriangleAlert } from "lucide-react";
 
+import {
+  collect,
+  hasErrors,
+  validateEmail,
+  validateLoginPassword,
+} from "@/lib/validate";
 import { useAdminAuth } from "./AdminAuthProvider";
 import { Button, Field, Input, Spinner, cx } from "./ui";
 
@@ -55,8 +68,11 @@ export function AdminLoginForm() {
   const [revealed, setRevealed] = useState(false);
   const [pending, setPending] = useState(false);
 
-  /** `{ field, error }` — field is null for form-level failures. */
-  const [failure, setFailure] = useState(null);
+  /** `{ field: message }` — what belongs under an input. */
+  const [errors, setErrors] = useState({});
+
+  /** A refusal with no field at fault — bad credentials, or a dead API. */
+  const [formError, setFormError] = useState(null);
 
   const emailId = useId();
   const passwordId = useId();
@@ -84,8 +100,23 @@ export function AdminLoginForm() {
 
     if (pending) return;
 
+    setFormError(null);
+
+    // Caught here so a typo in the address is answered under the address
+    // rather than as the same "check your details" a wrong password gets —
+    // the one case where telling the two apart gives nothing away.
+    const invalid = collect([
+      ["email", validateEmail(email)],
+      ["password", validateLoginPassword(password)],
+    ]);
+
+    if (hasErrors(invalid)) {
+      setErrors(invalid);
+      return;
+    }
+
     setPending(true);
-    setFailure(null);
+    setErrors({});
 
     try {
       const result = await signIn(email, password);
@@ -100,23 +131,14 @@ export function AdminLoginForm() {
       // Field-level errors come back from the validator as
       // { email: "...", password: "..." }; credential failures come
       // back as a message with no field attached.
-      const fieldName = Object.keys(result.fields ?? {})[0] ?? null;
-
-      setFailure({
-        field: fieldName,
-        error: fieldName ? result.fields[fieldName] : result.error,
-      });
+      if (hasErrors(result.fields)) setErrors(result.fields);
+      else setFormError(result.error);
     } catch {
-      setFailure({
-        field: null,
-        error: "Something went wrong. Please try again.",
-      });
+      setFormError("Something went wrong. Please try again.");
     } finally {
       setPending(false);
     }
   }
-
-  const formError = failure && !failure.field ? failure.error : null;
 
   // An admin who was working a second ago and is now looking at a login
   // page deserves a reason. It gives way to a real failure the moment
@@ -193,52 +215,45 @@ export function AdminLoginForm() {
           ) : null}
 
           <div className="space-y-4">
-            <Field
-              label="Email"
-              required
-              error={failure?.field === "email" ? failure.error : undefined}
-            >
+            <Field label="Email" required error={errors.email}>
               <Input
                 id={emailId}
                 type="email"
                 name="email"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  // Clear the message the moment they start fixing it.
+                  setErrors(({ email: _dropped, ...rest }) => rest);
+                }}
                 autoComplete="username"
                 autoFocus
                 required
                 disabled={pending}
                 placeholder="you@salwarbutterfly.com"
-                invalid={failure?.field === "email" || Boolean(formError)}
-                aria-invalid={
-                  failure?.field === "email" || Boolean(formError) || undefined
-                }
+                invalid={Boolean(errors.email || formError)}
+                aria-invalid={Boolean(errors.email || formError) || undefined}
                 aria-describedby={formError ? formErrorId : undefined}
               />
             </Field>
 
-            <Field
-              label="Password"
-              required
-              error={failure?.field === "password" ? failure.error : undefined}
-            >
+            <Field label="Password" required error={errors.password}>
               <div className="relative">
                 <Input
                   id={passwordId}
                   type={revealed ? "text" : "password"}
                   name="password"
                   value={password}
-                  onChange={(event) => setPassword(event.target.value)}
+                  onChange={(event) => {
+                    setPassword(event.target.value);
+                    setErrors(({ password: _dropped, ...rest }) => rest);
+                  }}
                   autoComplete="current-password"
                   required
                   disabled={pending}
                   className="pr-10"
-                  invalid={failure?.field === "password" || Boolean(formError)}
-                  aria-invalid={
-                    failure?.field === "password" ||
-                    Boolean(formError) ||
-                    undefined
-                  }
+                  invalid={Boolean(errors.password || formError)}
+                  aria-invalid={Boolean(errors.password || formError) || undefined}
                   aria-describedby={formError ? formErrorId : undefined}
                 />
 

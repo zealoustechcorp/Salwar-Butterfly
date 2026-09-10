@@ -23,6 +23,14 @@
  * A blank cell is left blank, never filled with a zero. It goes up as
  * null and the storefront prints a dash: "the shop states no shoulder
  * for this size" is a real thing to say, and zero is a measurement.
+ *
+ * Which is why 0 is refused rather than accepted as "none": a shopper
+ * reads a printed 0 as a measurement, and no garment has a nought-inch
+ * anything. Negatives go the same way. `min` and `max` on the inputs are
+ * browser hints and nothing more — there is no form submit here for
+ * constraint validation to block — so every cell is checked as it is
+ * typed and marked in place, and the whole grid is checked again before
+ * the save.
  */
 
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
@@ -34,6 +42,7 @@ import {
   UNIT_OPTIONS,
 } from "@/lib/api/sizeCharts";
 import { COLUMN_LABEL } from "@/lib/sizing";
+import { validateMeasurement, validateSizeLabel } from "@/lib/validate";
 
 import { Button, cx, Field, Input, Select } from "./ui";
 
@@ -70,6 +79,42 @@ export default function SizeChartBuilder({ chart, onChange, errors = {} }) {
   const measurements = chart.columns.filter((column) => column !== "size");
 
   const patch = (fields) => onChange({ ...chart, ...fields });
+
+  /**
+   * How many rows carry each size label, so a duplicate can be marked on
+   * both of them rather than only on the second — the shop decides which
+   * of the two is the mistake, and marking one implies the other is fine.
+   */
+  const labelCounts = chart.rows.reduce((counts, row) => {
+    const key = String(row.size ?? "").trim().toLowerCase();
+
+    if (key) counts.set(key, (counts.get(key) ?? 0) + 1);
+
+    return counts;
+  }, new Map());
+
+  /**
+   * What is wrong with one cell, live, as it is typed.
+   *
+   * Derived rather than held in state: it is a pure function of the value
+   * in the cell, and a second copy in state is a second thing to keep in
+   * step. A blank cell is never wrong — that is the shop saying it states
+   * no measurement for that size.
+   */
+  const cellProblem = (row, column) => {
+    if (column !== "size") return validateMeasurement(row[column]);
+
+    const size = String(row.size ?? "").trim();
+
+    // An untouched new row is blank rather than wrong; the save refuses it
+    // and says so. Marking it red the moment it appears is the form
+    // scolding the shop for a row it added on their behalf.
+    if (!size) return null;
+
+    if (labelCounts.get(size.toLowerCase()) > 1) return "listed twice";
+
+    return validateSizeLabel(size, "This size label");
+  };
 
   /**
    * Adds or removes a measurement column, and keeps every row in step.
@@ -287,25 +332,39 @@ export default function SizeChartBuilder({ chart, onChange, errors = {} }) {
                 // what the shop is typing, so keying by it would remount the
                 // input on every keystroke and lose the caret.
                 <tr key={index} className="transition-colors hover:bg-ink-50/50">
-                  {chart.columns.map((column) => (
-                    <td key={column} className="p-1.5">
-                      <Input
-                        value={row[column] ?? ""}
-                        inputMode={column === "size" ? "text" : "decimal"}
-                        type={column === "size" ? "text" : "number"}
-                        step={column === "size" ? undefined : "0.5"}
-                        min={column === "size" ? undefined : LIMITS.measurement.min}
-                        max={column === "size" ? undefined : LIMITS.measurement.max}
-                        maxLength={column === "size" ? LIMITS.sizeLabel : undefined}
-                        onChange={(e) => updateCell(index, column, e.target.value)}
-                        placeholder={column === "size" ? "40" : "—"}
-                        className={cx(
-                          "h-8 font-mono text-xs",
-                          column === "size" && "bg-ink-50/40 font-semibold text-ink-900",
-                        )}
-                      />
-                    </td>
-                  ))}
+                  {chart.columns.map((column) => {
+                    const problem = cellProblem(row, column);
+
+                    return (
+                      <td key={column} className="p-1.5">
+                        <Input
+                          value={row[column] ?? ""}
+                          inputMode={column === "size" ? "text" : "decimal"}
+                          type={column === "size" ? "text" : "number"}
+                          step={column === "size" ? undefined : "0.5"}
+                          min={column === "size" ? undefined : LIMITS.measurement.min}
+                          max={column === "size" ? undefined : LIMITS.measurement.max}
+                          maxLength={column === "size" ? LIMITS.sizeLabel : undefined}
+                          onChange={(e) => updateCell(index, column, e.target.value)}
+                          placeholder={column === "size" ? "40" : "—"}
+                          invalid={Boolean(problem)}
+                          aria-invalid={Boolean(problem) || undefined}
+                          // The grid has no room for a message under every
+                          // cell, so the reason rides the input itself. The
+                          // save says the same thing in a sentence.
+                          title={
+                            problem
+                              ? `${COLUMN_LABEL[column] ?? column} ${problem}`
+                              : undefined
+                          }
+                          className={cx(
+                            "h-8 font-mono text-xs",
+                            column === "size" && "bg-ink-50/40 font-semibold text-ink-900",
+                          )}
+                        />
+                      </td>
+                    );
+                  })}
 
                   <td className="p-1.5">
                     <div className="flex items-center justify-end gap-0.5">
