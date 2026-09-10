@@ -31,11 +31,23 @@
  * is hovered — and when they dismiss it focus has to land back on the trigger
  * they opened it from.
  *
- * One chart at a time, picked with a chip. The storefront read model carries
- * no fit on a product, so nothing here can pre-select the shopper's chart for
- * them: every chip stays visible, and what separates the charts — one measures
- * a body, another the garment laid flat — is stated under the chart itself,
- * where there is room to say it properly.
+ * WHICH CHARTS A SHOPPER SEES
+ *
+ * A product records how it is cut in `attributes.fit`, and that value is the
+ * name of one of these charts. Where it is known, this dialog prints that
+ * chart and nothing else: a shopper reading a slim-fit table against an
+ * anarkali is measuring the wrong garment, and the chips that used to let
+ * them do it were a choice nobody could make correctly — the piece has one
+ * cut, and only the shop knows which.
+ *
+ * Where it is not known — a product with no fit recorded, the bag, the size
+ * guide on /account — every chart is shown, chips and all. That is the
+ * behaviour this component has always had and it is still right for a
+ * shopper who is not looking at one particular piece.
+ *
+ * A fit whose chart has been withdrawn falls back to showing them all rather
+ * than to nothing. The piece is still on sale and the shopper still has to
+ * pick a size; an empty dialog would leave them with nothing to read at all.
  */
 
 import { Ruler, X } from "lucide-react";
@@ -91,6 +103,33 @@ export function useSizeCharts() {
   const charts = useContext(SizeChartContext);
 
   return charts === undefined ? FALLBACK_SIZE_CHARTS : charts;
+}
+
+/**
+ * The charts that apply to one piece.
+ *
+ * Matched on the name, case-insensitively. The API stores the chart's own
+ * spelling of the fit on the product, so an exact match is what is expected
+ * here — the looser comparison is for a value that reached the column
+ * before that rule existed, or through psql.
+ *
+ * Returns every chart when there is no fit to narrow by, and when the fit
+ * names a chart the shop no longer publishes. Both are "we cannot say which
+ * of these is yours", which is a different answer from "there is no chart".
+ *
+ * @param {Array<object>} charts
+ * @param {string|null} [fit]
+ */
+function chartsFor(charts, fit) {
+  const wanted = typeof fit === "string" ? fit.trim().toLowerCase() : "";
+
+  if (!wanted) return charts;
+
+  const matched = charts.filter(
+    (chart) => String(chart.fit ?? "").trim().toLowerCase() === wanted,
+  );
+
+  return matched.length > 0 ? matched : charts;
 }
 
 // --- presentation -----------------------------------------------------------
@@ -216,9 +255,13 @@ function ChartTable({ chart }) {
  * @param {"salwar" | "coord_set" | null} [props.garment] - The piece being
  *        looked at, for a pant length no chart has a column for. Omitted
  *        where the shopper is not on one particular piece.
+ * @param {string|null} [props.fit] - How the piece is cut, from the
+ *        product's attributes. Narrows the tables to that one chart.
+ *        Omitted where the shopper is not on one particular piece, which
+ *        shows them all.
  */
-export function SizeChartTables({ garment = null }) {
-  const charts = useSizeCharts();
+export function SizeChartTables({ garment = null, fit = null }) {
+  const charts = chartsFor(useSizeCharts(), fit);
   const pantLength = pantLengthFor(garment);
 
   if (charts.length === 0) return null;
@@ -292,9 +335,12 @@ export function SizeChartTables({ garment = null }) {
  * sits beside a size picker that is still perfectly usable without it.
  *
  * @param {object} props
- * @param {string} [props.categoryName] - The piece's collection, which is the
- *        only thing the storefront knows about how it is cut; it decides the
- *        pant length line and nothing else.
+ * @param {string} [props.categoryName] - The piece's collection, which decides
+ *        the pant length line and nothing else.
+ * @param {string|null} [props.fit] - How the piece is cut, from the product's
+ *        attributes. Given, the dialog shows that fit's chart alone. Omitted
+ *        — in the bag, on the size guide — it shows every chart, because
+ *        there is no one piece to narrow to.
  * @param {"link" | "compact" | "outline"} [props.variant] - How loud the
  *        trigger is, not what it opens.
  * @param {string} [props.label]
@@ -302,18 +348,26 @@ export function SizeChartTables({ garment = null }) {
  */
 export function SizeChartButton({
   categoryName = null,
+  fit = null,
   variant = "link",
   label = "Size chart",
   className,
 }) {
-  const charts = useSizeCharts();
+  const published = useSizeCharts();
+  const charts = chartsFor(published, fit);
 
   if (charts.length === 0) return null;
 
-  // "two charts, one per fit" was true when there were exactly two. The
-  // count comes from the shop now, so the sentence has to as well.
-  const summary =
-    charts.length === 1
+  // What the shopper is about to be shown, which is not always what the
+  // shop publishes: one chart because this piece is cut to one fit reads
+  // very differently from one chart because that is all there is.
+  const narrowed = charts.length < published.length;
+
+  // Named rather than an article — "a Slim Fit" is fine and "a Anarkali
+  // Fit" is not, and the fits are the shop's own words to add to.
+  const summary = narrowed
+    ? `Showing the ${charts[0].fit} chart — this piece is cut to it.`
+    : charts.length === 1
       ? "The shop publishes one chart."
       : `The shop publishes ${charts.length} charts, one per fit.`;
 
@@ -351,7 +405,7 @@ export function SizeChartButton({
           </DialogPrimitive.Description>
 
           <div className="mt-5">
-            <SizeChartTables garment={garmentForCategory(categoryName)} />
+            <SizeChartTables garment={garmentForCategory(categoryName)} fit={fit} />
           </div>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>

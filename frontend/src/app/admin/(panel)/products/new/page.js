@@ -25,6 +25,7 @@ import {
 import { listAttributeValues, listColours } from "@/lib/api/attributes";
 import { uploadImages } from "@/lib/api/images";
 import { createProduct, getReference } from "@/lib/api/products";
+import { listFits } from "@/lib/api/sizeCharts";
 import { replaceVariants } from "@/lib/api/variants";
 import { autoSlug } from "@/lib/slug";
 import {
@@ -68,6 +69,7 @@ export default function NewProductPage() {
 
   const [reference, setReference] = useState(null);
   const [attributeGroups, setAttributeGroups] = useState({});
+  const [fits, setFits] = useState([]);
   const [colours, setColours] = useState([]);
   const [form, setForm] = useState(BLANK);
   const [sizes, setSizes] = useState(DEFAULT_SIZES);
@@ -90,6 +92,14 @@ export default function NewProductPage() {
     // lets the form save, and a value can be added inline.
     listAttributeValues({ activeOnly: true, signal: controller.signal })
       .then(setAttributeGroups)
+      .catch(() => {});
+
+    // The Fit picker, filled from the published size charts rather than
+    // the register — a fit exists because a chart is published for it.
+    // A failed read leaves the picker empty and the product fitless,
+    // which is the "shows every chart" case and not a broken form.
+    listFits({ signal: controller.signal })
+      .then(setFits)
       .catch(() => {});
 
     // The colour chips on the size matrix. An empty or failed register
@@ -298,13 +308,14 @@ export default function NewProductPage() {
       <Card>
         <CardHeader
           title="Attributes"
-          description="Chosen from the approved-values register. Add a missing one inline."
+          description="Fabric, work and sleeve come from the approved-values register — add a missing one inline. The fit comes from the published size charts and decides which chart the shopper is shown."
         />
         <div className="p-5">
           <AttributeFields
             form={form}
             setField={setField}
             groups={attributeGroups}
+            fits={fits}
             onRegister={refreshAttributes}
           />
         </div>

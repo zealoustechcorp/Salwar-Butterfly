@@ -155,6 +155,16 @@ function decorate(product, categoryName) {
     ...product,
     category_name: categoryName,
     fabric: fabricOf(product.name),
+    // How the piece is cut, recorded by the shop in the product's
+    // attributes and carried by the public reader. It names one of the
+    // published size charts, and that is all it is used for: the chart
+    // dialog prints that table alone. Null where the shop has not said,
+    // which shows every chart — see components/store/SizeChart.js.
+    //
+    // Unlike `fabric` above, nothing here guesses it from the name. A
+    // fit read off a product title would be a measurement chart chosen
+    // by a regular expression.
+    fit: product.fit ?? null,
     saving: product.mrp ? product.mrp - product.price : 0,
     // Something a shopper can read out over the phone. The id is a UUID and
     // unusable for that; the first block is short, stable and distinct enough

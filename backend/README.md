@@ -182,7 +182,9 @@ is written to disk.
 **Approved attributes** under `/productAttributes` (all admin, F-03.09):
 `createAttributeValue`, `getAllAttributeValues`,
 `getAttributeValuesByGroup/:groupName`, `updateAttributeValue/:id`,
-`updateAttributeValueStatus/:id`, `deleteAttributeValue/:id`.
+`updateAttributeValueStatus/:id`, `deleteAttributeValue/:id`. Every
+group but one is curated here; `fit` is the exception and comes from the
+size charts — see [Size charts](#size-charts--f-06).
 
 ### Inventory — F-04
 
@@ -204,9 +206,25 @@ deviation is recorded, not coded.
 ### Size charts — F-06
 
 The tables the storefront prints beside every size picker. Shop-wide,
-not per category: the shop publishes a chart per *fit*, and a shopper
-picks between them with a tab. Adding a fit is a row here, not a
-deployment.
+not per category: the shop publishes a chart per *fit*. Adding a fit is
+a row here, not a deployment.
+
+A product says which fit it is cut to in `attributes.fit`, and that is
+what decides the table a shopper is shown: the chart dialog on a product
+page prints that one chart, not the whole set. Where no fit is recorded
+— and in the bag and the size guide, where there is no single piece to
+narrow to — every chart is shown, chips and all.
+
+The fit is the one attribute whose vocabulary is **not** in
+`product_attribute_values`: it is this table's `fit` column, because a
+fit exists precisely when a chart is published for it. Registering the
+same names twice would let "Normal" sit beside a chart called "Normal
+Fit" and leave the product matching neither. So `createAttributeValue`
+refuses a `fit` group, and `ProductService` resolves `attributes.fit`
+against `size_charts` on every write — an unknown fit is a 400 naming
+the fits that exist, and a known one is stored in the chart's own
+spelling. A chart the shop has taken down still resolves; withdrawing a
+chart must not make every product carrying that fit unsaveable.
 
 | Method | Path                                    | Auth  | Description                                  |
 | ------ | --------------------------------------- | ----- | -------------------------------------------- |

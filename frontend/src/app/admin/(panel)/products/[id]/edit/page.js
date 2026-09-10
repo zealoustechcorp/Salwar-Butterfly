@@ -28,6 +28,7 @@ import {
 } from "@/components/admin/ui";
 import { listAttributeValues, listColours } from "@/lib/api/attributes";
 import { getProduct, getReference, updateProduct } from "@/lib/api/products";
+import { listFits } from "@/lib/api/sizeCharts";
 import { getVariantsForProduct, replaceVariants } from "@/lib/api/variants";
 import { shortDate } from "@/lib/format";
 import { hasErrors, summarizeErrors, validateVariantRows } from "@/lib/validate";
@@ -66,6 +67,7 @@ function EditProduct() {
   const [reload, setReload] = useState(0);
   const [loaded, setLoaded] = useState({ product: null, reference: null, error: null });
   const [attributeGroups, setAttributeGroups] = useState({});
+  const [fits, setFits] = useState([]);
   const [colours, setColours] = useState([]);
   const [form, setForm] = useState(null);
   // Sizes live in their own table, so they are their own piece of form
@@ -132,6 +134,13 @@ function EditProduct() {
     // lets the form save, and a value can be added inline.
     listAttributeValues({ activeOnly: true, signal: controller.signal })
       .then(setAttributeGroups)
+      .catch(() => {});
+
+    // The Fit picker, filled from the published size charts rather than
+    // the register. A failed read leaves the picker showing only the fit
+    // the product already carries, which is never lost by saving.
+    listFits({ signal: controller.signal })
+      .then(setFits)
       .catch(() => {});
 
     // The colour chips on the size matrix. A failed register leaves the
@@ -341,13 +350,14 @@ function EditProduct() {
           <Card>
             <CardHeader
               title="Attributes"
-              description="Chosen from the approved-values register. Add a missing one inline."
+              description="Fabric, work and sleeve come from the approved-values register — add a missing one inline. The fit comes from the published size charts and decides which chart the shopper is shown."
             />
             <div className="p-5">
               <AttributeFields
                 form={form}
                 setField={setField}
                 groups={attributeGroups}
+                fits={fits}
                 onRegister={refreshAttributes}
               />
             </div>

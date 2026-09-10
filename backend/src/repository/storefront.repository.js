@@ -20,7 +20,7 @@
 // back twelve times and have to be reassembled in JavaScript.
 
 import { query } from "../config/db.js";
-import { COLOUR_GROUP } from "../config/attribute.groups.js";
+import { COLOUR_GROUP, FIT_GROUP } from "../config/attribute.groups.js";
 import { logger } from "../utils/logger.js";
 
 const handleDatabaseError = (error, operation) => {
@@ -69,6 +69,16 @@ const PRODUCTS_SQL = `
     p.base_price,
     p.category_id,
     p.created_at,
+    -- How the piece is cut, and the only reason the public reader looks
+    -- inside \`attributes\` at all. It names a row in \`size_charts\`, so
+    -- the storefront can print the one table that applies to this piece
+    -- instead of every table the shop publishes.
+    --
+    -- One key, not the whole document: \`attributes\` is a free-form bag
+    -- an admin can add to, and selecting it whole would put whatever
+    -- they add next on a public endpoint. NULL where no fit is
+    -- recorded, which is the "show them all" case.
+    p.attributes->>'${FIT_GROUP}'    AS fit,
     COALESCE(sizes.rows, '[]'::json) AS sizes,
     COALESCE(sizes.total_stock, 0)   AS stock,
     COALESCE(colourways.rows, '[]'::json) AS colours,

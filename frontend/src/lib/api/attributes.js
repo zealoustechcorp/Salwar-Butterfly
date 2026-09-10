@@ -52,6 +52,30 @@ export const COLOUR_GROUP = {
 /** Shown when a registered colour has no hex recorded. */
 export const COLOUR_FALLBACK_HEX = "#E2E8F0";
 
+/**
+ * Fit is stored in `products.attributes` like fabric and work, but it is
+ * NOT one of ATTRIBUTE_GROUPS below and must not be added to it.
+ *
+ * Its vocabulary is the shop's size charts. Every fit the shop cuts
+ * already exists as a row in `size_charts`, keyed by a unique name, and
+ * the storefront picks the table it prints beside the Buy button by
+ * matching this value against that name. Curating the same list a second
+ * time in the register would mean an admin could approve "Normal" while
+ * the chart says "Normal Fit", and the piece would then show every chart
+ * the shop has instead of its own.
+ *
+ * So the picker on the product form is filled from
+ * `listFits()` in lib/api/sizeCharts.js, there is no inline "add" on it,
+ * and the API refuses a `fit` row in the register outright. Adding a fit
+ * means publishing its chart on /admin/size-charts — which is the work
+ * that has to happen anyway.
+ */
+export const FIT_GROUP = {
+  key: "fit",
+  label: "Fit",
+  description: "How the piece is cut. Decides which size chart the shopper sees.",
+};
+
 export const ATTRIBUTE_GROUPS = [
   {
     key: "fabric",

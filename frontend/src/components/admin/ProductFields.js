@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { ATTRIBUTE_GROUPS, createAttributeValue } from "@/lib/api/attributes";
+import { ATTRIBUTE_GROUPS, createAttributeValue, FIT_GROUP } from "@/lib/api/attributes";
 import { money } from "@/lib/format";
 import { autoSlug } from "@/lib/slug";
 import {
@@ -219,40 +219,99 @@ export function DetailsFields({ form, setField, errors = {}, reference, lockCate
 }
 
 /**
- * Fabric, work and sleeve — chosen from the approved-values register,
- * stored together in the `attributes` JSONB column.
+ * Fit, fabric, work and sleeve — stored together in the `attributes`
+ * JSONB column.
  *
- * Dropdowns rather than free text, because the register is what stops
- * "Cotton", "cotton " and "Coton" all reaching the catalogue. A value
- * missing from the list is added inline, which writes it to the register
- * and makes it available everywhere — so entering a product never means
- * stopping to visit the attributes screen first.
+ * Dropdowns rather than free text, because a curated list is what stops
+ * "Cotton", "cotton " and "Coton" all reaching the catalogue. Where the
+ * list comes from differs for the fit, and the difference matters:
+ *
+ *   fabric, work, sleeve   the approved-values register. A value missing
+ *                          from the list is added inline, which writes it
+ *                          to the register and makes it available
+ *                          everywhere — so entering a product never means
+ *                          stopping to visit the attributes screen first
+ *
+ *   fit                    the shop's published size charts. The fit is
+ *                          what decides which table a shopper is shown
+ *                          beside the Buy button, so it can only be a fit
+ *                          a chart exists for — there is nothing to add
+ *                          inline, because adding a fit means publishing
+ *                          its chart. The API refuses an unknown one
  *
  * `groups` is the register, keyed by attribute: { fabric: [...], ... }.
+ * `fits` is the size charts' list: [{ fit, title }, ...].
  */
-export function AttributeFields({ form, setField, groups = {}, onRegister }) {
+export function AttributeFields({ form, setField, groups = {}, fits = [], onRegister }) {
+  // A cleared field means "not recorded", not an empty string — the API
+  // drops blanks anyway, so keep the form in step.
+  const choose = (key, value) => {
+    const next = { ...form.attributes };
+
+    if (value) next[key] = value;
+    else delete next[key];
+
+    setField("attributes", next);
+  };
+
   return (
     <div className="grid gap-4 sm:grid-cols-3">
+      <FitSelect
+        fits={fits}
+        selected={form.attributes?.[FIT_GROUP.key] ?? ""}
+        onSelect={(value) => choose(FIT_GROUP.key, value)}
+      />
+
       {ATTRIBUTE_GROUPS.map((group) => (
         <AttributeSelect
           key={group.key}
           group={group}
           values={groups[group.key] ?? []}
           selected={form.attributes?.[group.key] ?? ""}
-          onSelect={(value) => {
-            const next = { ...form.attributes };
-
-            // A cleared field means "not recorded", not an empty string —
-            // the API drops blanks anyway, so keep the form in step.
-            if (value) next[group.key] = value;
-            else delete next[group.key];
-
-            setField("attributes", next);
-          }}
+          onSelect={(value) => choose(group.key, value)}
           onRegister={onRegister}
         />
       ))}
     </div>
+  );
+}
+
+/**
+ * How the piece is cut, picked from the fits the shop publishes a chart
+ * for.
+ *
+ * No inline add, unlike its neighbours. A fit with no chart behind it
+ * would leave the product page showing every chart the shop has — the
+ * exact thing recording a fit is for — so the way to add one is to
+ * publish its chart, and the hint says so.
+ *
+ * A fit already on the product is kept in the list even when it is no
+ * longer offered — a chart withdrawn in April must not silently strip
+ * the fit off every product the next time one of them is saved.
+ */
+function FitSelect({ fits, selected, onSelect }) {
+  const known = fits.some((entry) => entry.fit === selected);
+  const options = known || !selected ? fits : [...fits, { fit: selected, title: "" }];
+
+  return (
+    <Field
+      label={FIT_GROUP.label}
+      hint={
+        fits.length
+          ? "Decides which size chart the shopper sees. Add a fit by publishing its chart."
+          : "No size charts published yet — publish one to offer a fit."
+      }
+    >
+      <Select value={selected} onChange={(e) => onSelect(e.target.value)}>
+        <option value="">Not specified — shows every chart</option>
+        {options.map((entry) => (
+          <option key={entry.fit} value={entry.fit}>
+            {entry.fit}
+            {known || entry.fit !== selected ? "" : " — no published chart"}
+          </option>
+        ))}
+      </Select>
+    </Field>
   );
 }
 

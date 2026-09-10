@@ -163,8 +163,10 @@ export function ProductDetail({ product, shop }) {
               </p>
               {/* Next to the picker, because this is where the question is
                   actually asked — and a size a shopper chose themselves is
-                  not a return reason. */}
-              <SizeChartButton categoryName={product.category_name} />
+                  not a return reason. The fit narrows it to this piece's
+                  own chart; a piece with no fit recorded still opens on
+                  all of them. */}
+              <SizeChartButton categoryName={product.category_name} fit={product.fit} />
             </div>
           </div>
 

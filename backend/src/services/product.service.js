@@ -1,9 +1,11 @@
 // src/services/product.service.js - PRODUCTION GRADE
 
 import { ProductRepository } from "../repository/poduct.repository.js";
+import { SizeChartRepository } from "../repository/size_chart.repository.js";
 import { CreateProductDTO, UpdateProductDTO } from "../dto/product.dto.js";
 import { ProductMapper } from "../mapper/product.mapper.js";
 import { CloudinaryStorage } from "../config/cloudinary.cdn.js";
+import { FIT_GROUP } from "../config/attribute.groups.js";
 import { ApiError } from "../utils/ApiError.js";
 import { logger } from "../utils/logger.js";
 
@@ -17,6 +19,71 @@ const calculateCurrentPrice = (basePrice, discountPercentage) => {
   if (discount < 0 || discount > 100) return base;
   const discountAmount = (base * discount) / 100;
   return Math.round((base - discountAmount) * 100) / 100;
+};
+
+/**
+ * Resolves `attributes.fit` against the charts the shop publishes.
+ *
+ * A fit is not free text the way a fabric is. The storefront picks the
+ * table it prints beside the Buy button by matching this string against
+ * `size_charts.fit`, so a value with no chart behind it is a product
+ * whose size guide falls back to showing every chart the shop has —
+ * which is the failure this feature exists to remove, appearing silently
+ * rather than as an error the admin can see.
+ *
+ * Two things happen here, and the second is the quiet one:
+ *
+ *   - a fit no chart is published for is refused, with the fits that
+ *     are, so the message names the fix
+ *   - a fit that matches is rewritten to the chart's own spelling.
+ *     `findByFit` is case-insensitive, so "slim fit" from an import
+ *     resolves — and is stored as "Slim Fit", because the storefront
+ *     matches on the string and a product should not depend on how it
+ *     was typed
+ *
+ * A chart the shop has taken down still resolves. Its `fit` is still a
+ * fit the shop cuts, the products carrying it are still on sale, and
+ * refusing an edit to one of them because the chart is off would make
+ * withdrawing a chart a catalogue-wide event.
+ *
+ * @param {object|null|undefined} attributes  the normalised document
+ * @param {Map<string, string>} [seen]  fit -> canonical, for the bulk
+ *        path, where a thousand products share a handful of fits
+ * @returns {Promise<object>} the attributes, with `fit` canonicalised
+ */
+const resolveFit = async (attributes, seen = null) => {
+  if (!attributes || typeof attributes !== "object") return attributes ?? {};
+
+  const fit = attributes[FIT_GROUP];
+
+  // Absent means "not recorded", which is a product the storefront shows
+  // every chart for — the behaviour every product had before fits were
+  // recorded at all.
+  if (typeof fit !== "string" || !fit.trim()) return attributes;
+
+  const wanted = fit.trim();
+  const cached = seen?.get(wanted.toLowerCase());
+
+  if (cached) return { ...attributes, [FIT_GROUP]: cached };
+
+  const chart = await SizeChartRepository.findByFit(wanted);
+
+  if (!chart) {
+    const published = await SizeChartRepository.list();
+    const names = published.map((row) => row.fit).join(", ");
+
+    throw new ApiError(
+      400,
+      names
+        ? `No size chart is published for the fit "${wanted}". The shop's fits are: ${names}`
+        : `No size chart is published for the fit "${wanted}"`,
+      { attributes: `"${wanted}" is not one of the shop's fits` },
+    );
+  }
+
+  seen?.set(wanted.toLowerCase(), chart.fit);
+
+  return { ...attributes, [FIT_GROUP]: chart.fit };
 };
 
 export const ProductService = {
@@ -120,7 +187,7 @@ export const ProductService = {
         basePrice: price,
         discountPercentage: discount,
         currentPrice,
-        attributes: attributes ?? {},
+        attributes: await resolveFit(attributes ?? {}),
         isFeatured: normalizedFeatured,
         active: normalizedActive,
       });
@@ -208,6 +275,11 @@ export const ProductService = {
 
       const processedProducts = [];
 
+      // A thousand products off one spreadsheet share a handful of fits,
+      // so the charts are looked up once per distinct fit rather than
+      // once per row.
+      const fitsSeen = new Map();
+
       for (let i = 0; i < productsData.length; i++) {
         const p = productsData[i];
 
@@ -251,6 +323,22 @@ export const ProductService = {
           );
         }
 
+        // Which row carried the unknown fit, in a payload of a thousand.
+        // Without the index the shop is told a fit is wrong and left to
+        // find it in the spreadsheet themselves.
+        let attributes;
+        try {
+          attributes = await resolveFit(
+            p.attributes && typeof p.attributes === "object" ? p.attributes : {},
+            fitsSeen,
+          );
+        } catch (error) {
+          if (error instanceof ApiError && error.statusCode === 400) {
+            throw new ApiError(400, `Product at index ${i}: ${error.message}`);
+          }
+          throw error;
+        }
+
         processedProducts.push({
           name: p.name.trim(),
           slug: p.slug.trim().toLowerCase(),
@@ -260,8 +348,7 @@ export const ProductService = {
           basePrice: price,
           discountPercentage: discount,
           currentPrice,
-          attributes:
-            p.attributes && typeof p.attributes === "object" ? p.attributes : {},
+          attributes,
           isFeatured: p.isFeatured === true || p.isFeatured === "true",
           active: p.active !== false && p.active !== "false",
         });
@@ -538,6 +625,14 @@ export const ProductService = {
       const dto = new UpdateProductDTO(updateData);
 
       let finalData = { ...dto };
+
+      // The attributes document is replaced wholesale by an update, so a
+      // fit arriving here is the fit the product will carry — it has to
+      // be resolved against the charts on the way in exactly as it is on
+      // create, or the edit screen becomes the way round the rule.
+      if (updateData.attributes !== undefined) {
+        finalData.attributes = await resolveFit(finalData.attributes);
+      }
 
       if (
         updateData.basePrice !== undefined ||

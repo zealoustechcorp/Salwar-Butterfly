@@ -6,7 +6,7 @@ import {
   UpdateAttributeValueDTO,
 } from "../dto/product_attribute_value.dto.js";
 import { AttributeValueMapper } from "../mapper/product_attribute_value.mapper.js";
-import { COLOUR_GROUP } from "../config/attribute.groups.js";
+import { COLOUR_GROUP, isRegisterGroup } from "../config/attribute.groups.js";
 import { ApiError } from "../utils/ApiError.js";
 import { logger } from "../utils/logger.js";
 
@@ -165,8 +165,23 @@ export const AttributeValueService = {
 
   async create({ groupName, value, hex, active, position } = {}) {
     try {
+      const group = normalizeGroupName(groupName);
+
+      // The fit is an attribute of a product like any other, but its
+      // list is `size_charts`, not this register — a fit exists because
+      // the shop published a chart for it. Registering one here would
+      // offer the product form a fit with no table behind it, which is
+      // a size guide that quietly shows every chart instead of the
+      // shopper's. See config/attribute.groups.js.
+      if (!isRegisterGroup(group)) {
+        throw new ApiError(
+          400,
+          "Fits are not registered here — add a size chart for the fit instead",
+        );
+      }
+
       const dto = new CreateAttributeValueDTO({
-        groupName: normalizeGroupName(groupName),
+        groupName: group,
         value: normalizeValue(value),
         hex: normalizeHex(hex) ?? null,
         active: normalizeBoolean(active, true),

@@ -118,7 +118,11 @@ export function ProductCard({ product, priority = false }) {
                   it is the same dialog the product page opens. */}
               <div className="mb-1.5 flex items-center justify-between gap-2">
                 <span className="text-[10px] font-semibold text-sb-text-muted">Pick a size</span>
-                <SizeChartButton variant="compact" categoryName={product.category_name} />
+                <SizeChartButton
+                  variant="compact"
+                  categoryName={product.category_name}
+                  fit={product.fit}
+                />
               </div>
               <div className="mb-2 flex flex-wrap gap-1">
                 {product.available_sizes.map((value) => (

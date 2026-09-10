@@ -129,6 +129,29 @@ export async function listSizeCharts({ token, signal } = {}) {
   return (data ?? []).map(toSizeChart);
 }
 
+/**
+ * The fits the shop cuts — the product form's Fit picker.
+ *
+ * A fit exists because a chart is published for it, so this is that list
+ * and there is no second register behind it. Charts the shop has taken
+ * down are dropped: a withdrawn chart is a fit that should not be put on
+ * a new product, while a product already carrying it keeps it (the form
+ * shows the stored value regardless — see AttributeFields).
+ *
+ * The whole chart is read to get a handful of strings, and that is fine:
+ * the table holds a few rows and the admin panel loads it on the size
+ * charts screen anyway.
+ *
+ * @returns {Promise<Array<{fit: string, title: string}>>} in print order
+ */
+export async function listFits({ token, signal } = {}) {
+  const charts = await listSizeCharts({ token, signal });
+
+  return charts
+    .filter((chart) => chart.active && chart.fit)
+    .map((chart) => ({ fit: chart.fit, title: chart.title }));
+}
+
 export async function getSizeChart(id, { token, signal } = {}) {
   const data = await api.get(
     `/sizeCharts/getSizeChartById/${encodeURIComponent(id)}`,

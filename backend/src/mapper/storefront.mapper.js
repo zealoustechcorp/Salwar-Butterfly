@@ -48,6 +48,15 @@ export const StorefrontMapper = {
       mrp,
       off: discountPercent(price, mrp),
       category_id: row.category_id,
+
+      // The fit this piece is cut to — "Normal Fit", "Slim Fit" — or
+      // null where the shop has not recorded one. It is the name of a
+      // published chart, so the size guide beside the Buy button shows
+      // that one table rather than the whole set; a null falls back to
+      // the whole set, which is what every product showed before fits
+      // were recorded.
+      fit: row.fit ?? null,
+
       image: row.image,
       image2: row.image2 ?? null,
       stock: Number(row.stock) || 0,
