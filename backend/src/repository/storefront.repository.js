@@ -20,6 +20,7 @@
 // back twelve times and have to be reassembled in JavaScript.
 
 import { query } from "../config/db.js";
+import { COLOUR_GROUP } from "../config/attribute.groups.js";
 import { logger } from "../utils/logger.js";
 
 const handleDatabaseError = (error, operation) => {
@@ -70,27 +71,78 @@ const PRODUCTS_SQL = `
     p.created_at,
     COALESCE(sizes.rows, '[]'::json) AS sizes,
     COALESCE(sizes.total_stock, 0)   AS stock,
+    COALESCE(colourways.rows, '[]'::json) AS colours,
     photos.image_url                 AS image,
     photos.image_url_2               AS image2,
     COALESCE(rating.count, 0)        AS rating_count,
     COALESCE(rating.sum, 0)          AS rating_sum,
     rating.average                   AS rating_average
   FROM products p
+  -- One entry per SIZE, not per variant row.
+  --
+  -- Since colour arrived (migration 015) a product can hold several rows
+  -- for one size — "M in Maroon", "M in Teal" — and aggregating the rows
+  -- directly would hand the storefront two chips both labelled M. So the
+  -- rows are folded by size first: stock is summed across the colourways,
+  -- and the variant_id carried is the first by position.
+  --
+  -- That variant_id is a stand-in, and it is only sound because the
+  -- storefront offers no colour choice yet: a shopper who cannot express
+  -- a preference cannot have one ignored. When the swatch picker lands,
+  -- this fold is what it replaces — the bag line must then be ordered
+  -- against the (size, colour) the shopper actually chose, and the
+  -- colourways selected below are the list it will draw.
+  --
+  -- A product with no colours has exactly one row per size, so the fold
+  -- is a no-op and the output is byte-for-byte what it was before.
   LEFT JOIN LATERAL (
     SELECT
       json_agg(
         json_build_object(
-          'variant_id', v.id,
-          'size',       v.size,
-          'stock',      v.stock_quantity
+          'variant_id', by_size.variant_id,
+          'size',       by_size.size,
+          'stock',      by_size.stock
         )
-        ORDER BY v.position ASC, v.size ASC
+        ORDER BY by_size.position ASC, by_size.size ASC
       ) AS rows,
-      SUM(v.stock_quantity)::INTEGER AS total_stock
-    FROM product_variants v
-    WHERE v.product_id = p.id
-      AND v.active = TRUE
+      SUM(by_size.stock)::INTEGER AS total_stock
+    FROM (
+      SELECT
+        v.size,
+        MIN(v.position)                        AS position,
+        SUM(v.stock_quantity)::INTEGER         AS stock,
+        (ARRAY_AGG(v.id ORDER BY v.position ASC, v.colour ASC))[1] AS variant_id
+      FROM product_variants v
+      WHERE v.product_id = p.id
+        AND v.active = TRUE
+      GROUP BY v.size
+    ) by_size
   ) sizes ON TRUE
+
+  -- The colourways on sale, so a product card can say "in 3 colours"
+  -- and the detail page has what it needs when the picker is built.
+  -- Empty for a product not sold by colour: '' is the "no colour"
+  -- sentinel and is filtered out rather than surfacing as a blank chip.
+  LEFT JOIN LATERAL (
+    SELECT
+      COALESCE(
+        json_agg(
+          json_build_object('name', colours.colour, 'hex', colours.hex)
+          ORDER BY colours.position ASC, colours.colour ASC
+        ),
+        '[]'::json
+      ) AS rows
+    FROM (
+      SELECT v.colour, MIN(v.position) AS position, MIN(reg.hex) AS hex
+      FROM product_variants v
+      LEFT JOIN product_attribute_values reg
+        ON reg.group_name = '${COLOUR_GROUP}' AND reg.value = v.colour
+      WHERE v.product_id = p.id
+        AND v.active = TRUE
+        AND v.colour <> ''
+      GROUP BY v.colour
+    ) colours
+  ) colourways ON TRUE
   LEFT JOIN LATERAL (
     SELECT
       MAX(i.image_url) FILTER (WHERE i.rn = 1) AS image_url,

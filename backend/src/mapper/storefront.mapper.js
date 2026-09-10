@@ -52,10 +52,25 @@ export const StorefrontMapper = {
       image2: row.image2 ?? null,
       stock: Number(row.stock) || 0,
       sizes: (row.sizes ?? []).map((size) => ({
-        // The id a bag line carries and checkout orders against.
+        // The id a bag line carries and checkout orders against. For a
+        // product sold in several colours this is a stand-in for the
+        // first colourway — see the fold in storefront.repository.js and
+        // the reason it is sound only while no swatch picker exists.
         variant_id: size.variant_id,
         size: size.size,
+        // Summed across the colourways this size is sold in, so "only 2
+        // left" describes the size rather than one arbitrary colour of
+        // it.
         stock: Number(size.stock) || 0,
+      })),
+
+      // The colourways on sale. Empty for a product not sold by colour,
+      // which is every product until an admin adds one. Carried now so
+      // a card can say "in 3 colours"; the picker that lets a shopper
+      // choose between them is the next pass.
+      colours: (row.colours ?? []).map((colour) => ({
+        name: colour.name,
+        hex: colour.hex ? String(colour.hex).trim() : null,
       })),
 
       // F-06.08. `average` stays null when nothing has been published,

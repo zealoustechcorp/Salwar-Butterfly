@@ -13,6 +13,7 @@
 // and sorted by stock.
 
 import { query, withTransaction } from "../config/db.js";
+import { COLOUR_GROUP } from "../config/attribute.groups.js";
 import { logger } from "../utils/logger.js";
 import {
   MAX_STOCK,
@@ -58,12 +59,14 @@ const SELECT_ROW = `
     v.id,
     v.product_id,
     v.size,
+    v.colour,
     v.stock_quantity,
     v.active,
     v.position,
     v.created_at,
     v.updated_at,
     ${stockStatusCaseSql("v")} AS stock_status,
+    reg.hex         AS colour_hex,
     p.name          AS product_name,
     p.slug          AS product_slug,
     p.active        AS product_active,
@@ -74,6 +77,12 @@ const SELECT_ROW = `
   FROM product_variants v
   JOIN products p ON p.id = v.product_id
   LEFT JOIN categories c ON c.id = p.category_id
+  -- The swatch, so a stock table can be scanned by colour rather than
+  -- read word by word. Joined from the register for the same reason the
+  -- product screens join it: a colour re-toned there must not leave a
+  -- stale swatch behind on every row that carries it.
+  LEFT JOIN product_attribute_values reg
+    ON reg.group_name = '${COLOUR_GROUP}' AND reg.value = v.colour
   LEFT JOIN LATERAL (
     SELECT pi.image_url
     FROM product_images pi
@@ -95,8 +104,12 @@ const SELECT_ROW = `
 const SORTS = {
   stock_asc: "v.stock_quantity ASC, p.name ASC, v.position ASC",
   stock_desc: "v.stock_quantity DESC, p.name ASC, v.position ASC",
-  product: "p.name ASC, v.position ASC, v.size ASC",
+  product: "p.name ASC, v.position ASC, v.colour ASC, v.size ASC",
   updated: "v.updated_at DESC, p.name ASC",
+  // Colour-first, so every row of one colourway across the catalogue
+  // reads together — the order a delivery of "the Maroon run" is
+  // checked in against.
+  colour: "v.colour ASC, p.name ASC, v.position ASC, v.size ASC",
 };
 
 export const DEFAULT_SORT = "stock_asc";
@@ -137,9 +150,14 @@ const buildFilters = ({ status, search, categoryId, productId, activeOnly }) => 
     const exact = `$${values.length}`;
 
     // Size matches exactly rather than by prefix: searching "L" should
-    // find size L, not every product with an L in its name.
+    // find size L, not every product with an L in its name. Colour is
+    // the other way round — "rani" should find "Rani Pink", because a
+    // colour is a name rather than a code and nobody types it in full.
     conditions.push(
-      `(p.name ILIKE ${like} OR p.slug ILIKE ${like} OR UPPER(v.size) = UPPER(${exact}))`,
+      `(p.name ILIKE ${like}
+        OR p.slug ILIKE ${like}
+        OR v.colour ILIKE ${like}
+        OR UPPER(v.size) = UPPER(${exact}))`,
     );
   }
 

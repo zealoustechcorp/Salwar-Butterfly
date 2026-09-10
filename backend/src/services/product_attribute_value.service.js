@@ -6,6 +6,7 @@ import {
   UpdateAttributeValueDTO,
 } from "../dto/product_attribute_value.dto.js";
 import { AttributeValueMapper } from "../mapper/product_attribute_value.mapper.js";
+import { COLOUR_GROUP } from "../config/attribute.groups.js";
 import { ApiError } from "../utils/ApiError.js";
 import { logger } from "../utils/logger.js";
 
@@ -60,6 +61,42 @@ const normalizeValue = (value) => {
   }
 
   return trimmed;
+};
+
+const HEX_REGEX = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i;
+
+/**
+ * A swatch, stored as '#RRGGBB' and nothing else.
+ *
+ * Shorthand and a missing hash are accepted and expanded here rather
+ * than refused, because both are what a person types; what is stored is
+ * the one canonical form, so no reader ever has to normalise before it
+ * can render. Upper-cased for the same reason — two rows differing only
+ * in the case of their hex are the same colour and should not read as
+ * two.
+ *
+ * An empty string clears the swatch. That is a real edit, not a
+ * malformed one: a colour with no tone recorded renders as a name chip.
+ */
+const normalizeHex = (value) => {
+  if (value === undefined) return undefined;
+  if (value === null || value === "") return null;
+
+  if (typeof value !== "string" || !HEX_REGEX.test(value.trim())) {
+    throw new ApiError(400, "Colour must be a hex code such as #7B1E3A");
+  }
+
+  const digits = value.trim().replace("#", "");
+
+  const full =
+    digits.length === 3
+      ? digits
+          .split("")
+          .map((digit) => digit + digit)
+          .join("")
+      : digits;
+
+  return `#${full.toUpperCase()}`;
 };
 
 const normalizeBoolean = (value, fallback) => {
@@ -126,11 +163,12 @@ export const AttributeValueService = {
     }
   },
 
-  async create({ groupName, value, active, position } = {}) {
+  async create({ groupName, value, hex, active, position } = {}) {
     try {
       const dto = new CreateAttributeValueDTO({
         groupName: normalizeGroupName(groupName),
         value: normalizeValue(value),
+        hex: normalizeHex(hex) ?? null,
         active: normalizeBoolean(active, true),
         position:
           position === undefined || position === null || position === ""
@@ -178,6 +216,7 @@ export const AttributeValueService = {
 
       const hasFields =
         updateData.value !== undefined ||
+        updateData.hex !== undefined ||
         updateData.active !== undefined ||
         updateData.position !== undefined;
 
@@ -208,6 +247,7 @@ export const AttributeValueService = {
       }
 
       const patch = new UpdateAttributeValueDTO({
+        hex: normalizeHex(updateData.hex),
         active:
           updateData.active === undefined
             ? undefined
@@ -238,6 +278,20 @@ export const AttributeValueService = {
 
       if (error?.code === "ATTRIBUTE_VALUE_EXISTS") {
         throw new ApiError(409, "Another value in this group already uses that name");
+      }
+
+      // Only reachable on a colour: renaming it rewrites the variants
+      // carrying it, and a product already listing that size in the
+      // target colour cannot list it twice.
+      if (error?.code === "COLOUR_RENAME_COLLIDES") {
+        throw new ApiError(
+          409,
+          "A product already lists one of those sizes in the new colour — merge the two colourways by hand first",
+        );
+      }
+
+      if (error?.code === "ATTRIBUTE_HEX_INVALID") {
+        throw new ApiError(400, "Colour must be a hex code such as #7B1E3A");
       }
 
       logger.error("AttributeValueService.update failed", {

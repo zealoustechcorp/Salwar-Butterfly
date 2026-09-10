@@ -5,15 +5,33 @@ const UUID_REGEX =
 
 const GROUP_NAME_REGEX = /^[a-z][a-z0-9_]*$/i;
 
+/** '#abc', '#AABBCC' or the same without the hash. */
+const HEX_REGEX = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i;
+
 /**
- * Shape checks only — trimming, lowercasing the group and the rest of
- * the normalizing happens in AttributeValueService, so a value written
- * through any path is treated the same.
+ * Shape checks only — trimming, lowercasing the group, expanding hex
+ * shorthand and the rest of the normalizing happens in
+ * AttributeValueService, so a value written through any path is treated
+ * the same.
  */
+
+/**
+ * The swatch. Optional on every group and meaningless on most of them —
+ * only colour renders it — so an absent or empty hex is never an error.
+ */
+const validateHex = (value) => {
+  if (value === undefined || value === null || value === "") return null;
+
+  if (typeof value !== "string" || !HEX_REGEX.test(value.trim())) {
+    return "Colour must be a hex code such as #7B1E3A";
+  }
+
+  return null;
+};
 
 export const validateCreateAttributeValue = (req, res, next) => {
   try {
-    const { groupName, value, active, position } = req.body ?? {};
+    const { groupName, value, hex, active, position } = req.body ?? {};
 
     const errors = {};
 
@@ -31,6 +49,9 @@ export const validateCreateAttributeValue = (req, res, next) => {
     } else if (value.trim().length > 100) {
       errors.value = "Value must not exceed 100 characters";
     }
+
+    const hexError = validateHex(hex);
+    if (hexError) errors.hex = hexError;
 
     if (active !== undefined && typeof active !== "boolean") {
       errors.active = "Active must be a boolean";
@@ -60,9 +81,14 @@ export const validateUpdateAttributeValue = (req, res, next) => {
       throw new ApiError(400, "Invalid attribute value ID format");
     }
 
-    const { value, active, position } = req.body ?? {};
+    const { value, hex, active, position } = req.body ?? {};
 
-    if (value === undefined && active === undefined && position === undefined) {
+    if (
+      value === undefined &&
+      hex === undefined &&
+      active === undefined &&
+      position === undefined
+    ) {
       throw new ApiError(400, "At least one field is required to update");
     }
 
@@ -75,6 +101,10 @@ export const validateUpdateAttributeValue = (req, res, next) => {
         errors.value = "Value must not exceed 100 characters";
       }
     }
+
+    // null and "" are allowed through: clearing a swatch is an edit.
+    const hexError = validateHex(hex);
+    if (hexError) errors.hex = hexError;
 
     if (active !== undefined && typeof active !== "boolean") {
       errors.active = "Active must be a boolean";

@@ -12,7 +12,13 @@ import { logger } from "../utils/logger.js";
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-const SORTS = new Set(["stock_asc", "stock_desc", "product", "updated"]);
+const SORTS = new Set([
+  "stock_asc",
+  "stock_desc",
+  "product",
+  "updated",
+  "colour",
+]);
 
 /**
  * How many lines one bulk adjustment may carry. A delivery is a handful
@@ -116,7 +122,9 @@ const explainFailedWrite = async (variantId, delta = null) => {
   if (held + delta < 0) {
     throw new ApiError(
       409,
-      `Only ${held} in stock — that would take ${current.product_name} (${current.size}) below zero.`,
+      `Only ${held} in stock — that would take ${current.product_name} (${
+        current.colour ? `${current.colour} ${current.size}` : current.size
+      }) below zero.`,
     );
   }
 

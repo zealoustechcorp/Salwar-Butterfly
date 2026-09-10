@@ -8,7 +8,7 @@ import { DiscountDialog } from "@/components/admin/DiscountDialog";
 import { ActiveDot, StatTile } from "@/components/admin/ProductBits";
 import { GalleryThumbnail } from "@/components/admin/ProductGallery";
 import { ProductCover } from "@/components/admin/ProductThumb";
-import { StockBadge } from "@/components/admin/SizeStockEditor";
+import { ColourSwatch, StockBadge } from "@/components/admin/SizeStockEditor";
 import {
   Badge,
   Button,
@@ -177,9 +177,18 @@ export default function ProductDetailPage() {
           tone="brand"
         />
         <StatTile
-          label="Sizes"
+          // Variant rows, not distinct sizes: a product in four sizes
+          // and two colours has eight things the shop counts stock
+          // against, and eight is what the inventory screen lists.
+          label={summary.colourCount ? "Sellable rows" : "Sizes"}
           value={number(summary.sizeCount)}
-          sub={summary.sizeCount ? `${summary.activeSizeCount} on sale` : "nothing sellable yet"}
+          sub={
+            summary.sizeCount
+              ? summary.colourCount
+                ? `${summary.activeSizeCount} on sale · ${summary.colourCount} colour${summary.colourCount === 1 ? "" : "s"}`
+                : `${summary.activeSizeCount} on sale`
+              : "nothing sellable yet"
+          }
           tone={summary.sizeCount ? "neutral" : "amber"}
         />
         <StatTile
@@ -259,7 +268,7 @@ export default function ProductDetailPage() {
 
           <Card>
             <CardHeader
-              title="Sizes & stock"
+              title={summary.colourCount ? "Sizes, colours & stock" : "Sizes & stock"}
               description="The rows a shopper actually buys."
               actions={
                 <LinkButton
@@ -282,6 +291,10 @@ export default function ProductDetailPage() {
                   <thead>
                     <tr className="border-b border-ink-200 bg-ink-50/60 text-left text-[11px] font-semibold tracking-wide text-ink-500 uppercase">
                       <th className="px-5 py-2.5">Size</th>
+                      {/* Only when the product is sold by colour — an
+                          empty column on every other product would be
+                          noise on the screen that is read most. */}
+                      {summary.colourCount ? <th className="px-5 py-2.5">Colour</th> : null}
                       <th className="px-5 py-2.5 text-right">Stock</th>
                       <th className="px-5 py-2.5">Status</th>
                     </tr>
@@ -290,6 +303,18 @@ export default function ProductDetailPage() {
                     {variants.map((variant) => (
                       <tr key={variant.id}>
                         <td className="px-5 py-2.5 font-semibold text-ink-800">{variant.size}</td>
+                        {summary.colourCount ? (
+                          <td className="px-5 py-2.5 text-ink-700">
+                            {variant.colour ? (
+                              <span className="inline-flex items-center gap-1.5">
+                                <ColourSwatch hex={variant.colourHex} />
+                                {variant.colour}
+                              </span>
+                            ) : (
+                              <span className="text-ink-400">—</span>
+                            )}
+                          </td>
+                        ) : null}
                         <td className="tabular px-5 py-2.5 text-right text-ink-700">
                           {number(variant.stockQuantity)}
                         </td>

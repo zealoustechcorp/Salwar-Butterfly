@@ -71,7 +71,7 @@ export const AttributeValueController = {
 
   create: asyncHandler(async (req, res) => {
     try {
-      const { groupName, value, active, position } = req.body;
+      const { groupName, value, hex, active, position } = req.body;
 
       logger.info("Create attribute value endpoint called", {
         groupName,
@@ -81,6 +81,7 @@ export const AttributeValueController = {
       const data = await AttributeValueService.create({
         groupName,
         value,
+        hex,
         active,
         position,
       });
@@ -116,8 +117,12 @@ export const AttributeValueController = {
         res,
         data: result.data,
         meta: { productsUpdated: result.productsUpdated },
+        // For colour the count is variant rows rather than products —
+        // renaming a colourway rewrites every size it is sold in — so
+        // the wording avoids naming the unit rather than naming it
+        // wrongly on one of the two paths.
         message: result.productsUpdated
-          ? `Renamed, and updated ${result.productsUpdated} product${result.productsUpdated === 1 ? "" : "s"} using it`
+          ? `Renamed, and updated ${result.productsUpdated} row${result.productsUpdated === 1 ? "" : "s"} using it`
           : "Attribute value updated successfully",
       });
     } catch (error) {

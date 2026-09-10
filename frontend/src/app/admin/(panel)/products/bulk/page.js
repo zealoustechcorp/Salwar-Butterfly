@@ -24,7 +24,7 @@ import {
 import { AttributeFields } from "@/components/admin/ProductFields";
 import { StagedGallery } from "@/components/admin/ProductGallery";
 import { SizeStockEditor } from "@/components/admin/SizeStockEditor";
-import { listAttributeValues } from "@/lib/api/attributes";
+import { listAttributeValues, listColours } from "@/lib/api/attributes";
 import { uploadImages } from "@/lib/api/images";
 import { bulkCreateProducts, getReference } from "@/lib/api/products";
 import { replaceVariants } from "@/lib/api/variants";
@@ -66,6 +66,7 @@ const BLANK_SHARED = {
 /** Applied to every product in the batch. */
 const DEFAULT_SIZES = ["S", "M", "L", "XL"].map((size) => ({
   size,
+  colour: "",
   stockQuantity: 0,
   active: true,
 }));
@@ -86,6 +87,7 @@ export default function BulkUploadPage() {
 
   const [reference, setReference] = useState(null);
   const [attributeGroups, setAttributeGroups] = useState({});
+  const [colours, setColours] = useState([]);
   const [shared, setShared] = useState(BLANK_SHARED);
   const [sizes, setSizes] = useState(DEFAULT_SIZES);
   const [rows, setRows] = useState(() => [makeRow(), makeRow(), makeRow()]);
@@ -111,6 +113,12 @@ export default function BulkUploadPage() {
       .then(setAttributeGroups)
       .catch(() => {});
 
+    // The colour chips on the size matrix. The whole batch shares one
+    // matrix, so a colourway chosen here is given to every product in it.
+    listColours({ signal: controller.signal })
+      .then(setColours)
+      .catch(() => {});
+
     return () => controller.abort();
   }, []);
 
@@ -126,6 +134,15 @@ export default function BulkUploadPage() {
       setAttributeGroups(await listAttributeValues({ activeOnly: true }));
     } catch {
       // Dropdown options only — never worth blocking the form.
+    }
+  }
+
+  /** The same, for a colour registered from the size matrix. */
+  async function refreshColours() {
+    try {
+      setColours(await listColours());
+    } catch {
+      // Swatches only. The colour is already on the batch either way.
     }
   }
 
@@ -240,7 +257,7 @@ export default function BulkUploadPage() {
         );
       } else {
         const notes = [
-          sizes.length ? `${sizes.length} size${sizes.length === 1 ? "" : "s"} each` : null,
+          sizes.length ? `${sizes.length} sellable row${sizes.length === 1 ? "" : "s"} each` : null,
           withPhotos.length
             ? `${number(withPhotos.reduce((sum, row) => sum + row.photos.length, 0))} photographs`
             : null,
@@ -384,11 +401,17 @@ export default function BulkUploadPage() {
 
       <Card>
         <CardHeader
-          title="Sizes & stock"
-          description="The same size run is given to every product in the batch. Stock can be corrected per product afterwards."
+          title="Sizes, colours & stock"
+          description="The same size run and colourways are given to every product in the batch. Stock can be corrected per product afterwards."
         />
         <div className="p-5">
-          <SizeStockEditor rows={sizes} onChange={setSizes} />
+          <SizeStockEditor
+            rows={sizes}
+            onChange={setSizes}
+            colours={colours}
+            onRegisterColour={refreshColours}
+            disabled={busy}
+          />
         </div>
       </Card>
 
@@ -510,7 +533,7 @@ export default function BulkUploadPage() {
       <Card className="bg-ink-900 text-white ring-ink-900">
         <div className="flex flex-wrap items-center gap-x-8 gap-y-3 p-5">
           <Summary label="Products" value={number(filled.length)} highlight />
-          <Summary label="Sizes each" value={number(sizes.length)} />
+          <Summary label="Rows each" value={number(sizes.length)} />
           <Summary label="Photographs" value={number(totalPhotos)} />
           <Summary label="Offer" value={percent > 0 ? `${percent}%` : "None"} />
           <Summary

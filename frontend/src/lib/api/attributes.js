@@ -27,6 +27,31 @@ import { api } from "./client";
  * The API accepts any group name, so this list is presentation only:
  * adding a fourth entry here is all it takes to offer a new attribute.
  */
+/**
+ * Colour is registered here like any other value, but it is NOT one of
+ * ATTRIBUTE_GROUPS below and must not be added to it.
+ *
+ * Everything in that list is a property of the product, stored in
+ * `products.attributes` and edited by a dropdown on the product form.
+ * Colour is a property of the sellable row — it lives on
+ * `product_variants.colour`, carries its own stock, and is edited in the
+ * size × colour matrix. Putting it in the list would put a second,
+ * contradictory colour field on the form.
+ *
+ * What it shares with the others is the register: one curated
+ * vocabulary, so "Maroon", "maroon " and "Marron" do not all reach the
+ * catalogue. Plus a hex, which only colours use.
+ */
+export const COLOUR_GROUP = {
+  key: "colour",
+  label: "Colour",
+  description: "The colourways products are sold in. Each carries its own stock.",
+  placeholder: "e.g. Rani Pink",
+};
+
+/** Shown when a registered colour has no hex recorded. */
+export const COLOUR_FALLBACK_HEX = "#E2E8F0";
+
 export const ATTRIBUTE_GROUPS = [
   {
     key: "fabric",
@@ -55,10 +80,15 @@ export function toAttributeValue(dto) {
     id: String(dto.id),
     groupName: dto.groupName ?? "",
     value: dto.value ?? "",
+    // The swatch, on colours. Null on every other group, and null on a
+    // colour nobody has picked a tone for yet — which renders as a name
+    // chip rather than a dot.
+    hex: dto.hex ?? null,
     active: Boolean(dto.active),
     position: Number(dto.position ?? 0),
-    // How many products carry this value right now — what makes the
-    // retire/delete decision an informed one.
+    // How many products carry this value right now — through their
+    // variants, for colour — which is what makes the retire/delete
+    // decision an informed one.
     usageCount: Number(dto.usageCount ?? 0),
   };
 }
@@ -86,14 +116,37 @@ export async function listAttributeValues({ activeOnly = false, token, signal } 
   );
 }
 
-export async function createAttributeValue(groupName, value, { token } = {}) {
+/**
+ * @param {string} [options.hex]  the swatch, for a colour. Accepted in
+ *        any of '#7B1E3A', '7B1E3A' or '#7B3' — the API expands and
+ *        upper-cases it to one canonical form, so nothing downstream has
+ *        to normalise before it can render.
+ */
+export async function createAttributeValue(groupName, value, { hex, token } = {}) {
   const data = await api.post(
     "/productAttributes/createAttributeValue",
-    { groupName, value },
+    { groupName, value, ...(hex ? { hex } : {}) },
     { token },
   );
 
   return toAttributeValue(data);
+}
+
+/**
+ * The registered colours, in register order, active ones only.
+ *
+ * A thin wrapper over the register read, because the product form wants
+ * one group and reading the whole register to pick a key out of it is
+ * the kind of thing that gets written three slightly different ways.
+ *
+ * A failed or empty register is not an error here — the matrix editor
+ * still works, colours are simply typed rather than picked.
+ *
+ * @returns {Promise<Array<{id, value, hex, active, usageCount}>>}
+ */
+export async function listColours({ token, signal } = {}) {
+  const groups = await listAttributeValues({ activeOnly: true, token, signal });
+  return groups[COLOUR_GROUP.key] ?? [];
 }
 
 /**

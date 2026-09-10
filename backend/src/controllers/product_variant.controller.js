@@ -90,13 +90,14 @@ export const ProductVariantController = {
 
   create: asyncHandler(async (req, res) => {
     try {
-      const { productId, size, stockQuantity, active } = req.body;
+      const { productId, size, colour, stockQuantity, active } = req.body;
 
-      logger.info("Create variant endpoint called", { productId, size });
+      logger.info("Create variant endpoint called", { productId, size, colour });
 
       const variant = await ProductVariantService.create({
         productId,
         size,
+        colour,
         stockQuantity,
         active,
       });
@@ -129,11 +130,19 @@ export const ProductVariantController = {
         variants,
       );
 
+      const saved = result.data.length;
+      const colours = result.summary?.colourCount ?? 0;
+
       return okResponse({
         res,
         data: result.data,
         meta: { summary: result.summary },
-        message: `${result.data.length} size${result.data.length === 1 ? "" : "s"} saved successfully`,
+        // Colours are mentioned only when there are any, so a shop that
+        // does not sell by colour never reads about a dimension it has
+        // no use for.
+        message: colours
+          ? `${saved} size${saved === 1 ? "" : "s"} across ${colours} colour${colours === 1 ? "" : "s"} saved successfully`
+          : `${saved} size${saved === 1 ? "" : "s"} saved successfully`,
       });
     } catch (error) {
       if (error instanceof ApiError) throw error;

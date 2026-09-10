@@ -24,7 +24,7 @@ import {
   Toggle,
   useToast,
 } from "@/components/admin/ui";
-import { listAttributeValues } from "@/lib/api/attributes";
+import { listAttributeValues, listColours } from "@/lib/api/attributes";
 import { getProduct, getReference, updateProduct } from "@/lib/api/products";
 import { getVariantsForProduct, replaceVariants } from "@/lib/api/variants";
 import { shortDate } from "@/lib/format";
@@ -33,8 +33,16 @@ const TABS = [
   { key: "details", label: "Details" },
   { key: "photos", label: "Photos" },
   { key: "pricing", label: "Price & offer" },
-  { key: "sizes", label: "Sizes & stock" },
+  { key: "sizes", label: "Sizes & colours" },
 ];
+
+/** The variant fields the form owns — the shape replaceVariants takes. */
+const toEditableRow = (variant) => ({
+  size: variant.size,
+  colour: variant.colour ?? "",
+  stockQuantity: variant.stockQuantity,
+  active: variant.active,
+});
 
 export default function EditProductPage() {
   return (
@@ -55,6 +63,7 @@ function EditProduct() {
   const [reload, setReload] = useState(0);
   const [loaded, setLoaded] = useState({ product: null, reference: null, error: null });
   const [attributeGroups, setAttributeGroups] = useState({});
+  const [colours, setColours] = useState([]);
   const [form, setForm] = useState(null);
   // Sizes live in their own table, so they are their own piece of form
   // state and their own save — `null` until the first load lands.
@@ -89,11 +98,7 @@ function EditProduct() {
         // request of its own.
         setImages(product.images ?? []);
 
-        const rows = variantResult.variants.map((variant) => ({
-          size: variant.size,
-          stockQuantity: variant.stockQuantity,
-          active: variant.active,
-        }));
+        const rows = variantResult.variants.map(toEditableRow);
         setSavedSizes(rows);
 
         // Seed the form once per product. A later reload must not discard
@@ -126,6 +131,13 @@ function EditProduct() {
       .then(setAttributeGroups)
       .catch(() => {});
 
+    // The colour chips on the size matrix. A failed register leaves the
+    // matrix working — the product's own colours still render, from the
+    // variants themselves, just without their swatches.
+    listColours({ signal: controller.signal })
+      .then(setColours)
+      .catch(() => {});
+
     return () => {
       active = false;
       controller.abort();
@@ -146,6 +158,15 @@ function EditProduct() {
       setAttributeGroups(await listAttributeValues({ activeOnly: true }));
     } catch {
       // Dropdown options only — never worth blocking the form.
+    }
+  }
+
+  /** The same, for a colour registered from the size matrix. */
+  async function refreshColours() {
+    try {
+      setColours(await listColours());
+    } catch {
+      // Swatches only. The colour is already on the product either way.
     }
   }
   const { product, reference, error } = loaded;
@@ -181,11 +202,7 @@ function EditProduct() {
       // not rewrite every variant row.
       if (sizesDirty) {
         const result = await replaceVariants(product.id, sizes);
-        const rows = result.variants.map((variant) => ({
-          size: variant.size,
-          stockQuantity: variant.stockQuantity,
-          active: variant.active,
-        }));
+        const rows = result.variants.map(toEditableRow);
         setSizes(rows);
         setSavedSizes(rows);
       }
@@ -343,15 +360,21 @@ function EditProduct() {
       {tab === "sizes" ? (
         <Card>
           <CardHeader
-            title="Sizes & stock"
-            description="Each size is a row a shopper can buy. Removing one deletes its stock count."
+            title="Sizes & colours"
+            description="Each size in each colourway is a row a shopper can buy. Removing one deletes its stock count."
             actions={sizesDirty ? <Badge tone="gold">Unsaved changes</Badge> : null}
           />
           <div className="p-5">
             {sizes === null ? (
               <SkeletonRows rows={4} />
             ) : (
-              <SizeStockEditor rows={sizes} onChange={setSizes} disabled={saving} />
+              <SizeStockEditor
+                rows={sizes}
+                onChange={setSizes}
+                colours={colours}
+                onRegisterColour={refreshColours}
+                disabled={saving}
+              />
             )}
           </div>
         </Card>

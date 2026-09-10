@@ -13,7 +13,14 @@ import { logger } from "../utils/logger.js";
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-const MAX_SIZES_PER_PRODUCT = 50;
+/**
+ * The cap is on variant rows, not on distinct sizes — a product in five
+ * sizes and four colours is twenty rows, and twenty is what the shop has
+ * to count stock against. Raised from 50 when colour arrived, because
+ * the old ceiling was a size-run ceiling and a modest colourway range
+ * would now exceed it for no good reason.
+ */
+const MAX_VARIANTS_PER_PRODUCT = 200;
 
 /** How many sizes one multi-select action may touch. */
 const MAX_BULK_VARIANTS = 200;
@@ -39,6 +46,34 @@ const normalizeSize = (value, context) => {
 
   return size;
 };
+
+/**
+ * A colour, or the empty sentinel meaning "not sold by colour".
+ *
+ * Trimmed but NOT upper-cased, unlike size. "M" is a code and reads fine
+ * shouted; "MAROON" and "RANI PINK" are names, and a storefront swatch
+ * label in block capitals looks like a mistake. The register is what
+ * keeps the casing consistent between products — this only guarantees
+ * the string is storable.
+ */
+const normalizeColour = (value, context) => {
+  if (value === undefined || value === null) return "";
+
+  if (typeof value !== "string") {
+    throw new ApiError(400, `${context}: colour must be text`);
+  }
+
+  const colour = value.trim();
+
+  if (colour.length > 40) {
+    throw new ApiError(400, `${context}: colour must not exceed 40 characters`);
+  }
+
+  return colour;
+};
+
+/** How a variant is named in a message the admin reads. */
+const describe = (size, colour) => (colour ? `${colour} ${size}` : size);
 
 const normalizeStock = (value, context) => {
   if (value === undefined || value === null || value === "") return 0;
@@ -204,7 +239,7 @@ export const ProductVariantService = {
     }
   },
 
-  async create({ productId, size, stockQuantity, active } = {}) {
+  async create({ productId, size, colour, stockQuantity, active } = {}) {
     try {
       const id = assertUuid(productId, "product ID");
 
@@ -214,6 +249,7 @@ export const ProductVariantService = {
       const dto = new CreateProductVariantDTO({
         productId: id,
         size: normalizeSize(size, "Variant"),
+        colour: normalizeColour(colour, "Variant"),
         stockQuantity: normalizeStock(stockQuantity, "Variant"),
         active: normalizeBoolean(active, true),
       });
@@ -230,7 +266,7 @@ export const ProductVariantService = {
       if (error instanceof ApiError) throw error;
 
       if (error?.code === "VARIANT_SIZE_EXISTS") {
-        throw new ApiError(409, "This product already has that size");
+        throw new ApiError(409, "This product already has that size in that colour");
       }
 
       if (error?.code === "VARIANT_PRODUCT_NOT_FOUND") {
@@ -252,12 +288,12 @@ export const ProductVariantService = {
   },
 
   /**
-   * Makes a product's size set exactly match what was sent.
+   * Makes a product's variant set exactly match what was sent.
    *
-   * This is what the product form saves: the admin edits the whole set
-   * of sizes at once, so it is written at once. A size dropped from the
-   * list is deleted — which is why the screen warns before removing one
-   * that still holds stock.
+   * This is what the product form saves: the admin edits the whole
+   * size × colour matrix at once, so it is written at once. A row
+   * dropped from the list is deleted — which is why the screen warns
+   * before removing one that still holds stock.
    */
   async replaceForProduct(productId, variants) {
     try {
@@ -267,28 +303,41 @@ export const ProductVariantService = {
         throw new ApiError(400, "Variants must be an array");
       }
 
-      if (variants.length > MAX_SIZES_PER_PRODUCT) {
+      if (variants.length > MAX_VARIANTS_PER_PRODUCT) {
         throw new ApiError(
           400,
-          `A product may not have more than ${MAX_SIZES_PER_PRODUCT} sizes`,
+          `A product may not have more than ${MAX_VARIANTS_PER_PRODUCT} size and colour combinations`,
         );
       }
 
       const exists = await ProductRepository.exists(id);
       if (!exists) throw new ApiError(404, "Product not found");
 
+      // Keyed on the pair, because the pair is the row. "M" twice is
+      // only a duplicate when both are the same colour — a product sold
+      // in Maroon and Teal legitimately lists M twice.
       const seen = new Set();
       const normalized = variants.map((variant, index) => {
         const context = `Variant at index ${index}`;
         const size = normalizeSize(variant?.size, context);
+        const colour = normalizeColour(variant?.colour, context);
 
-        if (seen.has(size)) {
-          throw new ApiError(400, `Size "${size}" is listed more than once`);
+        // A tab separates the two halves so a colour ending in the next
+        // size's name cannot forge a collision — no size or colour can
+        // contain one, both having been trimmed.
+        const key = `${size}\t${colour}`;
+
+        if (seen.has(key)) {
+          throw new ApiError(
+            400,
+            `"${describe(size, colour)}" is listed more than once`,
+          );
         }
-        seen.add(size);
+        seen.add(key);
 
         return {
           size,
+          colour,
           stockQuantity: normalizeStock(variant?.stockQuantity, context),
           active: normalizeBoolean(variant?.active, true),
         };
@@ -330,6 +379,7 @@ export const ProductVariantService = {
 
       const hasFields =
         updateData.size !== undefined ||
+        updateData.colour !== undefined ||
         updateData.stockQuantity !== undefined ||
         updateData.active !== undefined;
 
@@ -341,6 +391,10 @@ export const ProductVariantService = {
 
       if (updateData.size !== undefined) {
         patch.size = normalizeSize(updateData.size, "Variant");
+      }
+
+      if (updateData.colour !== undefined) {
+        patch.colour = normalizeColour(updateData.colour, "Variant");
       }
 
       if (updateData.stockQuantity !== undefined) {
@@ -362,7 +416,7 @@ export const ProductVariantService = {
       if (error instanceof ApiError) throw error;
 
       if (error?.code === "VARIANT_SIZE_EXISTS") {
-        throw new ApiError(409, "This product already has that size");
+        throw new ApiError(409, "This product already has that size in that colour");
       }
 
       if (error?.code === "VARIANT_STOCK_NEGATIVE") {
@@ -451,7 +505,8 @@ export const ProductVariantService = {
         throw new ApiError(404, "None of those sizes exist");
       }
 
-      const label = (row) => `${row.product_name} (${row.size})`;
+      const label = (row) =>
+        `${row.product_name} (${describe(row.size, row.colour)})`;
 
       const blocked = override
         ? []

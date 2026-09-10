@@ -17,6 +17,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { StatTile } from "@/components/admin/ProductBits";
 import { ProductCover } from "@/components/admin/ProductThumb";
+import { ColourSwatch } from "@/components/admin/SizeStockEditor";
 import {
   Badge,
   Button,
@@ -78,6 +79,15 @@ const DEFAULT_QUERY = {
 };
 
 const PAGE_SIZE = 50;
+
+/**
+ * How a row is named in a sentence — "Maroon M", or just "M".
+ *
+ * Size alone stops identifying a row the moment a product is sold in
+ * more than one colourway, and every message on this screen names the
+ * row it is about.
+ */
+const rowLabel = (row) => (row?.colour ? `${row.colour} ${row.size}` : (row?.size ?? ""));
 
 const STATUS_FILTERS = [
   { value: "all", label: "Any stock level" },
@@ -216,7 +226,9 @@ export default function InventoryPage() {
     try {
       const updated = await setStock(row.id, next, row.stockQuantity);
       patchRow(updated);
-      toast.success(`${updated.product.name} (${updated.size}) set to ${updated.stockQuantity}`);
+      toast.success(
+        `${updated.product.name} (${rowLabel(updated)}) set to ${updated.stockQuantity}`,
+      );
     } catch (err) {
       toast.error(err.message || "Could not save that count.");
       refresh();
@@ -491,7 +503,7 @@ export default function InventoryPage() {
                     />
                   </th>
                   <th className="px-3 py-2.5">Product</th>
-                  <th className="px-3 py-2.5">Size</th>
+                  <th className="px-3 py-2.5">Size &amp; colour</th>
                   <th className="px-3 py-2.5 text-center">Stock</th>
                   <th className="px-3 py-2.5">Status</th>
                   <th className="px-3 py-2.5">Updated</th>
@@ -603,13 +615,17 @@ function InventoryRow({ row, busy, selected, onSelect, onMove, onCount }) {
     onCount(value);
   };
 
+  // What this row is called out loud. "M" alone identifies nothing once
+  // a product is sold in more than one colourway.
+  const label = row.colour ? `${row.colour} ${row.size}` : `size ${row.size}`;
+
   return (
     <tr className={cx(selected && "bg-brand-50/40", !row.active && "bg-ink-50/50")}>
       <td className="px-3 py-2">
         <Checkbox
           checked={selected}
           onChange={(e) => onSelect(e.target.checked)}
-          aria-label={`Select ${row.product.name} size ${row.size}`}
+          aria-label={`Select ${row.product.name} ${label}`}
         />
       </td>
 
@@ -632,9 +648,21 @@ function InventoryRow({ row, busy, selected, onSelect, onMove, onCount }) {
       </td>
 
       <td className="px-3 py-2">
-        <span className="inline-flex min-w-10 justify-center rounded-md bg-ink-100 px-2 py-1 text-xs font-semibold text-ink-700">
-          {row.size}
-        </span>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="inline-flex min-w-10 justify-center rounded-md bg-ink-100 px-2 py-1 text-xs font-semibold text-ink-700">
+            {row.size}
+          </span>
+          {/* Swatch and name together, in the size cell rather than a
+              column of its own — most of the catalogue has no colour,
+              and an empty column on every one of those rows would cost
+              width on the screen that is read most. */}
+          {row.colour ? (
+            <span className="inline-flex items-center gap-1 text-xs text-ink-600">
+              <ColourSwatch hex={row.colourHex} />
+              {row.colour}
+            </span>
+          ) : null}
+        </div>
       </td>
 
       <td className="px-3 py-2">
@@ -643,7 +671,7 @@ function InventoryRow({ row, busy, selected, onSelect, onMove, onCount }) {
             size="sm"
             variant="ghost"
             disabled={busy || row.stockQuantity === 0}
-            aria-label={`Remove one from ${row.product.name} size ${row.size}`}
+            aria-label={`Remove one from ${row.product.name} ${label}`}
             className="px-1.5"
             onClick={() => onMove(-1)}
           >
@@ -662,14 +690,14 @@ function InventoryRow({ row, busy, selected, onSelect, onMove, onCount }) {
               if (e.key === "Escape") setDraft(String(row.stockQuantity));
             }}
             className="tabular h-8 w-20 px-2 py-0 text-center"
-            aria-label={`Stock for ${row.product.name} size ${row.size}`}
+            aria-label={`Stock for ${row.product.name} ${label}`}
           />
 
           <Button
             size="sm"
             variant="ghost"
             disabled={busy}
-            aria-label={`Add one to ${row.product.name} size ${row.size}`}
+            aria-label={`Add one to ${row.product.name} ${label}`}
             className="px-1.5"
             onClick={() => onMove(1)}
           >
@@ -794,7 +822,7 @@ function DeleteSizesDialog({ open, onClose, rows, onDeactivate, onDone }) {
               <li key={row.id} className="flex items-center gap-3 px-3 py-2">
                 <span className="min-w-0 flex-1 truncate text-xs font-medium text-ink-800">
                   {row.product.name}{" "}
-                  <span className="font-semibold text-ink-500">({row.size})</span>
+                  <span className="font-semibold text-ink-500">({rowLabel(row)})</span>
                 </span>
                 <span className="tabular shrink-0 text-[11px] text-ink-400">
                   {row.stockQuantity} in stock
@@ -908,7 +936,8 @@ function RestockDialog({ open, onClose, rows, onApply }) {
         {blocked.length > 0 ? (
           <p className="rounded-lg bg-red-50 p-3 text-xs text-red-800 ring-1 ring-inset ring-red-200">
             {blocked.length} selected size{blocked.length === 1 ? "" : "s"} do not hold enough for
-            that — {blocked[0].product.name} ({blocked[0].size}) has only {blocked[0].stockQuantity}.
+            that — {blocked[0].product.name} ({rowLabel(blocked[0])}) has only{" "}
+            {blocked[0].stockQuantity}.
             Nothing would be changed.
           </p>
         ) : null}
@@ -920,7 +949,7 @@ function RestockDialog({ open, onClose, rows, onApply }) {
                 <tr key={row.id}>
                   <td className="px-3 py-1.5 text-ink-700">
                     {row.product.name}{" "}
-                    <span className="font-semibold text-ink-500">({row.size})</span>
+                    <span className="font-semibold text-ink-500">({rowLabel(row)})</span>
                   </td>
                   <td className="tabular px-3 py-1.5 text-right text-ink-500">
                     {row.stockQuantity}

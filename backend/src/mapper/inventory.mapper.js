@@ -8,8 +8,8 @@ import {
 } from "../config/stock.policy.js";
 
 /**
- * An inventory line: one size of one product, with enough of that
- * product attached to be actionable without a second request.
+ * An inventory line: one (size, colour) of one product, with enough of
+ * that product attached to be actionable without a second request.
  *
  * The product context is nested rather than flattened onto the row, so
  * a client can pass `row.product` straight to a product tile instead of
@@ -19,10 +19,17 @@ export const InventoryMapper = {
   toDTO(row) {
     if (!row) return null;
 
+    const colour = typeof row.colour === "string" ? row.colour.trim() : "";
+
     return {
       id: row.id,
       productId: row.product_id,
       size: row.size,
+      // '' in the column means "not sold by colour" — presented as null
+      // so the sentinel stays inside the database layer. See migration
+      // 015.
+      colour: colour === "" ? null : colour,
+      colourHex: row.colour_hex ?? null,
       stockQuantity: Number(row.stock_quantity),
       active: row.active,
       position: Number(row.position ?? 0),

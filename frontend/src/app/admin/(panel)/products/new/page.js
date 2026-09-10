@@ -21,7 +21,7 @@ import {
   SkeletonRows,
   useToast,
 } from "@/components/admin/ui";
-import { listAttributeValues } from "@/lib/api/attributes";
+import { listAttributeValues, listColours } from "@/lib/api/attributes";
 import { uploadImages } from "@/lib/api/images";
 import { createProduct, getReference } from "@/lib/api/products";
 import { replaceVariants } from "@/lib/api/variants";
@@ -40,9 +40,16 @@ const BLANK = {
   active: true,
 };
 
-/** The size run most products start from — editable before saving. */
+/**
+ * The size run most products start from — editable before saving.
+ *
+ * Colourless, because most products are: choosing a colourway on the
+ * form converts these rows rather than adding beside them, so starting
+ * with one would presume an answer the admin has not given.
+ */
 const DEFAULT_SIZES = ["S", "M", "L", "XL"].map((size) => ({
   size,
+  colour: "",
   stockQuantity: 0,
   active: true,
 }));
@@ -53,6 +60,7 @@ export default function NewProductPage() {
 
   const [reference, setReference] = useState(null);
   const [attributeGroups, setAttributeGroups] = useState({});
+  const [colours, setColours] = useState([]);
   const [form, setForm] = useState(BLANK);
   const [sizes, setSizes] = useState(DEFAULT_SIZES);
   // Held in the browser until the product exists — photographs are keyed
@@ -76,6 +84,13 @@ export default function NewProductPage() {
       .then(setAttributeGroups)
       .catch(() => {});
 
+    // The colour chips on the size matrix. An empty or failed register
+    // leaves the matrix working — a colour can still be registered
+    // inline, and a product need not have one at all.
+    listColours({ signal: controller.signal })
+      .then(setColours)
+      .catch(() => {});
+
     return () => controller.abort();
   }, []);
 
@@ -91,6 +106,15 @@ export default function NewProductPage() {
       setAttributeGroups(await listAttributeValues({ activeOnly: true }));
     } catch {
       // Dropdown options only — never worth blocking the form.
+    }
+  }
+
+  /** The same, for a colour registered from the size matrix. */
+  async function refreshColours() {
+    try {
+      setColours(await listColours());
+    } catch {
+      // Swatches only. The colour is already on the product either way.
     }
   }
 
@@ -124,7 +148,7 @@ export default function NewProductPage() {
           // implying nothing happened, and send them to the edit screen
           // where the sizes can be retried.
           toast.error(
-            `"${product.name}" was created, but its sizes were not saved.`,
+            `"${product.name}" was created, but its sizes and colours were not saved.`,
             variantError.message,
           );
           router.push(`/admin/products/${product.id}/edit?tab=sizes`);
@@ -148,7 +172,7 @@ export default function NewProductPage() {
       }
 
       const added = [
-        sizes.length ? `${sizes.length} size${sizes.length === 1 ? "" : "s"}` : null,
+        sizes.length ? describeMatrix(sizes) : null,
         photos.length ? `${photos.length} image${photos.length === 1 ? "" : "s"}` : null,
       ].filter(Boolean);
 
@@ -219,11 +243,17 @@ export default function NewProductPage() {
 
       <Card>
         <CardHeader
-          title="Sizes & stock"
-          description="The sellable rows. Each size carries its own stock count."
+          title="Sizes, colours & stock"
+          description="The sellable rows. Each size in each colourway carries its own stock count."
         />
         <div className="p-5">
-          <SizeStockEditor rows={sizes} onChange={setSizes} />
+          <SizeStockEditor
+            rows={sizes}
+            onChange={setSizes}
+            colours={colours}
+            onRegisterColour={refreshColours}
+            disabled={busy}
+          />
         </div>
       </Card>
 
@@ -247,10 +277,7 @@ export default function NewProductPage() {
           <div className="text-xs text-ink-500">
             <Requirement met={readyDetails} label="Name & category" />
             <Requirement met={readyPricing} label="Base price" />
-            <Requirement
-              met={sizes.length > 0}
-              label={`${sizes.length} size${sizes.length === 1 ? "" : "s"}`}
-            />
+            <Requirement met={sizes.length > 0} label={describeMatrix(sizes)} />
           </div>
           <div className="ml-auto flex items-center gap-2">
             <LinkButton variant="ghost" href="/admin/products">
@@ -270,6 +297,23 @@ export default function NewProductPage() {
       </div>
     </div>
   );
+}
+
+/**
+ * "4 sizes", or "4 sizes in 2 colours".
+ *
+ * Colours are named only when there are any, so a shop that does not
+ * sell by colour never reads about a dimension it has no use for.
+ */
+function describeMatrix(rows) {
+  const sizes = new Set(rows.map((row) => row.size));
+  const colours = new Set(rows.map((row) => row.colour).filter(Boolean));
+
+  const sizePart = `${sizes.size} size${sizes.size === 1 ? "" : "s"}`;
+
+  return colours.size
+    ? `${sizePart} in ${colours.size} colour${colours.size === 1 ? "" : "s"}`
+    : sizePart;
 }
 
 function Requirement({ met, label }) {

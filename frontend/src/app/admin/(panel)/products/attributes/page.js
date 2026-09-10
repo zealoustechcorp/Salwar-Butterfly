@@ -18,6 +18,8 @@ import {
 } from "@/components/admin/ui";
 import {
   ATTRIBUTE_GROUPS,
+  COLOUR_FALLBACK_HEX,
+  COLOUR_GROUP,
   createAttributeValue,
   deleteAttributeValue,
   listAttributeValues,
@@ -79,9 +81,14 @@ export default function AttributesPage() {
   if (!groups) return <SkeletonRows rows={10} className="mx-auto max-w-4xl" />;
 
   // Groups the API knows about but this build does not render yet — shown
-  // so a value can never become invisible and unmanageable.
+  // so a value can never become invisible and unmanageable. Colour is
+  // excluded because it gets its own panel below: it is rendered here
+  // but is deliberately not one of ATTRIBUTE_GROUPS, since it belongs to
+  // the variant rather than the product.
   const extraGroups = Object.keys(groups).filter(
-    (key) => !ATTRIBUTE_GROUPS.some((group) => group.key === key),
+    (key) =>
+      key !== COLOUR_GROUP.key &&
+      !ATTRIBUTE_GROUPS.some((group) => group.key === key),
   );
 
   const total = Object.values(groups).reduce((sum, list) => sum + list.length, 0);
@@ -104,6 +111,16 @@ export default function AttributesPage() {
           Back to products
         </LinkButton>
       </div>
+
+      {/* Colour first, and with swatches: it is the only group carried by
+          the sellable row rather than the product, and the only one a
+          shop picks by eye. */}
+      <GroupPanel
+        group={COLOUR_GROUP}
+        values={groups[COLOUR_GROUP.key] ?? []}
+        withSwatch
+        onDone={load}
+      />
 
       {ATTRIBUTE_GROUPS.map((group) => (
         <GroupPanel
@@ -131,10 +148,16 @@ export default function AttributesPage() {
   );
 }
 
-function GroupPanel({ group, values, onDone }) {
+/**
+ * @param {boolean} [props.withSwatch]  render and edit a hex alongside
+ *        each value. Only colour uses it; every other group leaves the
+ *        column null and would show an empty picker for no reason.
+ */
+function GroupPanel({ group, values, withSwatch = false, onDone }) {
   const toast = useToast();
 
   const [draft, setDraft] = useState("");
+  const [hexDraft, setHexDraft] = useState("#7B1E3A");
   const [adding, setAdding] = useState(false);
   const [busyId, setBusyId] = useState(null);
   const [editingId, setEditingId] = useState(null);
@@ -149,7 +172,9 @@ function GroupPanel({ group, values, onDone }) {
 
     setAdding(true);
     try {
-      await createAttributeValue(group.key, value);
+      await createAttributeValue(group.key, value, {
+        ...(withSwatch ? { hex: hexDraft } : {}),
+      });
       toast.success(`"${value}" added to ${group.label.toLowerCase()}.`);
       setDraft("");
       await onDone();
@@ -157,6 +182,21 @@ function GroupPanel({ group, values, onDone }) {
       toast.error(err.message || "Could not add the value.");
     } finally {
       setAdding(false);
+    }
+  }
+
+  /** Re-tones a colour. Every row carrying it restyles on the next read. */
+  async function saveHex(value, hex) {
+    if (hex === value.hex) return;
+
+    setBusyId(value.id);
+    try {
+      await updateAttributeValue(value.id, { hex });
+      await onDone();
+    } catch (err) {
+      toast.error(err.message || "Could not change the swatch.");
+    } finally {
+      setBusyId(null);
     }
   }
 
@@ -190,8 +230,11 @@ function GroupPanel({ group, values, onDone }) {
       const result = await updateAttributeValue(value.id, { value: next });
       toast.success(
         `Renamed to "${result.value.value}".`,
+        // Products, for a group carried by the product; variant rows for
+        // colour, which a product carries once per size it sells the
+        // colourway in. "Rows" is honest on both paths.
         result.productsUpdated
-          ? `${result.productsUpdated} product${result.productsUpdated === 1 ? "" : "s"} updated too.`
+          ? `${result.productsUpdated} row${result.productsUpdated === 1 ? "" : "s"} updated too.`
           : undefined,
       );
       setEditingId(null);
@@ -233,6 +276,15 @@ function GroupPanel({ group, values, onDone }) {
 
       <div className="border-b border-ink-200/80 p-4">
         <div className="flex flex-wrap items-center gap-2">
+          {withSwatch ? (
+            <input
+              type="color"
+              value={hexDraft}
+              onChange={(e) => setHexDraft(e.target.value)}
+              aria-label="Swatch for the new colour"
+              className="size-9 shrink-0 cursor-pointer rounded border border-ink-300 bg-white p-0.5"
+            />
+          ) : null}
           <Input
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
@@ -243,7 +295,10 @@ function GroupPanel({ group, values, onDone }) {
               }
             }}
             placeholder={group.placeholder}
-            maxLength={100}
+            // product_variants.colour is VARCHAR(40); every other
+            // group writes into products.attributes, which is not capped
+            // below the register’s own 100.
+            maxLength={withSwatch ? 40 : 100}
             className="w-64"
             aria-label={`Add a ${group.label.toLowerCase()} value`}
           />
@@ -282,7 +337,7 @@ function GroupPanel({ group, values, onDone }) {
                       }
                       if (e.key === "Escape") setEditingId(null);
                     }}
-                    maxLength={100}
+                    maxLength={withSwatch ? 40 : 100}
                     className="w-56"
                     aria-label={`Rename ${value.value}`}
                   />
@@ -307,6 +362,22 @@ function GroupPanel({ group, values, onDone }) {
                 </>
               ) : (
                 <>
+                  {withSwatch ? (
+                    // Committed as soon as the picker closes. A swatch is
+                    // a single field with no other half to coordinate,
+                    // so a Save button beside it would only be a step
+                    // that can be forgotten.
+                    <input
+                      type="color"
+                      value={value.hex || COLOUR_FALLBACK_HEX}
+                      disabled={busyId === value.id}
+                      onChange={(e) => saveHex(value, e.target.value)}
+                      aria-label={`Swatch for ${value.value}`}
+                      title={value.hex || "No swatch recorded"}
+                      className="size-7 shrink-0 cursor-pointer rounded border border-ink-300 bg-white p-0.5"
+                    />
+                  ) : null}
+
                   <span
                     className={cx(
                       "min-w-40 text-sm font-medium",

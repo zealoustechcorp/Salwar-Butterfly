@@ -3,11 +3,11 @@ import { ApiError } from "../utils/ApiError.js";
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-const MAX_SIZES_PER_PRODUCT = 50;
+const MAX_VARIANTS_PER_PRODUCT = 200;
 
 /**
  * Shape checks only. The values themselves — trimming, upper-casing,
- * the stock ceiling, duplicate sizes — are normalized in
+ * the stock ceiling, duplicate (size, colour) pairs — are normalized in
  * ProductVariantService, so that a variant written through any path
  * gets the same treatment.
  */
@@ -19,6 +19,23 @@ const validateSize = (value, path) => {
 
   if (value.trim().length > 20) {
     return `${path}: size must not exceed 20 characters`;
+  }
+
+  return null;
+};
+
+/**
+ * Colour is optional everywhere size is required: a product that is not
+ * sold by colour is a normal product, not an incomplete one. Null and ""
+ * are both accepted and both mean the same thing.
+ */
+const validateColour = (value, path) => {
+  if (value === undefined || value === null || value === "") return null;
+
+  if (typeof value !== "string") return `${path}: colour must be text`;
+
+  if (value.trim().length > 40) {
+    return `${path}: colour must not exceed 40 characters`;
   }
 
   return null;
@@ -50,7 +67,7 @@ const validateActive = (value, path) => {
 
 export const validateCreateVariant = (req, res, next) => {
   try {
-    const { productId, size, stockQuantity, active } = req.body ?? {};
+    const { productId, size, colour, stockQuantity, active } = req.body ?? {};
 
     const errors = {};
 
@@ -60,6 +77,9 @@ export const validateCreateVariant = (req, res, next) => {
 
     const sizeError = validateSize(size, "Variant");
     if (sizeError) errors.size = sizeError;
+
+    const colourError = validateColour(colour, "Variant");
+    if (colourError) errors.colour = colourError;
 
     const stockError = validateStock(stockQuantity, "Variant");
     if (stockError) errors.stockQuantity = stockError;
@@ -93,9 +113,9 @@ export const validateReplaceVariants = (req, res, next) => {
       });
     }
 
-    if (variants.length > MAX_SIZES_PER_PRODUCT) {
+    if (variants.length > MAX_VARIANTS_PER_PRODUCT) {
       throw new ApiError(400, "Validation failed", {
-        variants: `A product may not have more than ${MAX_SIZES_PER_PRODUCT} sizes`,
+        variants: `A product may not have more than ${MAX_VARIANTS_PER_PRODUCT} size and colour combinations`,
       });
     }
 
@@ -106,6 +126,9 @@ export const validateReplaceVariants = (req, res, next) => {
 
       const sizeError = validateSize(variant?.size, path);
       if (sizeError) errors[`variants.${index}.size`] = sizeError;
+
+      const colourError = validateColour(variant?.colour, path);
+      if (colourError) errors[`variants.${index}.colour`] = colourError;
 
       const stockError = validateStock(variant?.stockQuantity, path);
       if (stockError) errors[`variants.${index}.stockQuantity`] = stockError;
@@ -208,10 +231,11 @@ export const validateUpdateVariant = (req, res, next) => {
       throw new ApiError(400, "Invalid variant ID format");
     }
 
-    const { size, stockQuantity, active } = req.body ?? {};
+    const { size, colour, stockQuantity, active } = req.body ?? {};
 
     if (
       size === undefined &&
+      colour === undefined &&
       stockQuantity === undefined &&
       active === undefined
     ) {
@@ -223,6 +247,11 @@ export const validateUpdateVariant = (req, res, next) => {
     if (size !== undefined) {
       const error = validateSize(size, "Variant");
       if (error) errors.size = error;
+    }
+
+    if (colour !== undefined) {
+      const error = validateColour(colour, "Variant");
+      if (error) errors.colour = error;
     }
 
     if (stockQuantity !== undefined) {

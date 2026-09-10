@@ -19,6 +19,15 @@ export const productAttributeValueEntity = {
       notNull: true,
     },
 
+    // The swatch, '#RRGGBB'. Only the colour group fills it in; fabric
+    // and work rows leave it null, and so does a colour recorded before
+    // anyone picked a tone for it.
+    hex: {
+      type: "CHAR(7)",
+      notNull: false,
+      check: "hex IS NULL OR hex ~ '^#[0-9A-Fa-f]{6}$'",
+    },
+
     active: {
       type: "BOOLEAN",
       notNull: true,
@@ -49,6 +58,11 @@ export const productAttributeValueEntity = {
       name: "uq_product_attribute_values_group_value",
       type: "UNIQUE",
       fields: ["group_name", "value"],
+    },
+    {
+      name: "ck_product_attribute_values_hex",
+      type: "CHECK",
+      expression: "hex IS NULL OR hex ~ '^#[0-9A-Fa-f]{6}$'",
     },
   ],
 

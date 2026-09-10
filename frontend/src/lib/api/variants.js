@@ -1,14 +1,20 @@
 /**
- * Product variants — the sellable sizes, and the stock behind each one.
+ * Product variants — the sellable rows, and the stock behind each one.
  *
  * A product is a listing; a variant is the row a shopper actually buys.
- * One row per (product, size), each with its own stock count, which is
- * why "S sold out, M has 12 left" is expressible at all.
+ * One row per (product, size, colour), each with its own stock count,
+ * which is why "Maroon M sold out, Teal M has 12 left" is expressible at
+ * all.
  *
- * The product form edits a product's whole size set at once, so the
- * write path is `replaceVariants` — one transactional PUT rather than a
+ * `colour` is null on a product that is not sold by colour, which is
+ * every product that predates the feature. Nothing here requires it: a
+ * colourless variant set behaves exactly as it did when size was the
+ * only dimension.
+ *
+ * The product form edits a product's whole matrix at once, so the write
+ * path is `replaceVariants` — one transactional PUT rather than a
  * create/update/delete dance that can fail halfway and leave a product
- * with three of the four sizes the admin intended.
+ * with three of the four rows the admin intended.
  */
 
 import { api } from "./client";
@@ -25,6 +31,8 @@ export const STANDARD_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "3XL"];
 const EMPTY_SUMMARY = {
   sizeCount: 0,
   activeSizeCount: 0,
+  colourCount: 0,
+  colours: [],
   totalStock: 0,
   lowestStatus: "unavailable",
 };
@@ -36,6 +44,15 @@ export function toVariant(dto) {
     id: String(dto.id),
     productId: String(dto.productId),
     size: dto.size ?? "",
+    // "" rather than null, so a variant row can be compared and keyed
+    // without a null check at every site. The API's null and this ""
+    // mean the same thing: not sold by colour.
+    colour: dto.colour ?? "",
+    // Joined from the approved-values register by the API, so a colour
+    // re-toned there shows its new swatch everywhere at once. Null when
+    // the colour is unregistered or has no swatch recorded — render a
+    // name chip instead.
+    colourHex: dto.colourHex ?? null,
     stockQuantity: Number(dto.stockQuantity ?? 0),
     active: Boolean(dto.active),
     position: Number(dto.position ?? 0),
@@ -43,6 +60,23 @@ export function toVariant(dto) {
     // storefront cannot disagree about what "low" means.
     stockStatus: dto.stockStatus ?? "unavailable",
   };
+}
+
+/**
+ * The row identity the matrix editor keys on: the pair, not the size.
+ *
+ * A tab separates the halves so that ("Rani Pink", "M") and ("Rani",
+ * "Pink M") cannot produce the same key — neither a size nor a colour
+ * can contain one, both having been trimmed. The API keys its own
+ * duplicate check the same way.
+ */
+export function variantKey(row) {
+  return `${row?.colour ?? ""}\t${row?.size ?? ""}`;
+}
+
+/** How a variant is named in a sentence — "Maroon M", or just "M". */
+export function variantLabel(row) {
+  return row?.colour ? `${row.colour} ${row.size}` : (row?.size ?? "");
 }
 
 export { EMPTY_SUMMARY };
@@ -90,14 +124,16 @@ export async function getVariantSummaries({ maxPages = 20, token, signal } = {})
 }
 
 /**
- * Makes a product's sizes exactly match `variants`, in one transaction.
+ * Makes a product's variants exactly match `variants`, in one
+ * transaction.
  *
- * A size left out of the list is deleted along with its stock count, so
+ * A row left out of the list is deleted along with its stock count, so
  * callers should confirm before dropping one that still holds stock.
  *
  * @param {string} productId
- * @param {Array<{size: string, stockQuantity: number, active?: boolean}>} variants
- *        order matters — it is stored and replayed on read
+ * @param {Array<{size: string, colour?: string, stockQuantity: number, active?: boolean}>} variants
+ *        order matters — it is stored and replayed on read. `colour` may
+ *        be omitted or "" for a product not sold by colour.
  */
 export async function replaceVariants(productId, variants, { token } = {}) {
   const { data, meta } = await api.put(
@@ -105,6 +141,7 @@ export async function replaceVariants(productId, variants, { token } = {}) {
     {
       variants: variants.map((variant) => ({
         size: variant.size,
+        colour: variant.colour ?? "",
         stockQuantity: Number(variant.stockQuantity) || 0,
         active: variant.active ?? true,
       })),

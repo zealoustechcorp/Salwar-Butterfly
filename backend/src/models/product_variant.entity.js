@@ -24,6 +24,16 @@ export const productVariantEntity = {
       notNull: true,
     },
 
+    // The empty string means "not sold by colour", not "colour unknown".
+    // NULL would break the unique constraint below — NULLs are distinct
+    // from one another, so two colourless rows for the same size would
+    // both be accepted. See migration 015.
+    colour: {
+      type: "VARCHAR(40)",
+      notNull: true,
+      default: "''",
+    },
+
     stock_quantity: {
       type: "INTEGER",
       notNull: true,
@@ -58,14 +68,15 @@ export const productVariantEntity = {
 
   constraints: [
     {
-      name: "uq_product_variants_product_size",
+      name: "uq_product_variants_product_size_colour",
       type: "UNIQUE",
-      fields: ["product_id", "size"],
+      fields: ["product_id", "size", "colour"],
     },
   ],
 
   indexes: [
     { name: "idx_product_variants_product", fields: ["product_id"] },
+    { name: "idx_product_variants_product_colour", fields: ["product_id", "colour"] },
     { name: "idx_product_variants_active", fields: ["active"] },
     { name: "idx_product_variants_stock", fields: ["stock_quantity"] },
     { name: "idx_product_variants_position", fields: ["product_id", "position"] },

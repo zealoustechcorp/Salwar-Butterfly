@@ -26,6 +26,7 @@ export const STOCK_SORTS = [
   { value: "stock_asc", label: "Lowest stock first" },
   { value: "stock_desc", label: "Highest stock first" },
   { value: "product", label: "Product A–Z" },
+  { value: "colour", label: "Colour A–Z" },
   { value: "updated", label: "Recently updated" },
 ];
 
@@ -54,6 +55,13 @@ export function toInventoryLine(dto) {
     id: String(dto.id),
     productId: String(dto.productId),
     size: dto.size ?? "",
+    // "" on a product not sold by colour, which is most of them. The
+    // table hides the swatch entirely rather than drawing a blank one.
+    colour: dto.colour ?? "",
+    // Joined from the approved-values register by the API, so a colour
+    // re-toned there restyles every row at once. Null when the colour is
+    // unregistered or has no swatch recorded.
+    colourHex: dto.colourHex ?? null,
     stockQuantity: Number(dto.stockQuantity ?? 0),
     active: Boolean(dto.active),
     position: Number(dto.position ?? 0),
