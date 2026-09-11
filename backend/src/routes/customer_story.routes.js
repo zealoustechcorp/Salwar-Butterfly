@@ -25,7 +25,6 @@ import {
   validateUploadedImages,
 } from "../middlewares/upload.middleware.js";
 import {
-  validateCreateStory,
   validateReorder,
   validateSetPublished,
   validateStoryIdParam,
@@ -47,11 +46,14 @@ router.get(
   CustomerStoryController.getCustomerStoryById,
 );
 
-// The ordinary way in: a batch of photographs, one story each, nothing
-// typed. The multipart chain reads left to right — multer parses, its
-// error handler turns a count or size refusal into a sentence, the
-// magic-byte check verifies every buffer, and only then does the
-// validator ask whether there was a file at all.
+// The only way in: a batch of photographs, one story each, nothing
+// typed. A story must carry a picture (019), so there is no JSON create
+// beside this one — everything a story can be starts with a file.
+//
+// The multipart chain reads left to right — multer parses, its error
+// handler turns a count or size refusal into a sentence, the magic-byte
+// check verifies every buffer, and only then does the validator ask
+// whether there was a file at all.
 router.post(
   "/createCustomerStories",
   uploadStoryImages,
@@ -61,17 +63,9 @@ router.post(
   CustomerStoryController.createFromImages,
 );
 
-// The other way in: a story that is words. Its own endpoint rather than
-// a flag on the one above, because a multipart request carrying no files
-// and some text is a shape nobody reads correctly twice.
-router.post(
-  "/createCustomerStory",
-  validateCreateStory,
-  CustomerStoryController.createFromText,
-);
-
 // Naming the customer, quoting them, pointing the card at a piece. A
-// full replace of those three; the photograph is not touched.
+// full replace of those three, any of which may be cleared; the
+// photograph is not touched.
 router.put(
   "/updateCustomerStory/:id",
   validateStoryIdParam,
@@ -79,7 +73,7 @@ router.put(
   CustomerStoryController.updateCustomerStory,
 );
 
-// Swapping the photograph, or giving one to a story that had none.
+// Swapping the photograph on a card that already has one.
 router.put(
   "/replaceStoryImage/:id",
   validateStoryIdParam,

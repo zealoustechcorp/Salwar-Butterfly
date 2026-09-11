@@ -1,10 +1,10 @@
 "use client";
 
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
-import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { GarmentArt } from "./GarmentArt";
+import { MediaFrame } from "./MediaFrame";
 import { Butterfly } from "./Ornaments";
 import { Stars } from "./Stars";
 import { useBrowse } from "./BrowseProvider";
@@ -217,8 +217,14 @@ function BannerCarousel({ slides, onFail }) {
       onFocus={() => setHeld(true)}
       onBlur={() => setHeld(false)}
     >
+      {/* A fixed 16:9 at every width. The banner set is a mix of whatever
+          the shop has had made — a wide flyer, a square post, a photo off
+          a phone — and letting each slide bring its own shape would make
+          the first fold of the home page change height as it rotates.
+          What fills the frame is MediaFrame's problem; how big the frame
+          is, is this line's. */}
       <div
-        className="group relative aspect-4/5 touch-pan-y overflow-hidden rounded-3xl border border-sb-gold/45 shadow-xl shadow-sb-maroon-deco/15 sm:aspect-square md:aspect-4/5"
+        className="group relative aspect-16/9 touch-pan-y overflow-hidden rounded-3xl border border-sb-gold/45 shadow-xl shadow-sb-maroon-deco/15"
         onPointerDown={(event) => {
           dragFrom.current = event.clientX;
         }}
@@ -234,20 +240,23 @@ function BannerCarousel({ slides, onFail }) {
           {slides.map((src, i) => (
             <div
               key={src}
-              className="relative h-full w-full shrink-0"
+              className="h-full w-full shrink-0"
               aria-roledescription="slide"
               aria-label={`Banner ${i + 1} of ${count}`}
               aria-hidden={i !== index}
             >
-              <Image
+              {/* `ratio="h-full w-full"` because the shape is the track's
+                  to decide here, not the frame's — every slide is the
+                  16:9 box above. A banner that is not 16:9 is fitted
+                  inside it against a blurred copy of itself rather than
+                  being cropped to the middle third. */}
+              <MediaFrame
                 src={src}
                 alt=""
-                fill
-                draggable={false}
-                priority={i === 0}
+                ratio="h-full w-full"
                 sizes="(min-width: 768px) 45vw, 92vw"
+                priority={i === 0}
                 onError={() => onFail(src)}
-                className="object-cover select-none"
               />
             </div>
           ))}

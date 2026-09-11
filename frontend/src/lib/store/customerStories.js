@@ -7,6 +7,9 @@
  * and nothing else. The story's id, its position, the published flag and
  * the Cloudinary public id live on the admin API and never reach here.
  *
+ * `image` is always a URL. `customer_name` and `body` may each be null —
+ * most stories are a photograph and nothing else.
+ *
  * `product` is an object or null. Null covers both "this story names no
  * piece" and "the piece it names is no longer on sale" — the API
  * collapses those before they reach the browser, so the card has one
@@ -40,7 +43,7 @@ const REVALIDATE_SECONDS = 300;
  * The published stories, in the order the shop chose.
  *
  * @returns {Promise<Array<{customer_name: string|null, body: string|null,
- *          image: string|null, product: {id: string, name: string}|null}>>}
+ *          image: string, product: {id: string, name: string}|null}>>}
  *          an empty array means the shop publishes none, or that they
  *          could not be read
  */

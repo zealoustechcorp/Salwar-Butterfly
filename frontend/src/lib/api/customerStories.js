@@ -14,18 +14,18 @@
  *
  * Three things about the API worth knowing before calling it:
  *
- *   - **Two ways to create.** `createStoriesFromImages` takes a batch of
- *     photographs and makes one card each, with nothing typed. That is
- *     the ordinary gesture. `createStoryFromText` is for the other case:
- *     a quote with no picture.
+ *   - **A story is always a photograph.** `createStoriesFromImages` is
+ *     the only way to make one: a batch of pictures becomes a card each,
+ *     with nothing typed. There is no way to publish a quote on its own
+ *     — the rail is built out of pictures, and a card with an empty
+ *     frame reads as something that failed to load.
  *   - **New stories go to the front.** The API inserts at position 1 and
  *     pushes everything else back — the opposite of a banner, because
  *     these accumulate and the fresh ones are the ones worth showing.
  *     Position is never sent.
- *   - **`updateStory` is a replace of the three typed fields.** Sending
- *     an empty `body` clears the quote. It is refused when the story has
- *     no photograph to fall back on, because that would leave a card
- *     with nothing on it.
+ *   - **`updateStory` is a replace of the three typed fields.** Any of
+ *     them may be cleared, including the quote: what is left is still a
+ *     photograph, which is still a card.
  *
  * Errors are the `ApiError` thrown by the shared client.
  */
@@ -140,22 +140,12 @@ export async function createStoriesFromImages(files, { token } = {}) {
   };
 }
 
-/** A story that is words rather than a photograph. Returns the whole list. */
-export async function createStoryFromText(fields, { token } = {}) {
-  const data = await api.post(
-    "/customerStories/createCustomerStory",
-    toBody(fields),
-    { token },
-  );
-
-  return (data ?? []).map(toStory);
-}
-
 /**
  * Replaces a story's name, quote and product link.
  *
  * A replace of those three, not a patch — clearing a field and leaving
- * it alone are different edits. The photograph is not touched.
+ * it alone are different edits. The photograph is not touched, and
+ * cannot be removed: every story has one.
  */
 export async function updateStory(id, fields, { token } = {}) {
   const data = await api.put(
@@ -167,7 +157,7 @@ export async function updateStory(id, fields, { token } = {}) {
   return toStory(data);
 }
 
-/** Swaps a story's photograph, or gives one to a story that had none. */
+/** Swaps a story's photograph for a new one, keeping its place. */
 export async function replaceStoryImage(id, file, { token } = {}) {
   const body = new FormData();
 

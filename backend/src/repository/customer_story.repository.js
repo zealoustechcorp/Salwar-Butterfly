@@ -108,10 +108,10 @@ export const CustomerStoryRepository = {
   /**
    * Inserts rows at the front of the order.
    *
-   * Shared by both create paths — a batch of photographs and a single
-   * typed quote — because "new goes first" is the same rule either way
-   * and doing it twice would be two chances to get the renumbering
-   * wrong.
+   * Takes a list rather than one row because the way in is a batch: the
+   * shop drops a set of photographs in at once, and renumbering the
+   * table once for the whole set is both cheaper and the only way the
+   * batch keeps the order it was picked in.
    *
    * Everything already in the table is pushed back by the number of new
    * rows, and the new ones take 1..N in the order given. One
@@ -188,7 +188,7 @@ export const CustomerStoryRepository = {
     }
   },
 
-  /** Swaps a story's photograph, or gives one to a story that had none. */
+  /** Swaps a story's photograph for a newly uploaded one. */
   async replaceImage(id, image) {
     try {
       const result = await query(

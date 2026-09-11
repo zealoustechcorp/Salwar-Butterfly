@@ -9,11 +9,12 @@
 // imported directly, so this file and the CHECK constraints in 018 are
 // quoting one source.
 //
-// What is *not* decided here: whether the row ends up with content at
-// all. A create carrying files gets its content from the files, an edit
-// gets it from what the story already has, and neither is visible from
-// the body alone — see the service, which is where the "a picture, or
-// some words, or both" rule is enforced.
+// All three typed fields are optional, and that is the whole shape of
+// this file now that a story must carry a photograph (019). The picture
+// is what makes a story publishable; the name and the quote are what the
+// shop adds to the ones that have them. There is nothing here that can
+// leave a row with nothing on it, because there is no way in that does
+// not bring a file with it.
 
 import { ApiError } from "../utils/ApiError.js";
 import {
@@ -104,38 +105,16 @@ const validateStoryFields = (body) => {
 };
 
 /**
- * A story typed rather than uploaded — one quote, no photograph.
- *
- * The one field this insists on is `body`. A story with no image and no
- * words is nothing at all, and the row would be refused by the CHECK in
- * 018 with a message about a constraint rather than about a quote.
- */
-export const validateCreateStory = (req, res, next) => {
-  const body = req.body ?? {};
-
-  const errors = validateStoryFields(body);
-
-  if (!errors.body && blank(body.body)) {
-    errors.body = "Type the quote, or upload a photograph instead";
-  }
-
-  if (Object.keys(errors).length) {
-    throw new ApiError(400, "Validation failed", errors);
-  }
-
-  req.body = body;
-
-  next();
-};
-
-/**
  * An edit of a story's typed fields.
  *
  * A full replace of the three, not a patch: clearing a name and leaving
  * it alone are different edits, and a body that omitted the field could
- * not tell them apart. An empty body is allowed here because the story
- * may be carrying a photograph — whether what is left amounts to a story
- * is checked by the service, which can see the row.
+ * not tell them apart.
+ *
+ * Every field may be empty. A story that loses its name and its quote is
+ * still a photograph, which is still a card — that is what 019 changed,
+ * and it is why there is no "would this leave the story empty" check
+ * anywhere below this line.
  */
 export const validateUpdateStory = (req, res, next) => {
   const body = req.body ?? {};

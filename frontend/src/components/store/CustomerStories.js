@@ -1,6 +1,6 @@
-import Image from "next/image";
 import Link from "next/link";
 
+import { MediaFrame } from "./MediaFrame";
 import { Butterfly } from "./Ornaments";
 
 /**
@@ -15,10 +15,20 @@ import { Butterfly } from "./Ornaments";
  * /admin/home/stories. If the shop has published none, this renders
  * nothing at all — no placeholder, no sample quote.
  *
- * A card is a photograph, or some words, or both. There is no `type`
- * field deciding which; the card is assembled from whichever of the two
- * the story carries, which is the same rule the CHECK constraint in the
- * database enforces.
+ * Every card is a photograph, and some of them carry a name and
+ * something the customer said. Words on their own are not publishable —
+ * the column is NOT NULL as of migration 019 — because the rail is a row
+ * of pictures, and a card with an empty frame in it reads as an image
+ * that failed to load rather than as a quote.
+ *
+ * Every card is exactly 9:16 and nothing it contains can change that.
+ * The picture does not set the height — MediaFrame fits it inside the
+ * frame and fills what is left with a blurred copy of itself — and
+ * neither does the caption, which is laid over the bottom of the picture
+ * rather than stacked under it. A rail whose cards were each as tall as
+ * their own contents is a rail that either crops the short ones or
+ * leaves a band of dead colour under them, and both of those have been
+ * tried here.
  *
  * A horizontal rail rather than a grid. The API serves up to two dozen
  * of these, and two dozen cards stacked into a grid is more home page
@@ -60,11 +70,7 @@ export function CustomerStories({ stories = [] }) {
       <div className="-mt-2 overflow-x-auto pb-10 sm:pb-12 lg:pb-14">
         <ul className="flex snap-x snap-mandatory gap-4 px-4 sm:gap-5 sm:px-6 lg:px-8">
           {stories.map((story, index) => (
-            <StoryCard
-              key={`${story.image ?? story.body}-${index}`}
-              story={story}
-              index={index}
-            />
+            <StoryCard key={story.image} story={story} index={index} />
           ))}
 
           {/* A tail spacer, so the last card can scroll clear of the screen
@@ -87,76 +93,67 @@ export function CustomerStories({ stories = [] }) {
 function StoryCard({ story, index }) {
   const { image, body, customer_name: name, product } = story;
 
-  const card = (
-    <article className="flex h-full flex-col overflow-hidden rounded-2xl border border-sb-gold/35 bg-sb-bg transition-shadow group-hover:shadow-lg group-hover:shadow-sb-maroon-deco/10">
-      {image ? (
-        <div className="relative aspect-4/5 shrink-0 bg-sb-surface/40">
-          <Image
-            src={image}
-            alt={altFor(name, product)}
-            fill
-            // Fixed frame and `object-cover`, because what arrives here is a
-            // mix of full-length photographs and screenshots of messages. A
-            // rail whose cards were each their own shape would read as a
-            // layout accident rather than as a set.
-            className="object-cover"
-            sizes="(min-width: 640px) 18rem, 16rem"
-            loading={index < 3 ? undefined : "lazy"}
-          />
-        </div>
-      ) : null}
+  // Whether there is anything to print under the picture at all. Most
+  // stories are a photograph and nothing else, so this is false more
+  // often than not.
+  const caption = Boolean(body || name || product);
 
-      {body || name ? (
-        <div className="flex flex-1 flex-col p-4 sm:p-5">
+  const card = (
+    <article className="relative overflow-hidden rounded-2xl border border-sb-gold/35 transition-shadow group-hover:shadow-lg group-hover:shadow-sb-maroon-deco/10">
+      <MediaFrame
+        src={image}
+        alt={altFor(name, product)}
+        ratio="aspect-9/16"
+        sizes="(min-width: 640px) 224px, 192px"
+        loading={index < 3 ? "eager" : "lazy"}
+      />
+
+      {/* Over the picture, not under it. A caption in its own band below
+          would make the card as tall as its words, which is the thing the
+          fixed frame exists to prevent — and on a bare card that band is
+          empty and shows as a slab of colour.
+
+          The gradient is what makes white text legible over an arbitrary
+          photograph. It fades rather than being a solid bar so that the
+          bottom of the picture is dimmed instead of hidden. */}
+      {caption ? (
+        <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/80 via-black/50 to-transparent p-4 pt-12">
           {body ? (
-            <p className="text-sm leading-relaxed text-sb-text">
-              {/* Typographic quotes around the shop's transcription, so a
-                  card that is words alone still reads as somebody speaking
-                  rather than as copy the shop wrote about itself. */}
+            <p className="text-sm leading-relaxed text-white">
+              {/* Typographic quotes around the shop's transcription, so the
+                  words read as somebody speaking rather than as copy the
+                  shop wrote about itself. */}
               &ldquo;{body}&rdquo;
             </p>
           ) : null}
 
           {name ? (
-            <p
-              className={`text-xs font-semibold text-sb-heading ${body ? "mt-3" : ""}`}
-            >
+            <p className={`text-xs font-semibold text-white ${body ? "mt-2" : ""}`}>
               {name}
             </p>
           ) : null}
 
           {product ? (
-            <p className="mt-auto pt-3 text-[11px] text-sb-text-muted">
+            <p className={`text-[11px] text-white/75 ${body || name ? "mt-2" : ""}`}>
               on{" "}
-              <span className="font-medium text-sb-link underline underline-offset-2">
+              <span className="font-medium text-white underline underline-offset-2">
                 {product.name}
               </span>
             </p>
           ) : null}
         </div>
       ) : null}
-
-      {/* A photograph with no words and a product behind it still needs to
-          say where it goes, and the block above does not render. */}
-      {product && !body && !name ? (
-        <p className="p-3 text-[11px] text-sb-text-muted">
-          on{" "}
-          <span className="font-medium text-sb-link underline underline-offset-2">
-            {product.name}
-          </span>
-        </p>
-      ) : null}
     </article>
   );
 
   return (
-    <li className="w-64 shrink-0 snap-start sm:w-72">
+    <li className="w-48 shrink-0 snap-start sm:w-56">
       {product ? (
-        <Link href={`/product/${product.id}`} className="group block h-full">
+        <Link href={`/product/${product.id}`} className="group block">
           {card}
         </Link>
       ) : (
-        <div className="h-full">{card}</div>
+        card
       )}
     </li>
   );

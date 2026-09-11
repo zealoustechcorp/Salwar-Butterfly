@@ -57,9 +57,10 @@ export const CustomerStoryController = {
    *
    * multipart/form-data, field `images`, one to eight files.
    *
-   * The ordinary way in: a set of photographs, one story each, no text.
-   * Naming the customer or quoting them is an edit afterwards, on the
-   * few cards that need it.
+   * The only way in: a set of photographs, one story each, no text. A
+   * story must carry a picture (019), so there is nothing to create
+   * without one. Naming the customer or quoting them is an edit
+   * afterwards, on the few cards that need it.
    */
   createFromImages: asyncHandler(async (req, res) => {
     const stories = await CustomerStoryService.createFromImages(req.files);
@@ -74,29 +75,6 @@ export const CustomerStoryController = {
       meta: {
         counts: {
           added: req.files.length,
-          total: stories.length,
-          published: stories.filter((story) => story.published).length,
-        },
-      },
-    });
-  }),
-
-  /**
-   * POST /api/customerStories/createCustomerStory
-   *
-   * JSON. A story that is words rather than a photograph — the case the
-   * batch upload above cannot express.
-   */
-  createFromText: asyncHandler(async (req, res) => {
-    const stories = await CustomerStoryService.createFromText(req.body);
-
-    return createdResponse({
-      res,
-      data: stories,
-      message: "Story added",
-      meta: {
-        counts: {
-          added: 1,
           total: stories.length,
           published: stories.filter((story) => story.published).length,
         },

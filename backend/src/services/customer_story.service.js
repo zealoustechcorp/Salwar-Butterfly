@@ -2,18 +2,18 @@
 //
 // What customers have sent the shop (F-06.08).
 //
-// Two ways in, because the shop has two habits. Most of the time it
-// drops a set of photographs in and types nothing: `createFromImages`.
-// Occasionally what is worth publishing is a sentence somebody wrote
-// with no picture attached: `createFromText`. Both land at the front of
-// the order, and everything after that — naming the customer, quoting
-// them, pointing the card at a piece — is an edit.
+// One way in: photographs. The shop drops a set of pictures in and types
+// nothing, they land at the front of the order, and everything after
+// that — naming the customer, quoting them, pointing the card at a piece
+// — is an edit on the few that need one.
 //
-// The rule the whole file protects is the one in 018: a story is a
-// picture, or some words, or both, and never neither. It is a CHECK in
-// the database and a check in `update` here, because the database can
-// only refuse the row — it cannot say "clearing the quote would leave
-// this story with nothing on it, and it has no photograph".
+// There was briefly a second way in, for a quote with no picture. 019
+// removed it along with the column nullability that allowed it: the rail
+// on the home page is built out of photographs, and a card with an empty
+// frame reads as something that failed to load rather than as a quote.
+// The consequence for this file is that nothing here has to ask whether
+// a row still amounts to a story — every row has an image, so every row
+// is a card.
 //
 // The Cloudinary ordering rules are banner.service.js's, for the same
 // reasons: upload before insert, upload before delete when replacing,
@@ -145,7 +145,8 @@ export const CustomerStoryService = {
   // ==========================================================
 
   /**
-   * The common gesture: a batch of photographs, one story each.
+   * The only way a story is created: a batch of photographs, one story
+   * each.
    *
    * Nothing is typed. Each file becomes a card with a picture and no
    * name and no quote, at the front of the order, published — which is
@@ -218,62 +219,15 @@ export const CustomerStoryService = {
   },
 
   /**
-   * A story that is words rather than a picture.
-   *
-   * The validator has already insisted on a quote, which is what stops
-   * this creating an empty row.
-   */
-  async createFromText(fields) {
-    await assertRoom(1);
-
-    try {
-      const rows = await CustomerStoryRepository.createManyAtFront([
-        {
-          customerName: fields.customerName,
-          body: fields.body,
-          productId: fields.productId,
-        },
-      ]);
-
-      logger.info("Customer story created from text");
-
-      return CustomerStoryMapper.toDTOList(rows);
-    } catch (error) {
-      const productError = asProductError(error);
-      if (productError) throw productError;
-
-      logger.error("CustomerStoryService.createFromText failed", {
-        error: error?.message,
-      });
-
-      throw new ApiError(500, "Failed to save the story");
-    }
-  },
-
-  /**
    * Replaces a story's typed fields.
    *
-   * The content rule is checked here rather than left to the CHECK in
-   * 018, because only this layer can see both halves of it. Clearing the
-   * quote on a story that has a photograph is fine; doing it on one that
-   * does not would leave a card with nothing on it, and the database can
-   * only answer that with a constraint name.
+   * Every one of them may be cleared. A story stripped of its name and
+   * its quote is still a photograph, and a photograph is still a card —
+   * which is the whole of what 019 bought: there is no combination of
+   * values this can be sent that leaves a row with nothing to render.
    */
   async update(storyId, fields) {
     const id = assertUuid(storyId);
-
-    const existing = await CustomerStoryRepository.findById(id);
-
-    if (!existing) {
-      throw ApiError.notFound("Story not found", "STORY_NOT_FOUND");
-    }
-
-    if (!existing.image && !fields.body) {
-      throw ApiError.badRequest(
-        "This story has no photograph, so it needs a quote. Add one, or delete the story.",
-        "STORY_WOULD_BE_EMPTY",
-      );
-    }
 
     try {
       const row = await CustomerStoryRepository.updateFields(id, fields);
@@ -301,8 +255,7 @@ export const CustomerStoryService = {
   },
 
   /**
-   * Swaps a story's photograph, or gives one to a story that was words
-   * alone.
+   * Swaps a story's photograph.
    *
    * The old file is deleted only once the row points at the new one —
    * see banner.service.js, which explains why Cloudinary's own
@@ -360,17 +313,16 @@ export const CustomerStoryService = {
     }
 
     // The row is safe. Losing the old file now costs storage and
-    // nothing else — and there may be no old file at all, if this story
-    // was words until a moment ago.
-    if (existing.image_public_id) {
-      CloudinaryStorage.deleteImage(existing.image_public_id).catch((error) => {
-        logger.error("Replaced story image left on Cloudinary", {
-          storyId: id,
-          publicId: existing.image_public_id,
-          error: error?.message,
-        });
+    // nothing else, so a failure here is logged rather than raised — the
+    // shop's edit succeeded, and telling them otherwise would invite
+    // them to retry an upload that already worked.
+    CloudinaryStorage.deleteImage(existing.image_public_id).catch((error) => {
+      logger.error("Replaced story image left on Cloudinary", {
+        storyId: id,
+        publicId: existing.image_public_id,
+        error: error?.message,
       });
-    }
+    });
 
     logger.info("Customer story image replaced", { storyId: id });
 
@@ -475,15 +427,13 @@ export const CustomerStoryService = {
     // The row is gone, so the admin's action has succeeded whatever
     // happens next. A file left behind costs storage and is findable
     // from this log line.
-    if (removed.image_public_id) {
-      CloudinaryStorage.deleteImage(removed.image_public_id).catch((error) => {
-        logger.error("Deleted story's image left on Cloudinary", {
-          storyId: id,
-          publicId: removed.image_public_id,
-          error: error?.message,
-        });
+    CloudinaryStorage.deleteImage(removed.image_public_id).catch((error) => {
+      logger.error("Deleted story's image left on Cloudinary", {
+        storyId: id,
+        publicId: removed.image_public_id,
+        error: error?.message,
       });
-    }
+    });
 
     logger.info("Customer story deleted", { id });
 

@@ -9,13 +9,12 @@
  * shopper write path anywhere in the stack: what appears on the home
  * page is what somebody chose on this screen.
  *
- * Two ways to add, because the shop has two habits:
- *
- *   Add photos   the ordinary one. A batch of pictures becomes a card
- *                each, with nothing typed. A name and a quote are an
- *                edit afterwards, on the few that have one.
- *   Add a quote  for the other case — something worth publishing that
- *                arrived as words with no picture attached.
+ * A story is always a photograph. Adding is Add photos and nothing else:
+ * a batch of pictures becomes a card each, with nothing typed, and a
+ * name or a quote is an edit afterwards on the few that have one. There
+ * is no way to publish words on their own — the rail on the home page is
+ * built out of pictures, and a card with an empty frame reads as
+ * something that failed to load rather than as a quote.
  *
  * New stories go to the *front*, which is the opposite of the carousel
  * next door. A banner set is a sequence the shop composes; stories
@@ -33,10 +32,8 @@ import {
   ArrowRight,
   Eye,
   EyeOff,
-  Images,
   MessageSquareQuote,
   Pencil,
-  Plus,
   RefreshCw,
   Replace,
   Trash2,
@@ -45,7 +42,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { GalleryThumbnail } from "@/components/admin/ProductGallery";
+import { MediaFrame } from "@/components/admin/MediaFrame";
 import {
   Badge,
   Button,
@@ -70,7 +67,6 @@ import {
   MAX_PER_UPLOAD,
   MAX_STORIES,
   createStoriesFromImages,
-  createStoryFromText,
   deleteStory,
   listStories,
   rejectionReason,
@@ -80,8 +76,6 @@ import {
   updateStory,
 } from "@/lib/api/customerStories";
 import { listAllProducts } from "@/lib/api/products";
-
-const BLANK = { customerName: "", body: "", productId: "" };
 
 export default function CustomerStoriesPage() {
   const toast = useToast();
@@ -349,15 +343,6 @@ export default function CustomerStoriesPage() {
               </Button>
               <Button
                 size="sm"
-                variant="secondary"
-                disabled={locked || room <= 0}
-                onClick={() => setEditing({ ...BLANK })}
-              >
-                <Plus className="size-3.5" />
-                Add a quote
-              </Button>
-              <Button
-                size="sm"
                 variant="primary"
                 busy={busy}
                 disabled={locked || room <= 0}
@@ -391,7 +376,7 @@ export default function CustomerStoriesPage() {
           <EmptyState
             icon={<MessageSquareQuote aria-hidden="true" />}
             title="No customer stories"
-            description="The home page shows no customer section at all until there is one to show. Upload the photographs customers have sent, or type a message worth publishing."
+            description="The home page shows no customer section at all until there is one to show. Upload the photographs customers have sent — a name and a quote can be added to each afterwards."
             action={
               <Button variant="primary" onClick={() => addRef.current?.click()}>
                 <Upload className="size-3.5" />
@@ -403,7 +388,7 @@ export default function CustomerStoriesPage() {
 
         {state.status === "ready" && state.stories.length > 0 ? (
           <div className="p-4 pt-0">
-            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {state.stories.map((story, index) => (
                 <StoryTile
                   key={story.id}
@@ -426,8 +411,9 @@ export default function CustomerStoriesPage() {
 
             <p className="mt-3 text-[11px] text-ink-500">
               JPEG, PNG or WebP · up to 5 MB each · {MAX_PER_UPLOAD} at a time. The
-              home page shows the first 24 in this order, cropped to a portrait
-              card.
+              home page shows the first 24 in this order, each in a 9:16 card. A
+              photograph of any other shape is fitted inside that card against a
+              blurred copy of itself rather than cropped, so nothing is cut off.
             </p>
           </div>
         ) : null}
@@ -489,13 +475,11 @@ export default function CustomerStoriesPage() {
       >
         {deleting ? (
           <div className="flex items-start gap-3">
-            {deleting.image ? (
-              <GalleryThumbnail
-                src={deleting.image}
-                alt=""
-                className="h-24 w-20 shrink-0 rounded-lg"
-              />
-            ) : null}
+            <MediaFrame
+              src={deleting.image}
+              ratio="aspect-9/16"
+              className="w-20 shrink-0 rounded-lg"
+            />
             <div className="text-xs leading-relaxed text-ink-600">
               {deleting.body ? (
                 <p className="text-ink-800">&ldquo;{deleting.body}&rdquo;</p>
@@ -543,19 +527,11 @@ function StoryTile({
         story.published ? undefined : "opacity-75",
       )}
     >
-      <div className="relative aspect-4/5 shrink-0 bg-ink-50">
-        {story.image ? (
-          <GalleryThumbnail src={story.image} alt="" className="size-full" />
-        ) : (
-          // A story that is words alone still needs a tile the same shape
-          // as its neighbours, or the grid steps around it.
-          <div className="flex size-full items-center justify-center p-4">
-            <MessageSquareQuote
-              className="size-8 text-ink-300"
-              aria-hidden="true"
-            />
-          </div>
-        )}
+      <div className="relative shrink-0">
+        {/* 9:16, matching the card on the home page exactly — this tile is
+            what the shop judges a photograph by, so it has to fit and fill
+            the way the real rail does. */}
+        <MediaFrame src={story.image} ratio="aspect-9/16" />
 
         <span className="absolute top-1.5 left-1.5">
           <Badge tone={story.published ? "brand" : "amber"}>
@@ -649,15 +625,11 @@ function StoryTile({
               size="sm"
               variant="ghost"
               disabled={locked}
-              title={story.image ? "Replace the photograph" : "Add a photograph"}
-              aria-label={`${story.image ? "Replace" : "Add"} the photograph on story ${index + 1}`}
+              title="Replace the photograph"
+              aria-label={`Replace the photograph on story ${index + 1}`}
               onClick={onReplace}
             >
-              {story.image ? (
-                <Replace className="size-3.5 text-ink-400" aria-hidden="true" />
-              ) : (
-                <Images className="size-3.5 text-ink-400" aria-hidden="true" />
-              )}
+              <Replace className="size-3.5 text-ink-400" aria-hidden="true" />
             </Button>
             <Button
               size="sm"
@@ -690,18 +662,14 @@ function StoryTile({
 // ============================================================
 
 /**
- * One modal for both jobs.
+ * What is printed on one card, beside the photograph.
  *
- * Adding a quote and editing a card write the same three fields, and the
- * only difference is what the API will accept: a new story with no
- * photograph must carry a quote, while an existing one may drop its
- * quote if it has a picture to fall back on. `creating` is that
- * difference, and it is the only branch in here.
+ * Edit only — there is nothing to create here, because a story starts as
+ * a file and the only way in is the upload button. Every field may be
+ * left empty: a card stripped back to its photograph is still a card.
  */
 function StoryEditor({ story, products, onClose, onSaved }) {
   const toast = useToast();
-
-  const creating = Boolean(story) && !story.id;
 
   // Seeded once, from the story this instance was mounted for. The
   // parent keys this component on that story's id, so "open a different
@@ -748,14 +716,6 @@ function StoryEditor({ story, products, onClose, onSaved }) {
       errors.body = `A quote must not exceed ${MAX_BODY_LENGTH} characters`;
     }
 
-    // The content rule, checked here so it arrives while the shop is
-    // still looking at the box rather than after a round trip.
-    if (!form.body.trim() && (creating || !story.image)) {
-      errors.body = creating
-        ? "Type the quote, or close this and use Add photos instead"
-        : "This story has no photograph, so it needs a quote";
-    }
-
     if (Object.keys(errors).length) {
       setFieldErrors(errors);
       return;
@@ -765,19 +725,12 @@ function StoryEditor({ story, products, onClose, onSaved }) {
     setFieldErrors({});
 
     try {
-      if (creating) {
-        const stories = await createStoryFromText(form);
-        onSaved({ stories, message: "Story added" });
-      } else {
-        const saved = await updateStory(story.id, form);
-        onSaved({ story: saved, message: "Story updated" });
-      }
+      const saved = await updateStory(story.id, form);
+
+      onSaved({ story: saved, message: "Story updated" });
     } catch (error) {
       setFieldErrors(error?.fields ?? {});
-      toast.error(
-        creating ? "Could not add the story" : "Could not save the story",
-        error?.message,
-      );
+      toast.error("Could not save the story", error?.message);
     } finally {
       setSaving(false);
     }
@@ -787,19 +740,15 @@ function StoryEditor({ story, products, onClose, onSaved }) {
     <Modal
       open={Boolean(story)}
       onClose={saving ? () => {} : onClose}
-      title={creating ? "Add a quote" : "Edit story"}
-      description={
-        creating
-          ? "Something a customer sent the shop in words. For a photograph, close this and use Add photos."
-          : "What is printed on the card. The photograph is changed from the card itself."
-      }
+      title="Edit story"
+      description="What is printed beside the photograph. The picture itself is changed from the card."
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={saving}>
             Cancel
           </Button>
           <Button variant="primary" busy={saving} onClick={save}>
-            {creating ? "Add story" : "Save changes"}
+            Save changes
           </Button>
         </>
       }
@@ -807,13 +756,8 @@ function StoryEditor({ story, products, onClose, onSaved }) {
       <div className="space-y-4">
         <Field
           label="Quote"
-          required={creating || !story?.image}
           error={fieldErrors.body}
-          hint={
-            story?.image
-              ? "Optional — this story has a photograph. Publish the part worth reading rather than the whole message."
-              : "Publish the part worth reading rather than the whole message."
-          }
+          hint="Optional. Publish the part worth reading rather than the whole message — left blank, the card is the photograph alone."
         >
           <Textarea
             rows={4}

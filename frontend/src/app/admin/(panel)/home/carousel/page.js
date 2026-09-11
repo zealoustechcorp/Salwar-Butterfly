@@ -49,7 +49,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { GalleryThumbnail } from "@/components/admin/ProductGallery";
+import { MediaFrame } from "@/components/admin/MediaFrame";
 import {
   Badge,
   Button,
@@ -399,9 +399,11 @@ export default function CarouselPage() {
             </ul>
 
             <p className="mt-3 text-[11px] text-ink-500">
-              JPEG, PNG or WebP · up to 5 MB each · {MAX_PER_UPLOAD} at a time. The
-              slides are shown at roughly 4:5, so portrait artwork fills the frame
-              without being cropped.
+              JPEG, PNG or WebP · up to 5 MB each · {MAX_PER_UPLOAD} at a time.
+              Slides are shown at 16:9. Artwork of any other shape is fitted
+              inside that frame against a blurred copy of itself rather than
+              cropped, so nothing is cut off — design at 16:9 for the sharpest
+              result.
             </p>
           </div>
         ) : null}
@@ -434,10 +436,10 @@ export default function CarouselPage() {
       >
         {deleting ? (
           <div className="flex items-center gap-3">
-            <GalleryThumbnail
+            <MediaFrame
               src={deleting.image}
-              alt=""
-              className="h-24 w-20 rounded-lg"
+              ratio="aspect-16/9"
+              className="w-32 shrink-0 rounded-lg"
             />
             <p className="text-xs leading-relaxed text-ink-600">
               Deleting is permanent — putting this banner back means uploading the
@@ -478,8 +480,11 @@ function BannerTile({
         banner.active ? undefined : "opacity-75",
       )}
     >
-      <div className="relative aspect-4/5 bg-ink-50">
-        <GalleryThumbnail src={banner.image} alt="" className="size-full" />
+      <div className="relative">
+        {/* 16:9, matching the frame on the home page exactly — this tile is
+            what the shop judges a banner by, so it has to crop and fill
+            the way the real carousel does. */}
+        <MediaFrame src={banner.image} ratio="aspect-16/9" />
 
         <span className="absolute top-1.5 left-1.5">
           <Badge tone={banner.active ? "brand" : "amber"}>
