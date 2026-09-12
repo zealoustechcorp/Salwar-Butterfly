@@ -32,7 +32,6 @@ export default async function StorefrontHome() {
       fabrics,
       topDiscount,
       offerCount,
-      rating,
     },
     banners,
     stories,
@@ -44,7 +43,14 @@ export default async function StorefrontHome() {
 
   return (
     <>
-      <Hero banners={banners} topDiscount={topDiscount} rating={rating} />
+      {/* Banners and nothing else: the hero's copy block — brand line, shop
+          buttons and the shop-wide review score — has been removed, so
+          `topDiscount` reaches the page only through <OfferBanner> below and
+          the shop-wide `rating` is not read on this page at all any more. It
+          is still computed by getHomePageData() and still shown per product;
+          putting it back on the home page is a matter of destructuring it
+          again. */}
+      <Hero banners={banners} />
       <TrustBar shop={shop} />
       <CategoryGrid categories={categories} />
       <FabricStrip fabrics={fabrics} />

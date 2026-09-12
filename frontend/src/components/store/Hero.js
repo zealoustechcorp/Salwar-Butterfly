@@ -7,14 +7,12 @@ import { useCallback, useState } from "react";
 import { CarouselDots, CarouselEdge, useCarousel } from "./Carousel";
 import { GarmentArt } from "./GarmentArt";
 import { MediaFrame } from "./MediaFrame";
-import { Butterfly } from "./Ornaments";
-import { Stars } from "./Stars";
-import { useBrowse } from "./BrowseProvider";
 
 const ROTATE_MS = 5000;
 
 /**
- * Opening statement. The imagery is the shop's own homepage banner set — no
+ * Opening statement, and now the whole of it: the shop's own banner set, the
+ * width of the window, and nothing else. The imagery is the shop's own — no
  * stock photography and nothing generated.
  *
  * The banners arrive as a prop, read from the API by the page above. They used
@@ -25,24 +23,33 @@ const ROTATE_MS = 5000;
  * A slide is a photograph and a place in the order, and — since migration 020 —
  * optionally the piece it is a photograph *of*. Where the shop has named one,
  * the slide is a link through to it; where it has not, which is the ordinary
- * case, the slide is what it always was: artwork with `alt=""`, because the
- * headline beside it is the text.
+ * case, the slide is what it always was: artwork with `alt=""`.
  *
- * The fold is stacked rather than split: the copy sits centred above a carousel
- * that runs edge to edge. It was two columns, which capped the banner at a
- * little under half a wide screen — the shop's banners are its own artwork and
- * a flyer shown 560px wide is a thumbnail of itself. Full-bleed also means the
- * frame can be wide rather than 16:9, so the band is a letterbox at desktop
- * widths instead of a 1000px-tall wall that buries everything under it.
+ * This fold used to carry a copy block as well — an eyebrow, the brand line as
+ * a display headline, a paragraph on the fabrics, the two shop buttons and the
+ * shop's review score. All of it is gone, and three things went with it that
+ * are worth knowing about rather than discovering:
  *
- * The rating line under the buttons (F-06.08) holds to the same rule as the
- * imagery above it: it is the shop's real score across its real reviews, and it
- * is absent entirely until there are some. No "★★★★★ 5.0 (0)", no rounded-up
- * placeholder — an invented rating in the first fold is the most conspicuous
- * possible place to put a claim the shop cannot support.
+ *   - **The `<h1>` was in it**, and it was the only one on the home page.
+ *     There is a screen-reader-only one below in its place: a page with no
+ *     level-one heading is a page assistive tech cannot summarise and search
+ *     engines read as untitled, and the banner set cannot stand in for it
+ *     because every slide is deliberately `alt=""`.
+ *   - **The two shop buttons were the only direct entry** to the catalogue's
+ *     "new" and "offers" tabs from this fold. Browsing still reaches both
+ *     through <ProductShowcase> further down, and the offers band still
+ *     carries the discount, so nothing is unreachable — it is just further
+ *     away. That is why `topDiscount` is no longer a prop here.
+ *   - **The rating (F-06.08) no longer appears on the home page at all.** It
+ *     is still computed and still shown on a product, but the shop's overall
+ *     score has no other place in this page, so `rating` stopped being passed
+ *     down rather than moving somewhere else.
+ *
+ * The decorative gradient and the gold ring went too. They were anchored to
+ * the copy, and with the section reduced to one opaque band edge to edge there
+ * is nowhere in it they could be seen.
  */
-export function Hero({ banners = [], topDiscount, rating }) {
-  const { focusShop, setTab } = useBrowse();
+export function Hero({ banners = [] }) {
   // Banners that failed to load. They drop out of the carousel entirely — a
   // sliding track would otherwise stop on a blank frame — and when every one is
   // down the illustrated lockup takes over. That fallback is also what a shop
@@ -60,42 +67,36 @@ export function Hero({ banners = [], topDiscount, rating }) {
     setDown((current) => new Set(current).add(src));
   }, []);
 
-  const openShop = (tab) => {
-    setTab(tab);
-    focusShop();
-  };
-
   return (
     <section id="top" className="relative overflow-hidden">
-      {/* Both of these used to bloom at the top right, behind the banner
-          column. The banner is now an opaque band across that whole corner,
-          so they were decorating something nobody could see — they are
-          anchored to the bottom instead, where the copy is. */}
-      <div
-        aria-hidden="true"
-        className="absolute inset-0 bg-[radial-gradient(120%_95%_at_78%_100%,#ebcbc0_0%,#fdf7f1_62%)]"
-      />
-      <div
-        aria-hidden="true"
-        className="absolute -right-20 -bottom-28 size-[20rem] rounded-full border border-sb-gold/35 lg:size-[30rem]"
-      />
+      {/* Carrying the document outline the removed headline used to, and
+          nothing else — it is the page's title read aloud, which is why it is
+          the brand and what the shop sells rather than a keyword list. Kept
+          in the markup and out of the design: `sr-only` is a clip, not a
+          `display: none`, so it is announced and indexed while occupying no
+          space and painting nothing. */}
+      <h1 className="sr-only">
+        Salwar Butterfly — salwar suits, co-ord sets and anarkalis in dhabu cotton, azrak block
+        print and Chanderi silk
+      </h1>
 
       {/* The shop's own banner set as a carousel — with the illustrated
           lockup standing in when there is nothing to show, whether that is
           because the shop has published no banners or because none of the
           photographs would load.
 
-          First on the page and the width of the window. It is the one thing
-          here that is not held inside a container, and it is above the
-          headline rather than beside it because the banners are what the
-          shop actually wants seen first — a festival drop or a sale is on
-          them, and the brand line under them keeps just as well.
+          The width of the window and, with the copy gone, the only thing in
+          this section: it is not held inside a container at all, because the
+          banners are what the shop wants seen first and there is no longer a
+          headline for them to share the fold with.
 
           The fallback is *not* full width: three drawn figures stretched
           across a wide screen stop reading as a lockup and start reading as
-          a gap. */}
+          a gap. It keeps padding on both sides now — with nothing below it
+          any more, a lockup sitting flush against the next section reads as
+          part of it. */}
       {allDown ? (
-        <div className="relative mx-auto w-full max-w-md px-4 pt-6 sm:px-6 lg:px-8">
+        <div className="relative mx-auto w-full max-w-md px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
           <div className="grid grid-cols-3 items-end gap-2.5 sm:gap-4">
             {[
               { shape: "coord", seed: 1, tall: false, label: "Coord set" },
@@ -119,92 +120,6 @@ export function Hero({ banners = [], topDiscount, rating }) {
       ) : (
         <BannerCarousel slides={slides} onFail={markDown} />
       )}
-
-      {/* The copy, as a band under the banner rather than a second hero.
-          Centring it was wrong once the picture moved above it: a display
-          headline set in the middle of the page reads as the top of a fold,
-          and there was already a fold above this one — two openings stacked,
-          each undercutting the other. Split left and right it stops competing
-          and starts doing the job it actually has down here, which is to say
-          what the shop is and give somewhere to go next.
-
-          `items-end` rather than `items-center`: the headline and the buttons
-          are the two things a reader lands on, and sitting them on a shared
-          baseline is what makes the two columns read as one band instead of
-          two blocks that happen to be side by side. */}
-      <div className="relative mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8 lg:py-12">
-        <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] md:items-end md:gap-12">
-          <div>
-            <p className="sb-eyebrow flex items-center gap-2 text-[9px] text-sb-gold-text sm:text-[10px]">
-              <Butterfly className="size-4 text-sb-maroon-deco sm:size-5" />
-              Limited runs · new drops daily
-            </p>
-
-            {/* The shop's own tagline is the headline — it is the brand line,
-                not a strapline to bury above one. Two lines and a good deal
-                smaller than it was: at 8xl it was the loudest thing on a page
-                whose loudest thing is now a photograph the width of the
-                window, and the two were shouting over each other. */}
-            <h1 className="mt-3 font-display text-4xl leading-[1.06] font-semibold text-sb-heading sm:text-5xl lg:text-[3.5rem]">
-              Fashion
-              <br />
-              meets <em className="italic">comfort.</em>
-            </h1>
-          </div>
-
-          <div>
-            <p className="max-w-xl text-sm leading-relaxed text-sb-text sm:text-base">
-              Salwar suits, co-ord sets and anarkalis in dhabu cotton, azrak block print and
-              Chanderi silk — cut for everyday ease, finished in limited runs and shipped free
-              across India.
-            </p>
-
-            <div className="mt-5 flex flex-wrap items-center gap-2.5 sm:gap-3">
-              <button
-                type="button"
-                onClick={() => openShop("new")}
-                className="inline-flex items-center gap-2 rounded-full bg-sb-btn-primary px-5 py-3 text-sm font-semibold text-sb-bg transition-colors hover:bg-sb-btn-rose sm:px-7 sm:py-3.5"
-              >
-                Shop new arrivals
-                <ArrowRight className="size-4" aria-hidden="true" />
-              </button>
-              {topDiscount > 0 ? (
-                <button
-                  type="button"
-                  onClick={() => openShop("offers")}
-                  className="inline-flex items-center gap-2 rounded-full border border-sb-heading px-5 py-3 text-sm font-semibold text-sb-heading transition-colors hover:bg-sb-surface/60 sm:px-7 sm:py-3.5"
-                >
-                  Up to {topDiscount}% off
-                </button>
-              ) : null}
-
-              {/* Beside the buttons rather than on a line of its own. Loose
-                  under them it was a fourth stacked row and read as an
-                  afterthought; on the same row it is what it is — the reason
-                  to press the button next to it. The pill is there to stop it
-                  being mistaken for a third button: same row, plainly not the
-                  same kind of thing.
-
-                  Absent entirely until the shop has reviews — see the note on
-                  <Hero> above. */}
-              {rating?.count ? (
-                <p className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 rounded-full border border-sb-gold/45 bg-sb-bg/70 px-3.5 py-2 text-sm text-sb-text">
-                  <Stars rating={rating.average} />
-                  <span className="font-semibold text-sb-heading tabular">
-                    {rating.average.toFixed(1)}
-                  </span>
-                  <span className="text-sb-text-muted">
-                    from {rating.count} customer{rating.count === 1 ? "" : "s"}
-                    {/* Named only when it means something. "across 1 piece"
-                        beside a shop of 200 reads worse than saying nothing. */}
-                    {rating.products > 1 ? ` across ${rating.products} pieces` : ""}
-                  </span>
-                </p>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      </div>
     </section>
   );
 }
