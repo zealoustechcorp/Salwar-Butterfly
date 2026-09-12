@@ -105,7 +105,7 @@ export function ProductShowcase({ products, categories, withSidebar = false }) {
               setQuery(event.target.value);
               setShown(PAGE);
             }}
-            placeholder="Search by name, fabric or size"
+            placeholder="Search name, fabric, fit, colour, size…"
             aria-label="Search this collection"
             className="h-11 w-full rounded-full border border-sb-gold/40 bg-white/70 pr-4 pl-9 text-sm text-sb-text placeholder:text-sb-text-muted/60 focus:border-sb-link focus:bg-white focus:outline-none"
           />
@@ -239,6 +239,8 @@ function ActiveFilters({ activeCategory, onAnyChange }) {
     setCategoryId,
     fabrics,
     toggleFabric,
+    fits,
+    toggleFit,
     sizes,
     toggleSize,
     price,
@@ -269,6 +271,10 @@ function ActiveFilters({ activeCategory, onAnyChange }) {
 
       {fabrics.map((name) => (
         <FilterPill key={name} label={name} onClear={drop(() => toggleFabric(name))} />
+      ))}
+
+      {fits.map((name) => (
+        <FilterPill key={name} label={name} onClear={drop(() => toggleFit(name))} />
       ))}
 
       {sizes.map((size) => (

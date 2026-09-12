@@ -18,15 +18,46 @@ import { useStore } from "./StoreProvider";
  * storefront layout and so renders on `/bag` and `/account` too, where there is
  * no shop grid on the page to scroll to. `/shop` reads these query strings back
  * out through <ShopFilterSync>.
+ *
+ * "Almost Gone" is deliberately not here any more. It is one of four rails on
+ * the grid itself, and giving one of them a place in the header promised a
+ * section of the shop rather than a sort order — the whole shelf is the thing
+ * worth linking to, which is what <ShopButton> below does. The rail has not
+ * gone anywhere: it is still a chip on the grid, and `/shop?tab=almost-gone`
+ * still opens on it.
  */
 const NAV = [
   { id: "new", label: "New In", href: "/shop?tab=new" },
   { id: "offers", label: "Offers", href: "/shop?tab=offers" },
-  { id: "almost-gone", label: "Almost Gone", href: "/shop?tab=almost-gone" },
   // The story lives on the home page; the absolute path keeps the anchor
   // working from the other routes as well.
   { id: "story", label: "Our Story", href: "/#story" },
 ];
+
+/**
+ * The way into the whole shop, as the header's one solid button.
+ *
+ * A button rather than a fourth text link, because it is not a peer of the
+ * others: "New In" and "Offers" each open on a slice, and this opens on
+ * everything with the rail's filters in front of it. It is a real <Link>
+ * underneath, so it keeps middle-click, open-in-new-tab and prefetch — a
+ * `<button>` with a `router.push` would look identical and quietly lose all
+ * three.
+ */
+function ShopButton({ className, onClick }) {
+  return (
+    <Link
+      href="/shop"
+      onClick={onClick}
+      className={cn(
+        "rounded-full bg-sb-btn-primary font-semibold text-sb-bg transition-colors hover:bg-sb-btn-rose focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sb-link",
+        className,
+      )}
+    >
+      Shop Now
+    </Link>
+  );
+}
 
 // The shop's own trust badges, in its own words (spelling normalised).
 const ANNOUNCEMENTS = [
@@ -111,10 +142,11 @@ function IconLink({ label, href, children, count, active, className }) {
  * The words the search prompt cycles through.
  *
  * Every one of them was checked against the committed catalogue and comes back
- * with results — <ProductShowcase> matches a query against the product name,
- * its category and its fabric, and these are the words the shop itself uses in
- * all three. A placeholder is a suggestion, and suggesting a search that lands
- * on an empty grid is worse than suggesting nothing.
+ * with results — the search matches a query against everything the shop
+ * records about a piece (name, collection, fabric, fit, colour, size and piece
+ * code — see `searchText` in lib/store/filters.js), and these are the words the
+ * shop itself uses. A placeholder is a suggestion, and suggesting a search that
+ * lands on an empty grid is worse than suggesting nothing.
  *
  * "dress" is deliberately absent. It is the shop's own word for what it sells —
  * it is in the logo — but no product name, category or fabric in the snapshot
@@ -432,6 +464,8 @@ export function StoreHeader({ categories, shop }) {
                 {item.label}
               </Link>
             ))}
+
+            <ShopButton className="ml-1.5 px-4 py-2 text-sm" />
           </nav>
 
           {/*
@@ -512,6 +546,14 @@ export function StoreHeader({ categories, shop }) {
             </div>
 
             <nav className="flex-1 overflow-y-auto px-3 py-4">
+              {/* Above the links rather than at the foot of the drawer: it is
+                  the one the shop wants tapped, and a phone drawer is scrolled
+                  past, not read to the end. */}
+              <ShopButton
+                className="mb-3 block px-4 py-3 text-center text-[15px]"
+                onClick={() => setDrawerOpen(false)}
+              />
+
               <ul className="space-y-0.5">
                 {NAV.map((item) => (
                   <li key={item.id}>

@@ -317,6 +317,31 @@ export async function getFabrics(products) {
 }
 
 /**
+ * The cuts the shop actually sells in — `/shop`'s fit filter.
+ *
+ * Read off the products rather than off the published size charts, which is
+ * the difference that matters: the shop may publish a chart for a fit it is
+ * not currently cutting anything in, and a facet reading "Slim Fit (0)" is a
+ * control that can only disappoint. Names arrive already spelled the way the
+ * charts spell them — the API resolves a product's fit against `size_charts`
+ * on every write — so they are grouped as they come rather than normalised
+ * here, which would let "Normal" and "Normal Fit" become two chips.
+ */
+export async function getFits(products) {
+  const rows = products ?? (await getStorefrontProducts());
+
+  const counts = new Map();
+
+  for (const p of rows) {
+    if (p.fit) counts.set(p.fit, (counts.get(p.fit) || 0) + 1);
+  }
+
+  return [...counts.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+}
+
+/**
  * The size ladder the shop actually stocks — `/shop`'s size filter.
  *
  * Built from `available_sizes`, so a size that exists only on sold-out
@@ -391,7 +416,13 @@ export async function getHomePageData() {
 
     categories: await getStorefrontCategories(products),
     fabrics: await getFabrics(products),
-    topDiscount: discounted.reduce((max, p) => Math.max(max, p.off), 0),
+    // The deepest cut in the shop is no longer computed here. Nothing on the
+    // page printed it except the offer banner's headline, and that headline
+    // stopped quoting a percentage: a number that swings between 30% and 5%
+    // with the stock makes the shop's loudest line loudest on its best week
+    // and apologetic on its worst. `offerCount` is the honest half of that
+    // pair — how many pieces are actually marked down — and it is the half
+    // the banner kept.
     offerCount: discounted.length,
     entryPrice: products.length ? Math.min(...products.map((p) => p.price)) : 0,
     catalogueSize: products.length,

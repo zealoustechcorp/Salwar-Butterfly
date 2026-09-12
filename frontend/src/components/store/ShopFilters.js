@@ -28,7 +28,7 @@ import { cn } from "@/lib/utils";
 import { useBrowse } from "./BrowseProvider";
 import { Stars } from "./Stars";
 
-export function ShopFilters({ products, categories, fabrics, sizes }) {
+export function ShopFilters({ products, categories, fabrics, fits, sizes }) {
   const { filters, tab, activeCount, clearFilters } = useBrowse();
   const [open, setOpen] = useState(false);
 
@@ -39,7 +39,7 @@ export function ShopFilters({ products, categories, fabrics, sizes }) {
     [products, filters, tab],
   );
 
-  const panelProps = { products, categories, fabrics, sizes };
+  const panelProps = { products, categories, fabrics, fits, sizes };
 
   return (
     <>
@@ -147,7 +147,7 @@ export function ShopFilters({ products, categories, fabrics, sizes }) {
  * sharing a `name` in one document are one group to the browser, and picking
  * a collection in the drawer would reach into the rail behind it.
  */
-function FilterPanel({ scope, products, categories, fabrics, sizes }) {
+function FilterPanel({ scope, products, categories, fabrics, fits, sizes }) {
   const {
     filters,
     tab,
@@ -155,6 +155,8 @@ function FilterPanel({ scope, products, categories, fabrics, sizes }) {
     setCategoryId,
     fabrics: chosenFabrics,
     toggleFabric,
+    fits: chosenFits,
+    toggleFit,
     sizes: chosenSizes,
     toggleSize,
     price,
@@ -180,6 +182,7 @@ function FilterPanel({ scope, products, categories, fabrics, sizes }) {
 
     const forCategory = without("category");
     const forFabric = without("fabric");
+    const forFit = without("fit");
     const forSize = without("size");
     const forPrice = without("price");
     const forRating = without("rating");
@@ -188,6 +191,7 @@ function FilterPanel({ scope, products, categories, fabrics, sizes }) {
       anyCategory: forCategory.length,
       category: new Map(categories.map((c) => [c.id, tally(forCategory, { categoryId: c.id })])),
       fabric: new Map(fabrics.map((f) => [f.name, tally(forFabric, { fabrics: [f.name] })])),
+      fit: new Map(fits.map((f) => [f.name, tally(forFit, { fits: [f.name] })])),
       size: new Map(sizes.map((size) => [size, tally(forSize, { sizes: [size] })])),
       anyPrice: forPrice.length,
       price: new Map(bands.map((band) => [band.id, tally(forPrice, { price: band })])),
@@ -195,7 +199,7 @@ function FilterPanel({ scope, products, categories, fabrics, sizes }) {
       rating: new Map(RATING_STEPS.map((step) => [step, tally(forRating, { minRating: step })])),
       inStock: tally(without("stock"), { inStockOnly: true }),
     };
-  }, [products, filters, tab, categories, fabrics, sizes, bands]);
+  }, [products, filters, tab, categories, fabrics, fits, sizes, bands]);
 
   return (
     <div className="text-sm">
@@ -232,6 +236,27 @@ function FilterPanel({ scope, products, categories, fabrics, sizes }) {
               count={counts.fabric.get(item.name) ?? 0}
               checked={chosenFabrics.includes(item.name)}
               onChange={() => toggleFabric(item.name)}
+            />
+          ))}
+        </Section>
+      ) : null}
+
+      {/* Only once the shop has recorded a fit against something. Fit is new
+          and most of the catalogue predates it, so this section appears as
+          the pieces are measured rather than sitting there empty — and it
+          lists the cuts actually on the shelf, never one the shop merely
+          publishes a chart for. */}
+      {fits.length ? (
+        <Section title="Fit">
+          {fits.map((item) => (
+            <Choice
+              key={item.name}
+              type="checkbox"
+              name={`${scope}-fit`}
+              label={item.name}
+              count={counts.fit.get(item.name) ?? 0}
+              checked={chosenFits.includes(item.name)}
+              onChange={() => toggleFit(item.name)}
             />
           ))}
         </Section>

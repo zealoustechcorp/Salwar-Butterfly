@@ -6,9 +6,26 @@ import { cn } from "@/lib/utils";
 import { Butterfly, InstagramGlyph, WhatsAppGlyph } from "./Ornaments";
 import { useBrowse } from "./BrowseProvider";
 
-/** Dusty-pink band. Text on this fill must be sb-ink-on-pink — 7.34:1 AAA. */
-export function OfferBanner({ topDiscount, offerCount }) {
+/**
+ * Dusty-pink band. Text on this fill must be sb-ink-on-pink — 7.34:1 AAA.
+ *
+ * The headline used to read "Up to {topDiscount}% off", which was true but
+ * tied the shop's loudest line to one number that moves on its own: the day
+ * the deepest cut is 5% it reads as an apology, and the day nothing is
+ * discounted it reads "Up to 0% off". So the percentage is gone and the claim
+ * is the one thing that is always true here — the runs are short. The count
+ * underneath still carries the specifics, and it cannot overstate itself
+ * because it is counted from the same rows the button opens on.
+ *
+ * Both lines answer to an empty offer list rather than asserting into it. A
+ * banner that promises offers and opens on an empty grid is worse than one
+ * that talks about the shelf instead, and a shop this size sells out of its
+ * discounted runs often enough for that to be a real afternoon.
+ */
+export function OfferBanner({ offerCount }) {
   const { setTab, focusShop } = useBrowse();
+
+  const hasOffers = offerCount > 0;
 
   return (
     <section className="px-4 sm:px-6 lg:px-8">
@@ -25,21 +42,25 @@ export function OfferBanner({ topDiscount, offerCount }) {
         <div className="relative max-w-2xl">
           <p className="sb-eyebrow text-[10px] text-sb-ink-on-pink/80">Live prices · Limited runs</p>
           <h2 className="mt-2.5 font-display text-3xl leading-tight font-semibold text-sb-ink-on-pink sm:text-4xl lg:text-5xl">
-            Up to {topDiscount}% off, while the run lasts
+            {hasOffers ? "Offers on now, while the run lasts" : "Short runs, while they last"}
           </h2>
           <p className="mt-3 max-w-lg text-sm leading-relaxed text-sb-ink-on-pink/85">
-            {offerCount} pieces are marked below their original price right now. Every run is
-            limited — when a size sells out it does not come back.
+            {hasOffers
+              ? offerCount === 1
+                ? "One piece is marked below its original price right now."
+                : `${offerCount} pieces are marked below their original price right now.`
+              : "Everything is at its full price today."}{" "}
+            Every run is limited — when a size sells out it does not come back.
           </p>
           <button
             type="button"
             onClick={() => {
-              setTab("offers");
+              setTab(hasOffers ? "offers" : "new");
               focusShop();
             }}
             className="mt-6 inline-flex items-center gap-2 rounded-full bg-sb-btn-primary px-6 py-3 text-sm font-semibold text-sb-bg transition-colors hover:bg-sb-footer sm:px-7 sm:py-3.5"
           >
-            See everything on offer
+            {hasOffers ? "See everything on offer" : "See the whole shop"}
             <ArrowRight className="size-4" aria-hidden="true" />
           </button>
         </div>

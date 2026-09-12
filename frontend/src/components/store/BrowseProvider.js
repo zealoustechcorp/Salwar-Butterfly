@@ -29,6 +29,7 @@ export function BrowseProvider({ children }) {
   const [tab, setTab] = useState("new");
   const [categoryId, setCategoryId] = useState(NO_FILTERS.categoryId);
   const [fabrics, setFabrics] = useState(NO_FILTERS.fabrics);
+  const [fits, setFits] = useState(NO_FILTERS.fits);
   const [sizes, setSizes] = useState(NO_FILTERS.sizes);
   const [price, setPrice] = useState(NO_FILTERS.price);
   const [inStockOnly, setInStockOnly] = useState(NO_FILTERS.inStockOnly);
@@ -48,16 +49,18 @@ export function BrowseProvider({ children }) {
    * in the search box.
    */
   const filters = useMemo(
-    () => ({ categoryId, fabrics, sizes, price, inStockOnly, minRating, query }),
-    [categoryId, fabrics, sizes, price, inStockOnly, minRating, query],
+    () => ({ categoryId, fabrics, fits, sizes, price, inStockOnly, minRating, query }),
+    [categoryId, fabrics, fits, sizes, price, inStockOnly, minRating, query],
   );
 
   const toggleFabric = useCallback((name) => setFabrics((current) => toggle(current, name)), []);
+  const toggleFit = useCallback((name) => setFits((current) => toggle(current, name)), []);
   const toggleSize = useCallback((size) => setSizes((current) => toggle(current, size)), []);
 
   const clearFilters = useCallback(() => {
     setCategoryId(NO_FILTERS.categoryId);
     setFabrics(NO_FILTERS.fabrics);
+    setFits(NO_FILTERS.fits);
     setSizes(NO_FILTERS.sizes);
     setPrice(NO_FILTERS.price);
     setInStockOnly(NO_FILTERS.inStockOnly);
@@ -102,6 +105,7 @@ export function BrowseProvider({ children }) {
     setTab(next.tab ?? "new");
     setCategoryId(full.categoryId);
     setFabrics(full.fabrics);
+    setFits(full.fits);
     setSizes(full.sizes);
     setPrice(full.price);
     setInStockOnly(full.inStockOnly);
@@ -118,6 +122,8 @@ export function BrowseProvider({ children }) {
       setCategoryId,
       fabrics,
       toggleFabric,
+      fits,
+      toggleFit,
       sizes,
       toggleSize,
       price,
@@ -142,6 +148,8 @@ export function BrowseProvider({ children }) {
       categoryId,
       fabrics,
       toggleFabric,
+      fits,
+      toggleFit,
       sizes,
       toggleSize,
       price,

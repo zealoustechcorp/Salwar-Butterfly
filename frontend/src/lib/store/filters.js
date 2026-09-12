@@ -9,9 +9,10 @@
  *
  * Every dimension here is backed by a field the catalogue actually carries:
  * category and price come off the row, `fabric` is derived from the piece's
- * name, and `available_sizes` is the sizes with stock behind them. There is
- * no colour filter and no occasion filter, because the shop records neither
- * — a control that cannot answer honestly is worse than an absent one.
+ * name, `fit` is recorded by the shop against a published size chart, and
+ * `available_sizes` is the sizes with stock behind them. There is no occasion
+ * filter, because the shop records nothing to answer it with — a control that
+ * cannot answer honestly is worse than an absent one.
  *
  * Pure functions over plain objects, no directive: this compiles into
  * whichever bundle imports it.
@@ -60,6 +61,8 @@ export function applyRail(rows, tab) {
 export const NO_FILTERS = {
   categoryId: "all",
   fabrics: [],
+  /** Cuts, spelled exactly as the size charts spell them. */
+  fits: [],
   sizes: [],
   /** The chosen band object from `priceBands`, or null for any price. */
   price: null,
@@ -81,6 +84,12 @@ const MATCHES = {
 
   fabric: (product, f) => !f.fabrics.length || f.fabrics.includes(product.fabric),
 
+  // The cut the shop recorded against a published size chart. A piece with no
+  // fit on it drops out of a fit filter rather than matching every option:
+  // "unrecorded" is not a cut, and a shopper asking for an A-line has not
+  // asked for the pieces nobody has measured.
+  fit: (product, f) => !f.fits.length || (Boolean(product.fit) && f.fits.includes(product.fit)),
+
   // Against `available_sizes`, not `sizes`: filtering by 40 means "show me
   // what I can buy in a 40", and a piece whose 40 sold out cannot be.
   size: (product, f) => !f.sizes.length || product.available_sizes.some((s) => f.sizes.includes(s)),
@@ -95,16 +104,80 @@ const MATCHES = {
     !f.minRating || (product.rating?.count > 0 && product.rating.average >= f.minRating),
 
   query: (product, f) => {
-    const term = f.query.trim().toLowerCase();
-    if (!term) return true;
+    const terms = searchTerms(f.query);
+    if (!terms.length) return true;
 
-    return [product.name, product.category_name, product.fabric, ...product.available_sizes]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase()
-      .includes(term);
+    const haystack = searchText(product);
+    // Every word has to land somewhere, but not in the same field: "cotton
+    // xl" means a cotton piece available in XL, and requiring one field to
+    // hold both would find nothing. Words are AND-ed so typing more narrows
+    // rather than widens, which is what a second word is for.
+    return terms.every((term) => haystack.includes(term));
   },
 };
+
+// --- the global search ------------------------------------------------------
+
+/** The words in a query, lowercased. Extra whitespace is not a word. */
+function searchTerms(query) {
+  return String(query ?? "")
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+/**
+ * Built once per product and kept, because the rail asks for it a lot: every
+ * facet count re-filters the catalogue, so a keystroke runs the search rules
+ * over every product several times over. Keyed on the product object itself —
+ * a fresh catalogue is fresh objects, so nothing here can go stale.
+ */
+const HAYSTACKS = new WeakMap();
+
+/**
+ * Everything about a piece a shopper could reasonably type into the box.
+ *
+ * One string rather than a field-by-field search, because a shopper does not
+ * know which of our fields holds the word they have in mind — "azrak" is in
+ * the name, "Aline salwars" is the collection, "A-line Fit" is the cut, "XL"
+ * is a variant and "Maroon" is a colourway. Asking them to pick the right box
+ * first is the rail; this box is for the word they remember.
+ *
+ * Every part of it is something the shop actually records and the storefront
+ * shows somewhere — the fit names the chart the size guide prints, the piece
+ * code is on the detail page — so a hit is always explicable rather than a
+ * card that came back for a reason nobody can see. Two deliberate omissions:
+ * price, whose digits would collide
+ * with the numeric sizes ("40" pulling in everything at ₹1,402) and which has
+ * a band filter of its own that cannot misread itself; and the sizes that have
+ * sold out, since `available_sizes` is what the size facet searches and a box
+ * that found a 40 the rail says is gone would contradict it.
+ */
+export function searchText(product) {
+  const cached = HAYSTACKS.get(product);
+  if (cached !== undefined) return cached;
+
+  const text = [
+    product.name,
+    product.category_name,
+    product.fabric,
+    // Spelled as the size charts spell it, which is what the detail page
+    // prints — "A-line Fit" answers to "a-line" as well as to "fit".
+    product.fit,
+    // Readable out loud and printed on the detail page, so it is what somebody
+    // reading a piece code back over WhatsApp will type.
+    product.piece_code,
+    ...(product.available_sizes ?? []),
+    ...(product.colours ?? []).map((colour) => colour?.name),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  HAYSTACKS.set(product, text);
+  return text;
+}
 
 /**
  * The catalogue narrowed to one filter.
@@ -130,6 +203,7 @@ export function countActive(filters) {
   return (
     (f.categoryId !== "all" ? 1 : 0) +
     f.fabrics.length +
+    f.fits.length +
     f.sizes.length +
     (f.price ? 1 : 0) +
     (f.inStockOnly ? 1 : 0) +

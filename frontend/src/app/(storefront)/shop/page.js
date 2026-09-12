@@ -5,6 +5,7 @@ import { ShopFilters } from "@/components/store/ShopFilters";
 import { ShopFilterSync } from "@/components/store/ShopFilterSync";
 import {
   getFabrics,
+  getFits,
   getSizes,
   getStorefrontCategories,
   getStorefrontProducts,
@@ -13,7 +14,7 @@ import {
 export const metadata = {
   title: "The Shop",
   description:
-    "The whole Salwar Butterfly shelf — salwar suits, co-ord sets and anarkalis in dhabu cotton, azrak block print, Chanderi silk and south cotton. Filter by collection, fabric, size, price or rating.",
+    "The whole Salwar Butterfly shelf — salwar suits, co-ord sets and anarkalis in dhabu cotton, azrak block print, Chanderi silk and south cotton. Filter by collection, fabric, fit, size, price or rating.",
 };
 
 /**
@@ -23,7 +24,8 @@ export const metadata = {
  * destination every header link points at, so the nav works identically from
  * the bag, the wishlist or the account page — none of which have a grid to
  * scroll to. The filter is carried in the query string and read back by
- * <ShopFilterSync>: `?tab=`, `?category=`, `?fabric=`, `?size=`, `?q=`.
+ * <ShopFilterSync>: `?tab=`, `?category=`, `?fabric=`, `?fit=`, `?size=`,
+ * `?q=`.
  *
  * The fabric strip that used to sit above the grid here is gone: fabric is one
  * of six dimensions in the rail now, and a second set of fabric controls that
@@ -39,6 +41,7 @@ export default async function ShopPage() {
   const products = await getStorefrontProducts();
   const categories = await getStorefrontCategories(products);
   const fabrics = await getFabrics(products);
+  const fits = await getFits(products);
   const sizes = await getSizes(products);
 
   return (
@@ -49,6 +52,7 @@ export default async function ShopPage() {
         <ShopFilterSync
           categoryIds={categories.map((category) => category.id)}
           fabricNames={fabrics.map((fabric) => fabric.name)}
+          fitNames={fits.map((fit) => fit.name)}
           sizeLabels={sizes}
         />
       </Suspense>
@@ -63,6 +67,7 @@ export default async function ShopPage() {
             products={products}
             categories={categories}
             fabrics={fabrics}
+            fits={fits}
             sizes={sizes}
           />
 
