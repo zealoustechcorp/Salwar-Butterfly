@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
 
 import { MediaFrame } from "./MediaFrame";
 import { Butterfly } from "./Ornaments";
@@ -17,29 +20,56 @@ import { Butterfly } from "./Ornaments";
  *
  * Every card is a photograph, and some of them carry a name and
  * something the customer said. Words on their own are not publishable —
- * the column is NOT NULL as of migration 019 — because the rail is a row
- * of pictures, and a card with an empty frame in it reads as an image
- * that failed to load rather than as a quote.
+ * the column is NOT NULL as of migration 019 — because the section is a
+ * wall of pictures, and a card with an empty frame in it reads as an
+ * image that failed to load rather than as a quote.
  *
- * Every card is exactly 9:16 and nothing it contains can change that.
- * The picture does not set the height — MediaFrame fits it inside the
- * frame and fills what is left with a blurred copy of itself — and
- * neither does the caption, which is laid over the bottom of the picture
- * rather than stacked under it. A rail whose cards were each as tall as
- * their own contents is a rail that either crops the short ones or
- * leaves a band of dead colour under them, and both of those have been
- * tried here.
+ * A STAGGERED WALL, AT EVERY WIDTH. This used to be a horizontal rail
+ * that was swiped sideways, and on a phone it still could be — but a
+ * rail on a phone is a section most visitors never see past the second
+ * card, and it fights the page it sits in, because a sideways scroller
+ * inside a vertical scroller eats any drag that is not quite straight.
+ * Photographs real customers sent in are worth more than that. So it is
+ * two columns on a phone, three from `sm`, four from `lg`, and the only
+ * gesture involved is the one already being used to read the page.
  *
- * A horizontal rail rather than a grid. The API serves up to two dozen
- * of these, and two dozen cards stacked into a grid is more home page
- * than the section is worth — a rail shows the first few, says by its
- * own overflow that there are more, and costs a fixed amount of height
- * however many the shop publishes. It is CSS scroll-snap and nothing
- * else: no client state, no JavaScript, and it scrolls with a trackpad,
- * a touch drag, or the keyboard once focus is inside it.
+ * The layout is CSS multi-column and nothing else: no measuring, no
+ * resize listener, no absolute positioning. Cards fill down one column
+ * and on to the next, so the order the shop set in /admin/home/stories
+ * reads top-to-bottom per column rather than across rows — which is how
+ * every wall of this shape behaves, Keep and Pinterest included.
+ *
+ * WHY THE HEIGHTS VARY. A wall of identical 9:16 tiles reads as a
+ * contact sheet — regular enough that the eye takes it in as one texture
+ * and stops looking at the individual photographs. Staggering the
+ * heights breaks that up, which is the whole point of the layout.
+ *
+ * The heights come from a fixed pattern rather than from the pictures
+ * (see RATIOS), so every slot is reserved at its final size before a
+ * single image has loaded. Nothing on this page moves while it fills in.
+ * MediaFrame is what makes that affordable: whatever shape the shop
+ * actually uploaded, it is fitted inside the frame and the space around
+ * it filled with a blurred copy of itself, so a portrait photograph in a
+ * square slot is neither cropped nor sat in a band of dead colour.
+ *
+ * Captions stay laid over the bottom of the picture rather than stacked
+ * under it. A card as tall as its own words is a card whose height the
+ * pattern does not control, and one long quote would then drag a column
+ * out of step with the rest.
  */
 export function CustomerStories({ stories = [] }) {
+  // The wall starts capped (see the two limits below) and this opens it.
+  // It is the only state in the section.
+  const [expanded, setExpanded] = useState(false);
+
   if (!stories.length) return null;
+
+  // Whether anything is being held back, asked separately per width
+  // because the cap is not the same at both. Between five and nine
+  // published stories, the phone is hiding some and the desktop is not,
+  // so the button belongs on one and not the other.
+  const cappedSmall = stories.length > SMALL_LIMIT;
+  const cappedWide = stories.length > WIDE_LIMIT;
 
   return (
     <section
@@ -62,25 +92,108 @@ export function CustomerStories({ stories = [] }) {
         </div>
       </div>
 
-      {/* Full-bleed rather than inside the max-width container: a rail that
-          ends at the container edge looks like it has nothing more in it,
-          while one that runs off the side of the screen says otherwise. The
-          padding matches the container so the first card still lines up with
-          the heading above it. */}
-      <div className="-mt-2 overflow-x-auto pb-10 sm:pb-12 lg:pb-14">
-        <ul className="flex snap-x snap-mandatory gap-4 px-4 sm:gap-5 sm:px-6 lg:px-8">
+      <div className="-mt-2 pb-10 sm:pb-12 lg:pb-14">
+        {/* The column count steps with the width, and the cap steps with
+            it at the same breakpoint (see WIDE_LIMIT) — otherwise a
+            four-card cap lands in a three-column wall and the last row
+            comes out as one card and two holes. */}
+        <ul className="mx-auto max-w-7xl columns-2 gap-4 px-4 sm:columns-3 sm:gap-5 sm:px-6 lg:columns-4 lg:px-8">
           {stories.map((story, index) => (
-            <StoryCard key={story.image} story={story} index={index} />
+            <StoryCard
+              key={story.image}
+              story={story}
+              index={index}
+              hiddenClass={expanded ? "" : hiddenAbove(index)}
+            />
           ))}
-
-          {/* A tail spacer, so the last card can scroll clear of the screen
-              edge instead of ending flush against it. */}
-          <li aria-hidden="true" className="w-0 shrink-0 sm:w-2" />
         </ul>
+
+        {/* Only when the wall is actually holding something back — and
+            only at the widths where it is. The label carries the total
+            rather than the remainder because the remainder is a
+            different number on a phone than on a desktop, and one
+            string that is true at every width beats two spans and a
+            pair of guards. */}
+        {cappedSmall ? (
+          <div className={`pt-8 text-center ${cappedWide ? "" : "sm:hidden"}`}>
+            <button
+              type="button"
+              onClick={() => setExpanded((open) => !open)}
+              className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-sb-gold/50 px-5 py-2.5 text-sm font-semibold text-sb-heading transition-colors hover:border-sb-heading hover:bg-sb-surface/40"
+            >
+              {expanded
+                ? "Show fewer"
+                : `Show all ${stories.length} photographs`}
+            </button>
+          </div>
+        ) : null}
       </div>
     </section>
   );
 }
+
+/**
+ * How many cards the wall shows before the button.
+ *
+ * Four below `sm`: two rows of two, about 460px on a 390px-wide phone.
+ * The section that used to live here was a rail precisely because a rail
+ * costs a fixed amount of height however many stories the shop
+ * publishes, and a wall gives that up — so the cap is what buys it back.
+ * This is a home page that already carries a hero, the categories, the
+ * products, the offer banner and the shop's own story, and a wall of
+ * nine on a phone is most of a screen and a half of it.
+ *
+ * Nine from `sm` up: three full rows at three columns and a little over
+ * two at four. Enough that the stagger reads as a wall rather than as a
+ * row that came out uneven, and few enough that the section is still one
+ * part of the page rather than the end of it. The API serves up to two
+ * dozen, and two dozen photographs unrolled by default is more home page
+ * than this section is worth.
+ */
+const SMALL_LIMIT = 4;
+const WIDE_LIMIT = 9;
+
+/**
+ * Which widths a given card is hidden at while the wall is capped.
+ *
+ * Returned as classes rather than applied by slicing the array, because
+ * the two caps differ and one list cannot be sliced two ways at once. It
+ * is also the better answer for a screen reader: a card that is
+ * `display: none` is out of the accessibility tree and out of the tab
+ * order, so a visitor is told about exactly the cards a sighted visitor
+ * at the same width can see, and the button adds the rest for both.
+ */
+function hiddenAbove(index) {
+  if (index < SMALL_LIMIT) return "";
+
+  // Hidden on a phone, shown once the wall widens and the cap rises.
+  if (index < WIDE_LIMIT) return "hidden sm:block";
+
+  // Past both caps: hidden everywhere until the button is pressed.
+  return "hidden";
+}
+
+/**
+ * The heights the wall cycles through.
+ *
+ * Five of them, against two columns on a phone, three at `sm` and four
+ * at `lg`. That is on purpose: a pattern as long as the column count
+ * would hand every column the same run of shapes and the wall would come
+ * out in neat rows, which is the thing it exists to avoid. Five divides
+ * evenly into none of the three, so the shapes keep falling in a
+ * different place down each column at every width.
+ *
+ * Written out as whole class names rather than built from a template,
+ * because Tailwind finds classes by reading this file as text and
+ * `aspect-${x}` is not a class name to it.
+ */
+const RATIOS = [
+  "aspect-3/4",
+  "aspect-9/16",
+  "aspect-square",
+  "aspect-4/5",
+  "aspect-9/16",
+];
 
 /**
  * One card.
@@ -90,7 +203,7 @@ export function CustomerStories({ stories = [] }) {
  * something withdrawn" into `product: null`, so there is one question
  * here rather than two.
  */
-function StoryCard({ story, index }) {
+function StoryCard({ story, index, hiddenClass }) {
   const { image, body, customer_name: name, product } = story;
 
   // Whether there is anything to print under the picture at all. Most
@@ -103,9 +216,12 @@ function StoryCard({ story, index }) {
       <MediaFrame
         src={image}
         alt={altFor(name, product)}
-        ratio="aspect-9/16"
-        sizes="(min-width: 640px) 224px, 192px"
-        loading={index < 3 ? "eager" : "lazy"}
+        ratio={RATIOS[index % RATIOS.length]}
+        sizes="(min-width: 1024px) 300px, (min-width: 768px) 240px, (min-width: 640px) 190px, 46vw"
+        // Four rather than three: two columns means the first four cards
+        // are the first two rows, and on a phone that is what is on
+        // screen when the section is reached.
+        loading={index < 4 ? "eager" : "lazy"}
       />
 
       {/* Over the picture, not under it. A caption in its own band below
@@ -117,9 +233,15 @@ function StoryCard({ story, index }) {
           photograph. It fades rather than being a solid bar so that the
           bottom of the picture is dimmed instead of hidden. */}
       {caption ? (
-        <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/80 via-black/50 to-transparent p-4 pt-12">
+        <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/80 via-black/50 to-transparent p-3 pt-10 sm:p-4 sm:pt-12">
           {body ? (
-            <p className="text-sm leading-relaxed text-white">
+            // Clamped on a phone only. A column there is about 170px
+            // wide, so a quote of any length runs to five or six lines
+            // and covers the photograph it is supposed to be a caption
+            // for — worst on a square card, which is barely taller than
+            // the text. From `sm` the cards are wide enough that the
+            // quote is a couple of lines and can run in full.
+            <p className="line-clamp-3 text-xs leading-relaxed text-white sm:line-clamp-none sm:text-sm">
               {/* Typographic quotes around the shop's transcription, so the
                   words read as somebody speaking rather than as copy the
                   shop wrote about itself. */}
@@ -147,7 +269,7 @@ function StoryCard({ story, index }) {
   );
 
   return (
-    <li className="w-48 shrink-0 snap-start sm:w-56">
+    <li className={`mb-4 break-inside-avoid sm:mb-5 ${hiddenClass}`}>
       {product ? (
         <Link href={`/product/${product.id}`} className="group block">
           {card}

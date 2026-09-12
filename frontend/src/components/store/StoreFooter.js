@@ -22,7 +22,6 @@ const SECTIONS = [
     links: [
       { label: "Returns & refunds", href: "/returns" },
       { label: "Shipping & delivery", href: "/account#delivery" },
-      { label: "Size guide", href: "/account#sizes" },
       // Points at the tracking page itself now that there is one — it works
       // for a guest, which /account does not.
       { label: "Track your order", href: "/track" },
