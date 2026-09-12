@@ -35,12 +35,7 @@
 
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 
-import {
-  LIMITS,
-  MEASUREMENT_KEYS,
-  MEASURES_OPTIONS,
-  UNIT_OPTIONS,
-} from "@/lib/api/sizeCharts";
+import { LIMITS, MEASUREMENT_KEYS, UNIT_OPTIONS } from "@/lib/api/sizeCharts";
 import { COLUMN_LABEL } from "@/lib/sizing";
 import { validateMeasurement, validateSizeLabel } from "@/lib/validate";
 
@@ -50,7 +45,6 @@ import { Button, cx, Field, Input, Select } from "./ui";
 export const BLANK_CHART = {
   fit: "",
   title: "",
-  measures: "body",
   unit: "in",
   columns: ["size", "bust", "waist", "hip"],
   rows: [
@@ -204,26 +198,6 @@ export default function SizeChartBuilder({ chart, onChange, errors = {} }) {
             onChange={(e) => patch({ title: e.target.value })}
             placeholder="Normal fit — salwars and co-ord sets"
           />
-        </Field>
-
-        <Field
-          label="What the numbers measure"
-          required
-          error={errors.measures}
-          hint={
-            MEASURES_OPTIONS.find((option) => option.value === chart.measures)?.hint
-          }
-        >
-          <Select
-            value={chart.measures}
-            onChange={(e) => patch({ measures: e.target.value })}
-          >
-            {MEASURES_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </Select>
         </Field>
 
         <Field

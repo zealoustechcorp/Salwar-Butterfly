@@ -110,6 +110,12 @@ CREATE TABLE IF NOT EXISTS size_charts (
   --
   -- The two published charts differ on exactly this and it changes how
   -- every number below is read, so it is a column and not a footnote.
+  --
+  -- 021 drops this column. The shop stopped drawing the distinction, and
+  -- the admin editor stopped asking; a fresh database creates it here,
+  -- seeds it below and loses it there, ending up where an existing one
+  -- does. Left in place rather than edited out, because this file has
+  -- already run everywhere it is going to run.
   measures VARCHAR(10) NOT NULL DEFAULT 'body',
 
   -- Inches, as the shop prints them. Stored per chart so a chart sourced

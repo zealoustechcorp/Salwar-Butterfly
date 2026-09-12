@@ -287,8 +287,11 @@ export default function ReviewsPage() {
               : "Search by author, product, or what they wrote."
           }
           actions={
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative">
+            <div className="flex w-full flex-wrap items-center gap-2">
+              {/* The search takes whatever the four filters leave, down to a
+                  floor of 12rem; past that the row wraps rather than
+                  spilling out of the card. */}
+              <div className="relative min-w-48 flex-1 sm:max-w-64">
                 <Search
                   aria-hidden="true"
                   className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-ink-400"
@@ -298,14 +301,14 @@ export default function ReviewsPage() {
                   onChange={(e) => setSearchInput(e.target.value)}
                   placeholder="Author, product or wording"
                   aria-label="Search reviews"
-                  className="w-56 pl-8"
+                  className="pl-8"
                 />
               </div>
 
               <Select
                 value={query.productId}
                 aria-label="Filter by product"
-                className="w-52"
+                className="w-44"
                 onChange={(e) =>
                   setQuery((q) => ({ ...q, productId: e.target.value, page: 1 }))
                 }
@@ -321,7 +324,7 @@ export default function ReviewsPage() {
               <Select
                 value={query.rating}
                 aria-label="Filter by rating"
-                className="w-36"
+                className="w-32"
                 onChange={(e) =>
                   setQuery((q) => ({ ...q, rating: e.target.value, page: 1 }))
                 }
@@ -336,7 +339,7 @@ export default function ReviewsPage() {
               <Select
                 value={query.published}
                 aria-label="Filter by visibility"
-                className="w-44"
+                className="w-40"
                 onChange={(e) =>
                   setQuery((q) => ({ ...q, published: e.target.value, page: 1 }))
                 }
@@ -351,7 +354,7 @@ export default function ReviewsPage() {
               <Select
                 value={query.sort}
                 aria-label="Sort reviews"
-                className="w-40"
+                className="w-36"
                 onChange={(e) =>
                   setQuery((q) => ({ ...q, sort: e.target.value, page: 1 }))
                 }

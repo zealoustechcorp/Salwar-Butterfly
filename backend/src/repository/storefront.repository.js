@@ -285,7 +285,6 @@ const SIZE_CHARTS_SQL = `
   SELECT
     sc.fit,
     sc.title,
-    sc.measures,
     sc.unit,
     sc.column_keys,
     sc.measurements

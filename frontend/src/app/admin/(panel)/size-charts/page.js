@@ -297,9 +297,6 @@ function ChartCard({ chart, busy, first, last, onMove, onToggle, onDelete }) {
         title={
           <span className="flex flex-wrap items-center gap-2">
             {chart.fit}
-            <Badge tone={chart.measures === "garment" ? "gold" : "brand"}>
-              {chart.measures === "garment" ? "Garment" : "Body"}
-            </Badge>
             <Badge tone="slate">{chart.unit}</Badge>
             {chart.active ? null : <Badge tone="amber">Hidden</Badge>}
           </span>

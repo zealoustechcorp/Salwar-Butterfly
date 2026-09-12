@@ -54,17 +54,6 @@ export function columnLabel(key) {
   return COLUMN_LABEL[key] ?? key;
 }
 
-/**
- * What a chart's numbers describe — the distinction the shop's two
- * charts turn on, so it is printed above each table rather than buried
- * in the footnotes.
- */
-export const MEASURES_NOTE = {
-  body: "Your own measurements. Measure yourself and read across.",
-  garment:
-    "The outfit laid flat, not your body. Measure yourself, then match a garment to it.",
-};
-
 // --- the fallback charts ----------------------------------------------------
 
 /**
@@ -91,7 +80,6 @@ export const FALLBACK_SIZE_CHARTS = [
   {
     fit: "Normal Fit",
     title: "Normal fit — salwars and co-ord sets",
-    measures: "body",
     unit: "in",
     columns: ["size", "bust", "waist", "hip"],
     // The shop sizes by the number rather than the letter, and the
@@ -114,13 +102,14 @@ export const FALLBACK_SIZE_CHARTS = [
   {
     fit: "Slim Fit",
     title: "Slim fit — salwars",
-    measures: "garment",
     unit: "in",
     columns: ["size", "bust", "waist", "hip", "shoulder"],
     rows: [
-      // Garment measurements, so here the size and the bust part company
-      // below the waist: the number is still the body's bust, and the
-      // rest of the row is the piece laid flat.
+      // These came off a garment card — the piece laid flat — so here the
+      // size and the bust part company below the waist: the number is
+      // still the body's bust, and the rest of the row is the garment.
+      // The chart no longer says so above the table; the numbers are the
+      // shop's either way and are transcribed rather than converted.
       { size: "36", bust: 36, waist: 34, hip: 39, shoulder: 14 },
       { size: "38", bust: 38, waist: 36, hip: 41, shoulder: 14.5 },
       { size: "40", bust: 40, waist: 38, hip: 43, shoulder: 15 },

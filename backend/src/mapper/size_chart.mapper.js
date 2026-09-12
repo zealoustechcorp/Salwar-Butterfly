@@ -39,7 +39,6 @@ export const SizeChartMapper = {
 
       fit: row.fit,
       title: row.title,
-      measures: row.measures,
       unit: row.unit,
 
       columns: asArray(row.column_keys),
@@ -60,9 +59,9 @@ export const SizeChartMapper = {
   /**
    * One chart, as a shopper reads it.
    *
-   * The same five fields `lib/sizing.js` has always exported per chart,
-   * so the storefront's <SizeChartTables> renders an API chart and a
-   * hardcoded fallback with one code path.
+   * The same fields `lib/sizing.js` exports per fallback chart, so the
+   * storefront's <SizeChartTables> renders an API chart and a hardcoded
+   * fallback with one code path.
    */
   toPublic(row) {
     if (!row) return null;
@@ -70,7 +69,6 @@ export const SizeChartMapper = {
     return {
       fit: row.fit,
       title: row.title,
-      measures: row.measures,
       unit: row.unit,
       columns: asArray(row.column_keys),
       rows: asArray(row.measurements),

@@ -35,19 +35,6 @@ export const COLUMN_KEYS = Object.keys(COLUMN_LABEL);
 /** The measurement columns — everything but the row header. */
 export const MEASUREMENT_KEYS = COLUMN_KEYS.filter((key) => key !== "size");
 
-export const MEASURES_OPTIONS = [
-  {
-    value: "body",
-    label: "Body measurements",
-    hint: "The shopper measures themselves and reads across.",
-  },
-  {
-    value: "garment",
-    label: "Garment measurements",
-    hint: "The piece laid flat. The shopper measures themselves, then matches a garment to it.",
-  },
-];
-
 export const UNIT_OPTIONS = [
   { value: "in", label: "Inches (in)" },
   { value: "cm", label: "Centimetres (cm)" },
@@ -77,7 +64,6 @@ export function toSizeChart(dto) {
     id: String(dto.id),
     fit: dto.fit ?? "",
     title: dto.title ?? "",
-    measures: dto.measures ?? "body",
     unit: dto.unit ?? "in",
     columns: Array.isArray(dto.columns) ? dto.columns : [],
     rows: Array.isArray(dto.rows) ? dto.rows : [],
@@ -101,7 +87,6 @@ function toBody(chart) {
   return {
     fit: String(chart.fit ?? "").trim(),
     title: String(chart.title ?? "").trim(),
-    measures: chart.measures,
     unit: chart.unit,
     columns,
     rows: chart.rows.map((row) => {

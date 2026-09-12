@@ -55,9 +55,6 @@ Authorization: Bearer {{token}}
 ### `columns` are keys, and the set is closed — see
 ### config/size_chart.policy.js. "size" must be first.
 ###
-### `measures` is "body" (the shopper measures themselves) or "garment"
-### (the piece laid flat). It changes how every number below is read.
-###
 ### A null measurement is a blank cell, printed as a dash. Do not send 0
 ### for "not stated": zero is a measurement.
 
@@ -68,7 +65,6 @@ Content-Type: application/json
 {
   "fit": "Special Dress",
   "title": "Special dress — gowns and heavy anarkalis",
-  "measures": "garment",
   "unit": "in",
   "columns": ["size", "bust", "waist", "hip", "length"],
   "rows": [
@@ -99,7 +95,6 @@ Content-Type: application/json
 {
   "fit": "Special Dress",
   "title": "Special dress — gowns, heavy anarkalis and occasion wear",
-  "measures": "garment",
   "unit": "in",
   "columns": ["size", "bust", "waist", "hip", "length"],
   "rows": [
@@ -167,7 +162,6 @@ Content-Type: application/json
 {
   "fit": "Broken",
   "title": "Columns out of order",
-  "measures": "body",
   "columns": ["bust", "size"],
   "rows": [{ "size": "M", "bust": 38 }]
 }
@@ -181,7 +175,6 @@ Content-Type: application/json
 {
   "fit": "Broken",
   "title": "Row carries a column the chart has not got",
-  "measures": "body",
   "columns": ["size", "bust"],
   "rows": [{ "size": "M", "bust": 38, "hip": 40 }]
 }
@@ -195,7 +188,6 @@ Content-Type: application/json
 {
   "fit": "slim fit",
   "title": "Case does not make it a different fit",
-  "measures": "garment",
   "columns": ["size", "bust"],
   "rows": [{ "size": "M", "bust": 38 }]
 }

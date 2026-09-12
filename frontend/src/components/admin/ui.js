@@ -309,7 +309,14 @@ export function CardHeader({ title, description, actions }) {
         <h2 className="flex items-center gap-2 text-sm font-semibold text-ink-900">{title}</h2>
         {description ? <p className="mt-1 text-xs text-ink-500">{description}</p> : null}
       </div>
-      {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
+      {/* Capped at the header's own width and allowed to wrap: a filter bar
+          wider than the card should fold onto another line, not be sliced
+          off at the card's right edge. */}
+      {actions ? (
+        <div className="flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2">
+          {actions}
+        </div>
+      ) : null}
     </header>
   );
 }

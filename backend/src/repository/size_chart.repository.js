@@ -30,7 +30,6 @@ const COLUMNS = `
   id,
   fit,
   title,
-  measures,
   unit,
   column_keys,
   measurements,
@@ -139,10 +138,10 @@ export const SizeChartRepository = {
   async create(chart) {
     const text = `
       INSERT INTO size_charts (
-        fit, title, measures, unit, column_keys, measurements, position, active
+        fit, title, unit, column_keys, measurements, position, active
       )
       VALUES (
-        $1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8
+        $1, $2, $3, $4::jsonb, $5::jsonb, $6, $7
       )
       RETURNING ${COLUMNS}
     `;
@@ -151,7 +150,6 @@ export const SizeChartRepository = {
       const result = await query(text, [
         chart.fit,
         chart.title,
-        chart.measures,
         chart.unit,
         JSON.stringify(chart.columns),
         JSON.stringify(chart.rows),
@@ -180,12 +178,11 @@ export const SizeChartRepository = {
       UPDATE size_charts
       SET fit          = $2,
           title        = $3,
-          measures     = $4,
-          unit         = $5,
-          column_keys  = $6::jsonb,
-          measurements = $7::jsonb,
-          position     = $8,
-          active       = $9,
+          unit         = $4,
+          column_keys  = $5::jsonb,
+          measurements = $6::jsonb,
+          position     = $7,
+          active       = $8,
           updated_at   = NOW()
       WHERE id = $1::uuid
       RETURNING ${COLUMNS}
@@ -196,7 +193,6 @@ export const SizeChartRepository = {
         id,
         chart.fit,
         chart.title,
-        chart.measures,
         chart.unit,
         JSON.stringify(chart.columns),
         JSON.stringify(chart.rows),

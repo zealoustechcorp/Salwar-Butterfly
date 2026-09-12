@@ -238,8 +238,7 @@ chart must not make every product carrying that fit unsaveable.
 
 What a chart may contain lives in `config/size_chart.policy.js`: the
 closed set of column keys (`size`, then `bust`, `waist`, `hip`,
-`shoulder`, …), the two `measures` values (`body` or `garment`, which
-changes how every number is read), the units, and the bounds. Those are
+`shoulder`, …), the units, and the bounds. Those are
 mirrored as CHECK constraints in
 `migrations/014_create_size_charts.sql`, which also **seeds the shop's
 two published charts** — Normal Fit and Slim Fit — verbatim from what

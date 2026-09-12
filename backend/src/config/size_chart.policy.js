@@ -35,18 +35,6 @@ export const MEASUREMENT_KEYS = [
 /** Every key a chart's `columns` array may contain, `size` first. */
 export const COLUMN_KEYS = ["size", ...MEASUREMENT_KEYS];
 
-/**
- * What a chart's numbers describe.
- *
- * The two published charts differ on exactly this, and it is not
- * cosmetic: a shopper reads a body chart against themselves and a
- * garment chart against the piece laid flat. A chart that does not say
- * which it is is a chart that will be read the wrong way round.
- */
-export const MEASURES = ["body", "garment"];
-
-export const DEFAULT_MEASURES = "body";
-
 /** The shop publishes in inches; centimetres exist for a chart that is not. */
 export const UNITS = ["in", "cm"];
 

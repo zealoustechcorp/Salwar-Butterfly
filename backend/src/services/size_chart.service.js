@@ -16,7 +16,6 @@
 import { SizeChartRepository } from "../repository/size_chart.repository.js";
 import { SizeChartMapper } from "../mapper/size_chart.mapper.js";
 import {
-  DEFAULT_MEASURES,
   DEFAULT_UNIT,
   roundMeasurement,
 } from "../config/size_chart.policy.js";
@@ -78,7 +77,6 @@ const toChart = (body, fallback) => {
   return {
     fit: String(body.fit).trim(),
     title: String(body.title).trim(),
-    measures: body.measures ?? fallback.measures ?? DEFAULT_MEASURES,
     unit: body.unit ?? fallback.unit ?? DEFAULT_UNIT,
     columns,
     rows: body.rows.map((row) => toRow(row, columns)),
@@ -239,7 +237,6 @@ export const SizeChartService = {
       const row = await SizeChartRepository.update(
         id,
         toChart(body, {
-          measures: existing.measures,
           unit: existing.unit,
           position: Number(existing.position),
           active: Boolean(existing.active),

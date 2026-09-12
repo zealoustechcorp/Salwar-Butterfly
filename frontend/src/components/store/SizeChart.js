@@ -59,7 +59,6 @@ import {
   FALLBACK_SIZE_CHARTS,
   garmentForCategory,
   measurement,
-  MEASURES_NOTE,
   pantLengthFor,
   SIZE_UNIT,
   SIZING_NOTES,
@@ -168,11 +167,6 @@ function ChartTable({ chart }) {
       <p className="font-display text-lg font-semibold text-sb-heading sm:text-xl">
         {chart.title}
       </p>
-      {MEASURES_NOTE[chart.measures] ? (
-        <p className="mt-1 text-xs leading-relaxed text-sb-text-muted">
-          {MEASURES_NOTE[chart.measures]}
-        </p>
-      ) : null}
 
       {/*
         Five columns do not fit a small phone at a legible size, so this

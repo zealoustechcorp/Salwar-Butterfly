@@ -22,7 +22,6 @@ import {
   MAX_ROWS,
   MAX_SIZE_LABEL_LENGTH,
   MAX_TITLE_LENGTH,
-  MEASURES,
   MIN_COLUMNS,
   MIN_MEASUREMENT,
   MIN_ROWS,
@@ -61,18 +60,6 @@ export const validateTitle = (value, required = true) => {
   if (!title) return "Title cannot be empty";
   if (title.length > MAX_TITLE_LENGTH) {
     return `Title must not exceed ${MAX_TITLE_LENGTH} characters`;
-  }
-
-  return null;
-};
-
-export const validateMeasures = (value, required = true) => {
-  if (value === undefined || value === null || value === "") {
-    return required ? "Say whether the chart measures a body or a garment" : null;
-  }
-
-  if (!MEASURES.includes(value)) {
-    return `Measures must be one of: ${list(MEASURES)}`;
   }
 
   return null;
@@ -258,9 +245,6 @@ export const validateSizeChartFields = (body = {}) => {
 
   const title = validateTitle(body.title);
   if (title) errors.title = title;
-
-  const measures = validateMeasures(body.measures);
-  if (measures) errors.measures = measures;
 
   const unit = validateUnit(body.unit);
   if (unit) errors.unit = unit;
