@@ -17,7 +17,7 @@ import {
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
-import { StatTile } from "@/components/admin/ProductBits";
+import { StatGrid, StatTile } from "@/components/admin/ProductBits";
 import { ProductCover } from "@/components/admin/ProductThumb";
 import {
   Badge,
@@ -221,7 +221,7 @@ export default function ReviewsPage() {
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <StatGrid cols={4}>
         <StatTile
           label="Average rating"
           value={loading ? "—" : summary.average ? summary.average.toFixed(1) : "—"}
@@ -244,11 +244,11 @@ export default function ReviewsPage() {
           tone={summary.hidden ? "amber" : "neutral"}
         />
 
-        <div className="rounded-xl bg-white px-4 py-3 ring-1 ring-ink-200/80">
-          <p className="text-[11px] font-medium tracking-wide text-ink-500 uppercase">
-            Spread
-          </p>
-          <div className="mt-1.5 space-y-1">
+        {/* The one tile whose figure is a shape rather than a number, so it
+            passes children instead of a value — same shell, same label, no
+            second card style on the row. */}
+        <StatTile label="Spread">
+          <div className="space-y-1">
             {RATINGS.map((rating) => {
               const count = summary.distribution?.[rating] ?? 0;
               const share = summary.published
@@ -273,8 +273,8 @@ export default function ReviewsPage() {
               );
             })}
           </div>
-        </div>
-      </div>
+        </StatTile>
+      </StatGrid>
 
       <Card>
         <CardHeader

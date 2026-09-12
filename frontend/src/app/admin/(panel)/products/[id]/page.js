@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { DiscountDialog } from "@/components/admin/DiscountDialog";
-import { ActiveDot, StatTile } from "@/components/admin/ProductBits";
+import { ActiveDot, StatGrid, StatTile } from "@/components/admin/ProductBits";
 import { GalleryThumbnail } from "@/components/admin/ProductGallery";
 import { ProductCover } from "@/components/admin/ProductThumb";
 import { ColourSwatch, StockBadge } from "@/components/admin/SizeStockEditor";
@@ -157,7 +157,7 @@ export default function ProductDetailPage() {
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <StatGrid cols={4}>
         <StatTile
           label="Customer pays"
           value={money(product.currentPrice)}
@@ -211,7 +211,7 @@ export default function ProductDetailPage() {
           sub={product.active ? "shoppers can see it" : "in the catalogue only"}
           tone={product.active ? "green" : "amber"}
         />
-      </div>
+      </StatGrid>
 
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="space-y-5 lg:col-span-2">

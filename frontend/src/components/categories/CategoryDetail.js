@@ -16,7 +16,7 @@
 import { ArrowLeft, Check, Package, Pencil } from "lucide-react";
 import { useState } from "react";
 import { Badge, Button, Card, CardHeader, Modal } from "@/components/admin/ui";
-import { StatTile } from "@/components/admin/ProductBits";
+import { StatGrid, StatTile } from "@/components/admin/ProductBits";
 import { money, shortDate } from "@/lib/format";
 import Toggle from "./Toggle";
 import CategoryBadge from "./Badge";
@@ -103,7 +103,7 @@ export default function CategoryDetail({
         High-level metrics: Created Date, Product Count, Live Products.
         ========================================================================
       */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <StatGrid cols={3}>
         <StatTile
           label="Created Date"
           value={shortDate(category.createdAt)}
@@ -120,7 +120,7 @@ export default function CategoryDetail({
           sub="published to storefront"
           tone="brand"
         />
-      </div>
+      </StatGrid>
 
       {/*
         ========================================================================

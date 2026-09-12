@@ -9,7 +9,7 @@
  * 3. Total unique linked products mapped across all categories.
  */
 
-import { StatTile } from "@/components/admin/ProductBits";
+import { StatGrid, StatTile } from "@/components/admin/ProductBits";
 
 /**
  * StatBar Component
@@ -46,7 +46,7 @@ export default function StatBar({ categories }) {
   ].length;
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    <StatGrid cols={3}>
       {/* Total Categories Metric Card */}
       <StatTile
         label="Categories"
@@ -68,7 +68,7 @@ export default function StatBar({ categories }) {
         value={totalProducts}
         sub="across all categories"
       />
-    </div>
+    </StatGrid>
   );
 }
 

@@ -11,7 +11,7 @@ import {
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
-import { StatTile } from "@/components/admin/ProductBits";
+import { StatGrid, StatTile } from "@/components/admin/ProductBits";
 import {
   Badge,
   Button,
@@ -172,7 +172,7 @@ export default function OrdersPage() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+      <StatGrid cols={5}>
         <StatTile
           label="Awaiting payment"
           value={number(summary.awaitingPayment)}
@@ -204,7 +204,7 @@ export default function OrdersPage() {
           } all time`}
           tone="green"
         />
-      </div>
+      </StatGrid>
 
       <Card>
         <CardHeader

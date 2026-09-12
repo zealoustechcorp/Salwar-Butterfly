@@ -15,7 +15,7 @@ import {
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { StatTile } from "@/components/admin/ProductBits";
+import { StatGrid, StatTile } from "@/components/admin/ProductBits";
 import { ProductCover } from "@/components/admin/ProductThumb";
 import { ColourSwatch } from "@/components/admin/SizeStockEditor";
 import {
@@ -304,7 +304,7 @@ export default function InventoryPage() {
         </div>
       </header>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <StatGrid cols={4}>
         <StatTile
           label="Units on hand"
           value={number(summary.totalUnits)}
@@ -329,7 +329,7 @@ export default function InventoryPage() {
           sub="products nothing can be bought in"
           tone={summary.productsWithoutSizes ? "amber" : "neutral"}
         />
-      </div>
+      </StatGrid>
 
       <Card>
         <div className="flex flex-wrap items-center gap-2 border-b border-ink-200/80 p-3">

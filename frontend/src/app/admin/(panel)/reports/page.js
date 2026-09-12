@@ -13,7 +13,7 @@ import {
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { StatTile } from "@/components/admin/ProductBits";
+import { StatGrid, StatTile } from "@/components/admin/ProductBits";
 import { ProductCover } from "@/components/admin/ProductThumb";
 import {
   Badge,
@@ -242,7 +242,7 @@ function SalesReport({ range, period, reload, onRetry }) {
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+      <StatGrid cols={5}>
         <StatTile
           label="Revenue"
           value={loading ? "—" : money(totals.revenue)}
@@ -273,7 +273,7 @@ function SalesReport({ range, period, reload, onRetry }) {
           value={loading ? "—" : money(totals.averageOrderValue)}
           sub="across paid orders"
         />
-      </div>
+      </StatGrid>
 
       <Card>
         <CardHeader
@@ -571,7 +571,7 @@ function OrderReport({ range, reload, onRetry }) {
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <StatGrid cols={4}>
         <StatTile
           label="Orders in range"
           value={loading ? "—" : number(totals.orders)}
@@ -597,7 +597,7 @@ function OrderReport({ range, reload, onRetry }) {
           value={loading ? "—" : money(totals.averageOrderValue)}
           sub="across paid orders"
         />
-      </div>
+      </StatGrid>
 
       <Card>
         <CardHeader
@@ -821,7 +821,7 @@ function InventoryReport({ reload, onRetry }) {
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+      <StatGrid cols={5}>
         <StatTile
           label="Pieces on hand"
           value={loading ? "—" : number(stock.totalUnits)}
@@ -851,7 +851,7 @@ function InventoryReport({ reload, onRetry }) {
           sub="cannot be bought at all"
           tone={stock?.productsWithoutSizes ? "red" : "neutral"}
         />
-      </div>
+      </StatGrid>
 
       <Card>
         <CardHeader
@@ -925,21 +925,25 @@ function InventoryReport({ reload, onRetry }) {
         )}
       </Card>
 
-      <div className="grid gap-5 xl:grid-cols-2">
-        <StockListCard
-          title="Sold out"
-          tone="red"
-          list={data?.outOfStock}
-          loading={loading}
-          empty="Nothing on sale is sold out."
-        />
-        <StockListCard
-          title="Running low"
-          tone="amber"
-          list={data?.lowStock}
-          loading={loading}
-          empty="Nothing on sale is running low."
-        />
+      {/* Container width, not viewport: the rail takes 16rem, so `xl:` split
+          this row while each half was still narrower than the list in it. */}
+      <div className="@container">
+        <div className="grid gap-4 @4xl:grid-cols-2 @4xl:gap-5">
+          <StockListCard
+            title="Sold out"
+            tone="red"
+            list={data?.outOfStock}
+            loading={loading}
+            empty="Nothing on sale is sold out."
+          />
+          <StockListCard
+            title="Running low"
+            tone="amber"
+            list={data?.lowStock}
+            loading={loading}
+            empty="Nothing on sale is running low."
+          />
+        </div>
       </div>
     </div>
   );

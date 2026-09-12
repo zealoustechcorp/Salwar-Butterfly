@@ -10,14 +10,13 @@ import {
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
-import { StatTile } from "@/components/admin/ProductBits";
+import { StatGrid, StatTile } from "@/components/admin/ProductBits";
 import { ProductCover } from "@/components/admin/ProductThumb";
 import {
   Badge,
   Button,
   Card,
   CardHeader,
-  cx,
   EmptyState,
   ErrorNotice,
   SkeletonRows,
@@ -108,7 +107,7 @@ export default function DashboardPage() {
           owed, not what came in, and the two must never be read as one
           running total.
       ------------------------------------------------------------ */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <StatGrid cols={4}>
         <PeriodCard
           label="Today"
           revenue={orders.today.revenue}
@@ -141,7 +140,7 @@ export default function DashboardPage() {
           }
           href="/admin/orders?paymentStatus=pending"
         />
-      </div>
+      </StatGrid>
 
       {/* ------------------------------------------------------------
           THE CATALOGUE (F-11.02, F-11.04)
@@ -149,7 +148,7 @@ export default function DashboardPage() {
           second count — the tile and the screen behind it are the same
           query, so clicking through cannot change the number.
       ------------------------------------------------------------ */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+      <StatGrid cols={5}>
         <StatTile
           label="Products live"
           value={loading ? "—" : number(catalogue.productsActive)}
@@ -158,12 +157,14 @@ export default function DashboardPage() {
               ? `${number(catalogue.productsInactive)} off sale`
               : "all on sale"
           }
+          href="/admin/products"
         />
         <StatTile
           label="Sizes low"
           value={loading ? "—" : number(stock.lowStock.sizes)}
           sub={`under ${stock.thresholds.lowStockBelow} left`}
           tone={stock.lowStock.sizes ? "amber" : "neutral"}
+          href="/admin/inventory"
         />
         <StatTile
           label="Sizes sold out"
@@ -172,11 +173,13 @@ export default function DashboardPage() {
             stock.outOfStock.products === 1 ? "" : "s"
           }`}
           tone={stock.outOfStock.sizes ? "red" : "neutral"}
+          href="/admin/inventory"
         />
         <StatTile
           label="Pieces in stock"
           value={loading ? "—" : number(stock.totalUnits)}
           sub={`over ${number(stock.totalSizes)} sizes`}
+          href="/admin/inventory"
         />
         <StatTile
           label="Customers"
@@ -186,156 +189,166 @@ export default function DashboardPage() {
               ? `${number(catalogue.customersThisMonth)} joined this month`
               : "none joined this month"
           }
+          href="/admin/customers"
         />
-      </div>
+      </StatGrid>
 
-      <div className="grid gap-5 xl:grid-cols-2">
-        {/* --------------------------------------------------------
-            RECENT ORDERS (F-11.03)
-            A glance at the queue, not the queue itself — ten rows,
-            read-only, with the full screen one click away.
-        -------------------------------------------------------- */}
-        <Card>
-          <CardHeader
-            title="Latest orders"
-            description={`${number(orders.allTime.orders)} placed all time · ${money(
-              orders.allTime.revenue,
-            )} taken`}
-            actions={
-              <Link
-                href="/admin/orders"
-                className="inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:underline"
-              >
-                All orders
-                <ArrowRight className="size-3.5" aria-hidden="true" />
-              </Link>
-            }
-          />
-
-          {loading ? (
-            <SkeletonRows rows={5} />
-          ) : data.recentOrders.length === 0 ? (
-            <EmptyState
-              icon={<ShoppingBag className="size-6" aria-hidden="true" />}
-              title="No orders yet"
-              description="Orders appear here the moment someone checks out on the storefront."
+      {/* Two panels only once the content column itself can hold two — the
+          rail takes 16rem of the window, so `xl:` here used to split the row
+          while each half was still too narrow for the orders table. */}
+      <div className="@container">
+        <div className="grid gap-4 @5xl:grid-cols-2 @5xl:gap-5">
+          {/* --------------------------------------------------------
+              RECENT ORDERS (F-11.03)
+              A glance at the queue, not the queue itself — ten rows,
+              read-only, with the full screen one click away.
+          -------------------------------------------------------- */}
+          <Card className="@container">
+            <CardHeader
+              title="Latest orders"
+              description={`${number(orders.allTime.orders)} placed all time · ${money(
+                orders.allTime.revenue,
+              )} taken`}
+              actions={
+                <Link
+                  href="/admin/orders"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:underline"
+                >
+                  All orders
+                  <ArrowRight className="size-3.5" aria-hidden="true" />
+                </Link>
+              }
             />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr className="border-b border-ink-200 bg-ink-50/60 text-left text-[11px] font-semibold tracking-wide text-ink-500 uppercase">
-                    <th className="px-3 py-2.5">Order</th>
-                    <th className="px-3 py-2.5">Customer</th>
-                    <th className="px-3 py-2.5">Pieces</th>
-                    <th className="px-3 py-2.5 text-right">Total</th>
-                    <th className="px-3 py-2.5">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-ink-100">
-                  {data.recentOrders.map((order) => {
-                    const status = statusMeta(order.status);
-                    const payment = paymentMeta(order.paymentStatus);
 
-                    return (
-                      <tr
-                        key={order.id}
-                        className="align-middle transition-colors hover:bg-ink-50/70"
-                      >
-                        <td className="px-3 py-2.5">
-                          <Link
-                            href={`/admin/orders/${order.id}`}
-                            className="font-mono text-[13px] font-medium text-ink-900 hover:text-brand-700 hover:underline"
-                          >
-                            {order.orderNumber}
-                          </Link>
-                          <p className="mt-0.5 text-xs text-ink-500">
-                            {shortDate(order.timeline.placedAt)}
-                          </p>
-                        </td>
+            {loading ? (
+              <SkeletonRows rows={5} />
+            ) : data.recentOrders.length === 0 ? (
+              <EmptyState
+                icon={<ShoppingBag className="size-6" aria-hidden="true" />}
+                title="No orders yet"
+                description="Orders appear here the moment someone checks out on the storefront."
+              />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[24rem] border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b border-ink-200 bg-ink-50/60 text-left text-[11px] font-semibold tracking-wide text-ink-500 uppercase">
+                      <th className="px-3 py-2.5">Order</th>
+                      <th className="px-3 py-2.5">Customer</th>
+                      {/* The piece count is the first thing worth losing when
+                          the card is half a narrow screen: the order number,
+                          the total and the two badges all answer questions the
+                          shop asks first. */}
+                      <th className="hidden px-3 py-2.5 @lg:table-cell">Pieces</th>
+                      <th className="px-3 py-2.5 text-right">Total</th>
+                      <th className="px-3 py-2.5">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-ink-100">
+                    {data.recentOrders.map((order) => {
+                      const status = statusMeta(order.status);
+                      const payment = paymentMeta(order.paymentStatus);
 
-                        <td className="px-3 py-2.5">
-                          <p className="font-medium text-ink-800">
-                            {order.contact.name || "—"}
-                          </p>
-                          <p className="mt-0.5 text-xs text-ink-500">
-                            {order.customerId ? "account" : "guest"}
-                          </p>
-                        </td>
+                      return (
+                        <tr
+                          key={order.id}
+                          className="align-middle transition-colors hover:bg-ink-50/70"
+                        >
+                          <td className="px-3 py-2.5">
+                            <Link
+                              href={`/admin/orders/${order.id}`}
+                              className="font-mono text-[13px] font-medium text-ink-900 hover:text-brand-700 hover:underline"
+                            >
+                              {order.orderNumber}
+                            </Link>
+                            <p className="mt-0.5 text-xs text-ink-500">
+                              {shortDate(order.timeline.placedAt)}
+                            </p>
+                          </td>
 
-                        <td className="px-3 py-2.5 text-ink-600 tabular-nums">
-                          {number(order.unitCount)}
-                        </td>
+                          <td className="max-w-40 px-3 py-2.5">
+                            <p className="truncate font-medium text-ink-800">
+                              {order.contact.name || "—"}
+                            </p>
+                            <p className="mt-0.5 text-xs text-ink-500">
+                              {order.customerId ? "account" : "guest"}
+                            </p>
+                          </td>
 
-                        <td className="px-3 py-2.5 text-right font-medium text-ink-900 tabular-nums">
-                          {money(order.total)}
-                        </td>
+                          <td className="hidden px-3 py-2.5 text-ink-600 tabular-nums @lg:table-cell">
+                            {number(order.unitCount)}
+                          </td>
 
-                        <td className="px-3 py-2.5">
-                          <div className="flex flex-wrap items-center gap-1">
-                            <Badge tone={status.tone}>{status.label}</Badge>
-                            <Badge tone={payment.tone}>{payment.label}</Badge>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Card>
+                          <td className="px-3 py-2.5 text-right font-medium text-ink-900 tabular-nums">
+                            {money(order.total)}
+                          </td>
 
-        {/* --------------------------------------------------------
-            NEEDS REORDERING (F-11.02, F-11.04)
-            Two lists rather than one merged by quantity. A sold-out
-            size is a sale already being turned away; a low one is a
-            warning. Sorting them together buries the zeroes.
-        -------------------------------------------------------- */}
-        <Card>
-          <CardHeader
-            title="Needs reordering"
-            description={`${number(stock.outOfStock.sizes)} sold out · ${number(
-              stock.lowStock.sizes,
-            )} under ${stock.thresholds.lowStockBelow}`}
-            actions={
-              <Link
-                href="/admin/inventory"
-                className="inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:underline"
-              >
-                Inventory
-                <ArrowRight className="size-3.5" aria-hidden="true" />
-              </Link>
-            }
-          />
+                          <td className="px-3 py-2.5">
+                            <div className="flex flex-wrap items-center gap-1">
+                              <Badge tone={status.tone}>{status.label}</Badge>
+                              <Badge tone={payment.tone}>{payment.label}</Badge>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
 
-          {loading ? (
-            <SkeletonRows rows={5} />
-          ) : data.outOfStock.length === 0 && data.lowStock.length === 0 ? (
-            <EmptyState
-              icon={<PackageX className="size-6" aria-hidden="true" />}
-              title="Everything is in stock"
-              description="No size on sale is low or sold out."
+          {/* --------------------------------------------------------
+              NEEDS REORDERING (F-11.02, F-11.04)
+              Two lists rather than one merged by quantity. A sold-out
+              size is a sale already being turned away; a low one is a
+              warning. Sorting them together buries the zeroes.
+          -------------------------------------------------------- */}
+          <Card>
+            <CardHeader
+              title="Needs reordering"
+              description={`${number(stock.outOfStock.sizes)} sold out · ${number(
+                stock.lowStock.sizes,
+              )} under ${stock.thresholds.lowStockBelow}`}
+              actions={
+                <Link
+                  href="/admin/inventory"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:underline"
+                >
+                  Inventory
+                  <ArrowRight className="size-3.5" aria-hidden="true" />
+                </Link>
+              }
             />
-          ) : (
-            <div className="divide-y divide-ink-100">
-              <StockGroup
-                title="Sold out"
-                icon={<PackageX className="size-3.5" aria-hidden="true" />}
-                tone="red"
-                lines={data.outOfStock}
-                total={stock.outOfStock.sizes}
+
+            {loading ? (
+              <SkeletonRows rows={5} />
+            ) : data.outOfStock.length === 0 && data.lowStock.length === 0 ? (
+              <EmptyState
+                icon={<PackageX className="size-6" aria-hidden="true" />}
+                title="Everything is in stock"
+                description="No size on sale is low or sold out."
               />
-              <StockGroup
-                title="Running low"
-                icon={<AlertTriangle className="size-3.5" aria-hidden="true" />}
-                tone="amber"
-                lines={data.lowStock}
-                total={stock.lowStock.sizes}
-              />
-            </div>
-          )}
-        </Card>
+            ) : (
+              <div className="divide-y divide-ink-100">
+                <StockGroup
+                  title="Sold out"
+                  icon={<PackageX className="size-3.5" aria-hidden="true" />}
+                  tone="red"
+                  lines={data.outOfStock}
+                  total={stock.outOfStock.sizes}
+                />
+                <StockGroup
+                  title="Running low"
+                  icon={<AlertTriangle className="size-3.5" aria-hidden="true" />}
+                  tone="amber"
+                  lines={data.lowStock}
+                  total={stock.lowStock.sizes}
+                />
+              </div>
+            )}
+          </Card>
+        </div>
       </div>
     </div>
   );
@@ -344,10 +357,9 @@ export default function DashboardPage() {
 /**
  * One window of takings.
  *
- * Bigger than a <StatTile> because it carries two numbers that mean
- * different things — money in, and how many orders it came from — and
- * flattening them into a label would make the second look like a
- * subtitle of the first.
+ * A <StatTile> at the larger of its two sizes, so the money row leads the
+ * screen without becoming a second kind of card — both rows share one shell,
+ * and the hierarchy between them is type, not chrome.
  */
 function PeriodCard({
   label,
@@ -358,23 +370,15 @@ function PeriodCard({
   href,
   loading,
 }) {
-  const tones = {
-    neutral: "text-ink-900",
-    amber: "text-amber-700",
-  };
-
-  const body = (
-    <>
-      <p className="text-[11px] font-medium tracking-wide text-ink-500 uppercase">
-        {label}
-      </p>
-
-      <p className={cx("mt-1 text-2xl font-semibold tabular-nums", tones[tone])}>
-        {loading ? "—" : money(revenue)}
-      </p>
-
-      <p className="mt-0.5 text-xs text-ink-500">
-        {loading
+  return (
+    <StatTile
+      label={label}
+      size="lg"
+      tone={tone}
+      href={href}
+      value={loading ? "—" : money(revenue)}
+      sub={
+        loading
           ? " "
           : (footnote ??
             // "3 orders, 2 paid" rather than one number: an order placed
@@ -390,20 +394,9 @@ function PeriodCard({
               figures?.cancelled
                 ? ` · ${number(figures.cancelled)} cancelled`
                 : ""
-            }`)}
-      </p>
-    </>
-  );
-
-  const className =
-    "block rounded-xl bg-white px-4 py-3 ring-1 ring-ink-200/80 transition-shadow";
-
-  return href ? (
-    <Link href={href} className={cx(className, "hover:shadow-sm")}>
-      {body}
-    </Link>
-  ) : (
-    <div className={className}>{body}</div>
+            }`)
+      }
+    />
   );
 }
 

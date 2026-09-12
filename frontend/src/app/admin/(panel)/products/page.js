@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { DeleteDialog } from "@/components/admin/DeleteDialog";
 import { DiscountDialog } from "@/components/admin/DiscountDialog";
-import { ActiveDot, PriceCell, StatTile } from "@/components/admin/ProductBits";
+import { ActiveDot, PriceCell, StatGrid, StatTile } from "@/components/admin/ProductBits";
 import { ProductCover } from "@/components/admin/ProductThumb";
 import { StockBadge } from "@/components/admin/SizeStockEditor";
 import {
@@ -219,7 +219,7 @@ export default function ProductsListPage() {
     <div className="mx-auto max-w-[1400px] space-y-5">
       <PageHeader />
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <StatGrid cols={4}>
         <StatTile
           label="Products"
           value={stats ? number(stats.total) : "—"}
@@ -243,7 +243,7 @@ export default function ProductsListPage() {
           sub={`${stockTotals.outOfStock} out of stock · ${stockTotals.noSizes} with no sizes`}
           tone={stockTotals.outOfStock || stockTotals.noSizes ? "amber" : "neutral"}
         />
-      </div>
+      </StatGrid>
 
       <Card>
         <div className="flex flex-wrap items-center gap-2 border-b border-ink-200/80 p-3">
