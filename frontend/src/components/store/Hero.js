@@ -275,9 +275,9 @@ function BannerCarousel({ slides, onFail }) {
  */
 function Slide({ slide, reachable, priority, onFail }) {
   /* `ratio="h-full w-full"` because the shape is the track's to decide here,
-     not the frame's — every slide is the 16:9 box around it. A banner that is
-     not 16:9 is fitted inside against a blurred copy of itself rather than
-     being cropped to the middle third. */
+     not the frame's — every slide is the letterbox around it. A banner that
+     does not match that shape is scaled to cover it and cropped, so the band
+     is never a picture sitting in bars of its own colour. */
   const picture = (
     <MediaFrame
       src={slide.image}

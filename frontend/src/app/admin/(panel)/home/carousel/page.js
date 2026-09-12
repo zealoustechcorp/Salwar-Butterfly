@@ -18,27 +18,23 @@
  * itself. So the create form is a file picker, and nothing else; the
  * link is an edit afterwards, on the slides that want one.
  *
- * Four gestures, softest first, which is also the order they appear on
- * each tile:
- *
- *   Shown toggle  takes a slide out of the rotation and keeps it. A
- *                 Diwali banner pulled in November is worth having back
- *                 next October.
- *   Link          points the slide at a piece, so tapping the banner on
- *                 the home page opens that product. Optional, and
- *                 cleared the same way it is set — most slides link
- *                 nowhere and are none the worse for it.
- *   Replace       swaps the artwork and keeps the slide's place in the
- *                 order — which is the only thing it does that deleting
- *                 and re-uploading would not, since a new upload lands
- *                 at the end.
- *   Delete        destroys the row and the file on Cloudinary. Behind a
- *                 confirmation, and never the first thing offered.
+ * This screen is the set: what is running, in what order, and whether
+ * each slide is in the rotation. Everything about *one* slide — where it
+ * points, swapping its artwork, deleting it — is a screen of its own at
+ * /admin/home/carousel/[id], reached by clicking the artwork. Those were
+ * icons on the tile until they were not: a chain link, a bin and a pair
+ * of arrows on a stamp-sized tile are four guesses about what is about to
+ * happen to a live page, and the detail screen answers them in words.
  *
  * The order the tiles are listed in is the order the slides rotate,
  * which is why the arrows are here and why a reorder sends the whole
  * set: a partial one would leave two banners sharing a position and the
  * carousel settling somewhere nobody chose.
+ *
+ * What to upload is behind the Image guide button rather than a footnote
+ * nobody reads. It is a panel and not a dialog: the shop reads it while
+ * choosing a file, so it has to sit beside the Add button rather than
+ * over the artwork it is describing.
  */
 
 import {
@@ -51,12 +47,12 @@ import {
   Link2,
   Link2Off,
   RefreshCw,
-  Replace,
-  Trash2,
   Upload,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useRef, useState } from "react";
 
+import { BANNER_GUIDE, ImageGuide, ImageGuideButton } from "@/components/admin/ImageGuide";
 import { MediaFrame } from "@/components/admin/MediaFrame";
 import {
   Badge,
@@ -65,10 +61,7 @@ import {
   CardHeader,
   EmptyState,
   ErrorNotice,
-  Field,
-  Input,
-  Modal,
-  Select,
+  LinkButton,
   SkeletonRows,
   Toggle,
   cx,
@@ -79,15 +72,11 @@ import {
   MAX_BANNERS,
   MAX_PER_UPLOAD,
   createBanners,
-  deleteBanner,
   listBanners,
   rejectionReason,
   reorderBanners,
-  replaceBannerImage,
   setBannerActive,
-  setBannerProduct,
 } from "@/lib/api/banners";
-import { listAllProducts } from "@/lib/api/products";
 
 export default function CarouselPage() {
   const toast = useToast();
@@ -101,24 +90,12 @@ export default function CarouselPage() {
 
   const [busy, setBusy] = useState(false);
   const [busyId, setBusyId] = useState(null);
-  const [deleting, setDeleting] = useState(null);
 
-  // Which slide's link is being edited, and the catalogue to pick from.
-  const [linking, setLinking] = useState(null);
-  // Its own request rather than something the banners bring with them —
-  // the carousel is twelve rows and the catalogue is two hundred, and a
-  // screen that mostly reorders pictures should not wait on the second
-  // to show the first. A failure here costs the picker and nothing else,
-  // which is why it is not folded into `state`.
-  const [products, setProducts] = useState([]);
-
-  // Which slide the replace picker is about to overwrite. One piece of
-  // state and one input, rather than an input per tile: "replacing" and
-  // "which" are never separately true.
-  const [replacingId, setReplacingId] = useState(null);
+  // Whether the "what to upload" panel is open. Closed by default: it is
+  // read once by whoever is uploading and is noise to everyone else.
+  const [guideOpen, setGuideOpen] = useState(false);
 
   const addRef = useRef(null);
-  const replaceRef = useRef(null);
 
   /**
    * The carousel is the whole screen, so a reload leaves what is on it
@@ -145,26 +122,6 @@ export default function CarouselPage() {
       controller.abort();
     };
   }, [reload]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    let active = true;
-
-    listAllProducts({ signal: controller.signal })
-      .then((rows) => {
-        if (active) setProducts(rows);
-      })
-      .catch(() => {
-        // Swallowed deliberately. Every other gesture on this screen
-        // still works without the catalogue, and the link editor says so
-        // itself rather than putting an error banner over the artwork.
-      });
-
-    return () => {
-      active = false;
-      controller.abort();
-    };
-  }, []);
 
   const refresh = useCallback(() => setReload((n) => n + 1), []);
 
@@ -219,39 +176,6 @@ export default function CarouselPage() {
     }
   }
 
-  async function replace(fileList) {
-    const file = Array.from(fileList ?? [])[0];
-    const id = replacingId;
-
-    setReplacingId(null);
-
-    if (!file || !id) return;
-
-    const rejected = rejectionReason(file);
-
-    if (rejected) {
-      toast.error(rejected);
-      return;
-    }
-
-    setBusyId(id);
-
-    try {
-      const saved = await replaceBannerImage(id, file);
-
-      setState((current) => ({
-        ...current,
-        banners: current.banners.map((row) => (row.id === saved.id ? saved : row)),
-      }));
-
-      toast.success("Banner replaced", "It kept its place in the rotation.");
-    } catch (error) {
-      toast.error("Could not replace that banner", error?.message);
-    } finally {
-      setBusyId(null);
-    }
-  }
-
   async function toggleShown(banner) {
     setBusyId(banner.id);
 
@@ -271,39 +195,6 @@ export default function CarouselPage() {
       );
     } catch (error) {
       toast.error("Could not change that", error?.message);
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  /**
-   * Points a slide at a piece, or takes the link off it.
-   *
-   * `productId` of "" is the cleared case and is a real edit, not a
-   * no-op — the API takes it as null and the banner goes back to being
-   * a photograph that does nothing when tapped.
-   */
-  async function saveLink(banner, productId) {
-    setBusyId(banner.id);
-
-    try {
-      const saved = await setBannerProduct(banner.id, productId);
-
-      setState((current) => ({
-        ...current,
-        banners: current.banners.map((row) => (row.id === saved.id ? saved : row)),
-      }));
-
-      setLinking(null);
-
-      toast.success(
-        saved.productId ? "Banner linked" : "Link removed",
-        saved.productId
-          ? `Tapping this slide now opens ${saved.productName}.`
-          : "This slide is a photograph again — tapping it does nothing.",
-      );
-    } catch (error) {
-      toast.error("Could not change the link", error?.message);
     } finally {
       setBusyId(null);
     }
@@ -340,24 +231,6 @@ export default function CarouselPage() {
     }
   }
 
-  async function confirmDelete() {
-    const banner = deleting;
-
-    setBusyId(banner.id);
-
-    try {
-      const remaining = await deleteBanner(banner.id);
-
-      setState({ status: "ready", banners: remaining, error: null });
-      setDeleting(null);
-      toast.success("Banner deleted", "The artwork was removed from storage too.");
-    } catch (error) {
-      toast.error("Could not delete that", error?.message);
-    } finally {
-      setBusyId(null);
-    }
-  }
-
   // --- render ---------------------------------------------------------------
 
   const shown = state.banners.filter((banner) => banner.active).length;
@@ -365,9 +238,9 @@ export default function CarouselPage() {
 
   return (
     <div className="space-y-4">
-      {/* One input for adding, one for replacing. Both are off-screen and
-          driven by the buttons; a visible file input cannot be styled to
-          match anything else on this screen. */}
+      {/* Off-screen and driven by the button; a visible file input cannot
+          be styled to match anything else on this screen. Replacing one
+          slide's artwork lives on that slide's own screen. */}
       <input
         ref={addRef}
         type="file"
@@ -378,16 +251,6 @@ export default function CarouselPage() {
         onChange={(e) => {
           upload(e.target.files);
           // Lets the same file be picked again after a failure.
-          e.target.value = "";
-        }}
-      />
-      <input
-        ref={replaceRef}
-        type="file"
-        accept={ACCEPT_ATTRIBUTE}
-        className="sr-only"
-        onChange={(e) => {
-          replace(e.target.files);
           e.target.value = "";
         }}
       />
@@ -405,6 +268,7 @@ export default function CarouselPage() {
               <Button size="sm" variant="ghost" onClick={refresh} title="Reload">
                 <RefreshCw className="size-3.5" />
               </Button>
+              <ImageGuideButton onOpen={() => setGuideOpen(true)} />
               <Button
                 size="sm"
                 variant="primary"
@@ -464,193 +328,29 @@ export default function CarouselPage() {
                   disabled={locked}
                   onMove={(delta) => move(index, delta)}
                   onToggle={() => toggleShown(banner)}
-                  onLink={() => setLinking(banner)}
-                  onReplace={() => {
-                    setReplacingId(banner.id);
-                    replaceRef.current?.click();
-                  }}
-                  onDelete={() => setDeleting(banner)}
                 />
               ))}
             </ul>
 
             <p className="mt-3 text-[11px] text-ink-500">
               JPEG, PNG or WebP · up to 5 MB each · {MAX_PER_UPLOAD} at a time.
-              Slides are shown at 16:9. Artwork of any other shape is fitted
-              inside that frame against a blurred copy of itself rather than
-              cropped, so nothing is cut off — design at 16:9 for the sharpest
-              result. A slide linked to a piece shows that piece&rsquo;s name in
-              the corner of the banner, so leave that corner clear when the
-              artwork is going to carry a link.
+              Slides are shown at 16:9 — artwork of any other shape is fitted
+              inside that frame and the parts outside it are trimmed, so keep
+              anything that matters near the middle. Open the Image guide above
+              for the full list.
             </p>
           </div>
         ) : null}
       </Card>
 
-      {/* ----------------------------------------------------------
-          LINK
-          ---------------------------------------------------------- */}
-
-      {/* Keyed on the banner, so opening a different slide is a remount
-          and the form seeds itself from that row rather than needing an
-          effect to chase the prop. Same treatment as the story editor. */}
-      {linking ? (
-        <LinkEditor
-          key={linking.id}
-          banner={linking}
-          products={products}
-          saving={busyId === linking.id}
-          onClose={() => setLinking(null)}
-          onSave={(productId) => saveLink(linking, productId)}
-        />
-      ) : null}
-
-      {/* ----------------------------------------------------------
-          DELETE
-          ---------------------------------------------------------- */}
-
-      <Modal
-        open={Boolean(deleting)}
-        onClose={() => setDeleting(null)}
-        size="sm"
-        title="Delete this banner?"
-        description="The artwork is removed from the carousel and from storage. This cannot be undone."
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setDeleting(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant="danger"
-              busy={busyId === deleting?.id}
-              onClick={confirmDelete}
-            >
-              Delete
-            </Button>
-          </>
-        }
-      >
-        {deleting ? (
-          <div className="flex items-center gap-3">
-            <MediaFrame
-              src={deleting.image}
-              ratio="aspect-16/9"
-              className="w-32 shrink-0 rounded-lg"
-            />
-            <p className="text-xs leading-relaxed text-ink-600">
-              Deleting is permanent — putting this banner back means uploading the
-              file again. To take it out of the rotation without losing it, close
-              this and use the shown toggle instead.
-            </p>
-          </div>
-        ) : null}
-      </Modal>
+      {/* What to upload, in words. The one dialog left on this screen, and
+          the only thing here that decides nothing. */}
+      <ImageGuide
+        guide={BANNER_GUIDE}
+        open={guideOpen}
+        onClose={() => setGuideOpen(false)}
+      />
     </div>
-  );
-}
-
-/**
- * Where one slide points.
- *
- * A modal of its own rather than a select on the tile, because the
- * catalogue is two hundred pieces and choosing from it needs a search
- * box — and because putting one next to the artwork on every tile would
- * make a screen about pictures look like a screen about forms.
- *
- * The picture is in the dialog beside the picker for the same reason the
- * tiles are pictures: "which banner is this" is answered by looking at
- * it, not by reading a row number.
- */
-function LinkEditor({ banner, products, saving, onClose, onSave }) {
-  const [productId, setProductId] = useState(banner.productId ?? "");
-  const [search, setSearch] = useState("");
-
-  // Two hundred products in one dropdown is a scroll, not a choice. The
-  // filter narrows it; the cap keeps the list renderable when the filter
-  // is empty. Same treatment as the stories and reviews screens.
-  const options = useMemo(() => {
-    const term = search.trim().toLowerCase();
-
-    const matches = term
-      ? products.filter((product) =>
-          `${product.name} ${product.slug ?? ""}`.toLowerCase().includes(term),
-        )
-      : products;
-
-    return matches.slice(0, 50);
-  }, [products, search]);
-
-  // The slide may already point at a piece that is not in `options` —
-  // because it is off sale, or simply past the cap above. Without this
-  // the Select would quietly show "no piece" and saving would clear a
-  // link the shop never touched.
-  const stranded = productId && !options.some((product) => product.id === productId);
-
-  return (
-    <Modal
-      open
-      onClose={saving ? () => {} : onClose}
-      size="sm"
-      title="Where does this slide go?"
-      description="Optional. With a piece chosen, tapping this banner on the home page opens it."
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose} disabled={saving}>
-            Cancel
-          </Button>
-          <Button variant="primary" busy={saving} onClick={() => onSave(productId)}>
-            Save
-          </Button>
-        </>
-      }
-    >
-      <div className="space-y-4">
-        <MediaFrame
-          src={banner.image}
-          ratio="aspect-16/9"
-          className="w-full rounded-lg"
-        />
-
-        <Field
-          label="Piece"
-          hint={
-            products.length === 0
-              ? "The catalogue could not be loaded — reload the page to link this slide to a piece."
-              : "Leave this on “No piece” for a banner that is just a photograph. Type to narrow the list."
-          }
-        >
-          <div className="space-y-2">
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search products by name"
-            />
-            <Select value={productId} onChange={(e) => setProductId(e.target.value)}>
-              <option value="">No piece</option>
-              {stranded ? (
-                <option value={productId}>
-                  {banner.productName || "The piece this slide names"}
-                  {banner.productActive === false ? " (off sale)" : ""}
-                </option>
-              ) : null}
-              {options.map((product) => (
-                <option key={product.id} value={product.id}>
-                  {product.name}
-                </option>
-              ))}
-            </Select>
-          </div>
-        </Field>
-
-        {banner.productActive === false ? (
-          <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-800 ring-1 ring-inset ring-amber-200">
-            The piece this slide names is off sale, so the banner is showing on
-            the home page but is not linking anywhere. Point it at something on
-            sale, or clear the link — the artwork stays either way.
-          </p>
-        ) : null}
-      </div>
-    </Modal>
   );
 }
 
@@ -660,20 +360,15 @@ function LinkEditor({ banner, products, saving, onClose, onSave }) {
  * The tile is the photograph rather than a filename and a date, because
  * that is what the shop is actually checking when it opens this screen:
  * which pictures are running, and in what order.
+ *
+ * The picture is also the way in. Clicking it opens the slide's own
+ * screen, where the link, the artwork and deleting it are spelled out in
+ * words — a tile this size can carry the two gestures that are about the
+ * *set* (is it running, where in the order) and nothing more.
  */
-function BannerTile({
-  banner,
-  index,
-  total,
-  busy,
-  disabled,
-  onMove,
-  onToggle,
-  onLink,
-  onReplace,
-  onDelete,
-}) {
+function BannerTile({ banner, index, total, busy, disabled, onMove, onToggle }) {
   const locked = disabled || busy;
+  const href = `/admin/home/carousel/${banner.id}`;
 
   // Three states, and only the third is a problem: no link at all (the
   // ordinary slide), a link to a piece on sale, and a link to a piece the
@@ -688,28 +383,41 @@ function BannerTile({
         banner.active ? undefined : "opacity-75",
       )}
     >
-      <div className="relative">
-        {/* 16:9, matching the frame on the home page exactly — this tile is
-            what the shop judges a banner by, so it has to crop and fill
-            the way the real carousel does. */}
+      {/* 16:9, matching the frame on the home page exactly — this tile is
+          what the shop judges a banner by, so it has to crop and fill the
+          way the real carousel does.
+
+          The whole picture is the link, and it says so on hover rather
+          than only by turning into a pointer: a photograph that quietly
+          navigates is the same guess the icons were. */}
+      <Link
+        href={href}
+        className="group relative block focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-600"
+      >
         <MediaFrame src={banner.image} ratio="aspect-16/9" />
+
+        <span className="absolute inset-0 grid place-items-center bg-ink-900/50 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+          <span className="rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-semibold text-ink-800">
+            Open this slide
+          </span>
+        </span>
 
         <span className="absolute top-1.5 left-1.5">
           <Badge tone={banner.active ? "brand" : "amber"}>
             {banner.active ? `Slide ${index + 1}` : "Hidden"}
           </Badge>
         </span>
-      </div>
+      </Link>
 
       <div className="space-y-1.5 border-t border-ink-200 p-2">
-        <span
-          className="flex items-center gap-1.5 text-ink-500"
-          title={banner.active ? "In the rotation" : "Out of the rotation"}
-        >
+        {/* The toggle says what it means in words beside it. On its own it
+            was a switch with an eye next to it, which is two symbols for
+            a fact — "this is on the home page" — that costs four words. */}
+        <span className="flex items-center gap-1.5 text-[11px] text-ink-600">
           {banner.active ? (
-            <Eye className="size-3.5" aria-hidden="true" />
+            <Eye className="size-3.5 shrink-0" aria-hidden="true" />
           ) : (
-            <EyeOff className="size-3.5" aria-hidden="true" />
+            <EyeOff className="size-3.5 shrink-0" aria-hidden="true" />
           )}
           <Toggle
             size="sm"
@@ -718,6 +426,9 @@ function BannerTile({
             onChange={onToggle}
             label={`Show banner ${index + 1} on the home page`}
           />
+          <span className="truncate">
+            {banner.active ? "On the home page" : "Hidden"}
+          </span>
         </span>
 
         {/* Where this slide points, in one line. Printed for every tile
@@ -749,66 +460,36 @@ function BannerTile({
           </span>
         </p>
 
-        <div className="flex items-center justify-between">
-          <span className="flex items-center">
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={locked || index === 0}
-              aria-label={`Move banner ${index + 1} earlier`}
-              onClick={() => onMove(-1)}
-            >
-              <ArrowLeft className="size-3.5 text-ink-400" aria-hidden="true" />
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={locked || index === total - 1}
-              aria-label={`Move banner ${index + 1} later`}
-              onClick={() => onMove(1)}
-            >
-              <ArrowRight className="size-3.5 text-ink-400" aria-hidden="true" />
-            </Button>
-          </span>
-
-          <span className="flex items-center">
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={locked}
-              title="Choose the piece this slide links to"
-              aria-label={`Choose the piece banner ${index + 1} links to`}
-              onClick={onLink}
-            >
-              <Link2
-                className={cx(
-                  "size-3.5",
-                  banner.productId && !stale ? "text-brand-600" : "text-ink-400",
-                )}
-                aria-hidden="true"
-              />
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={locked}
-              title="Replace this artwork, keeping its place"
-              aria-label={`Replace the artwork on banner ${index + 1}`}
-              onClick={onReplace}
-            >
-              <Replace className="size-3.5 text-ink-400" aria-hidden="true" />
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={locked}
-              aria-label={`Delete banner ${index + 1}`}
-              onClick={onDelete}
-            >
-              <Trash2 className="size-3.5 text-ink-400" aria-hidden="true" />
-            </Button>
-          </span>
+        <div className="flex flex-wrap items-center justify-between gap-1">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="px-1.5"
+            disabled={locked || index === 0}
+            aria-label={`Move banner ${index + 1} earlier`}
+            onClick={() => onMove(-1)}
+          >
+            <ArrowLeft className="size-3.5" aria-hidden="true" />
+            Earlier
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="px-1.5"
+            disabled={locked || index === total - 1}
+            aria-label={`Move banner ${index + 1} later`}
+            onClick={() => onMove(1)}
+          >
+            Later
+            <ArrowRight className="size-3.5" aria-hidden="true" />
+          </Button>
         </div>
+
+        {/* The way to everything else: the link, the artwork, deleting.
+            A word, not a row of glyphs. */}
+        <LinkButton size="sm" variant="secondary" href={href} className="w-full">
+          Open this slide
+        </LinkButton>
       </div>
     </li>
   );

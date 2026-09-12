@@ -3,11 +3,11 @@
 /**
  * The admin-side twin of components/store/MediaFrame.js.
  *
- * Same two layers and the same reasoning — a picture fitted inside a
- * fixed frame, with a blown-up blurred copy of itself filling whatever
- * it does not cover — so that what the shop is looking at on this screen
- * is what a visitor will see on the storefront. A preview that cropped
- * differently from the real thing would be worse than no preview.
+ * Same single layer and the same reasoning — the picture is scaled until
+ * it covers the frame and the overflow is cropped — so that what the shop
+ * is looking at on this screen is what a visitor will see on the
+ * storefront. A preview that cropped differently from the real thing
+ * would be worse than no preview.
  *
  * A plain `img` rather than `next/image`, for the reason
  * GalleryThumbnail gives: these are thumbnails on a screen behind a
@@ -30,20 +30,10 @@ export function MediaFrame({ src, alt = "", ratio = "aspect-9/16", className = "
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={src}
-        alt=""
-        aria-hidden="true"
-        loading="lazy"
-        draggable={false}
-        className="absolute inset-0 size-full scale-110 object-cover blur-lg select-none"
-      />
-
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={src}
         alt={alt}
         loading="lazy"
         draggable={false}
-        className="relative size-full object-contain select-none"
+        className="size-full object-cover select-none"
       />
     </div>
   );

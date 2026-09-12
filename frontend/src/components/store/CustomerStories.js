@@ -48,9 +48,10 @@ import { Butterfly } from "./Ornaments";
  * (see RATIOS), so every slot is reserved at its final size before a
  * single image has loaded. Nothing on this page moves while it fills in.
  * MediaFrame is what makes that affordable: whatever shape the shop
- * actually uploaded, it is fitted inside the frame and the space around
- * it filled with a blurred copy of itself, so a portrait photograph in a
- * square slot is neither cropped nor sat in a band of dead colour.
+ * actually uploaded, it is scaled to cover its slot and the overflow is
+ * cropped, so no card ever shows a band of dead colour beside a picture
+ * that does not match its slot. The cost is the edges of an off-ratio
+ * upload, which is why a story photo wants its subject near the middle.
  *
  * Captions stay laid over the bottom of the picture rather than stacked
  * under it. A card as tall as its own words is a card whose height the

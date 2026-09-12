@@ -20,11 +20,17 @@
  * next door. A banner set is a sequence the shop composes; stories
  * accumulate over months, and the fresh ones are the ones worth showing.
  *
- * Three gestures per card, softest first: the published toggle takes a
- * story off the home page and keeps it, Edit changes what is printed,
- * and Delete destroys the row and the photograph with it. That last one
- * is behind a confirmation and is never the first thing offered — a
- * customer's photograph is not something the shop can ask for twice.
+ * This screen is the wall: which photographs are up, in what order, and
+ * whether each is published. Everything about *one* card — the quote,
+ * the name, the piece it names, swapping the photograph, deleting it —
+ * is a screen of its own at /admin/home/stories/[id], reached by
+ * clicking the photograph. Those were a pencil and a bin on a tile the
+ * size of a stamp; now each one is a labelled control on a page with the
+ * picture beside it, and nothing opens over the wall to ask.
+ *
+ * What to upload is behind the Image guide button, which is the one
+ * dialog here — it decides nothing, it is read once before picking a
+ * file.
  */
 
 import {
@@ -33,15 +39,14 @@ import {
   Eye,
   EyeOff,
   MessageSquareQuote,
-  Pencil,
   RefreshCw,
-  Replace,
-  Trash2,
   TriangleAlert,
   Upload,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useRef, useState } from "react";
 
+import { ImageGuide, ImageGuideButton, STORY_GUIDE } from "@/components/admin/ImageGuide";
 import { MediaFrame } from "@/components/admin/MediaFrame";
 import {
   Badge,
@@ -50,32 +55,22 @@ import {
   CardHeader,
   EmptyState,
   ErrorNotice,
-  Field,
-  Input,
-  Modal,
-  Select,
+  LinkButton,
   SkeletonRows,
-  Textarea,
   Toggle,
   cx,
   useToast,
 } from "@/components/admin/ui";
 import {
   ACCEPT_ATTRIBUTE,
-  MAX_BODY_LENGTH,
-  MAX_NAME_LENGTH,
   MAX_PER_UPLOAD,
   MAX_STORIES,
   createStoriesFromImages,
-  deleteStory,
   listStories,
   rejectionReason,
   reorderStories,
-  replaceStoryImage,
   setStoryPublished,
-  updateStory,
 } from "@/lib/api/customerStories";
-import { listAllProducts } from "@/lib/api/products";
 
 export default function CustomerStoriesPage() {
   const toast = useToast();
@@ -87,25 +82,14 @@ export default function CustomerStoriesPage() {
   });
   const [reload, setReload] = useState(0);
 
-  // The catalogue, for the product picker in the editor. Its own request
-  // and its own failure: a catalogue that will not load costs the shop
-  // the ability to link a card to a piece, and nothing else on the
-  // screen, so it must not take the list of stories down with it.
-  const [products, setProducts] = useState([]);
-
   const [busy, setBusy] = useState(false);
   const [busyId, setBusyId] = useState(null);
-  const [deleting, setDeleting] = useState(null);
 
-  // The story being edited, or BLANK for a new typed quote, or null when
-  // the editor is closed. One piece of state rather than two booleans:
-  // "editing" and "which" are never separately true.
-  const [editing, setEditing] = useState(null);
-
-  const [replacingId, setReplacingId] = useState(null);
+  // Whether the "what to upload" dialog is open. Closed by default: it is
+  // read once by whoever is uploading and is noise to everyone else.
+  const [guideOpen, setGuideOpen] = useState(false);
 
   const addRef = useRef(null);
-  const replaceRef = useRef(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -126,26 +110,6 @@ export default function CustomerStoriesPage() {
       controller.abort();
     };
   }, [reload]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    let active = true;
-
-    listAllProducts({ signal: controller.signal })
-      .then((rows) => {
-        if (active) setProducts(rows);
-      })
-      .catch(() => {
-        // Swallowed on purpose — the editor says so in its own hint
-        // rather than putting an error over a screen that otherwise
-        // works.
-      });
-
-    return () => {
-      active = false;
-      controller.abort();
-    };
-  }, []);
 
   const refresh = useCallback(() => setReload((n) => n + 1), []);
 
@@ -199,39 +163,6 @@ export default function CustomerStoriesPage() {
     }
   }
 
-  async function replace(fileList) {
-    const file = Array.from(fileList ?? [])[0];
-    const id = replacingId;
-
-    setReplacingId(null);
-
-    if (!file || !id) return;
-
-    const rejected = rejectionReason(file);
-
-    if (rejected) {
-      toast.error(rejected);
-      return;
-    }
-
-    setBusyId(id);
-
-    try {
-      const saved = await replaceStoryImage(id, file);
-
-      setState((current) => ({
-        ...current,
-        stories: current.stories.map((row) => (row.id === saved.id ? saved : row)),
-      }));
-
-      toast.success("Photograph updated", "The card kept its place.");
-    } catch (error) {
-      toast.error("Could not update the photograph", error?.message);
-    } finally {
-      setBusyId(null);
-    }
-  }
-
   async function togglePublished(story) {
     setBusyId(story.id);
 
@@ -278,27 +209,6 @@ export default function CustomerStoriesPage() {
     }
   }
 
-  async function confirmDelete() {
-    const story = deleting;
-
-    setBusyId(story.id);
-
-    try {
-      const remaining = await deleteStory(story.id);
-
-      setState({ status: "ready", stories: remaining, error: null });
-      setDeleting(null);
-      toast.success(
-        "Story deleted",
-        story.image ? "The photograph was removed from storage too." : undefined,
-      );
-    } catch (error) {
-      toast.error("Could not delete that", error?.message);
-    } finally {
-      setBusyId(null);
-    }
-  }
-
   // --- render ---------------------------------------------------------------
 
   const published = state.stories.filter((story) => story.published).length;
@@ -317,17 +227,6 @@ export default function CustomerStoriesPage() {
           e.target.value = "";
         }}
       />
-      <input
-        ref={replaceRef}
-        type="file"
-        accept={ACCEPT_ATTRIBUTE}
-        className="sr-only"
-        onChange={(e) => {
-          replace(e.target.files);
-          e.target.value = "";
-        }}
-      />
-
       <Card>
         <CardHeader
           title="Customer stories"
@@ -341,6 +240,7 @@ export default function CustomerStoriesPage() {
               <Button size="sm" variant="ghost" onClick={refresh} title="Reload">
                 <RefreshCw className="size-3.5" />
               </Button>
+              <ImageGuideButton onOpen={() => setGuideOpen(true)} />
               <Button
                 size="sm"
                 variant="primary"
@@ -399,12 +299,6 @@ export default function CustomerStoriesPage() {
                   disabled={locked}
                   onMove={(delta) => move(index, delta)}
                   onToggle={() => togglePublished(story)}
-                  onEdit={() => setEditing(story)}
-                  onReplace={() => {
-                    setReplacingId(story.id);
-                    replaceRef.current?.click();
-                  }}
-                  onDelete={() => setDeleting(story)}
                 />
               ))}
             </ul>
@@ -412,92 +306,21 @@ export default function CustomerStoriesPage() {
             <p className="mt-3 text-[11px] text-ink-500">
               JPEG, PNG or WebP · up to 5 MB each · {MAX_PER_UPLOAD} at a time. The
               home page shows the first 24 in this order, each in a 9:16 card. A
-              photograph of any other shape is fitted inside that card against a
-              blurred copy of itself rather than cropped, so nothing is cut off.
+              photograph of any other shape is fitted inside that card and the
+              parts outside it are trimmed, so keep the subject near the middle.
+              Open the Image guide above for the full list.
             </p>
           </div>
         ) : null}
       </Card>
 
-      {/* Keyed on the story, so opening a different card builds a fresh
-          form rather than reconciling one that is mid-edit — and so a
-          list refresh underneath the modal, which keeps the same key,
-          leaves what is being typed alone. */}
-      <StoryEditor
-        key={editing?.id ?? "new"}
-        story={editing}
-        products={products}
-        onClose={() => setEditing(null)}
-        onSaved={({ stories, story, message }) => {
-          setState((current) => ({
-            status: "ready",
-            error: null,
-            // A create answers with the whole list, because inserting at
-            // the front renumbers everything behind it. An edit answers
-            // with the one row it changed, so the list is patched.
-            stories:
-              stories ??
-              current.stories.map((row) => (row.id === story.id ? story : row)),
-          }));
-          setEditing(null);
-          toast.success(message);
-        }}
+      {/* What to upload, in words. The one dialog on this screen, and the
+          only thing here that decides nothing. */}
+      <ImageGuide
+        guide={STORY_GUIDE}
+        open={guideOpen}
+        onClose={() => setGuideOpen(false)}
       />
-
-      {/* ----------------------------------------------------------
-          DELETE
-          ---------------------------------------------------------- */}
-
-      <Modal
-        open={Boolean(deleting)}
-        onClose={() => setDeleting(null)}
-        size="sm"
-        title="Delete this story?"
-        description={
-          deleting?.image
-            ? "The card is removed from the home page, and the photograph is deleted from storage. This cannot be undone."
-            : "The card is removed from the home page. This cannot be undone."
-        }
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setDeleting(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant="danger"
-              busy={busyId === deleting?.id}
-              onClick={confirmDelete}
-            >
-              Delete
-            </Button>
-          </>
-        }
-      >
-        {deleting ? (
-          <div className="flex items-start gap-3">
-            <MediaFrame
-              src={deleting.image}
-              ratio="aspect-9/16"
-              className="w-20 shrink-0 rounded-lg"
-            />
-            <div className="text-xs leading-relaxed text-ink-600">
-              {deleting.body ? (
-                <p className="text-ink-800">&ldquo;{deleting.body}&rdquo;</p>
-              ) : null}
-              {deleting.customerName ? (
-                <p className="mt-1 font-medium text-ink-800">
-                  {deleting.customerName}
-                </p>
-              ) : null}
-              <p className="mt-2">
-                {deleting.image
-                  ? "A customer's photograph cannot be asked for twice. To take the card off the home page without losing it, close this and use the published toggle instead."
-                  : "To take the card off the home page without losing it, close this and use the published toggle instead."}
-              </p>
-            </div>
-          </div>
-        ) : null}
-      </Modal>
     </div>
   );
 }
@@ -506,19 +329,9 @@ export default function CustomerStoriesPage() {
 // ONE CARD
 // ============================================================
 
-function StoryTile({
-  story,
-  index,
-  total,
-  busy,
-  disabled,
-  onMove,
-  onToggle,
-  onEdit,
-  onReplace,
-  onDelete,
-}) {
+function StoryTile({ story, index, total, busy, disabled, onMove, onToggle }) {
   const locked = disabled || busy;
+  const href = `/admin/home/stories/${story.id}`;
 
   return (
     <li
@@ -527,18 +340,30 @@ function StoryTile({
         story.published ? undefined : "opacity-75",
       )}
     >
-      <div className="relative shrink-0">
-        {/* 9:16, matching the card on the home page exactly — this tile is
-            what the shop judges a photograph by, so it has to fit and fill
-            the way the real rail does. */}
+      {/* 9:16, matching the card on the home page exactly — this tile is
+          what the shop judges a photograph by, so it has to crop and fill
+          the way the real rail does.
+
+          The whole photograph is the way in to the card's own screen, and
+          it says so on hover rather than only by turning into a pointer. */}
+      <Link
+        href={href}
+        className="group relative block shrink-0 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-600"
+      >
         <MediaFrame src={story.image} ratio="aspect-9/16" />
+
+        <span className="absolute inset-0 grid place-items-center bg-ink-900/50 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+          <span className="rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-semibold text-ink-800">
+            Open this card
+          </span>
+        </span>
 
         <span className="absolute top-1.5 left-1.5">
           <Badge tone={story.published ? "brand" : "amber"}>
             {story.published ? `#${index + 1}` : "Hidden"}
           </Badge>
         </span>
-      </div>
+      </Link>
 
       <div className="flex flex-1 flex-col gap-1.5 border-t border-ink-200 p-2">
         <div className="min-h-8 flex-1">
@@ -580,14 +405,14 @@ function StoryTile({
           ) : null}
         </div>
 
-        <span
-          className="flex items-center gap-1.5 text-ink-500"
-          title={story.published ? "On the home page" : "Off the home page"}
-        >
+        {/* The toggle says what it means in words beside it. On its own it
+            was a switch with an eye next to it, which is two symbols for a
+            fact — "this is on the home page" — that costs four words. */}
+        <span className="flex items-center gap-1.5 text-[11px] text-ink-600">
           {story.published ? (
-            <Eye className="size-3.5" aria-hidden="true" />
+            <Eye className="size-3.5 shrink-0" aria-hidden="true" />
           ) : (
-            <EyeOff className="size-3.5" aria-hidden="true" />
+            <EyeOff className="size-3.5 shrink-0" aria-hidden="true" />
           )}
           <Toggle
             size="sm"
@@ -596,233 +421,42 @@ function StoryTile({
             onChange={onToggle}
             label={`Publish story ${index + 1} on the home page`}
           />
+          <span className="truncate">
+            {story.published ? "On the home page" : "Hidden"}
+          </span>
         </span>
 
-        <div className="flex items-center justify-between">
-          <span className="flex items-center">
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={locked || index === 0}
-              aria-label={`Move story ${index + 1} earlier`}
-              onClick={() => onMove(-1)}
-            >
-              <ArrowLeft className="size-3.5 text-ink-400" aria-hidden="true" />
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={locked || index === total - 1}
-              aria-label={`Move story ${index + 1} later`}
-              onClick={() => onMove(1)}
-            >
-              <ArrowRight className="size-3.5 text-ink-400" aria-hidden="true" />
-            </Button>
-          </span>
-
-          <span className="flex items-center">
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={locked}
-              title="Replace the photograph"
-              aria-label={`Replace the photograph on story ${index + 1}`}
-              onClick={onReplace}
-            >
-              <Replace className="size-3.5 text-ink-400" aria-hidden="true" />
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={locked}
-              title="Edit the name, quote and product"
-              aria-label={`Edit story ${index + 1}`}
-              onClick={onEdit}
-            >
-              <Pencil className="size-3.5 text-ink-400" aria-hidden="true" />
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={locked}
-              aria-label={`Delete story ${index + 1}`}
-              onClick={onDelete}
-            >
-              <Trash2 className="size-3.5 text-ink-400" aria-hidden="true" />
-            </Button>
-          </span>
+        <div className="flex flex-wrap items-center justify-between gap-1">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="px-1.5"
+            disabled={locked || index === 0}
+            aria-label={`Move story ${index + 1} earlier`}
+            onClick={() => onMove(-1)}
+          >
+            <ArrowLeft className="size-3.5" aria-hidden="true" />
+            Earlier
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="px-1.5"
+            disabled={locked || index === total - 1}
+            aria-label={`Move story ${index + 1} later`}
+            onClick={() => onMove(1)}
+          >
+            Later
+            <ArrowRight className="size-3.5" aria-hidden="true" />
+          </Button>
         </div>
+
+        {/* The way to everything else: the quote, the name, the piece, the
+            photograph, deleting. A word, not a row of glyphs. */}
+        <LinkButton size="sm" variant="secondary" href={href} className="w-full">
+          Open this card
+        </LinkButton>
       </div>
     </li>
-  );
-}
-
-// ============================================================
-// THE EDITOR
-// ============================================================
-
-/**
- * What is printed on one card, beside the photograph.
- *
- * Edit only — there is nothing to create here, because a story starts as
- * a file and the only way in is the upload button. Every field may be
- * left empty: a card stripped back to its photograph is still a card.
- */
-function StoryEditor({ story, products, onClose, onSaved }) {
-  const toast = useToast();
-
-  // Seeded once, from the story this instance was mounted for. The
-  // parent keys this component on that story's id, so "open a different
-  // card" is a remount and there is no effect here re-syncing a form
-  // against a prop that changes every time the list refreshes.
-  const [form, setForm] = useState(() => ({
-    customerName: story?.customerName ?? "",
-    body: story?.body ?? "",
-    productId: story?.productId ?? "",
-  }));
-  const [productSearch, setProductSearch] = useState("");
-  const [fieldErrors, setFieldErrors] = useState({});
-  const [saving, setSaving] = useState(false);
-
-  // Two hundred products in one dropdown is a scroll, not a choice. The
-  // filter narrows it; the cap keeps the list renderable when the filter
-  // is empty. Same treatment as the reviews screen.
-  const options = useMemo(() => {
-    const term = productSearch.trim().toLowerCase();
-
-    const matches = term
-      ? products.filter((product) =>
-          `${product.name} ${product.slug ?? ""}`.toLowerCase().includes(term),
-        )
-      : products;
-
-    return matches.slice(0, 50);
-  }, [products, productSearch]);
-
-  // A story being edited may already point at a product that has fallen
-  // out of `options` — because it is off sale, or simply past the cap.
-  // Without this the Select would silently show "no product".
-  const stranded =
-    form.productId && !options.some((product) => product.id === form.productId);
-
-  async function save() {
-    const errors = {};
-
-    if (form.customerName.trim().length > MAX_NAME_LENGTH) {
-      errors.customerName = `A name must not exceed ${MAX_NAME_LENGTH} characters`;
-    }
-
-    if (form.body.trim().length > MAX_BODY_LENGTH) {
-      errors.body = `A quote must not exceed ${MAX_BODY_LENGTH} characters`;
-    }
-
-    if (Object.keys(errors).length) {
-      setFieldErrors(errors);
-      return;
-    }
-
-    setSaving(true);
-    setFieldErrors({});
-
-    try {
-      const saved = await updateStory(story.id, form);
-
-      onSaved({ story: saved, message: "Story updated" });
-    } catch (error) {
-      setFieldErrors(error?.fields ?? {});
-      toast.error("Could not save the story", error?.message);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <Modal
-      open={Boolean(story)}
-      onClose={saving ? () => {} : onClose}
-      title="Edit story"
-      description="What is printed beside the photograph. The picture itself is changed from the card."
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose} disabled={saving}>
-            Cancel
-          </Button>
-          <Button variant="primary" busy={saving} onClick={save}>
-            Save changes
-          </Button>
-        </>
-      }
-    >
-      <div className="space-y-4">
-        <Field
-          label="Quote"
-          error={fieldErrors.body}
-          hint="Optional. Publish the part worth reading rather than the whole message — left blank, the card is the photograph alone."
-        >
-          <Textarea
-            rows={4}
-            value={form.body}
-            invalid={Boolean(fieldErrors.body)}
-            maxLength={MAX_BODY_LENGTH}
-            placeholder="The dhabu cotton is even softer than it looks…"
-            onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))}
-          />
-        </Field>
-
-        <Field
-          label="Name"
-          error={fieldErrors.customerName}
-          hint="Optional, and as the shop wants it printed — “Meera K.”, “A customer from Erode”. Left blank, the card shows no name at all."
-        >
-          <Input
-            value={form.customerName}
-            invalid={Boolean(fieldErrors.customerName)}
-            maxLength={MAX_NAME_LENGTH}
-            placeholder="Meera K."
-            onChange={(e) =>
-              setForm((f) => ({ ...f, customerName: e.target.value }))
-            }
-          />
-        </Field>
-
-        <Field
-          label="Piece"
-          error={fieldErrors.productId}
-          hint={
-            products.length === 0
-              ? "The catalogue could not be loaded — reload the page to link this to a piece."
-              : "Optional. With one chosen, the card links through to that piece. Type to narrow the list."
-          }
-        >
-          <div className="space-y-2">
-            <Input
-              value={productSearch}
-              onChange={(e) => setProductSearch(e.target.value)}
-              placeholder="Search products by name"
-            />
-            <Select
-              value={form.productId}
-              invalid={Boolean(fieldErrors.productId)}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, productId: e.target.value }))
-              }
-            >
-              <option value="">No piece</option>
-              {stranded ? (
-                <option value={form.productId}>
-                  {story?.productName || "The piece this card names"}
-                  {story?.productActive === false ? " (off sale)" : ""}
-                </option>
-              ) : null}
-              {options.map((product) => (
-                <option key={product.id} value={product.id}>
-                  {product.name}
-                </option>
-              ))}
-            </Select>
-          </div>
-        </Field>
-      </div>
-    </Modal>
   );
 }
