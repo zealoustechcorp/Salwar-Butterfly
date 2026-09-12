@@ -7,6 +7,7 @@ import { useState } from "react";
 import { money, shortDate } from "@/lib/format";
 import { MAX_LINE_QTY, availabilityNotice, orderableQty } from "@/lib/stock";
 import { cn } from "@/lib/utils";
+import { CarouselArrow, useCarousel } from "./Carousel";
 import { WhatsAppGlyph } from "./Ornaments";
 import { Photo } from "./Photo";
 import { SizeChartButton } from "./SizeChart";
@@ -351,50 +352,92 @@ function StepButton({ label, disabled, onClick, children }) {
  * Only the shots actually uploaded are offered — 122 of the 197 pieces have a
  * second one, and a thumbnail strip of one image is just noise, so it appears
  * only when there is something to switch to.
+ *
+ * The shots are a track rather than one swapped `<img>`, which is what lets a
+ * shopper on a phone move between them by swiping the picture itself — the
+ * gesture they will try first, and the one this page had no answer to. Both
+ * shots are then in the DOM at once; that is the point of the track, and with
+ * two of them at most it costs one extra request on a page that is already
+ * mostly photograph. The thumbnails stay for the pointer, and now say which
+ * shot is showing after a swipe as well as after a click.
+ *
+ * No autoplay here. Two photographs of one garment are a thing to compare, and
+ * a picture that moves on its own while somebody is looking at a hemline is a
+ * picture that has to be chased back.
  */
 function Gallery({ product, shots }) {
-  const [active, setActive] = useState(0);
-  const current = shots[active] ?? null;
+  const count = shots.length;
+  // A mouse drag is not tracked: on this page a pointer has the thumbnails and
+  // the arrows, and a drag across a photograph is usually someone trying to
+  // save it.
+  const { index, go, to, swipe, hold, track } = useCarousel({ count });
+  const active = Math.min(index, Math.max(0, count - 1));
 
   return (
-    <div className="lg:sticky lg:top-28 lg:self-start">
-      <div className="relative aspect-3/4 w-full overflow-hidden rounded-2xl border border-sb-gold/30 bg-sb-surface/40">
-        <Photo
-          key={current ?? "art"}
-          src={current}
-          alt={product.name}
-          categoryName={product.category_name}
-          seed={product.id}
-          priority
-          sizes="(min-width: 1024px) 45vw, 100vw"
-          className="object-cover"
-        />
+    <div className="lg:sticky lg:top-28 lg:self-start" {...hold}>
+      <div
+        {...swipe}
+        className="group relative aspect-3/4 w-full touch-pan-y overflow-hidden rounded-2xl border border-sb-gold/30 bg-sb-surface/40"
+      >
+        <div {...track}>
+          {/* A piece with no photograph at all still needs one frame in the
+              track, so the illustration underneath <Photo> has somewhere to
+              render. `shots` is empty in that case, not full of nulls. */}
+          {(count ? shots : [null]).map((shot, i) => (
+            <div
+              key={shot ?? "art"}
+              className="relative h-full w-full shrink-0"
+              aria-roledescription="slide"
+              aria-hidden={count > 1 && i !== active}
+            >
+              <Photo
+                src={shot}
+                alt={i === 0 ? product.name : ""}
+                categoryName={product.category_name}
+                seed={product.id}
+                priority={i === 0}
+                sizes="(min-width: 1024px) 45vw, 100vw"
+                className="object-cover"
+              />
+            </div>
+          ))}
+        </div>
 
+        {/* Over the track, so they do not slide away with the photograph. */}
         {product.off > 0 ? (
-          <span className="absolute top-3 left-3 rounded-full bg-sb-btn-rose px-3 py-1 text-[11px] font-bold text-sb-bg">
+          <span className="absolute top-3 left-3 z-10 rounded-full bg-sb-btn-rose px-3 py-1 text-[11px] font-bold text-sb-bg">
             {product.off}% off
           </span>
         ) : null}
 
         {!product.in_stock ? (
-          <span className="absolute bottom-3 left-3 rounded-full bg-sb-footer/90 px-3 py-1 text-[11px] font-semibold text-sb-bg">
+          <span className="absolute bottom-3 left-3 z-10 rounded-full bg-sb-footer/90 px-3 py-1 text-[11px] font-semibold text-sb-bg">
             Sold out
           </span>
         ) : null}
+
+        {count > 1 ? (
+          <>
+            <CarouselArrow side="left" label="Previous photo" onClick={() => go(-1)} />
+            <CarouselArrow side="right" label="Next photo" onClick={() => go(1)} />
+          </>
+        ) : null}
       </div>
 
-      {shots.length > 1 ? (
+      {count > 1 ? (
         <div className="mt-3 flex gap-3">
-          {shots.map((shot, index) => (
+          {shots.map((shot, i) => (
             <button
               key={shot}
               type="button"
-              onClick={() => setActive(index)}
-              aria-pressed={active === index}
-              aria-label={`Photo ${index + 1} of ${shots.length}`}
+              onClick={() => to(i)}
+              aria-pressed={active === i}
+              aria-label={`Photo ${i + 1} of ${count}`}
               className={cn(
-                "relative aspect-3/4 w-20 overflow-hidden rounded-xl border-2 bg-sb-surface/40 transition-colors sm:w-24",
-                active === index ? "border-sb-heading" : "border-sb-gold/30 hover:border-sb-gold",
+                "relative aspect-3/4 w-20 overflow-hidden rounded-xl border-2 bg-sb-surface/40 transition-all duration-300 motion-reduce:transition-none sm:w-24",
+                active === i
+                  ? "border-sb-heading"
+                  : "border-sb-gold/30 opacity-70 hover:border-sb-gold hover:opacity-100",
               )}
             >
               <Photo

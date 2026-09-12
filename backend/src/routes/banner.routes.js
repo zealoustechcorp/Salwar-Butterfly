@@ -30,6 +30,7 @@ import {
   validateBannerUpload,
   validateReorder,
   validateSetActive,
+  validateSetProduct,
 } from "../validators/banner.validator.js";
 
 const router = express.Router();
@@ -77,6 +78,18 @@ router.patch(
   validateBannerIdParam,
   validateSetActive,
   BannerController.setActive,
+);
+
+// The piece a slide links to (020). Separate from the artwork for the
+// same reason the toggle above is: correcting where a banner points
+// should not mean re-uploading the picture. Sending `productId: null`
+// takes the link off again — a banner that names nothing is the
+// ordinary case, not an error state.
+router.patch(
+  "/setBannerProduct/:id",
+  validateBannerIdParam,
+  validateSetProduct,
+  BannerController.setProduct,
 );
 
 // The order the slides rotate in. Takes the whole set — see the service

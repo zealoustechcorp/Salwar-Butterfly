@@ -298,7 +298,7 @@ const SIZE_CHARTS_SQL = `
 // BANNERS (F-06)
 // ============================================================
 //
-// One column, and the four that are missing are the point.
+// Three columns, and the four that are missing are the point.
 //
 // `id` and `position` are the admin screen's business — the rotation
 // order is already expressed by the ORDER BY, and a shopper has no use
@@ -311,10 +311,30 @@ const SIZE_CHARTS_SQL = `
 // of it would put the delete key for the shop's own artwork in the page
 // source. The admin API next door returns it because the admin screen is
 // what deletes banners; this reader must never see it.
+//
+// `product_id` is the exception, added with 020, and it is here for the
+// same reason it is in CUSTOMER_STORIES_SQL below: a slide that names a
+// piece is a slide that links to it, and the id is what the link is
+// built from. Product ids are already in the catalogue this same reader
+// serves and in every product URL on the site.
+//
+// The join is filtered by `p.active`, so a banner pointing at a piece
+// the shop has taken off sale comes back with a null name and renders as
+// a photograph that does not link anywhere. The slide itself still
+// shows: the artwork is the shop's and is still worth looking at, and a
+// first fold that empties itself because a run sold out would be a worse
+// answer than one that simply stops being clickable.
 
 const BANNERS_SQL = `
-  SELECT b.image
+  SELECT
+    b.image,
+    b.product_id,
+    p.name   AS product_name,
+    p.active AS product_active
   FROM banners b
+  LEFT JOIN products p
+    ON p.id = b.product_id
+   AND p.active = TRUE
   WHERE b.active
   ORDER BY b.position ASC, b.created_at ASC, b.id ASC
 `;

@@ -9,11 +9,16 @@
  *
  * Three things about the API worth knowing before calling it:
  *
- *   - **A banner is an image and a place in the order.** There is no
- *     title, subtitle, caption or link, on this side or the API's. The
- *     carousel renders each slide as decorative artwork beside the
+ *   - **A banner is an image, a place in the order, and optionally a
+ *     piece it links to.** There is still no title, subtitle or
+ *     caption: the carousel renders each slide as artwork beside the
  *     headline that already sits next to it, and the shop composes
- *     whatever it wants said into the picture.
+ *     whatever it wants said into the picture. What migration 020 added
+ *     is the link — a slide may name a product, and then tapping it
+ *     opens that product. Most name none, and those behave exactly as
+ *     they always did. `setBannerProduct` is the only thing that
+ *     changes it, and it is separate from the artwork so that
+ *     correcting a link costs no upload.
  *   - **Creating takes a batch.** `createBanners` sends one multipart
  *     request carrying up to `MAX_PER_UPLOAD` files, because the gesture
  *     the shop actually makes is dragging a season's artwork in at once.
@@ -56,6 +61,12 @@ export function toBanner(dto) {
     image: dto.image ?? "",
     position: Number(dto.position ?? 0),
     active: Boolean(dto.active),
+    productId: dto.productId ?? "",
+    productName: dto.productName ?? "",
+    // null means "links nowhere"; false means "links to a piece that is
+    // off sale". The screen warns only about the second — the first is
+    // the ordinary banner and needs no comment.
+    productActive: dto.productActive ?? null,
     createdAt: dto.createdAt ?? null,
     updatedAt: dto.updatedAt ?? null,
   };
@@ -148,6 +159,28 @@ export async function setBannerActive(id, active, { token } = {}) {
   const data = await api.patch(
     `/banners/setBannerActive/${encodeURIComponent(id)}`,
     { active: Boolean(active) },
+    { token },
+  );
+
+  return toBanner(data);
+}
+
+/**
+ * Points a slide at a piece, or takes the link off it.
+ *
+ * Pass an empty string or null to clear it — both reach the API as
+ * null, which is what a `<select>` reset to its placeholder sends and
+ * what "this banner should just be a picture again" means.
+ *
+ * Separate from the artwork on purpose: a shop correcting where a
+ * banner points should not have to upload the image a second time.
+ *
+ * @param {string|null} productId
+ */
+export async function setBannerProduct(id, productId, { token } = {}) {
+  const data = await api.patch(
+    `/banners/setBannerProduct/${encodeURIComponent(id)}`,
+    { productId: String(productId ?? "").trim() || null },
     { token },
   );
 

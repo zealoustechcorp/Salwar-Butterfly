@@ -1,7 +1,8 @@
 "use client";
 
 import { Search, SlidersHorizontal, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSwipeable } from "react-swipeable";
 
 import { applyRail, filterProducts, TABS } from "@/lib/store/filters";
 import { cn } from "@/lib/utils";
@@ -45,6 +46,36 @@ export function ProductShowcase({ products, categories, withSidebar = false }) {
     setShown(PAGE);
   };
 
+  /**
+   * Sideways across the grid moves to the next rail.
+   *
+   * The four tabs are one strip of shelves, and on a phone the strip is wider
+   * than the screen — a shopper reading "Almost Gone" has had to scroll the
+   * chips sideways to find it, which is the gesture this makes work on the
+   * products themselves. Touch only: a mouse has the chips in full view, and a
+   * drag across a desktop grid is usually somebody selecting a product name.
+   *
+   * `delta` keeps vertical drags untracked so `preventScrollOnSwipe` never
+   * takes a scroll away from the page; the grid carries `touch-pan-y` for the
+   * same reason.
+   */
+  const at = TABS.findIndex((item) => item.id === tab);
+  const swipe = useSwipeable({
+    onSwiped: (event) => {
+      if (event.dir !== "Left" && event.dir !== "Right") return;
+      if (event.absX < 60 && Math.abs(event.vxvy[0]) < 0.35) return;
+      // No wrap. A grid is a strip with two ends, and arriving back at "New In"
+      // from "Almost Gone" reads as a bug rather than as a loop.
+      const next = at + (event.dir === "Left" ? 1 : -1);
+      if (next < 0 || next >= TABS.length) return;
+      chooseTab(TABS[next].id);
+    },
+    delta: { left: 24, right: 24, up: 1e9, down: 1e9 },
+    preventScrollOnSwipe: true,
+    trackTouch: true,
+    trackMouse: false,
+  });
+
   return (
     <section
       id="shop"
@@ -81,82 +112,117 @@ export function ProductShowcase({ products, categories, withSidebar = false }) {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="sb-no-scrollbar mt-6 -mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-        {TABS.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => chooseTab(item.id)}
-            aria-pressed={tab === item.id}
-            className={cn(
-              "shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition-colors sm:px-5 sm:py-2.5",
-              tab === item.id
-                ? "border-sb-heading bg-sb-heading text-sb-bg"
-                : "border-sb-gold/45 bg-sb-bg text-sb-text hover:border-sb-heading",
-            )}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
+      <TabStrip tab={tab} onChoose={chooseTab} />
 
       <ActiveFilters
         activeCategory={activeCategory}
         onAnyChange={() => setShown(PAGE)}
       />
 
-      <p className="mt-4 text-xs text-sb-text-muted tabular">
+      <p className="mt-4 text-xs text-sb-text-muted tabular" aria-live="polite">
         {rows.length} {rows.length === 1 ? "piece" : "pieces"}
       </p>
 
-      {rows.length ? (
-        <>
-          <div
-            className={cn(
-              "mt-4 grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 sm:gap-x-5 sm:gap-y-8 lg:gap-x-6",
-              // Beside the rail there is a column's worth less room, so the
-              // fourth card waits for a wider screen rather than being ground
-              // down to a thumbnail.
-              withSidebar ? "xl:grid-cols-4" : "lg:grid-cols-4",
-            )}
-          >
-            {rows.slice(0, shown).map((product, index) => (
-              <ProductCard key={product.id} product={product} priority={index < 4} />
-            ))}
-          </div>
-
-          {shown < rows.length ? (
-            <div className="mt-8 flex justify-center">
-              <button
-                type="button"
-                onClick={() => setShown((count) => count + PAGE)}
-                className="rounded-full border border-sb-heading px-7 py-3 text-sm font-semibold text-sb-heading transition-colors hover:bg-sb-surface/60"
-              >
-                Show {Math.min(PAGE, rows.length - shown)} more
-              </button>
+      {/* The swipe area starts below the count, so the shelf itself is what
+          answers a sideways drag. */}
+      <div {...swipe} className="touch-pan-y">
+        {rows.length ? (
+          <>
+            {/* Keyed on the tab so a change is a change — the cards leave and
+                a new set fades up in their place, which is what makes a swipe
+                feel like it moved a shelf rather than silently resorting one.
+                `sb-enter` is 0.18s and already answers to reduced motion. */}
+            <div
+              key={tab}
+              className={cn(
+                "sb-enter mt-4 grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 sm:gap-x-5 sm:gap-y-8 lg:gap-x-6",
+                // Beside the rail there is a column's worth less room, so the
+                // fourth card waits for a wider screen rather than being ground
+                // down to a thumbnail.
+                withSidebar ? "xl:grid-cols-4" : "lg:grid-cols-4",
+              )}
+            >
+              {rows.slice(0, shown).map((product, index) => (
+                <ProductCard key={product.id} product={product} priority={index < 4} />
+              ))}
             </div>
-          ) : null}
-        </>
-      ) : (
-        <div className="mt-5 rounded-2xl border border-dashed border-sb-gold/50 bg-sb-surface/25 px-6 py-12 text-center">
-          <p className="font-display text-2xl font-semibold text-sb-heading">Nothing matches that yet</p>
-          <p className="mt-2 text-sm text-sb-text-muted">
-            Try a different fabric or clear the filters to see the whole shop.
-          </p>
-          <button
-            type="button"
-            onClick={() => {
-              clearFilters();
-              setShown(PAGE);
-            }}
-            className="mt-5 rounded-full bg-sb-btn-primary px-7 py-3 text-sm font-semibold text-sb-bg hover:bg-sb-btn-rose"
-          >
-            Clear filters
-          </button>
-        </div>
-      )}
+
+            {shown < rows.length ? (
+              <div className="mt-8 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => setShown((count) => count + PAGE)}
+                  className="rounded-full border border-sb-heading px-7 py-3 text-sm font-semibold text-sb-heading transition-colors hover:bg-sb-surface/60"
+                >
+                  Show {Math.min(PAGE, rows.length - shown)} more
+                </button>
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <div className="sb-enter mt-5 rounded-2xl border border-dashed border-sb-gold/50 bg-sb-surface/25 px-6 py-12 text-center">
+            <p className="font-display text-2xl font-semibold text-sb-heading">Nothing matches that yet</p>
+            <p className="mt-2 text-sm text-sb-text-muted">
+              Try a different fabric or clear the filters to see the whole shop.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                clearFilters();
+                setShown(PAGE);
+              }}
+              className="mt-5 rounded-full bg-sb-btn-primary px-7 py-3 text-sm font-semibold text-sb-bg hover:bg-sb-btn-rose"
+            >
+              Clear filters
+            </button>
+          </div>
+        )}
+      </div>
     </section>
+  );
+}
+
+/**
+ * The four rails, as chips.
+ *
+ * The strip is wider than a phone, so the chip that is now active is scrolled
+ * back into view whenever the tab changes. That matters because the tab can
+ * now change without anybody touching this strip — a swipe across the grid
+ * below moves it — and a shopper who swipes twice should be able to see where
+ * they have ended up. `nearest` rather than `center` so a click on a chip that
+ * is already fully visible does not make the strip jump under the finger.
+ */
+function TabStrip({ tab, onChoose }) {
+  const stripRef = useRef(null);
+
+  useEffect(() => {
+    const chip = stripRef.current?.querySelector('[data-active="true"]');
+    chip?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+  }, [tab]);
+
+  return (
+    <div
+      ref={stripRef}
+      className="sb-no-scrollbar mt-6 -mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:px-0"
+    >
+      {TABS.map((item) => (
+        <button
+          key={item.id}
+          type="button"
+          onClick={() => onChoose(item.id)}
+          aria-pressed={tab === item.id}
+          data-active={tab === item.id}
+          className={cn(
+            "shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition-all duration-300 motion-reduce:transition-none sm:px-5 sm:py-2.5",
+            tab === item.id
+              ? "border-sb-heading bg-sb-heading text-sb-bg"
+              : "border-sb-gold/45 bg-sb-bg text-sb-text hover:border-sb-heading hover:bg-sb-surface/50",
+          )}
+        >
+          {item.label}
+        </button>
+      ))}
+    </div>
   );
 }
 

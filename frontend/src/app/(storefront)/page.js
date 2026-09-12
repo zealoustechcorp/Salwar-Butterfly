@@ -32,8 +32,6 @@ export default async function StorefrontHome() {
       fabrics,
       topDiscount,
       offerCount,
-      catalogueSize,
-      sizeRange,
       rating,
     },
     banners,
@@ -57,11 +55,7 @@ export default async function StorefrontHome() {
           published no stories. */}
       <CustomerStories stories={stories} />
       <OfferBanner topDiscount={topDiscount} offerCount={offerCount} />
-      <StorySection
-        catalogueSize={catalogueSize}
-        categoryCount={categories.length}
-        sizeRange={sizeRange}
-      />
+      <StorySection />
       <PolicySection />
       <FollowSection shop={shop} />
     </>

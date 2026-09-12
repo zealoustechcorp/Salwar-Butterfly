@@ -116,6 +116,27 @@ export const BannerController = {
     });
   }),
 
+  /**
+   * PATCH /api/banners/setBannerProduct/:id
+   *
+   * `{ productId: "<uuid>" }` to make the slide a link through to that
+   * piece, `{ productId: null }` to make it a photograph again.
+   */
+  setProduct: asyncHandler(async (req, res) => {
+    const banner = await BannerService.setProduct(
+      req.params.id,
+      req.body.productId,
+    );
+
+    return okResponse({
+      res,
+      data: banner,
+      message: banner.productId
+        ? `Banner now links to ${banner.productName ?? "that piece"}`
+        : "Banner no longer links anywhere",
+    });
+  }),
+
   /** PATCH /api/banners/reorderBanners */
   reorder: asyncHandler(async (req, res) => {
     const banners = await BannerService.reorder(req.body.ids);

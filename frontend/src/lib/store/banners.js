@@ -2,11 +2,17 @@
  * The banners on the home page carousel (F-06).
  *
  * Read from `GET /storefront/getBanners` — the public reader, which
- * returns one field per slide, the image URL, in rotation order. The
- * banner's id, its position, the active flag and the Cloudinary public
- * id live on the admin API and never reach this module. That last one is
- * the handle that deletes the file, which is why the split is drawn at
- * the SQL rather than here.
+ * returns two fields per slide in rotation order: the image URL, and the
+ * piece it links to where it names one. The banner's id, its position,
+ * the active flag and the Cloudinary public id live on the admin API and
+ * never reach this module. That last one is the handle that deletes the
+ * file, which is why the split is drawn at the SQL rather than here.
+ *
+ * `product` is an object or null, and null covers both "this slide names
+ * no piece" — the ordinary banner — and "the piece it names is no longer
+ * on sale". The API collapses those before they reach the browser, so
+ * <Hero> has one question to ask rather than two. Same shape, and the
+ * same reasoning, as customerStories.js next door.
  *
  * The banner set used to be a frozen array in `lib/store/shop.js`. The
  * migration that created the table seeded it from exactly those five
@@ -47,9 +53,10 @@ const REVALIDATE_SECONDS = 300;
  * `cache()` dedupes within a render, so a page and a section that both
  * ask make one request.
  *
- * @returns {Promise<Array<{image: string}>>} the slides — an empty array
- *          means the shop has taken every banner down, or that they
- *          could not be read
+ * @returns {Promise<Array<{image: string,
+ *          product: {id: string, name: string}|null}>>} the slides — an
+ *          empty array means the shop has taken every banner down, or
+ *          that they could not be read
  */
 export const getBanners = cache(async () => {
   try {

@@ -7,9 +7,9 @@ import { Butterfly, WhatsAppGlyph } from "./Ornaments";
 /** Static, server-rendered sections. Nothing here needs client state. */
 
 /**
- * The shop's own trust badges and headline numbers, spelling normalised
- * ("Watsapp" → "WhatsApp", "llakh" → "1 lakh"). The claims and their wording
- * are the shop's — nothing here is computed or invented.
+ * The shop's own trust badges, spelling normalised ("Watsapp" → "WhatsApp").
+ * The claims and their wording are the shop's — nothing here is computed or
+ * invented.
  *
  * The source copy repeats itself — "99% best products, delivered safely" is
  * stated twice, once under "Genuine Products", and WhatsApp support appears
@@ -42,48 +42,10 @@ const PROMISES = [
 ];
 
 export function TrustBar({ shop }) {
-  const stats = [
-    {
-      value: "50,000+",
-      label: "Happy customers on Instagram",
-      href: shop?.instagram,
-    },
-    { value: "1 lakh+", label: "Products posted & sold" },
-  ];
-
   return (
     <section className="border-y border-sb-gold/30 bg-sb-surface/30">
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-7 lg:px-8">
-        <dl className="grid grid-cols-2 gap-4 sm:gap-8">
-          {stats.map(({ value, label, href }) => {
-            const body = (
-              <>
-                <dt className="font-display text-3xl leading-none font-semibold text-sb-heading tabular sm:text-4xl">
-                  {value}
-                </dt>
-                <dd className="mt-1.5 text-xs leading-relaxed text-sb-text-muted sm:text-[13px]">
-                  {label}
-                </dd>
-              </>
-            );
-
-            return href ? (
-              <a
-                key={label}
-                href={href}
-                target="_blank"
-                rel="noreferrer noopener"
-                className="group block rounded-xl transition-colors hover:text-sb-link"
-              >
-                {body}
-              </a>
-            ) : (
-              <div key={label}>{body}</div>
-            );
-          })}
-        </dl>
-
-        <div className="mt-6 grid gap-x-6 gap-y-5 border-t border-sb-gold/30 pt-6 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-4">
           {PROMISES.map(({ icon: Icon, title, detail, contact }) => (
             <div key={title} className="flex gap-3">
               {contact ? (
@@ -121,7 +83,7 @@ export function TrustBar({ shop }) {
   );
 }
 
-export function StorySection({ catalogueSize, categoryCount, sizeRange }) {
+export function StorySection() {
   return (
     <section id="story" className="scroll-mt-40 bg-sb-surface/25 wide:scroll-mt-28">
       <div className="mx-auto grid max-w-7xl items-center gap-8 px-4 py-10 sm:px-6 sm:py-12 lg:grid-cols-[0.85fr_1.15fr] lg:gap-12 lg:px-8 lg:py-16">
@@ -163,21 +125,6 @@ export function StorySection({ catalogueSize, categoryCount, sizeRange }) {
             WhatsApp before and after the sale. Every order here means something — thank you for
             being part of the journey.
           </p>
-
-          <dl className="mt-6 grid max-w-lg grid-cols-3 gap-4 border-t border-sb-gold/35 pt-4 sm:gap-6">
-            {[
-              { term: "Pieces in store", value: String(catalogueSize) },
-              { term: "Collections", value: String(categoryCount) },
-              { term: "Sizes", value: sizeRange || "36 – 46" },
-            ].map((stat) => (
-              <div key={stat.term}>
-                <dt className="sb-eyebrow text-[9px] text-sb-gold-text">{stat.term}</dt>
-                <dd className="mt-1 font-display text-2xl font-semibold text-sb-heading tabular sm:text-3xl">
-                  {stat.value}
-                </dd>
-              </div>
-            ))}
-          </dl>
         </div>
       </div>
     </section>

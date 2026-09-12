@@ -11,18 +11,23 @@
  * The migration that created the table seeded it from exactly those
  * five, so nothing a shopper saw changed on the day this landed.
  *
- * A banner is an image and a place in the order. There is no title
- * field, no caption, no link — the carousel renders each slide as
- * decorative artwork next to a headline that is already there, and the
- * shop composes whatever it wants said into the picture itself. So the
- * create form is a file picker, and nothing else.
+ * A banner is an image, a place in the order, and optionally the piece
+ * it is a photograph of. There is still no title field and no caption —
+ * the carousel renders each slide next to a headline that is already
+ * there, and the shop composes whatever it wants said into the picture
+ * itself. So the create form is a file picker, and nothing else; the
+ * link is an edit afterwards, on the slides that want one.
  *
- * Three gestures, softest first, which is also the order they appear on
+ * Four gestures, softest first, which is also the order they appear on
  * each tile:
  *
  *   Shown toggle  takes a slide out of the rotation and keeps it. A
  *                 Diwali banner pulled in November is worth having back
  *                 next October.
+ *   Link          points the slide at a piece, so tapping the banner on
+ *                 the home page opens that product. Optional, and
+ *                 cleared the same way it is set — most slides link
+ *                 nowhere and are none the worse for it.
  *   Replace       swaps the artwork and keeps the slide's place in the
  *                 order — which is the only thing it does that deleting
  *                 and re-uploading would not, since a new upload lands
@@ -37,17 +42,20 @@
  */
 
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
   Eye,
   EyeOff,
   Images,
+  Link2,
+  Link2Off,
   RefreshCw,
   Replace,
   Trash2,
   Upload,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { MediaFrame } from "@/components/admin/MediaFrame";
 import {
@@ -57,7 +65,10 @@ import {
   CardHeader,
   EmptyState,
   ErrorNotice,
+  Field,
+  Input,
   Modal,
+  Select,
   SkeletonRows,
   Toggle,
   cx,
@@ -74,7 +85,9 @@ import {
   reorderBanners,
   replaceBannerImage,
   setBannerActive,
+  setBannerProduct,
 } from "@/lib/api/banners";
+import { listAllProducts } from "@/lib/api/products";
 
 export default function CarouselPage() {
   const toast = useToast();
@@ -89,6 +102,15 @@ export default function CarouselPage() {
   const [busy, setBusy] = useState(false);
   const [busyId, setBusyId] = useState(null);
   const [deleting, setDeleting] = useState(null);
+
+  // Which slide's link is being edited, and the catalogue to pick from.
+  const [linking, setLinking] = useState(null);
+  // Its own request rather than something the banners bring with them —
+  // the carousel is twelve rows and the catalogue is two hundred, and a
+  // screen that mostly reorders pictures should not wait on the second
+  // to show the first. A failure here costs the picker and nothing else,
+  // which is why it is not folded into `state`.
+  const [products, setProducts] = useState([]);
 
   // Which slide the replace picker is about to overwrite. One piece of
   // state and one input, rather than an input per tile: "replacing" and
@@ -123,6 +145,26 @@ export default function CarouselPage() {
       controller.abort();
     };
   }, [reload]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+
+    listAllProducts({ signal: controller.signal })
+      .then((rows) => {
+        if (active) setProducts(rows);
+      })
+      .catch(() => {
+        // Swallowed deliberately. Every other gesture on this screen
+        // still works without the catalogue, and the link editor says so
+        // itself rather than putting an error banner over the artwork.
+      });
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, []);
 
   const refresh = useCallback(() => setReload((n) => n + 1), []);
 
@@ -229,6 +271,39 @@ export default function CarouselPage() {
       );
     } catch (error) {
       toast.error("Could not change that", error?.message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  /**
+   * Points a slide at a piece, or takes the link off it.
+   *
+   * `productId` of "" is the cleared case and is a real edit, not a
+   * no-op — the API takes it as null and the banner goes back to being
+   * a photograph that does nothing when tapped.
+   */
+  async function saveLink(banner, productId) {
+    setBusyId(banner.id);
+
+    try {
+      const saved = await setBannerProduct(banner.id, productId);
+
+      setState((current) => ({
+        ...current,
+        banners: current.banners.map((row) => (row.id === saved.id ? saved : row)),
+      }));
+
+      setLinking(null);
+
+      toast.success(
+        saved.productId ? "Banner linked" : "Link removed",
+        saved.productId
+          ? `Tapping this slide now opens ${saved.productName}.`
+          : "This slide is a photograph again — tapping it does nothing.",
+      );
+    } catch (error) {
+      toast.error("Could not change the link", error?.message);
     } finally {
       setBusyId(null);
     }
@@ -389,6 +464,7 @@ export default function CarouselPage() {
                   disabled={locked}
                   onMove={(delta) => move(index, delta)}
                   onToggle={() => toggleShown(banner)}
+                  onLink={() => setLinking(banner)}
                   onReplace={() => {
                     setReplacingId(banner.id);
                     replaceRef.current?.click();
@@ -403,11 +479,31 @@ export default function CarouselPage() {
               Slides are shown at 16:9. Artwork of any other shape is fitted
               inside that frame against a blurred copy of itself rather than
               cropped, so nothing is cut off — design at 16:9 for the sharpest
-              result.
+              result. A slide linked to a piece shows that piece&rsquo;s name in
+              the corner of the banner, so leave that corner clear when the
+              artwork is going to carry a link.
             </p>
           </div>
         ) : null}
       </Card>
+
+      {/* ----------------------------------------------------------
+          LINK
+          ---------------------------------------------------------- */}
+
+      {/* Keyed on the banner, so opening a different slide is a remount
+          and the form seeds itself from that row rather than needing an
+          effect to chase the prop. Same treatment as the story editor. */}
+      {linking ? (
+        <LinkEditor
+          key={linking.id}
+          banner={linking}
+          products={products}
+          saving={busyId === linking.id}
+          onClose={() => setLinking(null)}
+          onSave={(productId) => saveLink(linking, productId)}
+        />
+      ) : null}
 
       {/* ----------------------------------------------------------
           DELETE
@@ -454,6 +550,111 @@ export default function CarouselPage() {
 }
 
 /**
+ * Where one slide points.
+ *
+ * A modal of its own rather than a select on the tile, because the
+ * catalogue is two hundred pieces and choosing from it needs a search
+ * box — and because putting one next to the artwork on every tile would
+ * make a screen about pictures look like a screen about forms.
+ *
+ * The picture is in the dialog beside the picker for the same reason the
+ * tiles are pictures: "which banner is this" is answered by looking at
+ * it, not by reading a row number.
+ */
+function LinkEditor({ banner, products, saving, onClose, onSave }) {
+  const [productId, setProductId] = useState(banner.productId ?? "");
+  const [search, setSearch] = useState("");
+
+  // Two hundred products in one dropdown is a scroll, not a choice. The
+  // filter narrows it; the cap keeps the list renderable when the filter
+  // is empty. Same treatment as the stories and reviews screens.
+  const options = useMemo(() => {
+    const term = search.trim().toLowerCase();
+
+    const matches = term
+      ? products.filter((product) =>
+          `${product.name} ${product.slug ?? ""}`.toLowerCase().includes(term),
+        )
+      : products;
+
+    return matches.slice(0, 50);
+  }, [products, search]);
+
+  // The slide may already point at a piece that is not in `options` —
+  // because it is off sale, or simply past the cap above. Without this
+  // the Select would quietly show "no piece" and saving would clear a
+  // link the shop never touched.
+  const stranded = productId && !options.some((product) => product.id === productId);
+
+  return (
+    <Modal
+      open
+      onClose={saving ? () => {} : onClose}
+      size="sm"
+      title="Where does this slide go?"
+      description="Optional. With a piece chosen, tapping this banner on the home page opens it."
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button variant="primary" busy={saving} onClick={() => onSave(productId)}>
+            Save
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <MediaFrame
+          src={banner.image}
+          ratio="aspect-16/9"
+          className="w-full rounded-lg"
+        />
+
+        <Field
+          label="Piece"
+          hint={
+            products.length === 0
+              ? "The catalogue could not be loaded — reload the page to link this slide to a piece."
+              : "Leave this on “No piece” for a banner that is just a photograph. Type to narrow the list."
+          }
+        >
+          <div className="space-y-2">
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search products by name"
+            />
+            <Select value={productId} onChange={(e) => setProductId(e.target.value)}>
+              <option value="">No piece</option>
+              {stranded ? (
+                <option value={productId}>
+                  {banner.productName || "The piece this slide names"}
+                  {banner.productActive === false ? " (off sale)" : ""}
+                </option>
+              ) : null}
+              {options.map((product) => (
+                <option key={product.id} value={product.id}>
+                  {product.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+        </Field>
+
+        {banner.productActive === false ? (
+          <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-800 ring-1 ring-inset ring-amber-200">
+            The piece this slide names is off sale, so the banner is showing on
+            the home page but is not linking anywhere. Point it at something on
+            sale, or clear the link — the artwork stays either way.
+          </p>
+        ) : null}
+      </div>
+    </Modal>
+  );
+}
+
+/**
  * One slide, shown as the artwork it is.
  *
  * The tile is the photograph rather than a filename and a date, because
@@ -468,10 +669,17 @@ function BannerTile({
   disabled,
   onMove,
   onToggle,
+  onLink,
   onReplace,
   onDelete,
 }) {
   const locked = disabled || busy;
+
+  // Three states, and only the third is a problem: no link at all (the
+  // ordinary slide), a link to a piece on sale, and a link to a piece the
+  // shop has since taken off sale — which still renders the banner but
+  // silently stops it going anywhere.
+  const stale = Boolean(banner.productId) && banner.productActive === false;
 
   return (
     <li
@@ -512,6 +720,35 @@ function BannerTile({
           />
         </span>
 
+        {/* Where this slide points, in one line. Printed for every tile
+            rather than only the linked ones: "links nowhere" is a fact
+            the shop is checking when it opens this screen, and a line
+            that appears and disappears is one the eye stops looking for. */}
+        <p
+          className={cx(
+            "flex items-center gap-1.5 text-[11px]",
+            stale ? "text-amber-700" : "text-ink-500",
+          )}
+          title={banner.productName || banner.productId || "Links nowhere"}
+        >
+          {banner.productId ? (
+            stale ? (
+              <AlertTriangle className="size-3 shrink-0" aria-hidden="true" />
+            ) : (
+              <Link2 className="size-3 shrink-0" aria-hidden="true" />
+            )
+          ) : (
+            <Link2Off className="size-3 shrink-0" aria-hidden="true" />
+          )}
+          <span className="truncate">
+            {!banner.productId
+              ? "Links nowhere"
+              : stale
+                ? `${banner.productName || "That piece"} is off sale — the slide will not link`
+                : banner.productName}
+          </span>
+        </p>
+
         <div className="flex items-center justify-between">
           <span className="flex items-center">
             <Button
@@ -535,6 +772,22 @@ function BannerTile({
           </span>
 
           <span className="flex items-center">
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={locked}
+              title="Choose the piece this slide links to"
+              aria-label={`Choose the piece banner ${index + 1} links to`}
+              onClick={onLink}
+            >
+              <Link2
+                className={cx(
+                  "size-3.5",
+                  banner.productId && !stale ? "text-brand-600" : "text-ink-400",
+                )}
+                aria-hidden="true"
+              />
+            </Button>
             <Button
               size="sm"
               variant="ghost"

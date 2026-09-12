@@ -22,15 +22,36 @@ const handleDatabaseError = (error, operation, context = {}) => {
   return error;
 };
 
-/** Every column the API ever returns. Named, never `SELECT *`. */
+/**
+ * Every column the API ever returns. Named, never `SELECT *`.
+ *
+ * Aliased on `b` and paired with the FROM below because a banner may now
+ * name a product (020), and the admin screen has to print which — an id
+ * on its own would be a row saying "linked to 3f672d8d…". The join also
+ * carries `p.active`, which is the difference between "names nothing"
+ * and "names something the shop has taken off sale": the screen warns
+ * about the second and says nothing about the first.
+ */
 const COLUMNS = `
-  id,
-  image,
-  image_public_id,
-  position,
-  active,
-  created_at,
-  updated_at
+  b.id,
+  b.image,
+  b.image_public_id,
+  b.position,
+  b.active,
+  b.product_id,
+  b.created_at,
+  b.updated_at,
+  p.name   AS product_name,
+  p.active AS product_active
+`;
+
+/**
+ * A LEFT JOIN, never an inner one. The overwhelming majority of slides
+ * name no product at all, and an inner join would return none of them.
+ */
+const FROM = `
+  FROM banners b
+  LEFT JOIN products p ON p.id = b.product_id
 `;
 
 /**
@@ -46,7 +67,7 @@ const COLUMNS = `
  * A banner has no name to sort by, which is why this is the timestamp
  * and not the alphabetical fallback the size charts use.
  */
-const ORDER = "ORDER BY position ASC, created_at ASC, id ASC";
+const ORDER = "ORDER BY b.position ASC, b.created_at ASC, b.id ASC";
 
 export const BannerRepository = {
   // ==========================================================
@@ -56,7 +77,7 @@ export const BannerRepository = {
   /** Every banner, live or hidden — the admin screen's list. */
   async list() {
     try {
-      const result = await query(`SELECT ${COLUMNS} FROM banners ${ORDER}`);
+      const result = await query(`SELECT ${COLUMNS} ${FROM} ${ORDER}`);
 
       return result.rows;
     } catch (error) {
@@ -67,7 +88,7 @@ export const BannerRepository = {
   async findById(id) {
     try {
       const result = await query(
-        `SELECT ${COLUMNS} FROM banners WHERE id = $1::uuid`,
+        `SELECT ${COLUMNS} ${FROM} WHERE b.id = $1::uuid`,
         [id],
       );
 
@@ -128,9 +149,7 @@ export const BannerRepository = {
         );
       }
 
-      const result = await client.query(
-        `SELECT ${COLUMNS} FROM banners ${ORDER}`,
-      );
+      const result = await client.query(`SELECT ${COLUMNS} ${FROM} ${ORDER}`);
 
       return result.rows;
     }).catch((error) => {
@@ -151,11 +170,16 @@ export const BannerRepository = {
              image_public_id = $3,
              updated_at      = NOW()
          WHERE id = $1::uuid
-         RETURNING ${COLUMNS}`,
+         RETURNING id`,
         [id, image.imageUrl, image.imagePublicId],
       );
 
-      return result.rows[0] ?? null;
+      if (!result.rows[0]) return null;
+
+      // RETURNING cannot reach the joined product name, so the row is
+      // read back rather than returned from the UPDATE. One extra
+      // round trip on a write the shop makes a few times a season.
+      return BannerRepository.findById(id);
     } catch (error) {
       throw handleDatabaseError(error, "replaceImage", { id });
     }
@@ -174,13 +198,45 @@ export const BannerRepository = {
         `UPDATE banners
          SET active = $2, updated_at = NOW()
          WHERE id = $1::uuid
-         RETURNING ${COLUMNS}`,
+         RETURNING id`,
         [id, active],
       );
 
-      return result.rows[0] ?? null;
+      if (!result.rows[0]) return null;
+
+      return BannerRepository.findById(id);
     } catch (error) {
       throw handleDatabaseError(error, "setActive", { id });
+    }
+  },
+
+  /**
+   * Points a slide at a piece, or at nothing.
+   *
+   * `null` is a first-class value here rather than an omission: taking
+   * the link off a banner is an edit the shop makes deliberately, and a
+   * COALESCE-style patch could not tell it from "leave it alone". Same
+   * reasoning as `customer_stories.updateFields`.
+   *
+   * The foreign key is what refuses an id that names no product; the
+   * service turns that 23503 into a sentence, because by the time it
+   * happens the admin has picked from a list that went stale.
+   */
+  async setProduct(id, productId) {
+    try {
+      const result = await query(
+        `UPDATE banners
+         SET product_id = $2::uuid, updated_at = NOW()
+         WHERE id = $1::uuid
+         RETURNING id`,
+        [id, productId ?? null],
+      );
+
+      if (!result.rows[0]) return null;
+
+      return BannerRepository.findById(id);
+    } catch (error) {
+      throw handleDatabaseError(error, "setProduct", { id, productId });
     }
   },
 
@@ -206,9 +262,7 @@ export const BannerRepository = {
         );
       }
 
-      const result = await client.query(
-        `SELECT ${COLUMNS} FROM banners ${ORDER}`,
-      );
+      const result = await client.query(`SELECT ${COLUMNS} ${FROM} ${ORDER}`);
 
       return result.rows;
     }).catch((error) => {
@@ -231,8 +285,14 @@ export const BannerRepository = {
    */
   async remove(id) {
     try {
+      // The banner's own columns, not the joined shape above: the row is
+      // being destroyed, and the only thing the caller reads off it is
+      // `image_public_id` — the handle that deletes the file. A product
+      // name on a deleted slide would answer no question.
       const result = await query(
-        `DELETE FROM banners WHERE id = $1::uuid RETURNING ${COLUMNS}`,
+        `DELETE FROM banners
+         WHERE id = $1::uuid
+         RETURNING id, image, image_public_id, position, active, product_id`,
         [id],
       );
 

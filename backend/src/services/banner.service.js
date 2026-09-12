@@ -45,6 +45,26 @@ const assertUuid = (value, label = "banner ID") => {
 };
 
 /**
+ * The foreign key on `product_id` (020), reached by an id that names
+ * nothing.
+ *
+ * Turned into a sentence about a piece rather than left as 23503, which
+ * reaches the shop as "something went wrong" after it has picked a
+ * product from a list that had gone stale. Word for word the same
+ * handler customer_story.service.js carries, for the same column shape.
+ */
+const asProductError = (error) => {
+  if (error?.code === "23503") {
+    return ApiError.badRequest(
+      "That piece is not in the catalogue. It may have been deleted since this screen loaded.",
+      "BANNER_PRODUCT_NOT_FOUND",
+    );
+  }
+
+  return null;
+};
+
+/**
  * Deletes files this request uploaded and is no longer going to use.
  *
  * Best effort, and deliberately swallowing: it runs while another error
@@ -296,6 +316,50 @@ export const BannerService = {
 
       logger.error("BannerService.setActive failed", {
         bannerId: id,
+        error: error?.message,
+      });
+
+      throw new ApiError(500, "Failed to update the banner");
+    }
+  },
+
+  /**
+   * Points a slide at a piece, or takes the link off it.
+   *
+   * Its own endpoint rather than part of a general update, for the same
+   * reason `setActive` is: it is the only thing on the row an admin can
+   * change without a file attached, and a shop correcting a link should
+   * not have to re-upload artwork to do it.
+   *
+   * `null` is a real value, not a missing one — see the validator.
+   *
+   * @param {string|null} productId the piece, or null for no link
+   */
+  async setProduct(bannerId, productId) {
+    const id = assertUuid(bannerId);
+
+    try {
+      const row = await BannerRepository.setProduct(id, productId ?? null);
+
+      if (!row) {
+        throw ApiError.notFound("Banner not found", "BANNER_NOT_FOUND");
+      }
+
+      logger.info("Banner product link changed", {
+        id,
+        productId: row.product_id ?? null,
+      });
+
+      return BannerMapper.toDTO(row);
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+
+      const productError = asProductError(error);
+      if (productError) throw productError;
+
+      logger.error("BannerService.setProduct failed", {
+        bannerId: id,
+        productId,
         error: error?.message,
       });
 

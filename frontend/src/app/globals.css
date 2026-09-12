@@ -325,6 +325,64 @@ body {
   }
 }
 
+/* A soft dark halo, for an icon drawn straight onto a photograph.
+
+   The carousel's edge chevrons have no plate under them — see <CarouselEdge>
+   — so on a pale banner a cream glyph would be cream on nearly-cream. One
+   drop-shadow gives it an edge to be seen against without putting a shape
+   back around it.
+
+   Here rather than as an arbitrary Tailwind value because
+   `drop-shadow-[0_1px_4px_rgba(0,0,0,0.65)]` silently compiles to nothing:
+   the commas inside the `rgba()` break the candidate scanner, so the class
+   lands in the markup and no rule is ever generated for it. Checked against
+   tailwindcss 4.3.3. A named class is also simply the pattern the rest of
+   this file follows. */
+.sb-icon-halo {
+  filter: drop-shadow(0 1px 4px rgb(0 0 0 / 0.65));
+}
+
+/* The carousel's active dot, draining rather than counting.
+
+   How long a banner has left is worth showing — an autoplaying carousel that
+   moves with no warning is the reason people describe carousels as things that
+   snatch pages away — but it is not worth a number. "4… 3… 2…" beside a
+   photograph is a countdown to something, and nothing here is being counted
+   down to; a bar that fills is the same information read at a glance and
+   forgotten just as fast.
+
+   `scaleX` on a transform-origin of the left edge, so the fill is composited
+   rather than laid out sixty times a second: animating `width` on a dot in the
+   first fold means a reflow per frame for the length of every slide.
+
+   `both` keeps the fill at zero width before it starts and full at the end —
+   the element is remounted for each new slide, and without it there is a frame
+   where an unstarted animation shows the bar already full. The duration and
+   the play state come from the carousel, which owns the timer this mirrors. */
+@keyframes sb-dot-fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.sb-dot-fill {
+  animation: sb-dot-fill linear both;
+  transform-origin: left center;
+}
+
+/* No autoplay for a shopper who asked for less motion — see useCarousel — so
+   there is nothing to show the time remaining *of*. The dot goes back to being
+   a plain filled dot rather than an empty track that never fills. */
+@media (prefers-reduced-motion: reduce) {
+  .sb-dot-fill {
+    animation: none;
+    transform: scaleX(1);
+  }
+}
+
 @keyframes sb-fade-up {
   from {
     opacity: 0;

@@ -3,10 +3,11 @@
 // The home page carousel (F-06). Shape checks only.
 //
 // There is no banner.rules.js beside this file, unlike the size charts.
-// A banner has no fields an admin types — the body of a create is the
-// files themselves, and the only two writes that carry JSON are a
-// boolean and a list of ids. A rules module quoting a policy would be
-// three indirections over `typeof value === "boolean"`.
+// A banner still has no fields an admin types — the body of a create is
+// the files themselves, and the three writes that carry JSON are a
+// boolean, a list of ids and one id that may be null. A rules module
+// quoting a policy would be three indirections over
+// `typeof value === "boolean"`.
 //
 // What a banner may *be* — how many, which folder — is
 // config/banner.policy.js, and the service is what enforces it, because
@@ -91,6 +92,47 @@ export const validateSetActive = (req, res, next) => {
           : "Active must be true or false",
     });
   }
+
+  next();
+};
+
+/**
+ * The piece a slide links to: `{ productId: string|null }`.
+ *
+ * Three accepted bodies, and the third is the point of the endpoint.
+ * A UUID points the slide at that piece; `null` and `""` both take the
+ * link off, because a `<select>` cleared back to its placeholder sends
+ * an empty string and an admin clearing a field means the same thing
+ * either way. Normalised to null here so nothing downstream has to ask
+ * which of the two arrived.
+ *
+ * Whether the id names a product that exists is the database's question
+ * — the foreign key added in 020 is what refuses it, and the service
+ * turns that into a sentence. Checking here as well would be a second
+ * round trip that can still be out of date by the time the UPDATE runs.
+ */
+export const validateSetProduct = (req, res, next) => {
+  const raw = req.body?.productId;
+
+  if (raw === undefined) {
+    throw new ApiError(400, "Validation failed", {
+      productId: "Send the piece this banner links to, or null for none",
+    });
+  }
+
+  if (raw === null || (typeof raw === "string" && raw.trim() === "")) {
+    req.body.productId = null;
+
+    return next();
+  }
+
+  if (typeof raw !== "string" || !UUID_REGEX.test(raw.trim())) {
+    throw new ApiError(400, "Validation failed", {
+      productId: `'${raw}' is not a valid product ID`,
+    });
+  }
+
+  req.body.productId = raw.trim();
 
   next();
 };
