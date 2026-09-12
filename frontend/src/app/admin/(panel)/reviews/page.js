@@ -15,7 +15,7 @@ import {
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { StatTile } from "@/components/admin/ProductBits";
 import { ProductCover } from "@/components/admin/ProductThumb";
@@ -27,18 +27,15 @@ import {
   cx,
   EmptyState,
   ErrorNotice,
-  Field,
   Input,
+  LinkButton,
   Modal,
   Select,
   SkeletonRows,
-  Textarea,
-  Toggle,
   useToast,
 } from "@/components/admin/ui";
 import { listAllProducts } from "@/lib/api/products";
 import {
-  createReview,
   deleteReview,
   EMPTY_SUMMARY,
   listReviews,
@@ -47,10 +44,8 @@ import {
   RATINGS,
   REVIEW_SORTS,
   setReviewPublished,
-  updateReview,
 } from "@/lib/api/reviews";
 import { number, shortDate } from "@/lib/format";
-import { hasErrors, summarizeErrors, validateReviewFields } from "@/lib/validate";
 
 /**
  * Reviews and ratings (F-11.06).
@@ -65,6 +60,14 @@ import { hasErrors, summarizeErrors, validateReviewFields } from "@/lib/validate
  * cannot be undone. The toggle sits in every row, the delete is behind
  * a confirmation, and that ordering is deliberate — the recoverable
  * action should be the easy one.
+ *
+ * Adding and editing are pages — /reviews/new and /reviews/[id]/edit —
+ * rather than the dialog they were. This is the shop typing up a
+ * paragraph from a WhatsApp conversation open in another window, and a
+ * dialog cannot be reloaded, linked to or left alone while something
+ * else is checked. Only the delete confirmation is still a dialog,
+ * which is what a dialog is for: one question, one answer, nothing to
+ * keep.
  *
  * The average is over published reviews only, which is what a shopper
  * would see. Folding the hidden ones in would print a figure matching
@@ -82,15 +85,6 @@ const DEFAULT_QUERY = {
 
 const PAGE_SIZE = 25;
 
-const BLANK_FORM = {
-  productId: "",
-  authorName: "",
-  rating: 5,
-  title: "",
-  body: "",
-  published: true,
-};
-
 export default function ReviewsPage() {
   const toast = useToast();
 
@@ -107,12 +101,10 @@ export default function ReviewsPage() {
     error: null,
   });
 
-  // The catalogue, for the product picker and the filter. Fetched once:
-  // it is the same list on every open, and re-reading two hundred
-  // products each time the modal appears would be work for nothing.
+  // The catalogue, for the product filter above the list. The editor
+  // reads its own copy on /reviews/new, where the picker lives.
   const [products, setProducts] = useState([]);
 
-  const [editing, setEditing] = useState(null); // review | "new" | null
   const [deleting, setDeleting] = useState(null);
   const [busyId, setBusyId] = useState(null);
 
@@ -222,10 +214,10 @@ export default function ReviewsPage() {
             <RefreshCw className="size-3.5" aria-hidden="true" />
             Refresh
           </Button>
-          <Button size="sm" variant="primary" onClick={() => setEditing("new")}>
+          <LinkButton size="sm" variant="primary" href="/admin/reviews/new">
             <Plus className="size-3.5" aria-hidden="true" />
             Add review
-          </Button>
+          </LinkButton>
         </div>
       </div>
 
@@ -407,10 +399,10 @@ export default function ReviewsPage() {
                   Clear filters
                 </Button>
               ) : (
-                <Button variant="primary" onClick={() => setEditing("new")}>
+                <LinkButton variant="primary" href="/admin/reviews/new">
                   <Plus className="size-3.5" aria-hidden="true" />
                   Add the first review
-                </Button>
+                </LinkButton>
               )
             }
           />
@@ -421,7 +413,6 @@ export default function ReviewsPage() {
                 key={review.id}
                 review={review}
                 busy={busyId === review.id}
-                onEdit={() => setEditing(review)}
                 onDelete={() => setDeleting(review)}
                 onTogglePublished={() => togglePublished(review)}
               />
@@ -459,21 +450,6 @@ export default function ReviewsPage() {
         ) : null}
       </Card>
 
-      <ReviewDialog
-        open={editing !== null}
-        review={editing === "new" ? null : editing}
-        products={products}
-        onClose={() => setEditing(null)}
-        onSaved={(saved, created) => {
-          setEditing(null);
-          refresh();
-          toast.success(
-            created ? "Review added" : "Review updated",
-            saved.product.name,
-          );
-        }}
-      />
-
       <DeleteReviewDialog
         review={deleting}
         onClose={() => setDeleting(null)}
@@ -496,7 +472,7 @@ export default function ReviewsPage() {
 // ROW
 // ============================================================
 
-function ReviewRow({ review, busy, onEdit, onDelete, onTogglePublished }) {
+function ReviewRow({ review, busy, onDelete, onTogglePublished }) {
   return (
     <li
       className={cx(
@@ -569,10 +545,14 @@ function ReviewRow({ review, busy, onEdit, onDelete, onTogglePublished }) {
           {review.published ? "Hide" : "Publish"}
         </Button>
 
-        <Button size="sm" variant="secondary" onClick={onEdit}>
+        <LinkButton
+          size="sm"
+          variant="secondary"
+          href={`/admin/reviews/${review.id}/edit`}
+        >
           <Pencil className="size-3.5" aria-hidden="true" />
           Edit
-        </Button>
+        </LinkButton>
 
         <Button size="sm" variant="danger" onClick={onDelete} aria-label="Delete review">
           <Trash2 className="size-3.5" aria-hidden="true" />
@@ -600,291 +580,6 @@ function Stars({ rating }) {
         />
       ))}
     </span>
-  );
-}
-
-// ============================================================
-// EDITOR
-// ============================================================
-
-/**
- * Add and edit in one dialog.
- *
- * The product cannot be changed once a review exists. Moving a review
- * between products would silently restate two averages at once, and
- * there is no case for it that deleting and re-adding does not cover
- * more honestly.
- */
-function ReviewDialog({ open, review, products, onClose, onSaved }) {
-  const toast = useToast();
-
-  const [form, setForm] = useState(BLANK_FORM);
-  const [productSearch, setProductSearch] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  /**
-   * Either the ApiError from a refused save, or a `{ fields }` object from
-   * the checks below. One shape, because `fieldError` reads `.fields` off
-   * it either way and the inputs do not care which side refused them.
-   */
-  const [error, setError] = useState(null);
-
-  const creating = !review;
-
-  /**
-   * Loads the form when the dialog opens on a different review.
-   *
-   * Adjusted during render rather than in an effect. The effect version
-   * paints one frame of the *previous* review's answers before the
-   * reset lands, which on a dialog is a visible flash of somebody
-   * else's words. React's documented pattern for deriving state from a
-   * changed prop, and the reason there is no `useEffect` here.
-   */
-  const subject = open ? (review?.id ?? "new") : null;
-  const [loaded, setLoaded] = useState(null);
-
-  if (subject === null) {
-    // Forgotten on close, so reopening the same review starts from what
-    // is saved rather than from the edits that were just cancelled.
-    if (loaded !== null) setLoaded(null);
-  } else if (loaded !== subject) {
-    setLoaded(subject);
-    setError(null);
-    setProductSearch("");
-
-    setForm(
-      review
-        ? {
-            productId: review.productId,
-            authorName: review.authorName,
-            rating: review.rating,
-            title: review.title,
-            body: review.body,
-            published: review.published,
-          }
-        : BLANK_FORM,
-    );
-  }
-
-  // Two hundred products in one dropdown is a scroll, not a choice.
-  // The filter narrows it; the cap keeps the list renderable when the
-  // filter is empty.
-  const options = useMemo(() => {
-    const term = productSearch.trim().toLowerCase();
-
-    const matches = term
-      ? products.filter((product) =>
-          `${product.name} ${product.slug}`.toLowerCase().includes(term),
-        )
-      : products;
-
-    return matches.slice(0, 50);
-  }, [products, productSearch]);
-
-  const fieldError = (name) => error?.fields?.[name];
-
-  const save = async () => {
-    // Editing cannot change the product, so there is no product field to
-    // require — see the "A review cannot be moved" note on the form below.
-    const invalid = validateReviewFields(form, { requireProduct: creating });
-
-    if (hasErrors(invalid)) {
-      setError({ fields: invalid });
-      toast.error("Check the review", summarizeErrors(invalid));
-      return;
-    }
-
-    setSaving(true);
-    setError(null);
-
-    try {
-      const saved = creating
-        ? await createReview(form)
-        : await updateReview(review.id, {
-            authorName: form.authorName,
-            rating: form.rating,
-
-            // Sent even when empty: "" is how the API is told to clear
-            // a title the admin has just deleted out of the box.
-            title: form.title,
-            body: form.body,
-            published: form.published,
-          });
-
-      onSaved(saved, creating);
-    } catch (err) {
-      setError(err);
-      toast.error(
-        creating ? "Could not add the review" : "Could not save the review",
-        summarizeErrors(err.fields) ?? err.message,
-      );
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Modal
-      open={open}
-      onClose={saving ? () => {} : onClose}
-      title={creating ? "Add a review" : "Edit review"}
-      description={
-        creating
-          ? "What a customer told the shop, published in their name."
-          : `Published under ${review?.authorName}.`
-      }
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose} disabled={saving}>
-            Cancel
-          </Button>
-          <Button variant="primary" onClick={save} busy={saving}>
-            {creating ? "Add review" : "Save changes"}
-          </Button>
-        </>
-      }
-    >
-      <div className="space-y-4">
-        {/* Field-level messages render beside their inputs; anything
-            without a field to attach to needs saying at the top. */}
-        {error && Object.keys(error.fields ?? {}).length === 0 ? (
-          <ErrorNotice error={error} />
-        ) : null}
-
-        {creating ? (
-          <Field
-            label="Product"
-            required
-            error={fieldError("productId")}
-            hint={
-              products.length === 0
-                ? "The catalogue could not be loaded — reload the page to pick a product."
-                : "Type to narrow the list."
-            }
-          >
-            <div className="space-y-2">
-              <Input
-                value={productSearch}
-                onChange={(e) => setProductSearch(e.target.value)}
-                placeholder="Search products by name or slug"
-              />
-              <Select
-                value={form.productId}
-                invalid={Boolean(fieldError("productId"))}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, productId: e.target.value }))
-                }
-              >
-                <option value="">Choose a product…</option>
-                {options.map((product) => (
-                  <option key={product.id} value={product.id}>
-                    {product.name}
-                  </option>
-                ))}
-              </Select>
-            </div>
-          </Field>
-        ) : (
-          <Field label="Product" hint="A review cannot be moved to another product.">
-            <div className="flex items-center gap-2.5 rounded-lg bg-ink-50 px-3 py-2">
-              <ProductCover product={review.product} size={32} />
-              <span className="text-sm font-medium text-ink-800">
-                {review.product.name}
-              </span>
-            </div>
-          </Field>
-        )}
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field
-            label="Published as"
-            required
-            error={fieldError("authorName")}
-            hint="The name shown on the storefront."
-          >
-            <Input
-              value={form.authorName}
-              invalid={Boolean(fieldError("authorName"))}
-              maxLength={120}
-              placeholder="Meera K."
-              onChange={(e) =>
-                setForm((f) => ({ ...f, authorName: e.target.value }))
-              }
-            />
-          </Field>
-
-          <Field label="Rating" required error={fieldError("rating")}>
-            <div className="flex h-9.5 items-center gap-1">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <button
-                  key={star}
-                  type="button"
-                  aria-label={`${star} star${star === 1 ? "" : "s"}`}
-                  aria-pressed={form.rating === star}
-                  onClick={() => setForm((f) => ({ ...f, rating: star }))}
-                  className="rounded p-0.5 transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
-                >
-                  <Star
-                    aria-hidden="true"
-                    className={cx(
-                      "size-6",
-                      star <= form.rating
-                        ? "fill-gold-500 text-gold-500"
-                        : "text-ink-300",
-                    )}
-                  />
-                </button>
-              ))}
-            </div>
-          </Field>
-        </div>
-
-        <Field
-          label="Headline"
-          error={fieldError("title")}
-          hint="Optional. Clear it to remove it."
-        >
-          <Input
-            value={form.title}
-            invalid={Boolean(fieldError("title"))}
-            maxLength={150}
-            placeholder="Lovely fabric, true to the photo"
-            onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-          />
-        </Field>
-
-        <Field
-          label="What they said"
-          error={fieldError("body")}
-          hint="Optional — a rating on its own is a perfectly good review."
-        >
-          <Textarea
-            value={form.body}
-            invalid={Boolean(fieldError("body"))}
-            maxLength={2000}
-            rows={4}
-            placeholder="Fell beautifully and the zari work is exactly as pictured."
-            onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))}
-          />
-        </Field>
-
-        <div className="flex items-center justify-between rounded-lg bg-ink-50 px-3 py-2.5">
-          <div>
-            <p className="text-sm font-medium text-ink-800">
-              Show on the storefront
-            </p>
-            <p className="text-xs text-ink-500">
-              Off keeps the review here without publishing it.
-            </p>
-          </div>
-          <Toggle
-            checked={form.published}
-            label="Show on the storefront"
-            onChange={(next) => setForm((f) => ({ ...f, published: next }))}
-          />
-        </div>
-      </div>
-    </Modal>
   );
 }
 

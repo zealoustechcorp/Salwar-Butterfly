@@ -18,11 +18,20 @@
  *   Published toggle  takes a chart off the storefront and keeps it. A
  *                     fit the shop stops cutting in April is worth
  *                     having back in October.
- *   Edit              a full replace. The API has no partial update of a
- *                     measurement grid, because dropping a column and
- *                     clearing it are different edits.
+ *   Edit              a full replace, on its own route. The API has no
+ *                     partial update of a measurement grid, because
+ *                     dropping a column and clearing it are different
+ *                     edits.
  *   Delete            destroys it. Behind a confirmation, and never the
  *                     first thing offered.
+ *
+ * Adding and editing are pages — /size-charts/new and
+ * /size-charts/[id]/edit — rather than the dialog they were. A chart is
+ * forty rows of numbers copied off a printed card, and a dialog that
+ * tall scrolls inside a scrolling page, loses the work to a stray click
+ * on the backdrop, and cannot be reloaded or opened in a second tab.
+ * Only the delete confirmation is still a dialog, which is what a
+ * dialog is for: one question, one answer, nothing to keep.
  *
  * The order the charts are listed in is the order their tabs appear in
  * on the storefront, which is why the arrows are here at all and why a
@@ -43,7 +52,6 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
-import SizeChartBuilder, { BLANK_CHART } from "@/components/admin/SizeChartBuilder";
 import {
   Badge,
   Button,
@@ -51,40 +59,25 @@ import {
   CardHeader,
   EmptyState,
   ErrorNotice,
+  LinkButton,
   Modal,
   SkeletonRows,
   Toggle,
   useToast,
 } from "@/components/admin/ui";
 import {
-  createSizeChart,
   deleteSizeChart,
   listSizeCharts,
   reorderSizeCharts,
   setSizeChartActive,
-  updateSizeChart,
 } from "@/lib/api/sizeCharts";
 import { COLUMN_LABEL, measurement } from "@/lib/sizing";
-import {
-  collect,
-  hasErrors,
-  summarizeErrors,
-  validateSizeChartRows,
-} from "@/lib/validate";
 
 export default function SizeChartsPage() {
   const toast = useToast();
 
   const [state, setState] = useState({ status: "loading", charts: [], error: null });
   const [reload, setReload] = useState(0);
-
-  // The chart being edited: a chart, or BLANK_CHART for a new fit, or
-  // null when the editor is closed. One piece of state rather than two
-  // booleans, because "editing" and "which" are never separately true.
-  const [draft, setDraft] = useState(null);
-  const [editingId, setEditingId] = useState(null);
-  const [fieldErrors, setFieldErrors] = useState({});
-  const [saving, setSaving] = useState(false);
 
   const [deleting, setDeleting] = useState(null);
   const [busyId, setBusyId] = useState(null);
@@ -118,59 +111,6 @@ export default function SizeChartsPage() {
   const refresh = useCallback(() => setReload((n) => n + 1), []);
 
   // --- writes ---------------------------------------------------------------
-
-  async function save() {
-    // The grid is checked before the request, not after it. A cell holding
-    // 0 or -5 is refused by the API with a perfectly good message that
-    // arrives once the shop has transcribed forty rows off a printed card;
-    // the same message here arrives while they are still looking at it.
-    const invalid = collect([
-      ["fit", draft.fit.trim() ? null : "A fit name is required"],
-      ["title", draft.title.trim() ? null : "A title is required"],
-      [
-        "columns",
-        draft.columns.length >= 2
-          ? null
-          : "A chart needs at least 2 columns: size, and something to measure",
-      ],
-      ["rows", validateSizeChartRows(draft.rows, draft.columns)],
-    ]);
-
-    if (hasErrors(invalid)) {
-      setFieldErrors(invalid);
-      toast.error("Check the chart", summarizeErrors(invalid));
-      return;
-    }
-
-    setSaving(true);
-    setFieldErrors({});
-
-    try {
-      const saved = editingId
-        ? await updateSizeChart(editingId, draft)
-        : await createSizeChart(draft);
-
-      toast.success(
-        editingId ? "Size chart updated" : "Size chart published",
-        `${saved.fit} — ${saved.rows.length} size${saved.rows.length === 1 ? "" : "s"}.`,
-      );
-
-      setDraft(null);
-      setEditingId(null);
-      refresh();
-    } catch (error) {
-      // The API returns a field map for a bad chart and a sentence for
-      // everything else. Both are shown, in the place each belongs: the
-      // map next to the fields, the sentence in a toast.
-      setFieldErrors(error?.fields ?? {});
-      toast.error(
-        editingId ? "Could not update the chart" : "Could not publish the chart",
-        error?.message,
-      );
-    } finally {
-      setSaving(false);
-    }
-  }
 
   async function togglePublished(chart) {
     setBusyId(chart.id);
@@ -262,18 +202,10 @@ export default function SizeChartsPage() {
               <Button size="sm" variant="ghost" onClick={refresh} title="Reload">
                 <RefreshCw className="size-3.5" />
               </Button>
-              <Button
-                size="sm"
-                variant="primary"
-                onClick={() => {
-                  setEditingId(null);
-                  setFieldErrors({});
-                  setDraft(BLANK_CHART);
-                }}
-              >
+              <LinkButton size="sm" variant="primary" href="/admin/size-charts/new">
                 <Plus className="size-3.5" />
                 Add a fit
-              </Button>
+              </LinkButton>
             </>
           }
         />
@@ -292,10 +224,10 @@ export default function SizeChartsPage() {
             title="No size charts"
             description="The storefront shows no size-chart button at all until there is one to open. Add the fit the shop cuts most."
             action={
-              <Button variant="primary" onClick={() => setDraft(BLANK_CHART)}>
+              <LinkButton variant="primary" href="/admin/size-charts/new">
                 <Plus className="size-3.5" />
                 Add a fit
-              </Button>
+              </LinkButton>
             }
           />
         ) : null}
@@ -311,41 +243,10 @@ export default function SizeChartsPage() {
               last={index === state.charts.length - 1}
               onMove={(delta) => moveChart(index, delta)}
               onToggle={() => togglePublished(chart)}
-              onEdit={() => {
-                setEditingId(chart.id);
-                setFieldErrors({});
-                setDraft(chart);
-              }}
               onDelete={() => setDeleting(chart)}
             />
           ))
         : null}
-
-      {/* ----------------------------------------------------------
-          THE EDITOR
-          ---------------------------------------------------------- */}
-
-      <Modal
-        open={Boolean(draft)}
-        onClose={() => (saving ? null : setDraft(null))}
-        size="xl"
-        title={editingId ? `Edit ${draft?.fit || "chart"}` : "Add a fit"}
-        description="Whatever is saved here is what a shopper reads next to the size picker."
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setDraft(null)} disabled={saving}>
-              Cancel
-            </Button>
-            <Button variant="primary" busy={saving} onClick={save}>
-              {editingId ? "Save chart" : "Publish chart"}
-            </Button>
-          </>
-        }
-      >
-        {draft ? (
-          <SizeChartBuilder chart={draft} onChange={setDraft} errors={fieldErrors} />
-        ) : null}
-      </Modal>
 
       {/* ----------------------------------------------------------
           DELETE
@@ -389,7 +290,7 @@ export default function SizeChartsPage() {
  * is what the shop is actually checking when it opens this screen: the
  * numbers, against the card in its hand.
  */
-function ChartCard({ chart, busy, first, last, onMove, onToggle, onEdit, onDelete }) {
+function ChartCard({ chart, busy, first, last, onMove, onToggle, onDelete }) {
   return (
     <Card className={chart.active ? undefined : "opacity-75"}>
       <CardHeader
@@ -443,10 +344,14 @@ function ChartCard({ chart, busy, first, last, onMove, onToggle, onEdit, onDelet
               />
             </span>
 
-            <Button size="sm" variant="secondary" onClick={onEdit} disabled={busy}>
+            <LinkButton
+              size="sm"
+              variant="secondary"
+              href={`/admin/size-charts/${chart.id}/edit`}
+            >
               <Pencil className="size-3.5" />
               Edit
-            </Button>
+            </LinkButton>
             <Button size="sm" variant="danger" onClick={onDelete} disabled={busy}>
               <Trash2 className="size-3.5" />
             </Button>
