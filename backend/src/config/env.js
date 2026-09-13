@@ -63,6 +63,30 @@ if (jwtSecret.length < 32) {
 }
 
 // ============================================================
+// DATABASE TLS
+// ============================================================
+//
+// Without a CA certificate the Postgres connection is encrypted but not
+// authenticated: db.js falls back to rejectUnauthorized: false, which accepts
+// any certificate the other end presents. Anyone able to redirect the traffic
+// can then terminate the TLS and read the password out of the startup packet.
+//
+// That is a tolerable trade on a laptop and not in production, so it is the
+// same shape as the CORS rule below — refuse to boot rather than go live
+// silently unsafe. Development and test warn and continue (see db.js) so the
+// API, the migrations and the tests still run without the cert on hand.
+
+const pgCaCertPath = process.env.PG_CA_CERT_PATH ?? null;
+
+if (nodeEnv === "production" && !pgCaCertPath) {
+  throw new Error(
+    "PG_CA_CERT_PATH must be configured in production — the Postgres TLS " +
+      "certificate would otherwise go unverified. Download the CA from the " +
+      "Aiven console (the PostgreSQL service → Overview → CA Certificate).",
+  );
+}
+
+// ============================================================
 // CORS
 // ============================================================
 
@@ -233,7 +257,7 @@ export const env = Object.freeze({
 
   databaseUrl: process.env.DATABASE_URL,
 
-  pgCaCertPath: process.env.PG_CA_CERT_PATH ?? null,
+  pgCaCertPath,
 
   // ==========================================================
   // CORS

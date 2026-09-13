@@ -16,6 +16,26 @@
 // package is genuinely useful for lives in payment.policy.js, where it
 // is six lines of node:crypto and can be read.
 //
+// The retry and timeout behaviour the package would have brought is not
+// simply dropped — it is replaced, below `call()`, by two mechanisms
+// shaped after the deadlock-retry helper in db.js:
+//
+//   Retries   a transient blip must not be shown to a shopper whose card
+//             has already been charged. `fetchPayment` is read back
+//             *after* the money has moved, so a one-second network
+//             hiccup deciding "payment failed" is the worst outcome this
+//             file can produce. Up to two retries with jittered backoff,
+//             and — exactly as in db.js — only for failures that mean
+//             "this did not happen", never for a refusal, which is a
+//             decision and would come back the same.
+//
+//   Breaker   retries answer the blip; a breaker answers Razorpay being
+//             down for minutes. Without one, every checkout during an
+//             outage waits out the full timeout holding a request slot,
+//             and a busy shop becomes a pile-up. After five consecutive
+//             unwell calls the breaker opens and fails instantly for
+//             thirty seconds, then lets a single probe through.
+//
 // Nothing here decides anything. It makes a call, checks the shape of
 // what came back, and raises a typed error. Whether a payment counts is
 // payment.service.js's business.
