@@ -5,14 +5,15 @@
   "type": "module",
   "main": "src/server.js",
   "scripts": {
-    "dev": "nodemon --env-file=.env src/server.js",
-    "start": "nodemon --env-file=.env src/server.js",
+    "dev": "nodemon --env-file=.env --import=./src/instrument.js src/server.js",
+    "start": "nodemon --env-file=.env --import=./src/instrument.js src/server.js",
     "db:check": "node --env-file=.env src/scripts/checkDb.js",
     "db:migrate": "node --env-file=.env src/scripts/migrate.js",
     "db:import-catalogue": "node --env-file=.env src/scripts/importCatalogue.js",
     "admin:create": "node --env-file=.env src/scripts/createAdmin.js"
   },
   "dependencies": {
+    "@sentry/node": "^10.74.0",
     "bcrypt": "^6.0.0",
     "cloudinary": "^2.10.1",
     "cors": "^2.8.5",

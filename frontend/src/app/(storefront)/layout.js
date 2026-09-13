@@ -1,5 +1,6 @@
 import { AuthProvider } from "@/components/store/AuthProvider";
 import { BrowseProvider } from "@/components/store/BrowseProvider";
+import { Clarity } from "@/components/store/Clarity";
 import { SizeChartProvider } from "@/components/store/SizeChart";
 import { StoreFooter } from "@/components/store/StoreFooter";
 import { StoreHeader } from "@/components/store/StoreHeader";
@@ -59,6 +60,10 @@ export default async function StorefrontLayout({ children }) {
           </StoreProvider>
         </AuthProvider>
       </ToastProvider>
+
+      {/* Storefront only — see the note in Clarity.js on why /admin is
+          left out. Renders nothing without a project id. */}
+      <Clarity />
     </div>
   );
 }

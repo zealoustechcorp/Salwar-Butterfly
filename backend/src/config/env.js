@@ -162,6 +162,58 @@ if (nodeEnv === "production" && razorpayEnabled && !razorpayLive) {
 }
 
 // ============================================================
+// SENTRY
+// ============================================================
+//
+// Optional, for the same reason Razorpay is: the API has to run on a
+// laptop, in CI and in a migration script without anybody holding a
+// Sentry account. No DSN means src/instrument.js never calls init, and
+// every Sentry call in the codebase becomes a no-op — the SDK is
+// written to tolerate that, so nothing needs an `if` around it.
+//
+// What is lost without a DSN is only the reporting. winston still
+// writes every error to logs/error-*.log, which is where these errors
+// were read before Sentry existed and still are locally.
+//
+// The environment is named separately from NODE_ENV because Sentry's
+// notion of one is coarser than Node's: staging and production are both
+// NODE_ENV=production to Express, and telling their errors apart on the
+// dashboard means saying so here.
+
+const sentryDsn = process.env.SENTRY_DSN ?? null;
+const sentryEnabled = Boolean(sentryDsn);
+
+const sentryEnvironment = process.env.SENTRY_ENVIRONMENT ?? nodeEnv;
+
+// Whatever identifies the running build — a commit sha, a tag. Sentry
+// uses it to group regressions and to find the right source maps; null
+// is honest about not knowing rather than lumping every deploy together
+// under one made-up version.
+const sentryRelease = process.env.SENTRY_RELEASE ?? null;
+
+// Performance tracing is billed per transaction and off unless asked
+// for. 0 keeps error reporting and sends no traces at all.
+const sentryTracesSampleRate = Number(
+  process.env.SENTRY_TRACES_SAMPLE_RATE ?? 0,
+);
+
+if (
+  !Number.isFinite(sentryTracesSampleRate) ||
+  sentryTracesSampleRate < 0 ||
+  sentryTracesSampleRate > 1
+) {
+  throw new Error("SENTRY_TRACES_SAMPLE_RATE must be a number between 0 and 1");
+}
+
+// console, not the logger — same cycle as the Razorpay warnings above.
+if (!sentryEnabled && nodeEnv === "production") {
+  console.warn(
+    "[env] SENTRY_DSN not set — server errors will only reach " +
+      "logs/error-*.log, not Sentry",
+  );
+}
+
+// ============================================================
 // EXPORT CONFIG
 // ============================================================
 
@@ -216,5 +268,17 @@ export const env = Object.freeze({
     keyId: razorpayKeyId,
     keySecret: razorpayKeySecret,
     webhookSecret: razorpayWebhookSecret,
+  }),
+
+  // ==========================================================
+  // SENTRY
+  // ==========================================================
+
+  sentry: Object.freeze({
+    enabled: sentryEnabled,
+    dsn: sentryDsn,
+    environment: sentryEnvironment,
+    release: sentryRelease,
+    tracesSampleRate: sentryTracesSampleRate,
   }),
 });

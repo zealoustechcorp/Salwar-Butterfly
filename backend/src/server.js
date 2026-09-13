@@ -1,4 +1,5 @@
 import http from 'node:http';
+import * as Sentry from '@sentry/node';
 import app from './app.js';
 import { env } from './config/env.js';
 import { connectDb, closeDb } from './config/db.js';
@@ -16,6 +17,11 @@ async function shutdown(signal) {
   console.log(`[server] ${signal} received — shutting down`);
   server.close(async () => {
     await closeDb();
+    // Sentry batches events and sends them on a timer, so the error
+    // that took the process down is usually still in the queue when the
+    // process ends. flush() drains it; the timeout caps how long a
+    // shutdown waits on the network, and it resolves either way.
+    await Sentry.flush(2000);
     process.exit(0);
   });
   // Hard exit if something keeps the loop alive.
