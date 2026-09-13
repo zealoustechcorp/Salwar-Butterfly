@@ -49,7 +49,9 @@ import {
   expectedCheckoutSignature,
   expectedWebhookSignature,
   fromMinorUnits,
+  newIdempotencyKey,
   safeCompare,
+  SESSION_REUSE_WINDOW_MS,
   WEBHOOK_EVENT,
 } from "../config/payment.policy.js";
 
@@ -134,6 +136,48 @@ const assertAwaitingPayment = (order) => {
   throw new ApiError(409, "This order has already been paid for.");
 };
 
+/**
+ * What this order owes, refusing the figures a gateway cannot take.
+ *
+ * A zero-value order has nothing for a gateway to do, and Razorpay
+ * refuses one. Reachable only if the shop ever prices something at
+ * nothing, but a 500 from the gateway is a poor way to find that out.
+ *
+ * Read from `orders.total` and from nowhere else — see createSession.
+ */
+const payableAmount = (order) => {
+  const amount = Number(order.total);
+
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new ApiError(409, "This order has nothing to pay.");
+  }
+
+  return amount;
+};
+
+/**
+ * Whether an already-open attempt can answer this request instead of a
+ * new one.
+ *
+ * Age is the main question and the reason the window exists, but not
+ * the only one. The amount is checked too: an order's total may
+ * legitimately be edited while it waits to be paid, and a Razorpay
+ * order carries the figure it was created with. Reusing a sheet for
+ * ₹1,850 against an order that now reads ₹2,100 would charge the old
+ * price and settle it as if it were the new one — a mismatch nothing
+ * downstream would catch, because `verifyCheckout` compares the payment
+ * against the *attempt*, and the attempt would agree with itself.
+ */
+const isReusable = (attempt, { amount, currency }) => {
+  if (!attempt) return false;
+
+  const age = Date.now() - new Date(attempt.created_at).getTime();
+
+  if (!(age >= 0 && age < SESSION_REUSE_WINDOW_MS)) return false;
+
+  return Number(attempt.amount) === amount && attempt.currency === currency;
+};
+
 // ============================================================
 // SERVICE
 // ============================================================
@@ -168,62 +212,131 @@ export const PaymentService = {
    * applies with more force here, because this figure is what gets
    * charged.
    *
-   * A fresh Razorpay order per call, rather than reusing the last one.
+   * A fresh Razorpay order per *attempt*, but not per call.
+   *
    * Attempts are cheap, they are the audit trail this feature is for,
    * and reusing a handle whose sheet was abandoned is how a shopper ends
-   * up staring at a payment page that Razorpay has already expired.
+   * up staring at a payment page that Razorpay has already expired. So a
+   * shopper who walks away and comes back later gets a new sheet and a
+   * new row, and the table keeps its history of "declined twice, then
+   * paid by UPI".
+   *
+   * What that reasoning does not cover is two calls seconds apart, which
+   * are not two attempts — they are one attempt counted twice. A
+   * double-click, a refresh, a retry on a bad connection. Left alone
+   * they each mint a Razorpay order, and the unique constraints on
+   * `payments` cannot stop it because they guard the provider's ids and
+   * the provider has just issued two different ones. Only one gets paid;
+   * the rest sit live on the Razorpay dashboard, matching no settlement,
+   * for a human to work through at month end.
+   *
+   * So a repeat inside SESSION_REUSE_WINDOW_MS is handed the attempt
+   * that already exists, and the whole check-then-create runs under an
+   * advisory lock on the order — without it, two calls arriving together
+   * both look at an empty table and both create. The response is
+   * identical either way; nothing upstream can tell a reused session
+   * from a new one, and nothing upstream should.
+   *
+   * The amount comes from `orders.total` and from nowhere else. There is
+   * deliberately no amount in the request: the same rule that makes
+   * checkout read prices from the database rather than from the bag
+   * applies with more force here, because this figure is what gets
+   * charged.
    */
   async createSession(orderId, { customerId = null, isAdmin = false } = {}) {
     const id = assertUuid(orderId, "order ID");
 
     const order = await loadOrder(id);
 
+    // Checked before the lock so that an order that was never payable —
+    // the wrong customer's, already paid, cancelled — is refused without
+    // making anybody queue. The status half of it is checked again
+    // inside, because this answer can be stale by the time the lock is
+    // ours; the ownership half cannot change and is not.
     assertPayableBy(order, { customerId, isAdmin });
     assertAwaitingPayment(order);
+    payableAmount(order);
 
-    const amount = Number(order.total);
-
-    // A zero-value order has nothing for a gateway to do, and Razorpay
-    // refuses one. Reachable only if the shop ever prices something at
-    // nothing, but a 500 from the gateway is a poor way to find that out.
-    if (!Number.isFinite(amount) || amount <= 0) {
-      throw new ApiError(409, "This order has nothing to pay.");
-    }
+    // One key per logical attempt, minted out here so that everything
+    // inside the lock — including the repeat of a POST whose answer was
+    // lost — carries the same one. See RazorpayGateway.createOrder.
+    const idempotencyKey = newIdempotencyKey();
 
     try {
-      const gatewayOrder = await RazorpayGateway.createOrder({
-        amount,
-        currency: order.currency ?? CURRENCY,
-        receipt: order.order_number,
-        notes: {
-          // Echoed back on every webhook about this order. The webhook
-          // finds its attempt by provider_order_id; this is what lets a
-          // human match a Razorpay dashboard row to a row here when
-          // something has gone wrong enough that the lookup did not.
-          order_id: order.id,
-          order_number: order.order_number,
-        },
-      });
+      return await PaymentRepository.withSessionLock(order.id, async (client) => {
+        // Re-read inside the lock. The request that went first may have
+        // been the one that got paid, in which case this order stopped
+        // awaiting payment while we were waiting our turn.
+        const current = await OrderRepository.findById(order.id, { client });
 
-      const payment = await PaymentRepository.create({
-        orderId: order.id,
-        provider: DEFAULT_PROVIDER,
-        providerOrderId: gatewayOrder.id,
-        amount,
-        currency: order.currency ?? CURRENCY,
-      });
+        if (!current) {
+          throw ApiError.notFound("Order not found", "ORDER_NOT_FOUND");
+        }
 
-      logger.info("Payment session opened", {
-        orderId: order.id,
-        orderNumber: order.order_number,
-        providerOrderId: gatewayOrder.id,
-        amount,
-      });
+        assertAwaitingPayment(current);
 
-      return PaymentMapper.toSessionDTO({
-        payment,
-        order,
-        keyId: RazorpayGateway.publicKeyId(),
+        const amount = payableAmount(current);
+        const currency = current.currency ?? CURRENCY;
+
+        const open = await PaymentRepository.findLatestOpenAttempt(order.id, {
+          client,
+        });
+
+        if (isReusable(open, { amount, currency })) {
+          logger.info("Payment session reused", {
+            orderId: current.id,
+            orderNumber: current.order_number,
+            providerOrderId: open.provider_order_id,
+            ageMs: Date.now() - new Date(open.created_at).getTime(),
+          });
+
+          // No gateway call at all — the fastest path and, once a
+          // shopper is clicking twice, the common one.
+          return PaymentMapper.toSessionDTO({
+            payment: open,
+            order: current,
+            keyId: RazorpayGateway.publicKeyId(),
+          });
+        }
+
+        const gatewayOrder = await RazorpayGateway.createOrder({
+          amount,
+          currency,
+          receipt: current.order_number,
+          idempotencyKey,
+          notes: {
+            // Echoed back on every webhook about this order. The webhook
+            // finds its attempt by provider_order_id; this is what lets a
+            // human match a Razorpay dashboard row to a row here when
+            // something has gone wrong enough that the lookup did not.
+            order_id: current.id,
+            order_number: current.order_number,
+          },
+        });
+
+        const payment = await PaymentRepository.create(
+          {
+            orderId: current.id,
+            provider: DEFAULT_PROVIDER,
+            providerOrderId: gatewayOrder.id,
+            amount,
+            currency,
+          },
+          { client },
+        );
+
+        logger.info("Payment session opened", {
+          orderId: current.id,
+          orderNumber: current.order_number,
+          providerOrderId: gatewayOrder.id,
+          amount,
+        });
+
+        return PaymentMapper.toSessionDTO({
+          payment,
+          order: current,
+          keyId: RazorpayGateway.publicKeyId(),
+        });
       });
     } catch (error) {
       if (error instanceof ApiError) throw error;

@@ -12,7 +12,7 @@
 // 010_create_payments.sql. This module decides which moves are legal; the
 // constraint only stops a value nobody defined from reaching the table.
 
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 
 // ============================================================
 // PROVIDERS
@@ -203,3 +203,45 @@ export const GATEWAY_TIMEOUT_MS = 10_000;
 
 /** Razorpay's own cap on the `receipt` field. */
 export const MAX_RECEIPT_LENGTH = 40;
+
+/**
+ * How long an attempt that was opened and never settled may be handed
+ * back out instead of opening a new one.
+ *
+ * This window is the whole of the difference between a repeat and a
+ * retry. Inside it, a second "Pay now" is the same attempt arriving
+ * twice — a double-click, a refresh, a frontend retry on a flaky
+ * connection — and it gets the session that already exists. Outside it,
+ * a shopper who abandoned a sheet and came back later is genuinely
+ * trying again, and gets a fresh Razorpay order and a fresh row, which
+ * is what makes the payments table an audit trail rather than a single
+ * mutable slot.
+ *
+ * Thirty minutes, because it must sit inside the life of a Razorpay
+ * checkout session — a reused handle whose sheet the provider has
+ * already expired is worse than a duplicate — and comfortably outside
+ * the few seconds any burst of repeats occupies. Razorpay orders stay
+ * payable far longer than this, so the ceiling is not the binding
+ * constraint; the shopper's patience is.
+ */
+export const SESSION_REUSE_WINDOW_MS = 30 * 60_000;
+
+// ============================================================
+// IDEMPOTENCY
+// ============================================================
+
+/**
+ * A key identifying one logical payment attempt to the provider.
+ *
+ * Deliberately random rather than derived from the order id. Two
+ * genuine attempts on the same order — a card that was declined this
+ * morning, another try this evening — must not collapse into one at
+ * Razorpay's end; only a *repeat of a single attempt* may. The order id
+ * cannot tell those apart and a UUID minted per attempt can.
+ *
+ * Its job is narrow. Duplicate suppression in this codebase is the
+ * advisory lock and the reuse window above; this is the backstop for
+ * the one case they cannot see — the same POST going out twice because
+ * the first answer was lost in transit.
+ */
+export const newIdempotencyKey = () => randomUUID();

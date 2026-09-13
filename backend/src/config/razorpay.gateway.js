@@ -138,9 +138,11 @@ const UNSENT_ERROR_CODES = new Set([
  * it retries freely. `createOrder` is a POST, and a timed-out POST may
  * mean Razorpay created the order and the answer was lost on the way
  * back — retrying that blind opens a second order against the same
- * shopper. Once the idempotency key (hardening item 3) is on the
- * request, Razorpay collapses the repeat itself and this restriction
- * can be lifted; until then a duplicate order is worse than a retry.
+ * shopper. `createOrder` now sends an idempotency key, which is what
+ * would make lifting this safe, but only if Razorpay honours it on this
+ * endpoint — and that is not something their documentation is clear
+ * enough about to bet a duplicate order on. The restriction stays; the
+ * key is the belt and this is the braces.
  *
  * `unreadable` falls out of those two rules in the right place. Reading
  * a payment again when the first body arrived in pieces costs nothing
@@ -349,7 +351,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  * @returns {{ok: true, payload: unknown}
  *          |{ok: false, kind: string, http: boolean, error: ApiError, meta: object}}
  */
-const attemptOnce = async (path, { method, body, timeoutMs }) => {
+const attemptOnce = async (path, { method, body, headers = {}, timeoutMs }) => {
   let response;
 
   try {
@@ -358,6 +360,7 @@ const attemptOnce = async (path, { method, body, timeoutMs }) => {
       headers: {
         Authorization: authHeader(),
         ...(body ? { "Content-Type": "application/json" } : {}),
+        ...headers,
       },
       body: body ? JSON.stringify(body) : undefined,
       signal: AbortSignal.timeout(timeoutMs),
@@ -502,7 +505,7 @@ const logFailure = (result, { path, method, attempt, willRetry }) => {
  * Callers see none of this. `payment.service.js` gets a payload or a
  * typed error exactly as it did when this was a single bare fetch.
  */
-const call = async (path, { method = "GET", body } = {}) => {
+const call = async (path, { method = "GET", body, headers } = {}) => {
   assertConfigured();
 
   const isProbe = enterBreaker({ path, method });
@@ -514,6 +517,7 @@ const call = async (path, { method = "GET", body } = {}) => {
       const result = await attemptOnce(path, {
         method,
         body,
+        headers,
         timeoutMs: Math.min(GATEWAY_TIMEOUT_MS, deadline - Date.now()),
       });
 
@@ -570,14 +574,33 @@ export const RazorpayGateway = {
    * matched even in the case where the payments row was somehow not
    * written.
    *
+   * `idempotencyKey` identifies one logical attempt, so that the same
+   * attempt arriving twice cannot become two orders. It is a backstop
+   * and not the mechanism: duplicate suppression here is
+   * PaymentRepository.withSessionLock, which is ours and is certain.
+   * This covers only what a lock on our side cannot see — a POST whose
+   * answer was lost in transit and which something re-sent.
+   *
+   * The POST retry restriction in `isRetryable` deliberately stays in
+   * place even with the key attached. Razorpay documents idempotency
+   * keys for some endpoints and not clearly for this one, and "Razorpay
+   * probably collapses the repeat" is not a strong enough footing on
+   * which to start re-POSTing orders after a timeout. The header costs
+   * nothing and helps if it is honoured; the restriction is what
+   * guarantees no duplicate if it is not.
+   *
    * @param {object} input
    * @param {number} input.amount       in rupees
    * @param {string} input.receipt      the shop's order number
    * @param {Record<string,string>} [input.notes]
+   * @param {string} [input.idempotencyKey]
    */
-  async createOrder({ amount, currency, receipt, notes = {} }) {
+  async createOrder({ amount, currency, receipt, notes = {}, idempotencyKey }) {
     const payload = await call("/orders", {
       method: "POST",
+      headers: idempotencyKey
+        ? { "X-Razorpay-Idempotency-Key": idempotencyKey }
+        : undefined,
       body: {
         amount: toMinorUnits(amount),
         currency,

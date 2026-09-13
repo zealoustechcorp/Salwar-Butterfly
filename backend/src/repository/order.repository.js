@@ -458,7 +458,14 @@ export const OrderRepository = {
   // READ
   // ==========================================================
 
-  async findById(id) {
+  /**
+   * `client` runs the read inside a caller's open transaction rather
+   * than on the pool. PaymentService needs that: it re-reads the order's
+   * status while holding the lock that stops two payment sheets being
+   * opened at once, and a pooled read would answer from outside that
+   * transaction and could miss a write it is meant to be serialised with.
+   */
+  async findById(id, { client = null } = {}) {
     const text = `
       ${SELECT_ORDER}
       WHERE o.id = $1::uuid
@@ -466,7 +473,8 @@ export const OrderRepository = {
     `;
 
     try {
-      const result = await query(text, [id]);
+      const run = client ? client.query.bind(client) : query;
+      const result = await run(text, [id]);
       return result.rows[0] ?? null;
     } catch (error) {
       throw handleDatabaseError(error, "findById", { orderId: id });

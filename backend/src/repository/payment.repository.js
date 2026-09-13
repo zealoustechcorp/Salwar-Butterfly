@@ -34,6 +34,34 @@ const handleDatabaseError = (error, operation, context = {}) => {
   return error;
 };
 
+/**
+ * Runs on a transaction's client when there is one, and on the pool
+ * otherwise.
+ *
+ * Two reads and one insert in this file have to be able to do both: the
+ * ordinary path wants a pooled query, and `withSessionLock` needs them
+ * on its own client or they would not see — and would not be protected
+ * by — the transaction holding the lock.
+ */
+const runner = (client) => (client ? client.query.bind(client) : query);
+
+/**
+ * A 60-bit advisory lock key from an order's UUID.
+ *
+ * Postgres advisory locks are keyed by integer, and the thing being
+ * serialised is identified by a UUID, so the two have to be bridged
+ * somewhere. The first fifteen hex digits are taken: sixty bits, which
+ * is always inside a signed bigint and never negative, so no sign
+ * handling is needed at either end.
+ *
+ * Truncating throws away entropy and that is fine here. A collision
+ * between two different orders costs one of them a brief wait behind a
+ * lock it did not need; at 2^60 keys it will not happen, and if it did,
+ * nothing would be wrong — only slightly slower.
+ */
+const sessionLockKey = (orderId) =>
+  BigInt(`0x${String(orderId).replace(/-/g, "").slice(0, 15)}`).toString();
+
 const COLUMNS = `
   id,
   order_id,
@@ -57,20 +85,122 @@ export const PaymentRepository = {
   // ==========================================================
 
   /**
+   * Serialises everything that opens a payment sheet for one order.
+   *
+   * The problem this solves is not one the table's constraints can. A
+   * shopper who double-clicks "Pay now" sends two requests that both
+   * read "this order is still awaiting payment", both ask Razorpay for
+   * an order, and both insert — and the unique constraints do not fire,
+   * because they are on the provider's ids and Razorpay has just minted
+   * two different ones. Every duplicate is a live order on the Razorpay
+   * dashboard that no settlement will ever match.
+   *
+   * A transaction-scoped advisory lock is what makes the second request
+   * *see* what the first did. It is keyed on the order, so two shoppers
+   * paying for different orders never wait for each other; it is held
+   * for the transaction and released by COMMIT or ROLLBACK, including
+   * the rollback of a process that died mid-call, which is the failure
+   * a lock table in the database would have to be swept for.
+   *
+   * `retries: 0`, against the default. `fn` sends an HTTP request to a
+   * payment provider — a side effect that lives outside the transaction
+   * and cannot be rolled back with it, so re-running the callback could
+   * open a second Razorpay order for the attempt that is about to
+   * succeed. The retries exist for deadlocks and serialization
+   * failures, and this shape produces neither: one advisory lock taken
+   * first, two reads and an insert under READ COMMITTED. Trading an
+   * error that will not occur for a duplicate that would be invisible
+   * is the wrong way round.
+   *
+   * @template T
+   * @param {string} orderId
+   * @param {(client: import('pg').PoolClient) => Promise<T>} fn
+   * @returns {Promise<T>}
+   */
+  async withSessionLock(orderId, fn) {
+    return withTransaction(
+      async (client) => {
+        try {
+          await client.query("SELECT pg_advisory_xact_lock($1::bigint)", [
+            sessionLockKey(orderId),
+          ]);
+        } catch (error) {
+          throw handleDatabaseError(error, "withSessionLock", { orderId });
+        }
+
+        // Deliberately outside the try: what `fn` throws is the
+        // service's business — a 409 for an order already paid, a 502
+        // from the gateway — and logging those as repository failures
+        // would bury the real ones.
+        return fn(client);
+      },
+      { retries: 0 },
+    );
+  },
+
+  /**
+   * The newest attempt on this order that is still open.
+   *
+   * "Open" means `created`: a sheet was opened and nothing has settled
+   * or failed it. A `failed` row must never come back from here — the
+   * shopper whose card was declined is trying again, and handing them
+   * the sheet that just refused them is the one outcome worse than
+   * making a new one. `paid` cannot appear either, because the order
+   * would no longer be awaiting payment.
+   *
+   * Reads on `idx_payments_order_created`, which already orders by
+   * `created_at DESC` for the admin page.
+   */
+  async findLatestOpenAttempt(
+    orderId,
+    { client = null, provider = DEFAULT_PROVIDER } = {},
+  ) {
+    const text = `
+      SELECT ${COLUMNS}
+      FROM payments
+      WHERE order_id = $1::uuid
+        AND provider = $2
+        AND status = $3
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
+
+    try {
+      const result = await runner(client)(text, [
+        orderId,
+        provider,
+        PAYMENT_ATTEMPT_STATUS.CREATED,
+      ]);
+
+      return result.rows[0] ?? null;
+    } catch (error) {
+      throw handleDatabaseError(error, "findLatestOpenAttempt", { orderId });
+    }
+  },
+
+  /**
    * Records that a payment sheet was opened.
    *
    * Written *before* the shopper sees the sheet, not after they pay. An
    * attempt that is created and abandoned is the normal case and is
    * worth having: without this row, a webhook for a payment we never
    * recorded has nothing to attach to.
+   *
+   * Takes an optional client so the insert can happen inside the
+   * `withSessionLock` transaction that decided it was needed. Outside
+   * that transaction the row would be visible to the next caller only
+   * after it commits, which is the gap the lock exists to close.
    */
-  async create({
-    orderId,
-    provider = DEFAULT_PROVIDER,
-    providerOrderId,
-    amount,
-    currency,
-  }) {
+  async create(
+    {
+      orderId,
+      provider = DEFAULT_PROVIDER,
+      providerOrderId,
+      amount,
+      currency,
+    },
+    { client = null } = {},
+  ) {
     const text = `
       INSERT INTO payments (
         order_id, provider, provider_order_id, status, amount, currency
@@ -80,7 +210,7 @@ export const PaymentRepository = {
     `;
 
     try {
-      const result = await query(text, [
+      const result = await runner(client)(text, [
         orderId,
         provider,
         providerOrderId,
