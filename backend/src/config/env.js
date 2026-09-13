@@ -238,6 +238,39 @@ if (!sentryEnabled && nodeEnv === "production") {
 }
 
 // ============================================================
+// REDIS
+// ============================================================
+//
+// Optional, for the same reason Razorpay and Sentry are: the API has to
+// run on a laptop and in CI without anybody provisioning a Redis. With
+// no URL the rate limiters fall back to express-rate-limit's in-memory
+// store — see rateLimiter.js — which is correct for a single process
+// and wrong for anything else.
+//
+// That is why production warns. Counters in process memory reset on
+// every deploy and are counted separately by every instance, so a limit
+// of 10 quietly becomes 10-per-restart-per-container. The limiters keep
+// working either way, which is exactly what makes the difference
+// invisible without this line.
+//
+// Aiven issues the URI with a rediss:// scheme (double s = TLS); the
+// plain redis:// form is what a local docker container gives you.
+
+// `||`, not `??`: .env.example ships the key present and empty, which is
+// the ordinary way to say "off" and would otherwise read as a URL of "".
+const redisUrl = process.env.REDIS_URL || null;
+const redisEnabled = Boolean(redisUrl);
+
+// console, not the logger — same cycle as the warnings above.
+if (!redisEnabled && nodeEnv === "production") {
+  console.warn(
+    "[env] REDIS_URL not set — rate limit counters are kept in process " +
+      "memory: they reset on every restart and are not shared between " +
+      "instances, so the configured limits are not the effective ones",
+  );
+}
+
+// ============================================================
 // EXPORT CONFIG
 // ============================================================
 
@@ -304,5 +337,14 @@ export const env = Object.freeze({
     environment: sentryEnvironment,
     release: sentryRelease,
     tracesSampleRate: sentryTracesSampleRate,
+  }),
+
+  // ==========================================================
+  // REDIS
+  // ==========================================================
+
+  redis: Object.freeze({
+    enabled: redisEnabled,
+    url: redisUrl,
   }),
 });
