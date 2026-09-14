@@ -4,11 +4,17 @@ import app from './app.js';
 import { env } from './config/env.js';
 import { connectDb, closeDb } from './config/db.js';
 import { closeRedis } from './config/redis.js';
+import { closeWebhookQueue } from './queues/webhook.queue.js';
+import { startWebhookWorker, stopWebhookWorker } from './queues/webhook.worker.js';
 
 const server = http.createServer(app);
 
 async function start() {
   await connectDb();
+  // After the database, because the first thing the worker does with a
+  // job is query it — and a no-op without REDIS_URL, in which case the
+  // webhook endpoint processes deliveries inline instead.
+  startWebhookWorker();
   server.listen(env.port, () => {
     console.log(`[server] Listening on http://localhost:${env.port} (${env.nodeEnv})`);
   });
@@ -17,6 +23,10 @@ async function start() {
 async function shutdown(signal) {
   console.log(`[server] ${signal} received — shutting down`);
   server.close(async () => {
+    // Before the pool drains: the worker finishes the job in its hands,
+    // and that job is in the middle of a transaction.
+    await stopWebhookWorker();
+    await closeWebhookQueue();
     await closeDb();
     // A no-op unless something actually opened a connection, so this
     // stays correct on a machine with no REDIS_URL.

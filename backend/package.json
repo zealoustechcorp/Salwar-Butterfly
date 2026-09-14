@@ -16,6 +16,7 @@
   "dependencies": {
     "@sentry/node": "^10.74.0",
     "bcrypt": "^6.0.0",
+    "bullmq": "^6.3.5",
     "cloudinary": "^2.10.1",
     "cors": "^2.8.5",
     "express": "^5.1.0",

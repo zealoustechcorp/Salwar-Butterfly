@@ -496,7 +496,7 @@ export const PaymentService = {
   // ==========================================================
 
   /**
-   * A server-to-server delivery from Razorpay (F-10.03).
+   * The half of a delivery that must happen inside the request.
    *
    * The signature is over the *raw* body, which is why app.js keeps an
    * unparsed copy for this one route. Re-serialising the parsed JSON
@@ -504,12 +504,19 @@ export const PaymentService = {
    * would reject every genuine delivery while accepting nothing — a
    * failure mode that looks like "webhooks don't work" for a week.
    *
-   * Everything that is not one of the three handled events is
-   * acknowledged and ignored. Razorpay retries anything it does not get
-   * a 2xx for, repeatedly, for a day; returning an error for an event we
-   * simply do not care about would fill the log with our own indifference.
+   * It is split from the dispatch below because the endpoint is public
+   * and unauthenticated: the HMAC is the only thing standing between a
+   * forged event and the rest of this file, so it has to be checked at
+   * the door, before the delivery is put on a queue that would then
+   * retry it faithfully five times. The raw bytes exist only for the
+   * duration of the request anyway.
+   *
+   * Synchronous, and cheap — one HMAC and a JSON.parse. Nothing here
+   * touches Postgres; everything that does is in dispatchWebhook.
+   *
+   * @returns {object} the parsed event body
    */
-  async handleWebhook({ rawBody, signature }) {
+  verifyWebhook({ rawBody, signature }) {
     const secret = env.razorpay.webhookSecret;
 
     if (!secret) {
@@ -542,21 +549,44 @@ export const PaymentService = {
       throw ApiError.badRequest("Malformed webhook body", "WEBHOOK_BODY_INVALID");
     }
 
-    const event = body?.event;
-    const payment = body?.payload?.payment?.entity ?? null;
-
     logger.info("Webhook received", {
-      event,
-      providerOrderId: payment?.order_id,
-      providerPaymentId: payment?.id,
+      event: body?.event,
+      providerOrderId: body?.payload?.payment?.entity?.order_id,
+      providerPaymentId: body?.payload?.payment?.entity?.id,
     });
+
+    return body;
+  },
+
+  /**
+   * The half that does the work (F-10.03).
+   *
+   * Called with a body that has already been verified — from the request
+   * itself when there is no queue, and from the BullMQ worker when there
+   * is. It must therefore stay safe to run twice on the same event: a
+   * queue delivers at least once, and Razorpay redelivers on its own
+   * account anyway. Every handler below settles through a guarded UPDATE
+   * that reports `alreadyPaid` / `alreadyRefunded` rather than banking
+   * twice, which is what makes that true.
+   *
+   * Everything that is not one of the three handled events is
+   * acknowledged and ignored. Razorpay retries anything it does not get
+   * a 2xx for, repeatedly, for a day; returning an error for an event we
+   * simply do not care about would fill the log with our own indifference.
+   */
+  async dispatchWebhook(body) {
+    const event = body?.event;
 
     switch (event) {
       case WEBHOOK_EVENT.PAYMENT_CAPTURED:
-        return PaymentService.onPaymentCaptured(payment);
+        return PaymentService.onPaymentCaptured(
+          body?.payload?.payment?.entity ?? null,
+        );
 
       case WEBHOOK_EVENT.PAYMENT_FAILED:
-        return PaymentService.onPaymentFailed(payment);
+        return PaymentService.onPaymentFailed(
+          body?.payload?.payment?.entity ?? null,
+        );
 
       case WEBHOOK_EVENT.REFUND_PROCESSED:
         return PaymentService.onRefundProcessed(body?.payload?.refund?.entity ?? null);
@@ -564,6 +594,19 @@ export const PaymentService = {
       default:
         return { handled: false, event: event ?? null };
     }
+  },
+
+  /**
+   * Verify and process in one go — the inline path.
+   *
+   * What the endpoint did before there was a queue, and what it still
+   * does when no REDIS_URL is configured. Kept as the composition of the
+   * two halves so that the fallback cannot drift from the queued path.
+   */
+  async handleWebhook({ rawBody, signature }) {
+    return PaymentService.dispatchWebhook(
+      PaymentService.verifyWebhook({ rawBody, signature }),
+    );
   },
 
   /**

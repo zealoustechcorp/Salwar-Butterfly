@@ -4,6 +4,8 @@
 
 import { PaymentService } from "../services/payment.service.js";
 import { ADMIN_TOKEN_TYPE } from "../services/admin.auth.service.js";
+import { enqueueWebhook } from "../queues/webhook.queue.js";
+import { env } from "../config/env.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { createdResponse, okResponse } from "../utils/apiResponse.js";
 import { logger } from "../utils/logger.js";
@@ -104,12 +106,61 @@ export const PaymentController = {
    * handle. Razorpay retries a non-2xx for twenty-four hours, and there
    * is nothing to gain from being retried about an event we are
    * deliberately ignoring.
+   *
+   * Verify, enqueue, 200 — in a couple of milliseconds, whatever
+   * Postgres is doing. The signature check stays here, in the request,
+   * because it is what stops a forged event from entering a queue that
+   * would then retry it faithfully; everything after it moves to the
+   * worker, where a failure costs a retry in seconds instead of a 500
+   * that Razorpay redelivers whenever it feels like it.
+   *
+   * With no REDIS_URL there is no queue, and the delivery is processed
+   * inline exactly as it was before there was one. Same again if Redis
+   * is configured but unreachable: the queue is an upgrade to this
+   * endpoint, and an upgrade that takes payment confirmation down when
+   * the cache goes away would be a poor trade.
    */
   webhook: asyncHandler(async (req, res) => {
-    const result = await PaymentService.handleWebhook({
+    const signature = req.get("x-razorpay-signature");
+
+    if (!env.redis.enabled) {
+      const result = await PaymentService.handleWebhook({
+        rawBody: req.rawBody,
+        signature,
+      });
+
+      return okResponse({
+        res,
+        data: result,
+        message: "Webhook received",
+      });
+    }
+
+    const event = PaymentService.verifyWebhook({
       rawBody: req.rawBody,
-      signature: req.get("x-razorpay-signature"),
+      signature,
     });
+
+    try {
+      const job = await enqueueWebhook(event, req.get("x-razorpay-event-id"));
+
+      return okResponse({
+        res,
+        data: { queued: true, jobId: job.id },
+        message: "Webhook received",
+      });
+    } catch (error) {
+      // Redis is down. The event is verified and in hand, so the worst
+      // option would be to drop it; processing it here costs this
+      // request whatever Postgres costs, which is what every delivery
+      // cost until this queue existed.
+      logger.error("Webhook could not be queued — processing inline", {
+        event: event?.event,
+        message: error?.message,
+      });
+    }
+
+    const result = await PaymentService.dispatchWebhook(event);
 
     return okResponse({
       res,
