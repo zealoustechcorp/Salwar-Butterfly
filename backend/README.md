@@ -111,18 +111,55 @@ All paths are relative to `/api`.
 
 | Method | Path                        | Auth     | Description                              |
 | ------ | --------------------------- | -------- | ---------------------------------------- |
-| POST   | `/admin/auth/login`         | —        | issue an admin JWT (10 req/15 min)       |
+| POST   | `/admin/auth/login`         | —        | open an admin session (10 req/15 min)    |
+| POST   | `/admin/auth/refresh`       | cookie   | renew the access token (60 req/15 min)   |
 | GET    | `/admin/auth/me`            | admin    | the signed-in admin                      |
-| POST   | `/admin/auth/logout`        | admin    | audit-only; the client drops the token   |
-| POST   | `/customers/auth/login`     | —        | issue a customer JWT (10 req/15 min)     |
+| POST   | `/admin/auth/logout`        | cookie   | revoke the session                       |
+| POST   | `/customers/auth/login`     | —        | open a shopper session (10 req/15 min)   |
+| POST   | `/customers/auth/refresh`   | cookie   | renew the access token (60 req/15 min)   |
 | GET    | `/customers/auth/me`        | customer | the signed-in shopper                    |
 | PUT    | `/customers/auth/me`        | customer | edit own profile (F-05.02, F-05.06)      |
-| POST   | `/customers/auth/logout`    | customer | audit-only                               |
+| POST   | `/customers/auth/logout`    | cookie   | revoke the session                       |
+
+**Sessions.** A login issues two tokens, and the split is what makes a
+session revocable at all:
+
+| | Access token | Refresh token |
+| --- | --- | --- |
+| Lifetime | 15 minutes | 30 days |
+| Carried as | `Authorization: Bearer` | httpOnly cookie |
+| Returned in | the response body | `Set-Cookie` only |
+| Readable by page JS | yes | **no** |
+| Revocable | no | yes — a row in `refresh_tokens` |
+
+The access token is a plain signed assertion: fast to verify, and final
+once issued. Everything that needs withdrawing lives on the refresh
+token instead, which is backed by a row the server can revoke — so
+logout ends a session for real, within one access-token lifetime,
+rather than writing an audit line and hoping.
+
+Renewal **rotates**: the presented token is burned and a new one issued
+in the same family. A rotated-out token presented again means two
+parties hold it, so the whole family is revoked and a Sentry event is
+raised — which also kills whatever rotations the thief had already
+taken. Two tabs racing within ten seconds are tolerated rather than
+treated as theft; see `config/auth.policy.js`.
+
+`refresh` and `logout` authenticate with the cookie, not a bearer token,
+because both exist precisely for the moment the access token has
+expired. The cookies are named and path-scoped per audience
+(`/api/admin/auth`, `/api/customers/auth`), so one browser can hold an
+admin session and a shopper session at once.
+
+The `tok` claim (`access` / `refresh`) is checked wherever a token is
+accepted. Both halves are signed with the same secret, so without it a
+refresh token would verify as a bearer token and grant thirty days of
+API access — the same class of check as `typ` one level down.
 
 Email OTP (F-01.02, F-01.03) is not implemented — the project has no
-mail provider yet. The token a password login issues is the same shape
-OTP would issue, so adding it later is a second route ending in the
-same `generateToken` call.
+mail provider yet. A session is opened the same way whichever proof was
+offered, so adding it later is a second route ending in the same
+`SessionService.open` call.
 
 ### Storefront — F-06 (public reads)
 

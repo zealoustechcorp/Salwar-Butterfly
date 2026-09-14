@@ -9,7 +9,10 @@ import {
 } from "../validators/customer.validator.js";
 import { authenticate } from "../middlewares/auth.middleware.js";
 import { requireCustomer } from "../middlewares/authorize.middleware.js";
-import { authRateLimiter } from "../middlewares/rateLimiter.js";
+import {
+  authRateLimiter,
+  refreshRateLimiter,
+} from "../middlewares/rateLimiter.js";
 
 const router = express.Router();
 
@@ -20,7 +23,7 @@ const router = express.Router();
  * needs an email provider this project has not chosen yet — there is
  * no mailer in package.json and no SMTP config in env. The token this
  * issues is the same shape either way, so adding OTP later is a second
- * route that ends in the same generateToken call, not a rewrite.
+ * route that ends in the same SessionService.open call, not a rewrite.
  */
 
 // ============================================================
@@ -41,6 +44,26 @@ router.post(
 );
 
 // ============================================================
+// COOKIE-AUTHENTICATED
+// ============================================================
+//
+// The mirror of /admin/auth. Neither takes `authenticate`: the
+// credential is the httpOnly refresh cookie, and both exist for the
+// moment the bearer token has expired.
+//
+// Refresh has its own limiter, not the login one. Every page a
+// returning shopper opens renews once before the header can show them
+// as signed in, so browsing the shop generates renewals at browsing
+// speed — nothing like the rate a sign-in form does. See
+// refreshRateLimiter.
+//
+// ============================================================
+
+router.post("/refresh", refreshRateLimiter, CustomerAuthController.refresh);
+
+router.post("/logout", CustomerAuthController.logout);
+
+// ============================================================
 // PROTECTED
 // ============================================================
 
@@ -55,13 +78,6 @@ router.put(
   requireCustomer,
   validateUpdateCustomer,
   CustomerAuthController.updateMe,
-);
-
-router.post(
-  "/logout",
-  authenticate,
-  requireCustomer,
-  CustomerAuthController.logout,
 );
 
 export default router;

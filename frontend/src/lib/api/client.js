@@ -25,7 +25,11 @@
  * remember to sign the browser out.
  */
 
-import { readToken } from "@/lib/admin/session";
+import { readToken, renew as renewAdmin } from "@/lib/admin/session";
+import {
+  readToken as readCustomerToken,
+  renew as renewCustomer,
+} from "@/lib/store/session";
 import { expireSession, isSessionEnded } from "./expiry";
 
 // ============================================================
@@ -59,6 +63,28 @@ export class ApiError extends Error {
 export const NETWORK_ERROR = "NETWORK_ERROR";
 
 // ============================================================
+// RENEWAL
+// ============================================================
+
+/**
+ * Which session a rejected token belonged to, and how to renew it.
+ *
+ * Matched on the token itself rather than on the URL, the same way
+ * expiry.js decides whose session to end: a browser with the admin
+ * panel and the storefront both open holds two, and only the one that
+ * issued the rejected credential should be touched. A token we do not
+ * hold — one a caller passed in by hand — matches nothing and is not
+ * renewed.
+ */
+function renewerFor(bearer) {
+  if (!bearer) return null;
+  if (bearer === readToken()) return renewAdmin;
+  if (bearer === readCustomerToken()) return renewCustomer;
+
+  return null;
+}
+
+// ============================================================
 // REQUEST
 // ============================================================
 
@@ -77,7 +103,18 @@ export const NETWORK_ERROR = "NETWORK_ERROR";
  * @param {AbortSignal} [options.signal]
  */
 export async function request(path, options = {}) {
-  const { method = "GET", body, token, signal, envelope = false } = options;
+  const {
+    method = "GET",
+    body,
+    token,
+    signal,
+    envelope = false,
+    // Set by the retry below, never by a caller. One renewal per
+    // request: if the replay is rejected too, the session really is
+    // over and looping would only rotate tokens at the server until it
+    // decided it was being attacked.
+    isRetry = false,
+  } = options;
 
   // `undefined` means "whatever we have"; `null` means "nothing".
   const bearer = token === undefined ? readToken() : token;
@@ -110,6 +147,12 @@ export async function request(path, options = {}) {
             ? body
             : JSON.stringify(body),
       signal,
+      // The refresh cookie is httpOnly and path-scoped to the two auth
+      // routers, so it is not actually sent on calls like this one —
+      // but login and logout are reached through this client too, and
+      // without this the browser would discard the Set-Cookie that
+      // starts the session in the first place.
+      credentials: "include",
     });
   } catch (error) {
     // Let cancellation propagate — a caller that aborted is not
@@ -136,11 +179,33 @@ export async function request(path, options = {}) {
   if (!response.ok) {
     const code = payload?.code ?? "REQUEST_FAILED";
 
-    // The credential we just sent is finished — expired, or no longer
-    // one the server will verify. Sign out of the session it came
-    // from, so a token that lapses mid-visit does not sit in storage
-    // failing every request after this one.
+    // The credential we just sent is finished. An access token now
+    // lasts fifteen minutes, so this is the ordinary state of any tab
+    // left open — not an event, and not something the shopper should
+    // ever see.
+    //
+    // So the first response is to renew rather than to sign out: swap
+    // the dead token for a fresh one off the refresh cookie and replay
+    // the request. The renewal is de-duplicated inside the session
+    // module, so a screen that fired six calls at once causes one
+    // refresh and six replays.
+    //
+    // Only when that fails — no cookie, a revoked family, a logout in
+    // another tab — is the session actually over, and the original
+    // behaviour takes over.
     if (isSessionEnded(response.status, code)) {
+      const renewer = isRetry ? null : renewerFor(bearer);
+
+      if (renewer) {
+        const renewed = await renewer();
+
+        if (renewed) {
+          return request(path, { ...options, token: renewed, isRetry: true });
+        }
+      }
+
+      // Sign out of the session the dead token came from, so it does
+      // not sit there failing every request after this one.
       expireSession(bearer, code);
     }
 

@@ -6,8 +6,35 @@ import { connectDb, closeDb } from './config/db.js';
 import { closeRedis } from './config/redis.js';
 import { closeWebhookQueue } from './queues/webhook.queue.js';
 import { startWebhookWorker, stopWebhookWorker } from './queues/webhook.worker.js';
+import { RefreshTokenRepository } from './repository/refresh_token.repository.js';
 
 const server = http.createServer(app);
+
+/**
+ * Clear out refresh tokens that expired a month ago.
+ *
+ * A revoked or expired row still answers "why was I signed out?", so it
+ * is kept well past the moment it stopped working — but not forever, or
+ * the table only ever grows.
+ *
+ * Run at startup rather than on a schedule: a deploy happens often
+ * enough for a table this size, and a few hundred milliseconds once per
+ * boot is invisible. A cron job nobody remembered to install is not.
+ *
+ * Deliberately not awaited and deliberately swallowing its own failure.
+ * Housekeeping must never be the reason the shop does not come up.
+ */
+function sweepExpiredSessions() {
+  RefreshTokenRepository.deleteExpired()
+    .then((deleted) => {
+      if (deleted > 0) {
+        console.log(`[server] Cleared ${deleted} expired refresh token(s)`);
+      }
+    })
+    .catch((err) => {
+      console.warn('[server] Refresh token sweep failed', err.message);
+    });
+}
 
 async function start() {
   await connectDb();
@@ -15,6 +42,7 @@ async function start() {
   // job is query it — and a no-op without REDIS_URL, in which case the
   // webhook endpoint processes deliveries inline instead.
   startWebhookWorker();
+  sweepExpiredSessions();
   server.listen(env.port, () => {
     console.log(`[server] Listening on http://localhost:${env.port} (${env.nodeEnv})`);
   });

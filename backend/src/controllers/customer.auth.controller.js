@@ -1,10 +1,34 @@
 // src/controllers/customer.auth.controller.js
 
 import { CustomerAuthService } from "../services/customer.auth.service.js";
+import { AUTH_AUDIENCE } from "../config/auth.policy.js";
+import {
+  clearRefreshCookie,
+  readRefreshCookie,
+  setRefreshCookie,
+} from "../utils/sessionCookie.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { okResponse } from "../utils/apiResponse.js";
 import { ApiError } from "../utils/ApiError.js";
 import { logger } from "../utils/logger.js";
+
+const AUDIENCE = AUTH_AUDIENCE.CUSTOMER;
+
+/**
+ * The storefront's half of the same split the admin panel makes: access
+ * token in the body for the page to hold in memory, refresh token in an
+ * httpOnly cookie the page can never read.
+ *
+ * The two audiences use separately named, separately path-scoped
+ * cookies, so a shop owner browsing their own storefront while signed
+ * into the admin panel keeps two independent sessions rather than one
+ * overwriting the other.
+ */
+const sendSession = (res, session) => {
+  setRefreshCookie(res, AUDIENCE, session.refreshToken, session.refreshExpiresAt);
+
+  return { accessToken: session.accessToken };
+};
 
 export const CustomerAuthController = {
   // ==========================================================
@@ -15,7 +39,10 @@ export const CustomerAuthController = {
     try {
       const { email, password } = req.body;
 
-      const result = await CustomerAuthService.login(email, password);
+      const result = await CustomerAuthService.login(email, password, {
+        userAgent: req.get("user-agent"),
+        ip: req.ip,
+      });
 
       logger.info("Customer login request completed", {
         customerId: result.customer.id,
@@ -24,7 +51,10 @@ export const CustomerAuthController = {
 
       return okResponse({
         res,
-        data: result,
+        data: {
+          customer: result.customer,
+          ...sendSession(res, result.session),
+        },
         message: "Signed in successfully",
       });
     } catch (error) {
@@ -125,18 +155,73 @@ export const CustomerAuthController = {
   }),
 
   // ==========================================================
+  // POST /api/customers/auth/refresh
+  // ==========================================================
+  //
+  // The storefront's mirror of the admin refresh. Not behind
+  // `authenticate` — it is called exactly when the access token has
+  // expired, and the cookie is the credential.
+  //
+  // This one also runs on every first paint for a returning shopper,
+  // since the access token lives in memory and a page load starts with
+  // none. It is the call that decides whether the header renders
+  // signed-in, so it is on the critical path for how the shop looks.
+  //
+  // ==========================================================
+
+  refresh: asyncHandler(async (req, res) => {
+    try {
+      const session = await CustomerAuthService.refresh({
+        token: readRefreshCookie(req, AUDIENCE),
+        userAgent: req.get("user-agent"),
+        ip: req.ip,
+      });
+
+      return okResponse({
+        res,
+        data: sendSession(res, session),
+        message: "Session renewed",
+      });
+    } catch (error) {
+      // The session is over; the cookie goes with the 401 so the
+      // storefront does not re-send a dead one on every page.
+      clearRefreshCookie(res, AUDIENCE);
+
+      if (error instanceof ApiError) throw error;
+
+      logger.error("Customer refresh controller error", {
+        ip: req.ip,
+        error: error.message,
+        stack: error.stack,
+      });
+
+      throw ApiError.internal("Failed to renew the session");
+    }
+  }),
+
+  // ==========================================================
   // POST /api/customers/auth/logout
   // ==========================================================
   //
-  // JWTs are stateless, so the client discarding its token IS the
-  // logout. This endpoint exists so the act is auditable, and so a
-  // future token denylist has somewhere to live.
+  // Revokes the session family behind the refresh cookie, where this
+  // used to only write an audit line and let the token keep working.
+  //
+  // No `authenticate`: the cookie is the credential, and a shopper
+  // whose access token lapsed while they were reading still needs a
+  // sign-out button that works.
   //
   // ==========================================================
 
   logout: asyncHandler(async (req, res) => {
+    const revoked = await CustomerAuthService.logout(
+      readRefreshCookie(req, AUDIENCE),
+    );
+
+    clearRefreshCookie(res, AUDIENCE);
+
     logger.info("Customer signed out", {
-      customerId: req.user?.id,
+      customerId: req.user?.id ?? null,
+      sessionRevoked: revoked,
       ip: req.ip,
     });
 

@@ -15,7 +15,12 @@ import { api, ApiError } from "@/lib/api/client";
 // ============================================================
 
 /**
- * @returns {Promise<{ok: true, admin, token, expiresIn}
+ * The response carries only the access token. The refresh token comes
+ * back as an httpOnly cookie the browser stores itself and this code
+ * never sees — which is the point: what JavaScript cannot read,
+ * injected JavaScript cannot steal.
+ *
+ * @returns {Promise<{ok: true, admin, token}
  *                 | {ok: false, code, error, fields}>}
  */
 export async function login(email, password) {
@@ -31,8 +36,7 @@ export async function login(email, password) {
     return {
       ok: true,
       admin: data.admin,
-      token: data.token,
-      expiresIn: data.expiresIn,
+      token: data.accessToken,
     };
   } catch (error) {
     if (error instanceof ApiError) {
@@ -72,18 +76,11 @@ export async function fetchCurrentAdmin(token, signal) {
 // ============================================================
 
 /**
- * Best-effort. The token is stateless, so discarding it client-side
- * is what actually ends the session; this call only lets the server
- * log the event.
+ * Signing out now happens in lib/admin/session.js — `endSession()`.
+ *
+ * It moved because the call no longer carries a bearer token. Logout
+ * authenticates with the refresh cookie and revokes the session family
+ * behind it, which is what turned this from an audit line into an
+ * actual logout; the cookie is the session module's business, not this
+ * file's.
  */
-export async function logout(token) {
-  if (!token) return;
-
-  try {
-    // `undefined`, not `null` — express.json() runs in strict mode and
-    // rejects a bare `null` body with a 400.
-    await api.post("/admin/auth/logout", undefined, { token });
-  } catch {
-    /* signing out must never fail in the UI */
-  }
-}

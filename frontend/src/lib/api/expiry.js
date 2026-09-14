@@ -47,8 +47,20 @@ import {
  *
  * TOKEN_MISSING is deliberately absent: it means no token was sent, so
  * there is nothing to sign out of.
+ *
+ * TOKEN_TYPE_INVALID means a refresh token was sent where an access
+ * token belongs. A client that has managed that is confused about what
+ * it is holding, and the honest response is to stop holding it.
+ *
+ * Note that reaching here at all now means a renewal was tried first
+ * and failed — the api client renews before it gives up, so by the time
+ * this module runs the session really is over.
  */
-const ENDED_CODES = new Set(["TOKEN_EXPIRED", "TOKEN_INVALID"]);
+const ENDED_CODES = new Set([
+  "TOKEN_EXPIRED",
+  "TOKEN_INVALID",
+  "TOKEN_TYPE_INVALID",
+]);
 
 export function isSessionEnded(status, code) {
   return status === 401 && ENDED_CODES.has(code);

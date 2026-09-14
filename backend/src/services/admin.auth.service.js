@@ -6,10 +6,9 @@ import { AdminRepository } from "../repository/admin.repository.js";
 import { AdminMapper } from "../mapper/admin.mapper.js";
 import { LoginAdminDTO, CreateAdminDTO } from "../dto/admin.dto.js";
 import { ADMIN_ROLES } from "../models/admin.entity.js";
-import { generateToken } from "../utils/jwt.js";
+import { SessionService } from "./session.service.js";
 import { ApiError } from "../utils/ApiError.js";
 import { logger } from "../utils/logger.js";
-import { env } from "../config/env.js";
 
 // ============================================================
 // CONSTANTS
@@ -57,7 +56,7 @@ export const AdminAuthService = Object.freeze({
   // LOGIN
   // ==========================================================
 
-  async login(email, password) {
+  async login(email, password, { userAgent, ip } = {}) {
     const dto = new LoginAdminDTO(email, password);
 
     let admin = null;
@@ -127,14 +126,22 @@ export const AdminAuthService = Object.freeze({
     }
 
     // --------------------------------------------------------
-    // ISSUE TOKEN
+    // OPEN THE SESSION
+    // --------------------------------------------------------
+    //
+    // Two tokens and a row, rather than one self-contained JWT: see
+    // services/session.service.js. The row is what lets the logout
+    // below actually end this session rather than merely record that
+    // somebody asked.
+    //
     // --------------------------------------------------------
 
-    const token = generateToken({
-      sub: admin.id,
-      email: admin.email,
-      role: admin.role,
+    const session = await SessionService.open({
+      subjectId: admin.id,
       typ: ADMIN_TOKEN_TYPE,
+      claims: { email: admin.email, role: admin.role },
+      userAgent,
+      ip,
     });
 
     // --------------------------------------------------------
@@ -162,9 +169,53 @@ export const AdminAuthService = Object.freeze({
 
     return {
       admin: AdminMapper.toAuthDTO(admin),
-      token,
-      expiresIn: env.jwtExpiresIn,
+      session,
     };
+  },
+
+  // ==========================================================
+  // REFRESH
+  // ==========================================================
+  //
+  // Exchange the refresh cookie for a new access token.
+  //
+  // The account is re-read on the way through — that is the callback
+  // below, and it is why a deactivated admin's thirty-day session dies
+  // within fifteen minutes rather than thirty days. `login` checks
+  // `active` once; this is the only other moment anything does.
+  //
+  // ==========================================================
+
+  async refresh({ token, userAgent, ip }) {
+    return SessionService.renew({
+      token,
+      typ: ADMIN_TOKEN_TYPE,
+      userAgent,
+      ip,
+
+      loadSubject: async (adminId) => {
+        const admin = await AdminRepository.findById(adminId);
+
+        // Null ends the session rather than throwing: deactivated,
+        // deleted and never-existed are one answer here — "this account
+        // may not sign in" — and SessionService revokes the family on
+        // all three.
+        if (!admin || !admin.active) return null;
+
+        return { email: admin.email, role: admin.role };
+      },
+    });
+  },
+
+  // ==========================================================
+  // LOGOUT
+  // ==========================================================
+
+  async logout(refreshToken) {
+    return SessionService.close({
+      token: refreshToken,
+      typ: ADMIN_TOKEN_TYPE,
+    });
   },
 
   // ==========================================================

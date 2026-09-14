@@ -56,6 +56,7 @@ import { expiryMessage, subscribeToExpiry } from "@/lib/api/expiry";
 import * as customerAuth from "@/lib/store/auth";
 import {
   clearSession,
+  endSession,
   getServerSnapshot,
   getSnapshot,
   subscribe,
@@ -253,16 +254,15 @@ export function AuthProvider({ children }) {
       },
 
       signOut: async () => {
-        const current = token;
-
-        // Clear locally first — signing out must not depend on the
-        // network.
-        clearSession();
         setValidated(null);
         repointWishlist(null);
         toast.success("Signed out", "Your bag stays on this device.");
 
-        await customerAuth.signOut(current);
+        // Clears the token and the cached name locally, then revokes
+        // the session family behind the refresh cookie. The local half
+        // does not wait on the network; the server half is what stops
+        // the session being renewable afterwards.
+        await endSession();
       },
 
       /** Edits the shopper's own name, email or phone (F-05.06). */

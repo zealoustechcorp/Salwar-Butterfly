@@ -60,7 +60,15 @@ export async function signIn({ email, password }) {
       { token: null },
     );
 
-    return { ok: true, user: toCustomer(data.customer), token: data.token };
+    // Only the access token comes back in the body. The refresh token
+    // arrives as an httpOnly cookie the browser keeps to itself — this
+    // code never sees it, and neither does anything injected into the
+    // page.
+    return {
+      ok: true,
+      user: toCustomer(data.customer),
+      token: data.accessToken,
+    };
   } catch (error) {
     // The API answers one message for a wrong password and an unknown
     // address alike, so it cannot say which field is at fault. Password
@@ -134,21 +142,14 @@ export async function fetchCurrentCustomer(token, signal) {
 // ============================================================
 
 /**
- * Best-effort. The token is stateless, so discarding it client-side is
- * what actually ends the session; this call only lets the server log
- * the event.
+ * Signing out now happens in lib/store/session.js — `endSession()`.
+ *
+ * It moved because the call no longer carries a bearer token. Logout
+ * authenticates with the refresh cookie and revokes the session family
+ * behind it, which is what turned this from an audit line into a logout
+ * the session cannot survive; the cookie is the session module's
+ * business, not this file's.
  */
-export async function signOut(token) {
-  if (!token) return;
-
-  try {
-    // `undefined`, not `null` — express.json() runs in strict mode and
-    // rejects a bare `null` body with a 400.
-    await api.post("/customers/auth/logout", undefined, { token });
-  } catch {
-    /* signing out must never fail in the UI */
-  }
-}
 
 // ============================================================
 // PROFILE  (F-05.02 / F-05.06)

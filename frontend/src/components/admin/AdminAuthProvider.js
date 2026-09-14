@@ -39,6 +39,7 @@ import {
   getServerSnapshot,
   writeToken,
   clearToken,
+  endSession,
 } from "@/lib/admin/session";
 
 import * as adminAuth from "@/lib/admin/auth";
@@ -55,7 +56,21 @@ const STATUS = Object.freeze({
 });
 
 export function AdminAuthProvider({ children }) {
-  const token = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  /**
+   * `{ token, ready }`.
+   *
+   * `ready` exists because the access token lives in memory now, so a
+   * page load genuinely starts without one and has to ask the API
+   * whether this browser still holds a session. Until that answer is
+   * back, "no token" does not yet mean "signed out" — and treating it
+   * as such would bounce a signed-in admin to the login screen on
+   * every refresh.
+   */
+  const { token, ready } = useSyncExternalStore(
+    subscribe,
+    getSnapshot,
+    getServerSnapshot,
+  );
 
   /**
    * `{ token, admin, outage }` — the identity we resolved, tagged
@@ -82,13 +97,16 @@ export function AdminAuthProvider({ children }) {
   const admin = isResolved ? resolved.admin : null;
   const outage = isResolved ? resolved.outage : null;
 
-  const status = !token
-    ? STATUS.ANONYMOUS
-    : isResolved
-      ? admin
-        ? STATUS.AUTHENTICATED
-        : STATUS.ANONYMOUS
-      : STATUS.LOADING;
+  const status = !ready
+    ? // The session is still being restored from the refresh cookie.
+      STATUS.LOADING
+    : !token
+      ? STATUS.ANONYMOUS
+      : isResolved
+        ? admin
+          ? STATUS.AUTHENTICATED
+          : STATUS.ANONYMOUS
+        : STATUS.LOADING;
 
   // --------------------------------------------------------
   // RESOLVE THE TOKEN INTO AN IDENTITY
@@ -170,16 +188,16 @@ export function AdminAuthProvider({ children }) {
   }, []);
 
   const signOut = useCallback(async () => {
-    const current = getSnapshot();
-
-    // Clear locally first — sign-out must not depend on the network.
-    clearToken();
     setResolved(null);
 
     // Leaving on purpose is not something to explain on the way back.
     setExpiry(null);
 
-    await adminAuth.logout(current);
+    // Clears the token locally, then tells the server to revoke the
+    // session family behind the refresh cookie. The local half does not
+    // wait on the network; the server half is what makes this a logout
+    // the session cannot survive.
+    await endSession();
   }, []);
 
   const value = {

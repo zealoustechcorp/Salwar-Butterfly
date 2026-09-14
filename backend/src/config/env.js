@@ -100,10 +100,44 @@ if (nodeEnv === "production" && !corsOrigin) {
 }
 
 // ============================================================
-// JWT EXPIRATION
+// TOKEN LIFETIMES
 // ============================================================
+//
+// A session is two tokens with deliberately different lifetimes, and
+// the asymmetry is the point.
+//
+// The access token cannot be revoked. It is a signed assertion the API
+// verifies without consulting anything, which is what makes it fast and
+// what makes it final: once issued, the only thing that ends it is its
+// own `exp`. Fifteen minutes is the ceiling on what a stolen one is
+// worth.
+//
+// The refresh token can be revoked, because a row in `refresh_tokens`
+// stands behind it and logout deletes that row. It can therefore afford
+// to live for a month — and it is the half the browser never lets
+// JavaScript touch, since it arrives as an httpOnly cookie.
+//
+// Overriding these is supported but rarely wise. A long access TTL is
+// the setting that quietly undoes the whole design: it is the number
+// that decides how long a leaked token outlives the logout that was
+// supposed to end it.
+//
+// JWT_EXPIRES_IN, which these replace, is no longer read. It described
+// one token doing both jobs, and there is no honest single value for
+// that — 24h, as it was set here, meant a stolen token survived a day
+// of trying to revoke it.
 
-const jwtExpiresIn = process.env.JWT_EXPIRES_IN ?? "1h";
+const accessTokenTtl = process.env.ACCESS_TOKEN_TTL ?? "15m";
+const refreshTokenTtl = process.env.REFRESH_TOKEN_TTL ?? "30d";
+
+if (process.env.JWT_EXPIRES_IN) {
+  console.warn(
+    "[env] JWT_EXPIRES_IN is set but no longer used — sessions are now " +
+      `an access token (${accessTokenTtl}) plus a refresh token ` +
+      `(${refreshTokenTtl}). Set ACCESS_TOKEN_TTL / REFRESH_TOKEN_TTL ` +
+      "instead, and remove JWT_EXPIRES_IN.",
+  );
+}
 
 // ============================================================
 // CLOUDINARY
@@ -303,7 +337,8 @@ export const env = Object.freeze({
   // ==========================================================
 
   jwtSecret,
-  jwtExpiresIn,
+  accessTokenTtl,
+  refreshTokenTtl,
 
   // ==========================================================
   // CLOUDINARY

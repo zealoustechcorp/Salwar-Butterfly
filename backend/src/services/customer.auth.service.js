@@ -6,10 +6,9 @@ import { CustomerRepository } from "../repository/customer.repository.js";
 import { CustomerService } from "./customer.service.js";
 import { CustomerMapper } from "../mapper/customer.mapper.js";
 import { LoginCustomerDTO } from "../dto/customer.dto.js";
-import { generateToken } from "../utils/jwt.js";
+import { SessionService } from "./session.service.js";
 import { ApiError } from "../utils/ApiError.js";
 import { logger } from "../utils/logger.js";
-import { env } from "../config/env.js";
 
 // ============================================================
 // CONSTANTS
@@ -66,7 +65,7 @@ export const CustomerAuthService = Object.freeze({
   // LOGIN
   // ==========================================================
 
-  async login(email, password) {
+  async login(email, password, { userAgent, ip } = {}) {
     const dto = new LoginCustomerDTO(email, password);
 
     let customer = null;
@@ -118,11 +117,12 @@ export const CustomerAuthService = Object.freeze({
     // filters on deleted_at IS NULL, so closing an account ends the
     // ability to sign in immediately.
 
-    const token = generateToken({
-      sub: customer.id,
-      email: customer.email,
-      role: CUSTOMER_ROLE,
+    const session = await SessionService.open({
+      subjectId: customer.id,
       typ: CUSTOMER_TOKEN_TYPE,
+      claims: { email: customer.email, role: CUSTOMER_ROLE },
+      userAgent,
+      ip,
     });
 
     logger.info("Customer login succeeded", {
@@ -131,9 +131,50 @@ export const CustomerAuthService = Object.freeze({
 
     return {
       customer: CustomerMapper.toAuthDTO(customer),
-      token,
-      expiresIn: env.jwtExpiresIn,
+      session,
     };
+  },
+
+  // ==========================================================
+  // REFRESH
+  // ==========================================================
+  //
+  // The storefront's mirror of the admin flow. The account is re-read
+  // on the way through, so an account closed from the admin panel stops
+  // being able to renew — the same guarantee `getCurrentCustomer`
+  // already gives on /me, applied to the one call that extends a
+  // session rather than merely reading it.
+  //
+  // ==========================================================
+
+  async refresh({ token, userAgent, ip }) {
+    return SessionService.renew({
+      token,
+      typ: CUSTOMER_TOKEN_TYPE,
+      userAgent,
+      ip,
+
+      loadSubject: async (customerId) => {
+        // findById filters on deleted_at IS NULL, so a closed account
+        // comes back null and the family is revoked.
+        const customer = await CustomerRepository.findById(customerId);
+
+        if (!customer) return null;
+
+        return { email: customer.email, role: CUSTOMER_ROLE };
+      },
+    });
+  },
+
+  // ==========================================================
+  // LOGOUT
+  // ==========================================================
+
+  async logout(refreshToken) {
+    return SessionService.close({
+      token: refreshToken,
+      typ: CUSTOMER_TOKEN_TYPE,
+    });
   },
 
   // ==========================================================

@@ -134,6 +134,37 @@ export const authRateLimiter = createLimiter({
 });
 
 /**
+ * Session renewal.
+ *
+ * Separate from the auth limiter, and it has to be. Renewal and sign-in
+ * look alike — both unauthenticated, both on the auth router — but they
+ * are used at completely different rates, and sharing one bucket means
+ * the tighter of the two rules governs both.
+ *
+ * An access token lasts fifteen minutes, so every open tab renews about
+ * four times an hour, and every page load renews once before it can
+ * decide whether anybody is signed in. Ten per fifteen minutes — right
+ * for password attempts — would therefore be spent by an admin
+ * reloading a screen ten times, or by half a dozen tabs left open
+ * overnight, and the reward for ordinary work would be a lockout from
+ * their own session.
+ *
+ * Sixty is far above what a person generates and far below what a
+ * script replaying a stolen cookie would want. The real defence against
+ * that is rotation — a replayed refresh token revokes the family on the
+ * first attempt, so there is no volume to grind through anyway. This
+ * limit is only here to stop an unauthenticated endpoint that touches
+ * Postgres from being free to hammer.
+ */
+export const refreshRateLimiter = createLimiter({
+  name: "refresh",
+  prefix: "rl:refresh:",
+  windowMs: 15 * 60 * 1000,
+  limit: 60,
+  message: "Too many session renewals. Please try again in a few minutes.",
+});
+
+/**
  * Checkout (F-07.01).
  *
  * Placing an order is open to guests, opens a transaction and takes a

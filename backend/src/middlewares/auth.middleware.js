@@ -3,6 +3,7 @@
 import jwt from "jsonwebtoken";
 
 import { verifyToken } from "../utils/jwt.js";
+import { TOKEN_USE } from "../config/auth.policy.js";
 import { ApiError } from "../utils/ApiError.js";
 import { logger } from "../utils/logger.js";
 
@@ -67,6 +68,36 @@ export const authenticate = (req, res, next) => {
       throw ApiError.unauthorized(
         "Invalid authentication token",
         "TOKEN_INVALID",
+      );
+    }
+
+    // ----------------------------------------------------------
+    // Reject anything that is not an access token
+    // ----------------------------------------------------------
+    //
+    // Both halves of a session are signed with the same secret, so a
+    // refresh token verifies here perfectly well. Without this check it
+    // would also be *accepted* here — handing its holder thirty days of
+    // API access instead of the fifteen minutes an access token is
+    // worth, and bypassing revocation entirely, since nothing on this
+    // path consults `refresh_tokens`.
+    //
+    // Same shape as the `typ` check in requireAdmin one level down:
+    // signature valid, purpose wrong.
+    //
+    // ----------------------------------------------------------
+
+    if (decoded.tok !== TOKEN_USE.ACCESS) {
+      logger.warn("Non-access token presented as a bearer token", {
+        tok: decoded.tok ?? null,
+        typ: decoded.typ ?? null,
+        method: req.method,
+        path: req.originalUrl,
+      });
+
+      throw ApiError.unauthorized(
+        "Invalid authentication token",
+        "TOKEN_TYPE_INVALID",
       );
     }
 
