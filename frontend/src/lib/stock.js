@@ -34,6 +34,18 @@ export const LOW_STOCK_BELOW = 20;
  */
 export const MAX_LINE_QTY = 20;
 
+/**
+ * The most lines one bag may hold — F-07.01's fifteen.
+ *
+ * A line is a product in one size, so two sizes of the same salwar fill
+ * two of the fifteen. Mirrors MAX_ORDER_LINES in
+ * backend/src/config/order.policy.js, which is the rule that actually
+ * holds; this copy exists so a sixteenth piece is refused at the "Add
+ * to bag" button rather than at checkout, after the address has been
+ * typed.
+ */
+export const MAX_BAG_LINES = 15;
+
 export const STOCK_STATUS = {
   IN_STOCK: "in_stock",
   LOW_STOCK: "low_stock",

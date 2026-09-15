@@ -62,7 +62,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useSyncExternalStore } from "react";
 
-import { MAX_LINE_QTY, orderableQty } from "@/lib/stock";
+import { MAX_BAG_LINES, MAX_LINE_QTY, orderableQty } from "@/lib/stock";
 import { readSession, readToken } from "@/lib/store/session";
 import {
   fetchWishlist,
@@ -303,6 +303,27 @@ export function StoreProvider({ children }) {
       const variant = product.sizes?.find((row) => row.size === pickedSize) ?? null;
       const key = `${product.id}:${pickedSize ?? "-"}`;
       const existing = bag.find((line) => line.key === key);
+
+      // The bag is full (F-07.01). Checked before stock because it applies
+      // whatever the shelf holds — telling a shopper "sold out" and then
+      // "bag full" on their next tap is two refusals for one answer.
+      //
+      // Only a *new* line is refused. Adding another of something already
+      // in the bag does not make the bag longer, and stopping that would
+      // read as the shop refusing a sale it can fill.
+      if (!existing && bag.length >= MAX_BAG_LINES) {
+        toast.info(
+          "Your bag is full",
+          // "pieces, counting each size separately", not "items": the header
+          // badge counts quantity, so a bag of 15 lines can show 30 there and
+          // "15 items" would read as a contradiction.
+          `A bag holds up to ${MAX_BAG_LINES} pieces, counting each size separately. ` +
+            `Remove one to add ${describe(product.name, pickedSize)}, ` +
+            `or order what is in the bag first.`,
+          { action: { href: "/bag", label: "View bag" } },
+        );
+        return;
+      }
 
       const shelf = Math.max(0, Math.trunc(Number(variant?.stock) || 0));
       const ceiling = orderableQty(shelf);

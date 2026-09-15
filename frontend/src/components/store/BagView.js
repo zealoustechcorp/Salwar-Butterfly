@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useEffect } from "react";
 
 import { money } from "@/lib/format";
-import { MAX_LINE_QTY, orderableQty } from "@/lib/stock";
+import { MAX_BAG_LINES, MAX_LINE_QTY, orderableQty } from "@/lib/stock";
 import { useAuth } from "./AuthProvider";
 import { WhatsAppGlyph } from "./Ornaments";
 import { Photo } from "./Photo";
@@ -71,6 +71,30 @@ export function BagView({ products, shop }) {
   // rather than deleting them — the shopper put the piece there, and removing
   // it for them looks like the bag losing things.
   const soldOut = bag.filter((line) => shelfFor(line) === 0);
+
+  /**
+   * Why checkout is closed, or null when it is open.
+   *
+   * Both reasons are held on this page rather than at checkout, because
+   * the buttons that fix them are here. Sending someone to the address
+   * form to be told a size has gone means sending them back again.
+   *
+   * The over-the-limit case can only be a bag saved on this device
+   * before F-07.01's cap existed — StoreProvider has refused a sixteenth
+   * line since then. Worth stating anyway: without it the bag would look
+   * fine and the order would be refused by the API after the address had
+   * been typed, which is the one outcome the cap exists to avoid.
+   */
+  const checkoutBlocker =
+    bag.length > MAX_BAG_LINES
+      ? `A bag holds up to ${MAX_BAG_LINES} pieces, counting each size separately, ` +
+        `and this one has ${bag.length}. Remove ${bag.length - MAX_BAG_LINES} to check out, ` +
+        `and order the rest separately.`
+      : soldOut.length === 1
+        ? `${soldOut[0].name}${soldOut[0].size ? ` in size ${soldOut[0].size}` : ""} sold out while it was in your bag. Remove it to check out.`
+        : soldOut.length
+          ? `${soldOut.length} pieces above sold out while they were in your bag. Remove them to check out.`
+          : null;
 
   if (!bag.length) {
     return (
@@ -243,16 +267,13 @@ export function BagView({ products, shop }) {
               </div>
             </dl>
 
-            {/* Held here rather than at checkout, because the button that
-                fixes it is on this page. Sending someone to the address form
-                to be told a size has gone means sending them back again. */}
-            {soldOut.length ? (
+            {/* See `checkoutBlocker` above for why both reasons are held on
+                this page rather than at checkout. */}
+            {checkoutBlocker ? (
               <>
                 <p className="mt-4 flex gap-2 rounded-xl border border-sb-link/40 bg-sb-link/5 px-3.5 py-2.5 text-xs leading-relaxed font-medium text-sb-link">
                   <AlertCircle className="mt-px size-3.5 shrink-0" aria-hidden="true" />
-                  {soldOut.length === 1
-                    ? `${soldOut[0].name}${soldOut[0].size ? ` in size ${soldOut[0].size}` : ""} sold out while it was in your bag. Remove it to check out.`
-                    : `${soldOut.length} pieces above sold out while they were in your bag. Remove them to check out.`}
+                  {checkoutBlocker}
                 </p>
                 <span
                   aria-disabled="true"

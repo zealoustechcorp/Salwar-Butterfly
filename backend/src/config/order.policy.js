@@ -124,13 +124,24 @@ export const STOCK_HOLDING_STATUSES = ORDER_STATUSES.filter(
 // ============================================================
 
 /**
- * The most lines one order may carry.
+ * The most lines one order may carry — F-07.01's fifteen.
  *
- * A bag is a handful of pieces. A request with hundreds is a script,
- * not a shopper, and every line holds a row lock for the length of the
- * checkout transaction.
+ * A line is one variant: a product in one size. Two sizes of the same
+ * salwar are two lines and count twice. That reading rather than
+ * "fifteen distinct products" because a line is all this server is sent
+ * — placeOrder receives variant ids and nothing else, so grouping by
+ * product would mean a catalogue lookup before the request could even
+ * be rejected, and the client could not mirror the rule at all.
+ *
+ * It is also the guard it was before the FRS number was applied: a
+ * request with hundreds of lines is a script, not a shopper, and every
+ * line holds a row lock for the length of the checkout transaction.
+ *
+ * Mirrored as MAX_BAG_LINES in frontend/src/lib/stock.js, which stops a
+ * sixteenth line being added rather than letting it be refused after
+ * the address has been typed. This is the one that actually holds.
  */
-export const MAX_ORDER_LINES = 50;
+export const MAX_ORDER_LINES = 15;
 
 /**
  * The most of one size a single order may take.

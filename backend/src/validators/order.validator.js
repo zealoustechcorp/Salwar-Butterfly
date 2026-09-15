@@ -133,7 +133,14 @@ export const validateCreateOrder = (req, res, next) => {
   if (!Array.isArray(items) || items.length === 0) {
     errors.items = "An order must have at least one item";
   } else if (items.length > MAX_ORDER_LINES) {
-    errors.items = `An order may not have more than ${MAX_ORDER_LINES} lines`;
+    // Shopper-facing wording, because this is now a shop rule (F-07.01)
+    // rather than only a guard against scripted requests. A bag that
+    // reaches here over the limit was not built by the storefront —
+    // StoreProvider stops the sixteenth line — so it is either an old
+    // bag from before this cap or a direct call.
+    errors.items =
+      `A bag may hold up to ${MAX_ORDER_LINES} pieces, counting each size ` +
+      `separately. Remove a few and place the rest as a second order.`;
   } else {
     const seen = new Set();
 
