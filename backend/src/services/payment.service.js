@@ -469,7 +469,12 @@ export const PaymentService = {
    * outcome of a race this design accepts rather than prevents.
    */
   async settleAttempt(attempt, { providerPaymentId, method, source }) {
-    const { payment, alreadyPaid } = await PaymentRepository.settle(attempt.id, {
+    const {
+      payment,
+      order: justConfirmed,
+      alreadyPaid,
+      notificationIds,
+    } = await PaymentRepository.settle(attempt.id, {
       providerPaymentId,
       method,
     });
@@ -482,6 +487,10 @@ export const PaymentService = {
       orderNumber: order?.order_number,
       providerPaymentId,
       alreadyPaid,
+      // Whether this call was the one that moved the order, as opposed
+      // to the one that arrived second. Only the first emits.
+      justConfirmed: Boolean(justConfirmed),
+      notifications: notificationIds?.length ?? 0,
     });
 
     return {

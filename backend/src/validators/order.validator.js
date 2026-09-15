@@ -83,7 +83,7 @@ export const validateOrderIdParam = (req, res, next) => {
  * order under somebody else's account.
  */
 export const validateCreateOrder = (req, res, next) => {
-  const { contact, shippingAddress, items, customerNote } = req.body ?? {};
+  const { contact, shippingAddress, items, customerNote, whatsappOptIn } = req.body ?? {};
 
   const errors = {};
 
@@ -189,6 +189,22 @@ export const validateCreateOrder = (req, res, next) => {
   });
 
   if (noteError) errors.customerNote = noteError;
+
+  // ----------------------------------------------------------
+  // WHATSAPP OPT-IN
+  // ----------------------------------------------------------
+  //
+  // Optional, and a strict boolean when present. Absent means the
+  // storefront did not send it — an older client, or a caller that is
+  // not the storefront at all — and the column's own DEFAULT TRUE then
+  // decides, matching the ticked box a shopper would have seen.
+  //
+  // Refused rather than coerced, because the truthiness of "false" is
+  // exactly the bug that would silently message somebody who opted out.
+
+  if (whatsappOptIn !== undefined && typeof whatsappOptIn !== "boolean") {
+    errors.whatsappOptIn = "WhatsApp preference must be true or false";
+  }
 
   if (Object.keys(errors).length > 0) {
     throw new ApiError(400, "Validation failed", errors);

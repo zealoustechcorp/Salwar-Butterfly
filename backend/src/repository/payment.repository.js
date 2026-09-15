@@ -21,6 +21,8 @@ import {
   PAYMENT_ATTEMPT_STATUS,
 } from "../config/payment.policy.js";
 import { ORDER_STATUS, PAYMENT_STATUS } from "../config/order.policy.js";
+import { NOTIFY_EVENT } from "../config/whatsapp.policy.js";
+import { NotificationService } from "../services/notification.service.js";
 
 const handleDatabaseError = (error, operation, context = {}) => {
   logger.error(`Payment repository error: ${operation}`, {
@@ -342,7 +344,7 @@ export const PaymentRepository = {
    */
   async settle(paymentId, { providerPaymentId, method = null }) {
     try {
-      return await withTransaction(async (client) => {
+      const result = await withTransaction(async (client) => {
         const paid = await client.query(
           `UPDATE payments
            SET status = $2,
@@ -363,7 +365,7 @@ export const PaymentRepository = {
         );
 
         if (paid.rowCount === 0) {
-          return { payment: null, order: null, alreadyPaid: true };
+          return { payment: null, order: null, alreadyPaid: true, notificationIds: [] };
         }
 
         const payment = paid.rows[0];
@@ -392,12 +394,59 @@ export const PaymentRepository = {
           orderConfirmed: order.rowCount > 0,
         });
 
+        // The one moment in this codebase when an order becomes paid,
+        // whichever of the two racing paths — the checkout return or the
+        // webhook — arrived first.
+        //
+        // Emitted from here rather than from the service because the
+        // service is reached twice and this guarded UPDATE applies once:
+        // `WHERE status = 'pending_payment'` is already the exactly-once
+        // gate, and piggybacking on it costs nothing and needs no second
+        // lock. `alreadyPaid === false` would NOT have been the right
+        // signal — it is also false when an admin had already confirmed
+        // the order by hand, and had already been told.
+        //
+        // Inside the transaction, so that the confirmation and the
+        // promise to announce it commit together. emitTx cannot throw
+        // and cannot reach the network; see notification.service.js.
+        let notificationIds = [];
+
+        if (order.rowCount > 0) {
+          const confirmed = order.rows[0];
+
+          const { rows: counts } = await client.query(
+            `SELECT COALESCE(SUM(quantity), 0)::int AS units
+               FROM order_items
+              WHERE order_id = $1::uuid`,
+            [confirmed.id],
+          );
+
+          notificationIds = await NotificationService.emitTx(
+            client,
+            confirmed,
+            NOTIFY_EVENT.ORDER_PAID,
+            { unitCount: counts[0]?.units ?? null },
+          );
+        }
+
         return {
           payment,
           order: order.rows[0] ?? null,
           alreadyPaid: false,
+          notificationIds,
         };
       });
+
+      // After the commit, never inside it. A send that began before the
+      // transaction landed would read an order still marked as awaiting
+      // payment — and if the transaction then rolled back, it would have
+      // told a shopper about a confirmation that never happened.
+      //
+      // Detached and non-throwing, so a WhatsApp cannot fail a payment
+      // that has already been banked.
+      NotificationService.dispatch(result.notificationIds);
+
+      return result;
     } catch (error) {
       throw handleDatabaseError(error, "settle", { paymentId });
     }

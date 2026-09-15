@@ -137,7 +137,14 @@ export const OrderService = {
    * Null is a guest checkout, which the storefront bag explicitly
    * offers, and is a supported path rather than a fallback.
    */
-  async placeOrder({ customerId = null, contact, shippingAddress, items, customerNote = null }) {
+  async placeOrder({
+    customerId = null,
+    contact,
+    shippingAddress,
+    items,
+    customerNote = null,
+    whatsappOptIn = undefined,
+  }) {
     try {
       const normalizedLines = items.map((item) => ({
         variantId: assertUuid(item.variantId, "variant ID"),
@@ -173,6 +180,12 @@ export const OrderService = {
         shippingFee: SHIPPING_FEE,
 
         customerNote: trimOrNull(customerNote),
+
+        // undefined is left as undefined rather than defaulted here, so
+        // that "the client did not say" reaches the INSERT and the
+        // column's own DEFAULT decides. Defaulting in two places is how
+        // the two eventually disagree.
+        whatsappOptIn,
       });
 
       // Re-read through the full shape so the response carries the

@@ -92,6 +92,13 @@ export const OrderMapper = {
 
       customerNote: row.customer_note ?? null,
 
+      // Carried on both DTOs, deliberately. For the shop it answers "why
+      // was nothing sent to this shopper", which the notification strip
+      // on the order page would otherwise have to guess at. For the
+      // shopper it is simply their own answer to a question they were
+      // asked at checkout, which is theirs to see.
+      whatsappOptIn: row.whatsapp_opt_in ?? null,
+
       timeline: {
         placedAt: row.placed_at,
         paidAt: row.paid_at ?? null,

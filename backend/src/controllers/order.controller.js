@@ -41,7 +41,7 @@ export const OrderController = {
    */
   place: asyncHandler(async (req, res) => {
     try {
-      const { contact, shippingAddress, items, customerNote } = req.body;
+      const { contact, shippingAddress, items, customerNote, whatsappOptIn } = req.body;
       const { customerId } = identify(req);
 
       logger.info("Place order endpoint called", {
@@ -55,6 +55,7 @@ export const OrderController = {
         shippingAddress,
         items,
         customerNote,
+        whatsappOptIn,
       });
 
       return createdResponse({

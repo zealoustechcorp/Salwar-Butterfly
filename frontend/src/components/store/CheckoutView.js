@@ -189,6 +189,10 @@ export function CheckoutView() {
     state: "Tamil Nadu",
     postalCode: "",
     customerNote: "",
+
+    // A boolean, so it is not in KNOWN_FIELDS and has no validator —
+    // there is no way for a checkbox to be filled in wrongly.
+    whatsappOptIn: true,
   });
 
   /**
@@ -245,6 +249,17 @@ export function CheckoutView() {
 
     return () => controller.abort();
   }, [token]);
+
+  /**
+   * The same thing as `set`, for an input whose answer is `checked`
+   * rather than `value`. Its own helper because reading `.value` off a
+   * checkbox yields the string "on" whether it is ticked or not, which
+   * is a bug that looks like it works.
+   */
+  const setChecked = (key) => (event) => {
+    const { checked } = event.target;
+    setValues((current) => ({ ...current, [key]: checked }));
+  };
 
   const set = (key) => (event) => {
     const { value } = event.target;
@@ -362,6 +377,7 @@ export function CheckoutView() {
           .filter((line) => line.variant_id)
           .map((line) => ({ variantId: line.variant_id, quantity: line.qty })),
         customerNote: values.customerNote.trim(),
+        whatsappOptIn: values.whatsappOptIn,
       },
       token,
     );
@@ -573,6 +589,32 @@ export function CheckoutView() {
                   className={FIELD_CLASS}
                 />
               </Field>
+
+              {/*
+                Beside the number it consents to, rather than down by the
+                note field where it would read as an afterthought.
+
+                Ticked by default: this is about updates on an order the
+                shopper is in the middle of placing, and the alternative
+                is that most people never hear that their parcel shipped.
+                It is not consent for anything else, and nothing in the
+                shop treats it as such.
+              */}
+              <label className="flex cursor-pointer items-start gap-2.5 text-sm text-sb-text sm:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={values.whatsappOptIn}
+                  onChange={setChecked("whatsappOptIn")}
+                  className="mt-0.5 size-4 shrink-0 rounded border-sb-gold/50 accent-sb-btn-primary"
+                />
+                <span>
+                  WhatsApp me updates about this order
+                  <span className="mt-0.5 block text-xs text-sb-text-muted">
+                    On the number above. Confirmed, packed, shipped, delivered —
+                    nothing else.
+                  </span>
+                </span>
+              </label>
 
               <Field
                 id="co-email"

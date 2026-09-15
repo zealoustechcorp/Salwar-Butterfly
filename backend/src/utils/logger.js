@@ -80,6 +80,54 @@ const consoleFormat = winston.format.combine(
 // SAFE JSON SERIALIZER
 // ============================================================
 
+/**
+ * Field names whose values never reach a log file.
+ *
+ * Stored lower-cased, and compared against a lower-cased key, so that
+ * `accessToken`, `accesstoken` and `ACCESS_TOKEN`-ish spellings are all
+ * caught by one entry. That symmetry is the whole point and it was
+ * missing until now: the comparison lower-cased the key but the list
+ * held camelCase, so `accessToken`, `refreshToken`, `currentPassword`,
+ * `newPassword`, `confirmPassword`, `clientSecret`, `apiKey`,
+ * `creditCard` and `cardNumber` matched nothing and were written out in
+ * full. Only the entries that happened to already be lower-case worked.
+ *
+ * Anything added here must therefore be lower-case, or it is a comment
+ * rather than a rule.
+ *
+ * A Set at module scope rather than an array rebuilt inside the
+ * replacer: the replacer runs once per key of every object ever logged,
+ * and it was allocating a sixteen-element array each time.
+ */
+const SENSITIVE_FIELDS = new Set([
+  "password",
+  "currentpassword",
+  "newpassword",
+  "confirmpassword",
+  "token",
+  "accesstoken",
+  "refreshtoken",
+  "authorization",
+  "cookie",
+  "secret",
+  "clientsecret",
+  "apikey",
+  "creditcard",
+  "cardnumber",
+  "cvv",
+  "otp",
+
+  // WhatsApp (F-WA). The access token is a permanent system-user
+  // credential that can send messages as the shop, and the app secret
+  // signs Meta's inbound webhooks — leaking either is leaking the
+  // channel itself.
+  "whatsapptoken",
+  "whatsappaccesstoken",
+  "appsecret",
+  "whatsappappsecret",
+  "verifytoken",
+]);
+
 const safeStringify = (value) => {
   try {
     const seen = new WeakSet();
@@ -89,26 +137,7 @@ const safeStringify = (value) => {
       // REMOVE SENSITIVE INFORMATION
       // --------------------------------------------------------
 
-      const sensitiveFields = [
-        "password",
-        "currentPassword",
-        "newPassword",
-        "confirmPassword",
-        "token",
-        "accessToken",
-        "refreshToken",
-        "authorization",
-        "cookie",
-        "secret",
-        "clientSecret",
-        "apiKey",
-        "creditCard",
-        "cardNumber",
-        "cvv",
-        "otp",
-      ];
-
-      if (sensitiveFields.includes(key.toLowerCase())) {
+      if (SENSITIVE_FIELDS.has(key.toLowerCase())) {
         return "[REDACTED]";
       }
 
