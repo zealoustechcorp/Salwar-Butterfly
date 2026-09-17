@@ -27,7 +27,16 @@
 // every template. `paramCount` is not used at runtime — it exists so a
 // mismatch fails at `npm test` instead of in production.
 
+import { createHmac } from "node:crypto";
+
 import { ORDER_STATUS } from "./order.policy.js";
+
+// Imported rather than written again. A constant-time comparison is the
+// kind of thing that must exist once in a codebase: a second copy is a
+// second chance to get it subtly wrong, and this one is already covered
+// by the reasoning in payment.policy.js about why `===` will not do on a
+// public webhook endpoint.
+import { safeCompare } from "./payment.policy.js";
 
 // ============================================================
 // EVENTS
@@ -146,6 +155,154 @@ export const RECEIPT_TRANSITIONS = Object.freeze({
     MESSAGE_STATUS.SENT,
   ]),
 });
+
+// ============================================================
+// INBOUND RECEIPTS
+// ============================================================
+//
+// The other direction. Everything above this line decides what leaves;
+// this decides how to read what Meta sends back.
+//
+// Meta POSTs a receipt every time one of our messages reaches a handset,
+// is opened, or is given up on. Without them every row in the outbox
+// stops at `sent`, which means "Meta accepted it" and not "she got it" —
+// and the difference between those two is the entire question the shop
+// asks when a customer says nobody told them.
+//
+// Nothing here talks to Meta or to the database: these are pure
+// functions over the bytes that arrived, which is what makes the whole
+// path testable without a webhook, a tunnel or a phone.
+
+/**
+ * The field on the subscription. Meta sends `statuses` and inbound
+ * `messages` under this one name, and every other field on a WhatsApp
+ * Business Account — template approvals, quality ratings, the phone
+ * number's own state — arrives as a different one and is ignored.
+ */
+export const RECEIPT_FIELD = "messages";
+
+/**
+ * Meta's word for where a message got to → ours.
+ *
+ * `sent` is deliberately null. Meta emits it the instant it accepts the
+ * message, which is a fact we already recorded ourselves from the POST's
+ * own response, and applying it would be a write that changes nothing.
+ *
+ * Anything not in this map is something Meta added after this was
+ * written. Ignored rather than guessed at.
+ */
+export const RECEIPT_STATUS_FOR_META = Object.freeze({
+  sent: null,
+  delivered: MESSAGE_STATUS.DELIVERED,
+  read: MESSAGE_STATUS.READ,
+  failed: MESSAGE_STATUS.FAILED,
+});
+
+/** null where a receipt should not move the row at all. */
+export const receiptStatusFor = (metaStatus) =>
+  RECEIPT_STATUS_FOR_META[String(metaStatus ?? "").toLowerCase()] ?? null;
+
+/**
+ * The signature on an inbound delivery.
+ *
+ * HMAC-SHA256 of the raw request body, keyed with the **app secret** —
+ * not the access token, though both are secrets on the same Meta app and
+ * confusing them produces a webhook that rejects every genuine delivery.
+ *
+ * Meta sends it as `X-Hub-Signature-256: sha256=<hex>`, and the prefix is
+ * part of the header value rather than decoration, so it is produced here
+ * and compared whole.
+ *
+ * Over the raw bytes, for the same reason the Razorpay webhook is: a
+ * re-serialised body reorders keys and digests differently.
+ */
+export const expectedReceiptSignature = ({ rawBody, appSecret }) =>
+  `sha256=${createHmac("sha256", appSecret).update(rawBody).digest("hex")}`;
+
+/**
+ * Whether a delivery really came from Meta.
+ *
+ * Constant-time, because this endpoint is public and unauthenticated and
+ * an attacker may call it as often as they like.
+ */
+export const receiptSignatureMatches = ({ rawBody, appSecret, signature }) =>
+  safeCompare(expectedReceiptSignature({ rawBody, appSecret }), String(signature ?? ""));
+
+/**
+ * Whether the verify token Meta echoes during the handshake is ours.
+ *
+ * The same constant-time comparison, for a much weaker credential: this
+ * string proves nothing after the handshake and is not a secret in any
+ * meaningful sense. It is compared this way because there is no reason to
+ * compare it any other way.
+ */
+export const verifyTokenMatches = (candidate, expected) =>
+  Boolean(expected) && safeCompare(String(expected), String(candidate ?? ""));
+
+/**
+ * Meta's timestamps are unix seconds, as a string.
+ *
+ * Returned as an ISO instant for Postgres, and null for anything
+ * unparseable — a receipt with a broken timestamp is still a receipt, and
+ * `applyReceipt` falls back to NOW() rather than refusing it.
+ */
+const receiptTimestamp = (value) => {
+  const seconds = Number(value);
+
+  if (!Number.isFinite(seconds) || seconds <= 0) return null;
+
+  return new Date(seconds * 1000).toISOString();
+};
+
+/**
+ * Pull the delivery receipts out of one webhook body.
+ *
+ * Meta's envelope is four levels deep and every level is an array:
+ *
+ *   { object, entry: [ { changes: [ { field, value: { statuses: [...] } } ] } ] }
+ *
+ * One POST can carry receipts for several messages, for several numbers,
+ * about several different things — so this walks the whole shape rather
+ * than reading entry[0].changes[0] and quietly losing the rest under
+ * load, which is exactly when a batch stops being one receipt.
+ *
+ * A failed receipt carries Meta's own error, and it is worth keeping: it
+ * is the difference between "not delivered" and "not a WhatsApp user".
+ *
+ * @returns {Array<{providerMessageId: string, status: string, at: string|null,
+ *                  errorCode: string|null, errorDetail: string|null}>}
+ */
+export const readReceipts = (body) => {
+  const receipts = [];
+
+  for (const entry of body?.entry ?? []) {
+    for (const change of entry?.changes ?? []) {
+      if (change?.field !== RECEIPT_FIELD) continue;
+
+      for (const status of change?.value?.statuses ?? []) {
+        const providerMessageId = status?.id;
+        const mapped = receiptStatusFor(status?.status);
+
+        // No wamid is nothing we could match a row by; an unmapped status
+        // is a receipt that should not move the row. Both are ordinary.
+        if (!providerMessageId || !mapped) continue;
+
+        const error = status?.errors?.[0] ?? null;
+
+        receipts.push({
+          providerMessageId: String(providerMessageId),
+          status: mapped,
+          at: receiptTimestamp(status?.timestamp),
+          errorCode: error?.code != null ? String(error.code) : null,
+          errorDetail:
+            error?.error_data?.details ?? error?.message ?? error?.title ?? null,
+        });
+      }
+    }
+  }
+
+  return receipts;
+};
 
 // ============================================================
 // PARAMETER SANITISING

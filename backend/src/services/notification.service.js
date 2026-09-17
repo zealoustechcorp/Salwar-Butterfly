@@ -45,9 +45,12 @@ import {
   SKIP_REASON,
   buildParams,
   orderContext,
+  readReceipts,
+  receiptSignatureMatches,
   templateFor,
 } from "../config/whatsapp.policy.js";
 import { NotificationRepository, dedupeKey } from "../repository/notification.repository.js";
+import { ApiError } from "../utils/ApiError.js";
 import { logger } from "../utils/logger.js";
 import { maskPhone, toE164 } from "../utils/phone.js";
 
@@ -406,6 +409,146 @@ export const NotificationService = {
 
       return retryable ? "retry" : "failed";
     }
+  },
+
+  // ==========================================================
+  // INBOUND RECEIPTS
+  // ==========================================================
+  //
+  // The third half of the feature, after emit and deliver: Meta telling
+  // us what became of a message we sent. Without it every row stops at
+  // `sent`, which means "Meta accepted it" and not "she read it".
+
+  /**
+   * The half of a delivery that must happen inside the request.
+   *
+   * Split from the application below on exactly the reasoning
+   * PaymentService.verifyWebhook gives: the endpoint is public and
+   * unauthenticated, so the HMAC is the only thing between a forged body
+   * and the outbox, and it is checked at the door before anything is
+   * parsed into a status change.
+   *
+   * Synchronous and cheap — one HMAC and a JSON.parse, nothing touching
+   * Postgres.
+   *
+   * @returns {object} the parsed webhook body
+   */
+  verifyReceiptDelivery({ rawBody, signature }) {
+    const appSecret = env.whatsapp.appSecret;
+
+    if (!appSecret) {
+      logger.error("WhatsApp receipt received but WHATSAPP_APP_SECRET is not set");
+
+      throw ApiError.serviceUnavailable(
+        "WhatsApp receipts are not configured.",
+        "WHATSAPP_WEBHOOK_NOT_CONFIGURED",
+      );
+    }
+
+    if (!Buffer.isBuffer(rawBody)) {
+      // app.js keeps this route's body unparsed. Its absence is a
+      // configuration mistake here, not a bad request from Meta, and
+      // saying so is the difference between fixing a mount and spending
+      // an afternoon on a signature that was never wrong.
+      logger.error("WhatsApp receipt reached the handler without a raw body");
+
+      throw ApiError.internal(
+        "Webhook body was parsed before it could be verified",
+        "WHATSAPP_RAW_BODY_MISSING",
+      );
+    }
+
+    if (!receiptSignatureMatches({ rawBody, appSecret, signature })) {
+      logger.warn("WhatsApp receipt signature rejected", {
+        bytes: rawBody.length,
+      });
+
+      // 400 rather than 401, as on the Razorpay webhook: there is no
+      // credential to re-present, and a forged body and a malformed one
+      // deserve the same answer.
+      throw ApiError.badRequest(
+        "Invalid webhook signature",
+        "WHATSAPP_SIGNATURE_INVALID",
+      );
+    }
+
+    try {
+      return JSON.parse(rawBody.toString("utf8"));
+    } catch {
+      throw ApiError.badRequest("Malformed webhook body", "WHATSAPP_BODY_INVALID");
+    }
+  },
+
+  /**
+   * Apply every receipt in one verified delivery.
+   *
+   * Never throws for anything about the *content* of the delivery, and
+   * that is deliberate. Meta retries a non-2xx and eventually disables a
+   * subscription that keeps failing, so a receipt for a wamid this system
+   * never sent — a message from another app on the same number, a row
+   * pruned since — has to be acknowledged rather than argued with.
+   *
+   * Ordering is handled a level down: receipts arrive out of order
+   * routinely, and RECEIPT_TRANSITIONS names the states each one may
+   * advance from so a late `delivered` cannot walk a `read` row
+   * backwards.
+   *
+   * @returns {Promise<{received: number, applied: number, unknown: number}>}
+   */
+  async applyReceipts(body) {
+    const receipts = readReceipts(body);
+
+    let applied = 0;
+    let unknown = 0;
+
+    for (const receipt of receipts) {
+      try {
+        const row = await NotificationRepository.applyReceipt(
+          receipt.providerMessageId,
+          receipt.status,
+          {
+            at: receipt.at,
+            errorCode: receipt.errorCode,
+            errorDetail: receipt.errorDetail,
+          },
+        );
+
+        if (!row) {
+          // Either a wamid we never sent, or a receipt that arrived
+          // after one that supersedes it. Neither is a problem, and
+          // neither is worth a log line per message.
+          unknown += 1;
+          continue;
+        }
+
+        applied += 1;
+
+        if (receipt.status === MESSAGE_STATUS.FAILED) {
+          // The one receipt worth saying out loud: Meta accepted the
+          // message and then could not deliver it, which is invisible
+          // everywhere else — the send itself succeeded.
+          logger.warn("WhatsApp message failed after sending", {
+            messageId: row.id,
+            orderId: row.order_id,
+            event: row.event,
+            to: maskPhone(row.to_phone),
+            code: receipt.errorCode,
+            detail: receipt.errorDetail,
+          });
+        }
+      } catch (error) {
+        // A database failure, not a bad receipt. Swallowed for the same
+        // reason as above — Meta must not be told to retry the whole
+        // batch because one row could not be written — but logged,
+        // because this one is ours.
+        logger.error("Could not apply a WhatsApp receipt", error, {
+          providerMessageId: receipt.providerMessageId,
+          status: receipt.status,
+        });
+      }
+    }
+
+    return { received: receipts.length, applied, unknown };
   },
 
   /** Every message about one order — for the admin order page. */

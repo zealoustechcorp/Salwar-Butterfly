@@ -65,14 +65,30 @@ app.use("/api", globalRateLimiter);
  * is done and leaves it alone; `req.body` stays the Buffer, and the
  * handler reads it as `req.rawBody`.
  */
-app.use(
-  "/api/payments/webhook",
+const keepRawBody = [
   express.raw({ type: "application/json", limit: "1mb" }),
   (req, res, next) => {
     req.rawBody = Buffer.isBuffer(req.body) ? req.body : null;
     next();
   },
-);
+];
+
+app.use("/api/payments/webhook", keepRawBody);
+
+/**
+ * Meta's delivery receipts, for the same reason and with a different
+ * secret (F-12).
+ *
+ * X-Hub-Signature-256 is an HMAC over the exact bytes Meta sent, keyed
+ * with the app secret. Unmounted routes still pass through here — the
+ * router itself is mounted only when receipts are configured — which
+ * costs nothing: express.raw on a path that 404s is one buffer that is
+ * never read.
+ *
+ * The handshake is a GET and carries no body, so it falls through this
+ * untouched.
+ */
+app.use("/api/whatsapp/webhook", keepRawBody);
 
 app.use(
   express.json({

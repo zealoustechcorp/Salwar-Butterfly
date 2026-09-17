@@ -316,11 +316,23 @@ export const NotificationRepository = {
 
     try {
       const { rows } = await query(
+        // Every $2 carries its cast, and it has to.
+        //
+        // Postgres deduces a parameter's type from the first place it is
+        // used and then requires every other use to agree. `SET status =
+        // $2` makes it varchar; the CASE arms below compare it against
+        // parameters it has deduced as text, and the mismatch is not a
+        // cast failure but a planner error — 42P08, "inconsistent types
+        // deduced for parameter $2" — raised before the statement runs.
+        //
+        // The failure mode that hides it: every receipt then throws,
+        // the caller swallows it so Meta is not told to retry, and every
+        // row sits at `sent` forever while the webhook answers 200.
         `UPDATE whatsapp_messages
-            SET status = $2,
-                delivered_at = CASE WHEN $2 IN ($4, $5)
+            SET status = $2::text,
+                delivered_at = CASE WHEN $2::text IN ($4::text, $5::text)
                   THEN COALESCE($3::timestamptz, NOW()) ELSE delivered_at END,
-                failed_at = CASE WHEN $2 = $6
+                failed_at = CASE WHEN $2::text = $6::text
                   THEN COALESCE($3::timestamptz, NOW()) ELSE failed_at END,
                 error_code = COALESCE($7, error_code),
                 error_detail = COALESCE($8, error_detail),

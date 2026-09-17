@@ -21,7 +21,9 @@ import reviewRoutes from './review.routes.js';
 import sizeChartRoutes from './size_chart.routes.js';
 import bannerRoutes from './banner.routes.js';
 import customerStoryRoutes from './customer_story.routes.js';
+import whatsappRoutes from './whatsapp.routes.js';
 
+import { env } from '../config/env.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
 import { requireAdmin } from '../middlewares/authorize.middleware.js';
 
@@ -89,6 +91,21 @@ router.use('/orders', orderRoutes);
 // signature rather than by token, and the webhook belongs to Razorpay.
 // See payment.routes.js.
 router.use('/payments', paymentRoutes);
+
+// Meta's delivery receipts (F-12). Unauthenticated, and verified by an
+// HMAC over the body exactly as Razorpay's webhook is.
+//
+// Mounted conditionally, which nothing else here is. The two inbound
+// credentials are optional — a deployment can send WhatsApp messages
+// without them — and without the app secret a receipt cannot be
+// verified, so the only thing this route could do is accept unverified
+// claims about the outbox from anybody who finds the URL. Absent is the
+// safer shape than present-and-refusing: a 404 says the feature is off,
+// where a 503 on every delivery is a subscription Meta eventually
+// disables. env.js warns at boot when a deployment lands here.
+if (env.whatsapp.receiptsEnabled) {
+  router.use('/whatsapp', whatsappRoutes);
+}
 
 // ============================================================
 // CUSTOMER ONLY
