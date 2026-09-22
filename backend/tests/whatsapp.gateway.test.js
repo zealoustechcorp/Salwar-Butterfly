@@ -21,14 +21,26 @@ import assert from "node:assert/strict";
 
 // env.js validates at import time and whatsapp.gateway.js pulls it in,
 // so the variables have to exist before the dynamic import below.
+//
+// `??=` for the credentials nothing here reads, and plain `=` for every
+// WhatsApp one, because `npm test` loads the real .env: a developer who
+// has actually configured WhatsApp would otherwise run this suite
+// against their own phone number id and watch it fail on assertions
+// about "/1234567890/messages". A test that only passes on an
+// unconfigured machine is not testing what it claims to.
 process.env.NODE_ENV = "test";
 process.env.DATABASE_URL ??= "postgres://user:pass@localhost:5432/test";
 process.env.JWT_SECRET ??= "test-secret-that-is-long-enough-32+";
 process.env.CLOUDINARY_CLOUD_NAME ??= "test";
 process.env.CLOUDINARY_API_KEY ??= "test";
 process.env.CLOUDINARY_API_SECRET ??= "test";
-process.env.WHATSAPP_ACCESS_TOKEN ??= "test-access-token";
-process.env.WHATSAPP_PHONE_NUMBER_ID ??= "1234567890";
+process.env.WHATSAPP_ACCESS_TOKEN = "test-access-token";
+process.env.WHATSAPP_PHONE_NUMBER_ID = "1234567890";
+
+// The redirect is tested in whatsapp.testmode.test.js and must be off
+// here: with it set, every assertion about `to` in this file would be
+// asserting the override instead of the routing.
+delete process.env.WHATSAPP_TEST_RECIPIENT;
 
 const { WhatsAppGateway, WHATSAPP_FAILURE, WhatsAppSendError, resetWhatsAppBreaker } =
   await import("../src/config/whatsapp.gateway.js");

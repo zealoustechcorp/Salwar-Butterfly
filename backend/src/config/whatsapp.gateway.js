@@ -38,7 +38,7 @@
 
 import { env } from "./env.js";
 import { logger } from "../utils/logger.js";
-import { maskPhone } from "../utils/phone.js";
+import { maskPhone, toE164 } from "../utils/phone.js";
 
 const GRAPH_BASE = "https://graph.facebook.com";
 
@@ -383,6 +383,40 @@ const classify = (httpStatus, payload) => {
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
+ * Where this message is actually going.
+ *
+ * Normally the number it was addressed to. With WHATSAPP_TEST_RECIPIENT
+ * set it is that number instead, whoever the message was for — see the
+ * TEST MODE note in env.js.
+ *
+ * Here, in buildPayload's caller, and nowhere else: this is the last
+ * line before the number becomes an HTTP body, so there is no code path
+ * that reaches Meta without passing through it. Doing it further up —
+ * in the planner, or in the service — would leave the gateway itself,
+ * the sweeper and any future caller able to address a real handset.
+ *
+ * Logged at `warn` on every single send, deliberately. This is the one
+ * piece of configuration in the project that makes the system lie about
+ * what it did: the outbox will say the shopper was messaged and the
+ * message went somewhere else. That belongs in the log every time, not
+ * once at boot.
+ */
+const destinationFor = (to) => {
+  const override = env.whatsapp.testRecipient;
+
+  if (!override) return to;
+
+  if (toE164(to) !== override) {
+    logger.warn("WhatsApp TEST MODE — message redirected", {
+      addressedTo: maskPhone(to),
+      sentTo: maskPhone(override),
+    });
+  }
+
+  return override;
+};
+
+/**
  * The Graph API body for one template message.
  *
  * Two details worth stating, because both are silent when wrong:
@@ -399,7 +433,7 @@ const buildPayload = ({ to, name, language, params }) => {
   const payload = {
     messaging_product: "whatsapp",
     recipient_type: "individual",
-    to: String(to).replace(/^\+/, ""),
+    to: String(destinationFor(to)).replace(/^\+/, ""),
     type: "template",
     template: {
       name,

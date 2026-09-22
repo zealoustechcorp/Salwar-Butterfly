@@ -11,7 +11,8 @@
     "db:check": "node --env-file=.env src/scripts/checkDb.js",
     "db:migrate": "node --env-file=.env src/scripts/migrate.js",
     "db:import-catalogue": "node --env-file=.env src/scripts/importCatalogue.js",
-    "admin:create": "node --env-file=.env src/scripts/createAdmin.js"
+    "admin:create": "node --env-file=.env src/scripts/createAdmin.js",
+    "wa:check": "node --env-file=.env src/scripts/whatsappCheck.js"
   },
   "dependencies": {
     "@sentry/node": "^10.74.0",
