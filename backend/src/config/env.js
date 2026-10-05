@@ -83,11 +83,22 @@ if (jwtSecret.length < 32) {
 // silently unsafe. Development and test warn and continue (see db.js) so the
 // API, the migrations and the tests still run without the cert on hand.
 
-const pgCaCertPath = process.env.PG_CA_CERT_PATH ?? null;
+// The PEM itself rather than a path to it, so the cert travels with the rest
+// of the config and no file has to ship alongside the code. Accepts either a
+// quoted multi-line value or a single line with literal \n escapes, which is
+// all some hosting dashboards allow.
+const pgCaCert = process.env.PG_CA_CERT?.replace(/\\n/g, "\n").trim() || null;
 
-if (nodeEnv === "production" && !pgCaCertPath) {
+if (pgCaCert && !pgCaCert.includes("-----BEGIN CERTIFICATE-----")) {
   throw new Error(
-    "PG_CA_CERT_PATH must be configured in production — the Postgres TLS " +
+    "PG_CA_CERT does not look like a PEM certificate — paste the whole file, " +
+      "-----BEGIN CERTIFICATE----- through -----END CERTIFICATE-----.",
+  );
+}
+
+if (nodeEnv === "production" && !pgCaCert) {
+  throw new Error(
+    "PG_CA_CERT must be configured in production — the Postgres TLS " +
       "certificate would otherwise go unverified. Download the CA from the " +
       "Aiven console (the PostgreSQL service → Overview → CA Certificate).",
   );
@@ -393,7 +404,7 @@ if (whatsappTestRecipientRaw && !whatsappTestRecipient) {
   );
 }
 
-// The same refusal as CORS_ORIGIN and PG_CA_CERT_PATH above, for the
+// The same refusal as CORS_ORIGIN and PG_CA_CERT above, for the
 // same reason. A redirect left in a production .env sends every
 // customer's order updates to one handset and tells nobody it did.
 if (whatsappTestRecipient && nodeEnv === "production") {
@@ -440,7 +451,7 @@ export const env = Object.freeze({
 
   databaseUrl: process.env.DATABASE_URL,
 
-  pgCaCertPath,
+  pgCaCert,
 
   // ==========================================================
   // CORS

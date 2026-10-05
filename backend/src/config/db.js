@@ -1,5 +1,3 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import pg from 'pg';
 import { env } from './env.js';
 
@@ -10,34 +8,16 @@ const AIVEN_CA_HINT =
 
 /**
  * TLS settings for the managed PostgreSQL service.
- * - With PG_CA_CERT_PATH set, the server certificate is fully verified against that CA.
+ * - With PG_CA_CERT set, the server certificate is fully verified against that CA.
  * - Without it, TLS is still used (sslmode=require) but the CA chain is not verified.
  *
  * Aiven signs each project's certificate with its own private CA rather than a
- * public root, so the CA file is what makes verification possible at all —
+ * public root, so the CA is what makes verification possible at all —
  * rejectUnauthorized: true on its own would reject the real server too.
  */
 function buildSslConfig() {
-  if (env.pgCaCertPath) {
-    let ca;
-
-    try {
-      ca = fs.readFileSync(env.pgCaCertPath, 'utf8');
-    } catch (err) {
-      // The path is resolved against the process cwd, not this file, so a
-      // backend started from the repo root misses a ./certs/ca.pem that is
-      // sitting exactly where the docs say to put it. Bare ENOENT does not
-      // hint at that; the resolved path does.
-      throw new Error(
-        `PG_CA_CERT_PATH is set but the certificate could not be read: ` +
-          `${path.resolve(env.pgCaCertPath)} (${err.code ?? err.message}). ` +
-          `Either place the CA there — ${AIVEN_CA_HINT} — or unset the ` +
-          `variable to run unverified outside production.`,
-        { cause: err },
-      );
-    }
-
-    return { rejectUnauthorized: true, ca };
+  if (env.pgCaCert) {
+    return { rejectUnauthorized: true, ca: env.pgCaCert };
   }
 
   // Encrypted, but unauthenticated: any certificate is accepted, so anyone who
@@ -46,9 +26,9 @@ function buildSslConfig() {
   // boot without the variable — which leaves this the developer's own machine,
   // where the only real danger is not knowing.
   console.warn(
-    '[db] PG_CA_CERT_PATH not set — the Postgres TLS certificate is NOT being ' +
-      `verified. To fix: ${AIVEN_CA_HINT}, save it as backend/certs/ca.pem, ` +
-      'and set PG_CA_CERT_PATH=./certs/ca.pem',
+    '[db] PG_CA_CERT not set — the Postgres TLS certificate is NOT being ' +
+      `verified. To fix: ${AIVEN_CA_HINT}, and paste its contents into ` +
+      'PG_CA_CERT in backend/.env',
   );
 
   return { rejectUnauthorized: false };
