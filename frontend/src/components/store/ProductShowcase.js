@@ -189,15 +189,27 @@ export function ProductShowcase({ products, categories, withSidebar = false }) {
  * back into view whenever the tab changes. That matters because the tab can
  * now change without anybody touching this strip — a swipe across the grid
  * below moves it — and a shopper who swipes twice should be able to see where
- * they have ended up. `nearest` rather than `center` so a click on a chip that
- * is already fully visible does not make the strip jump under the finger.
+ * they have ended up. Only the strip itself is scrolled, and only as far as
+ * needed: a click on a chip that is already fully visible does not make the
+ * strip jump under the finger. `scrollIntoView` is deliberately avoided — it
+ * scrolls the window too, and since this effect runs on mount it dragged the
+ * home page down to this section on first load.
  */
 function TabStrip({ tab, onChoose }) {
   const stripRef = useRef(null);
 
   useEffect(() => {
-    const chip = stripRef.current?.querySelector('[data-active="true"]');
-    chip?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+    const strip = stripRef.current;
+    const chip = strip?.querySelector('[data-active="true"]');
+    if (!chip) return;
+
+    const left = chip.offsetLeft - strip.offsetLeft;
+    const right = left + chip.offsetWidth;
+    if (left < strip.scrollLeft) {
+      strip.scrollTo({ left, behavior: "smooth" });
+    } else if (right > strip.scrollLeft + strip.clientWidth) {
+      strip.scrollTo({ left: right - strip.clientWidth, behavior: "smooth" });
+    }
   }, [tab]);
 
   return (
