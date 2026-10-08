@@ -67,8 +67,10 @@ import { Photo } from "./Photo";
 import { useStore } from "./StoreProvider";
 import { useStoreToast } from "./Toast";
 
+// 16px below `sm`: iOS Safari zooms the whole page in on focus for anything
+// smaller, and on a phone that leaves the form sideways-scrolled mid-entry.
 const FIELD_CLASS =
-  "h-11 w-full rounded-xl border border-sb-gold/45 bg-white/70 px-3.5 text-sm text-sb-text placeholder:text-sb-text-muted/60 focus:border-sb-link focus:bg-white focus:outline-none";
+  "h-11 w-full rounded-xl border border-sb-gold/45 bg-white/70 px-3.5 text-base text-sb-text sm:text-sm placeholder:text-sb-text-muted/60 focus:border-sb-link focus:bg-white focus:outline-none";
 
 /** Where the confirmation is handed off, so a refresh does not lose it. */
 export const LAST_ORDER_KEY = "sb.lastOrder";
@@ -496,8 +498,27 @@ export function CheckoutView() {
         </p>
       ) : null}
 
-      <form onSubmit={onSubmit} noValidate className="mt-7 grid gap-8 lg:grid-cols-[1.5fr_1fr] lg:gap-10">
-        <div>
+      {/* On a phone the summary sits below eleven fields. What is being paid
+          for should not be a scroll away, so it is named up here as well. */}
+      <a
+        href="#co-summary"
+        className="mt-5 flex items-center justify-between gap-3 rounded-xl border border-sb-gold/40 bg-sb-surface/25 px-4 py-3 text-sm lg:hidden"
+      >
+        <span className="flex min-w-0 items-center gap-2 text-sb-text">
+          <ShoppingBag className="size-4 shrink-0 text-sb-gold-text" aria-hidden="true" />
+          <span className="truncate">
+            {bagCount} {bagCount === 1 ? "piece" : "pieces"} ·{" "}
+            <span className="font-semibold underline underline-offset-4">View summary</span>
+          </span>
+        </span>
+        <span className="shrink-0 font-bold text-sb-heading tabular">{money(bagTotal)}</span>
+      </a>
+
+      <form onSubmit={onSubmit} noValidate className="mt-6 grid grid-cols-1 gap-8 sm:mt-7 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:gap-10">
+        {/* `grid-cols-1` and `min-w-0` are load-bearing: without them the
+            implicit column sizes to the min-content of the summary's
+            truncated product name (`nowrap`), and the form runs off a phone. */}
+        <div className="min-w-0">
           {unorderable.length ? (
             <div className="mb-6 flex gap-3 rounded-xl border border-sb-link/40 bg-sb-link/5 px-4 py-3.5">
               <AlertCircle className="mt-0.5 size-4 shrink-0 text-sb-link" aria-hidden="true" />
@@ -709,12 +730,12 @@ export function CheckoutView() {
               </div>
             ) : null}
 
-            <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-x-4">
               <Field
                 id="co-line1"
                 label="Address"
                 error={errorFor("line1")}
-                className="sm:col-span-2"
+                className="col-span-2"
               >
                 <input
                   id="co-line1"
@@ -726,7 +747,7 @@ export function CheckoutView() {
                 />
               </Field>
 
-              <Field id="co-line2" label="Area (optional)" error={errorFor("line2")}>
+              <Field id="co-line2" label="Area (optional)" error={errorFor("line2")} className="col-span-2 sm:col-span-1">
                 <input
                   id="co-line2"
                   value={values.line2}
@@ -737,7 +758,12 @@ export function CheckoutView() {
                 />
               </Field>
 
-              <Field id="co-landmark" label="Landmark (optional)" error={errorFor("landmark")}>
+              <Field
+                id="co-landmark"
+                label="Landmark (optional)"
+                error={errorFor("landmark")}
+                className="col-span-2 sm:col-span-1"
+              >
                 <input
                   id="co-landmark"
                   value={values.landmark}
@@ -771,7 +797,7 @@ export function CheckoutView() {
                 />
               </Field>
 
-              <Field id="co-state" label="State" error={errorFor("state")} className="sm:col-span-2">
+              <Field id="co-state" label="State" error={errorFor("state")} className="col-span-2">
                 <select
                   id="co-state"
                   value={values.state}
@@ -791,7 +817,7 @@ export function CheckoutView() {
                 id="co-note"
                 label="Anything the shop should know? (optional)"
                 error={errorFor("customerNote")}
-                className="sm:col-span-2"
+                className="col-span-2"
               >
                 <textarea
                   id="co-note"
@@ -800,7 +826,7 @@ export function CheckoutView() {
                   rows={2}
                   maxLength={1000}
                   placeholder="Please deliver after 6pm"
-                  className="w-full rounded-xl border border-sb-gold/45 bg-white/70 px-3.5 py-2.5 text-sm text-sb-text placeholder:text-sb-text-muted/60 focus:border-sb-link focus:bg-white focus:outline-none"
+                  className="w-full rounded-xl border border-sb-gold/45 bg-white/70 px-3.5 py-2.5 text-base text-sb-text sm:text-sm placeholder:text-sb-text-muted/60 focus:border-sb-link focus:bg-white focus:outline-none"
                 />
               </Field>
             </div>
@@ -853,8 +879,8 @@ export function CheckoutView() {
 
         {/* ---------- SUMMARY ---------- */}
 
-        <aside className="lg:sticky lg:top-44 lg:self-start wide:top-28">
-          <div className="rounded-2xl border border-sb-gold/35 bg-sb-bg p-5 sm:p-6">
+        <aside id="co-summary" className="min-w-0 scroll-mt-32 lg:sticky lg:top-44 lg:self-start wide:top-28">
+          <div className="rounded-2xl border border-sb-gold/35 bg-sb-bg p-4 sm:p-6">
             <p className="sb-eyebrow text-[10px] text-sb-gold-text">
               {bagCount} {bagCount === 1 ? "piece" : "pieces"}
             </p>
@@ -873,7 +899,7 @@ export function CheckoutView() {
                   </div>
                   <div className="flex min-w-0 flex-1 items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-sb-heading">
+                      <p className="line-clamp-2 text-sm font-semibold leading-snug text-sb-heading">
                         {line.name}
                       </p>
                       <p className="mt-0.5 text-xs text-sb-text-muted">
@@ -893,9 +919,9 @@ export function CheckoutView() {
                 <dt className="text-sb-text-muted">Subtotal</dt>
                 <dd className="font-semibold text-sb-text tabular">{money(bagTotal)}</dd>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between gap-3">
                 <dt className="text-sb-text-muted">Shipping</dt>
-                <dd className="font-semibold text-sb-text">Free all over India</dd>
+                <dd className="text-right font-semibold text-sb-text">Free all over India</dd>
               </div>
               <div className="flex justify-between border-t border-sb-gold/30 pt-2">
                 <dt className="font-display text-lg font-semibold text-sb-heading">Total</dt>

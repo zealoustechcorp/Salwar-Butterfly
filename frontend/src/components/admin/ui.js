@@ -155,7 +155,7 @@ export function Field({ label, hint, error, required, children, className }) {
 }
 
 const CONTROL =
-  "block w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-ink-900 ring-1 ring-inset ring-ink-300 " +
+  "block w-full rounded-lg border-0 bg-white px-3 py-2 text-base text-ink-900 sm:text-sm ring-1 ring-inset ring-ink-300 " +
   "placeholder:text-ink-400 focus:ring-2 focus:ring-inset focus:ring-brand-600 disabled:bg-ink-50 disabled:text-ink-400";
 
 export function Input({ className, invalid, ...props }) {

@@ -82,10 +82,10 @@ export function ProductDetail({ product, shop }) {
   const notice = product.in_stock ? availabilityNotice(product.stock) : null;
 
   return (
-    <div className="mx-auto grid max-w-7xl gap-8 px-4 py-6 sm:px-6 sm:py-8 lg:grid-cols-2 lg:gap-12 lg:px-8 lg:py-10">
+    <div className="mx-auto grid max-w-7xl gap-8 px-4 py-6 sm:px-6 sm:py-8 md:grid-cols-2 md:gap-8 lg:gap-12 lg:px-8 lg:py-10">
       <Gallery product={product} shots={shots} />
 
-      <div className="lg:py-2">
+      <div className="min-w-0 lg:py-2">
         <Link
           href={`/shop?category=${product.category_id}`}
           className="sb-eyebrow text-[10px] text-sb-gold-text underline-offset-4 hover:underline"
@@ -93,7 +93,7 @@ export function ProductDetail({ product, shop }) {
           {product.category_name}
         </Link>
 
-        <h1 className="mt-2 font-display text-3xl leading-tight font-semibold text-sb-heading sm:text-4xl lg:text-5xl">
+        <h1 className="mt-2 font-display text-3xl leading-tight font-semibold text-sb-heading sm:text-4xl md:text-3xl lg:text-5xl">
           {product.name}
         </h1>
 
@@ -374,7 +374,7 @@ function Gallery({ product, shots }) {
   const active = Math.min(index, Math.max(0, count - 1));
 
   return (
-    <div className="lg:sticky lg:top-28 lg:self-start" {...hold}>
+    <div className="min-w-0 md:sticky md:top-44 md:self-start wide:top-28" {...hold}>
       <div
         {...swipe}
         className="group relative aspect-3/4 w-full touch-pan-y overflow-hidden rounded-2xl border border-sb-gold/30 bg-sb-surface/40"
@@ -396,7 +396,7 @@ function Gallery({ product, shots }) {
                 categoryName={product.category_name}
                 seed={product.id}
                 priority={i === 0}
-                sizes="(min-width: 1024px) 45vw, 100vw"
+                sizes="(min-width: 768px) 45vw, 100vw"
                 className="object-cover"
               />
             </div>

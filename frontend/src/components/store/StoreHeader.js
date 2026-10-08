@@ -220,12 +220,12 @@ function SearchField({ className, autoFocus = false, onSubmit }) {
         // screen reader is never read a moving target.
         placeholder=""
         aria-label="Search the catalogue"
-        className="h-10 w-full rounded-full border border-sb-gold/40 bg-white/70 pr-4 pl-9 text-sm text-sb-text focus:border-sb-link focus:bg-white focus:outline-none"
+        className="h-10 w-full rounded-full border border-sb-gold/40 bg-white/70 pr-4 pl-9 text-base text-sb-text sm:text-sm focus:border-sb-link focus:bg-white focus:outline-none"
       />
       {query ? null : (
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 right-4 left-9 flex items-center gap-1.5 overflow-hidden text-sm whitespace-nowrap text-sb-text-muted/60"
+          className="pointer-events-none absolute inset-y-0 right-4 left-9 flex items-center gap-1.5 overflow-hidden text-base whitespace-nowrap text-sb-text-muted/60 sm:text-sm"
         >
           Search for
           {/* Keyed on the term so the swap replays `sb-enter`, which globals.css

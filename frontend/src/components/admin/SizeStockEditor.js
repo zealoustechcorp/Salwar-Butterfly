@@ -321,76 +321,78 @@ function ColourwayTable({
         ) : null}
       </div>
 
-      <table className="w-full border-collapse text-sm">
-        <thead>
-          <tr className="border-b border-ink-200 text-left text-[11px] font-semibold tracking-wide text-ink-500 uppercase">
-            <th className="px-3 py-2">Size</th>
-            <th className="px-3 py-2 text-right">Stock</th>
-            <th className="px-3 py-2">Status</th>
-            <th className="px-3 py-2">On sale</th>
-            <th className="w-10 px-3 py-2" />
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-ink-100">
-          {rows.map((row) => {
-            const key = variantKey(row);
-            const stock = Number(row.stockQuantity) || 0;
-            // What the control is called out loud. "Stock for M" is
-            // ambiguous the moment a product has two colourways.
-            const label = colour ? `${colour} ${row.size}` : row.size;
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[30rem] border-collapse text-sm">
+          <thead>
+            <tr className="border-b border-ink-200 text-left text-[11px] font-semibold tracking-wide text-ink-500 uppercase">
+              <th className="px-3 py-2">Size</th>
+              <th className="px-3 py-2 text-right">Stock</th>
+              <th className="px-3 py-2">Status</th>
+              <th className="px-3 py-2">On sale</th>
+              <th className="w-10 px-3 py-2" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-ink-100">
+            {rows.map((row) => {
+              const key = variantKey(row);
+              const stock = Number(row.stockQuantity) || 0;
+              // What the control is called out loud. "Stock for M" is
+              // ambiguous the moment a product has two colourways.
+              const label = colour ? `${colour} ${row.size}` : row.size;
 
-            // `min={0}` is a browser hint and nothing more: this grid does
-            // not submit a form, so constraint validation never runs and a
-            // typed -5 or 2.5 goes to the API as-is. Marked as it is typed;
-            // the save refuses it and names the row.
-            const problem = validateStock(row.stockQuantity, "Stock");
+              // `min={0}` is a browser hint and nothing more: this grid does
+              // not submit a form, so constraint validation never runs and a
+              // typed -5 or 2.5 goes to the API as-is. Marked as it is typed;
+              // the save refuses it and names the row.
+              const problem = validateStock(row.stockQuantity, "Stock");
 
-            return (
-              <tr key={key} className={cx(!row.active && "bg-ink-50/60")}>
-                <td className="px-3 py-2 font-semibold text-ink-800">{row.size}</td>
-                <td className="px-3 py-2 text-right">
-                  <Input
-                    type="number"
-                    min={0}
-                    step={1}
-                    disabled={disabled}
-                    value={row.stockQuantity}
-                    invalid={Boolean(problem)}
-                    aria-invalid={Boolean(problem) || undefined}
-                    title={problem ?? undefined}
-                    onChange={(e) => onPatchRow(key, { stockQuantity: e.target.value })}
-                    className="tabular h-8 w-24 px-2 py-0 text-right"
-                    aria-label={`Stock for ${label}`}
-                  />
-                </td>
-                <td className="px-3 py-2">
-                  <StockBadge active={row.active} stock={stock} />
-                </td>
-                <td className="px-3 py-2">
-                  <Toggle
-                    checked={row.active}
-                    disabled={disabled}
-                    onChange={(value) => onPatchRow(key, { active: value })}
-                    label={`Sell ${label}`}
-                    size="sm"
-                  />
-                </td>
-                <td className="px-3 py-2 text-right">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={disabled}
-                    aria-label={`Remove ${label}`}
-                    onClick={() => onRemoveRow(key)}
-                  >
-                    <Trash2 className="size-3.5 text-ink-400" aria-hidden="true" />
-                  </Button>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+              return (
+                <tr key={key} className={cx(!row.active && "bg-ink-50/60")}>
+                  <td className="px-3 py-2 font-semibold text-ink-800">{row.size}</td>
+                  <td className="px-3 py-2 text-right">
+                    <Input
+                      type="number"
+                      min={0}
+                      step={1}
+                      disabled={disabled}
+                      value={row.stockQuantity}
+                      invalid={Boolean(problem)}
+                      aria-invalid={Boolean(problem) || undefined}
+                      title={problem ?? undefined}
+                      onChange={(e) => onPatchRow(key, { stockQuantity: e.target.value })}
+                      className="tabular h-8 w-24 px-2 py-0 text-right"
+                      aria-label={`Stock for ${label}`}
+                    />
+                  </td>
+                  <td className="px-3 py-2">
+                    <StockBadge active={row.active} stock={stock} />
+                  </td>
+                  <td className="px-3 py-2">
+                    <Toggle
+                      checked={row.active}
+                      disabled={disabled}
+                      onChange={(value) => onPatchRow(key, { active: value })}
+                      label={`Sell ${label}`}
+                      size="sm"
+                    />
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={disabled}
+                      aria-label={`Remove ${label}`}
+                      onClick={() => onRemoveRow(key)}
+                    >
+                      <Trash2 className="size-3.5 text-ink-400" aria-hidden="true" />
+                    </Button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

@@ -32,8 +32,9 @@ import { cn } from "@/lib/utils";
 import { OrderCard } from "./OrderSummary";
 import { useStoreToast } from "./Toast";
 
+// 16px below `sm`: iOS Safari zooms the page in on focus for anything smaller.
 const FIELD_CLASS =
-  "h-11 w-full rounded-xl border border-sb-gold/45 bg-white/70 px-3.5 text-sm text-sb-text placeholder:text-sb-text-muted/60 focus:border-sb-link focus:bg-white focus:outline-none";
+  "h-11 w-full rounded-xl border border-sb-gold/45 bg-white/70 px-3.5 text-base text-sb-text sm:text-sm placeholder:text-sb-text-muted/60 focus:border-sb-link focus:bg-white focus:outline-none";
 
 export function TrackOrder() {
   const toast = useStoreToast();

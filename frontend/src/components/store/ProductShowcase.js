@@ -107,7 +107,7 @@ export function ProductShowcase({ products, categories, withSidebar = false }) {
             }}
             placeholder="Search name, fabric, fit, colour, size…"
             aria-label="Search this collection"
-            className="h-11 w-full rounded-full border border-sb-gold/40 bg-white/70 pr-4 pl-9 text-sm text-sb-text placeholder:text-sb-text-muted/60 focus:border-sb-link focus:bg-white focus:outline-none"
+            className="h-11 w-full rounded-full border border-sb-gold/40 bg-white/70 pr-4 pl-9 text-base text-sb-text sm:text-sm placeholder:text-sb-text-muted/60 focus:border-sb-link focus:bg-white focus:outline-none"
           />
         </div>
       </div>
