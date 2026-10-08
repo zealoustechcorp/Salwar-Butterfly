@@ -1,53 +1,52 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
-import { assessDeletion, deleteEntities, setActive } from "@/lib/api/products";
-import { Badge, Button, Modal, useToast } from "./ui";
+import { deleteProducts, setActive } from "@/lib/api/products";
+import { Button, Modal, useToast } from "./ui";
 
 /**
- * F-03.11 — "Unique multi-select delete/deactivate of products or product
- * variants, subject to business rules."
+ * Multi-select delete or deactivate, subject to the database's rules.
  *
- * The business rule made explicit: rows referenced by an order are protected by
- * ON DELETE RESTRICT, because orders are immutable financial records. Those rows
- * can only be deactivated. The dialog splits the selection before anything is
- * written, so the admin sees exactly what will happen to each row.
+ * The rule that matters: anything an order line points at is protected
+ * by a foreign key, because orders are immutable financial records. The
+ * API is the only thing that knows whether a given row is referenced, so
+ * the delete is attempted and whatever it refuses comes back listed with
+ * its reason — those rows can still be deactivated, which is what
+ * retiring a sold product actually means.
  */
-export function DeleteDialog({ open, onClose, targets, onDone }) {
+export function DeleteDialog({ open, onClose, products, onDone }) {
+  if (!open) return null;
+  return <DeleteConfirm onClose={onClose} products={products} onDone={onDone} />;
+}
+
+function DeleteConfirm({ onClose, products = [], onDone }) {
   const [busy, setBusy] = useState(false);
+  const [blocked, setBlocked] = useState([]);
   const toast = useToast();
-
-  const { products = [], variants = [] } = targets || {};
-
-  const assessment = useMemo(() => {
-    if (!open) return { deletable: { products: [], variants: [] }, blocked: [] };
-    return assessDeletion({
-      productIds: products.map((p) => p.id),
-      variantIds: variants.map((v) => v.id),
-    });
-  }, [open, products, variants]);
-
-  const deletableCount =
-    assessment.deletable.products.length + assessment.deletable.variants.length;
-  const blockedCount = assessment.blocked.length;
 
   async function runDelete() {
     setBusy(true);
     try {
-      const result = await deleteEntities({
-        productIds: products.map((p) => p.id),
-        variantIds: variants.map((v) => v.id),
-      });
-      const removed = result.deleted_products + result.deleted_variants;
-      if (removed)
+      const result = await deleteProducts(products);
+
+      if (result.deleted) {
         toast.success(
-          `Deleted ${result.deleted_products} product${result.deleted_products === 1 ? "" : "s"} and ${result.deleted_variants} variant${result.deleted_variants === 1 ? "" : "s"}.`,
-          result.blocked.length ? `${result.blocked.length} row(s) were protected and left untouched.` : undefined,
+          `Deleted ${result.deleted} product${result.deleted === 1 ? "" : "s"}.`,
+          result.blocked.length
+            ? `${result.blocked.length} could not be deleted and were left untouched.`
+            : undefined,
         );
-      else toast.error("Nothing was deleted — every selected row is referenced by an order.");
-      onDone?.();
-      onClose();
+      } else {
+        toast.error("Nothing was deleted.");
+      }
+
+      // Anything the API refused stays on screen with its reason, so the
+      // admin can deactivate instead without re-selecting.
+      if (result.blocked.length) setBlocked(result.blocked);
+      else onClose();
+
+      await onDone?.(result);
     } catch (err) {
       toast.error(err.message || "Delete failed.");
     } finally {
@@ -59,12 +58,11 @@ export function DeleteDialog({ open, onClose, targets, onDone }) {
     setBusy(true);
     try {
       const result = await setActive({
-        productIds: products.map((p) => p.id),
-        variantIds: variants.map((v) => v.id),
+        productIds: products.map((product) => product.id),
         active: false,
       });
       toast.success(result.message);
-      onDone?.();
+      await onDone?.();
       onClose();
     } catch (err) {
       toast.error(err.message || "Deactivation failed.");
@@ -75,65 +73,61 @@ export function DeleteDialog({ open, onClose, targets, onDone }) {
 
   return (
     <Modal
-      open={open}
+      open
       onClose={onClose}
-      requirement="F-03.11"
       title="Delete or deactivate"
-      description={`${products.length} product${products.length === 1 ? "" : "s"} and ${variants.length} variant${variants.length === 1 ? "" : "s"} selected.`}
+      description={`${products.length} product${products.length === 1 ? "" : "s"} selected.`}
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={busy}>
             Cancel
           </Button>
           <Button variant="secondary" busy={busy} onClick={runDeactivate}>
-            Deactivate all
+            Deactivate instead
           </Button>
-          <Button variant="danger" busy={busy} disabled={!deletableCount} onClick={runDelete}>
-            {deletableCount ? `Delete ${deletableCount} unsold` : "Nothing deletable"}
+          <Button variant="danger" busy={busy} onClick={runDelete}>
+            Delete {products.length}
           </Button>
         </>
       }
     >
       <div className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-lg bg-red-50 p-3 ring-1 ring-inset ring-red-200">
-            <p className="text-[11px] font-semibold tracking-wide text-red-700 uppercase">
-              Safe to delete
-            </p>
-            <p className="tabular mt-1 text-2xl font-semibold text-red-800">{deletableCount}</p>
-            <p className="mt-0.5 text-xs text-red-700/80">Never appeared on an order.</p>
-          </div>
-          <div className="rounded-lg bg-amber-50 p-3 ring-1 ring-inset ring-amber-200">
-            <p className="text-[11px] font-semibold tracking-wide text-amber-800 uppercase">
-              Protected
-            </p>
-            <p className="tabular mt-1 text-2xl font-semibold text-amber-900">{blockedCount}</p>
-            <p className="mt-0.5 text-xs text-amber-800/80">Deactivate keeps order history intact.</p>
-          </div>
+        <div className="max-h-48 overflow-y-auto rounded-lg ring-1 ring-ink-200">
+          <ul className="divide-y divide-ink-100">
+            {products.map((product) => (
+              <li key={product.id} className="flex items-center gap-3 px-3 py-2">
+                <span className="min-w-0 flex-1 truncate text-xs font-medium text-ink-800">
+                  {product.name}
+                </span>
+                <span className="shrink-0 font-mono text-[11px] text-ink-400">/{product.slug}</span>
+              </li>
+            ))}
+          </ul>
         </div>
 
-        {blockedCount ? (
-          <div className="overflow-hidden rounded-lg ring-1 ring-ink-200">
-            <div className="max-h-56 overflow-y-auto divide-y divide-ink-100">
-              {assessment.blocked.map((row) => (
-                <div key={`${row.kind}-${row.id}`} className="flex items-start gap-3 px-3 py-2">
-                  <Badge tone={row.kind === "product" ? "brand" : "slate"} className="mt-0.5 shrink-0">
-                    {row.kind}
-                  </Badge>
-                  <div className="min-w-0">
-                    <p className="truncate text-xs font-medium text-ink-800">{row.label}</p>
-                    <p className="text-[11px] text-ink-500">{row.reason}</p>
-                  </div>
-                </div>
+        {blocked.length ? (
+          <div className="rounded-lg bg-amber-50 p-3 ring-1 ring-inset ring-amber-200">
+            <p className="text-[11px] font-semibold tracking-wide text-amber-800 uppercase">
+              {blocked.length} could not be deleted
+            </p>
+            <ul className="mt-1.5 space-y-1">
+              {blocked.map((row) => (
+                <li key={row.id} className="text-xs text-amber-900">
+                  <strong className="font-medium">{row.label}</strong> — {row.reason}
+                </li>
               ))}
-            </div>
+            </ul>
+            <p className="mt-2 text-[11px] text-amber-800/80">
+              Deactivate them instead — that retires them from the storefront and keeps any order
+              history intact.
+            </p>
           </div>
-        ) : null}
-
-        <p className="text-[11px] text-ink-500">
-          Deleting a product cascades to its variants and images. Deleting is permanent and is not
-          offered for anything an order depends on.
-        </p>
+        ) : (
+          <p className="text-[11px] text-ink-500">
+            Deleting is permanent. A product referenced by an order line is protected by the
+            database and will be reported back here rather than removed.
+          </p>
+        )}
       </div>
     </Modal>
   );

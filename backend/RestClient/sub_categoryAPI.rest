@@ -1,0 +1,135 @@
+@baseUrl = http://localhost:4000/api
+
+### CREATE SUB-CATEGORY
+POST {{baseUrl}}/subCategories/createSubCategory
+Content-Type: application/json
+
+{
+  "name": "Cotton Shirts",
+  "categoryId": "66cc113e-f19e-42df-bbff-777c21f7743a",
+  "isActive": true
+}
+
+### CREATE SUB-CATEGORY - Example 2
+POST {{baseUrl}}/subCategories/createSubCategory
+Content-Type: application/json
+
+{
+  "name": "Formal Shirts",
+  "categoryId": 1,
+  "isActive": true
+}
+
+### GET ALL SUB-CATEGORIES
+GET {{baseUrl}}/subCategories/getAllSubCategories?limit=20&page=0
+
+### GET SUB-CATEGORY BY ID
+GET {{baseUrl}}/subCategories/getSubCategoryById/d9b1686a-ca9e-4f85-ab50-c719406f2a9f
+
+### GET SUB-CATEGORIES BY CATEGORY ID
+GET {{baseUrl}}/subCategories/getSubCategoriesByCategory/1?limit=20&page=0
+
+### UPDATE SUB-CATEGORY
+PUT {{baseUrl}}/subCategories/updateSubCategory/d9b1686a-ca9e-4f85-ab50-c719406f2a9f
+Content-Type: application/json
+
+{
+  "name": "Premium Cotton Shirts",
+  "isActive": true
+}
+
+### UPDATE SUB-CATEGORY - Change Category
+PUT {{baseUrl}}/subCategories/updateSubCategory/1
+Content-Type: application/json
+
+{
+  "categoryId": 2,
+  "isActive": true
+}
+
+### DELETE SUB-CATEGORY
+DELETE {{baseUrl}}/subCategories/deleteSubCategory/1
+
+### BULK CREATE EXAMPLES
+
+### Create Multiple Sub-Categories
+POST {{baseUrl}}/subCategories/createSubCategory
+Content-Type: application/json
+
+{
+  "name": "Regular Fit",
+  "categoryId": 1,
+  "isActive": true
+}
+
+###
+POST {{baseUrl}}/subCategories/createSubCategory
+Content-Type: application/json
+
+{
+  "name": "Slim Fit",
+  "categoryId": 1,
+  "isActive": true
+}
+
+###
+POST {{baseUrl}}/subCategories/createSubCategory
+Content-Type: application/json
+
+{
+  "name": "Casual Wear",
+  "categoryId": 2,
+  "isActive": true
+}
+
+###
+POST {{baseUrl}}/subCategories/createSubCategory
+Content-Type: application/json
+
+{
+  "name": "Formal Wear",
+  "categoryId": 2,
+  "isActive": true
+}
+
+### PAGINATION EXAMPLES
+
+### Get First Page (20 results)
+GET {{baseUrl}}/subCategories/getAllSubCategories?limit=20&page=0
+
+### Get Second Page
+GET {{baseUrl}}/subCategories/getAllSubCategories?limit=20&page=1
+
+### Get With Custom Limit
+GET {{baseUrl}}/subCategories/getAllSubCategories?limit=10&page=0
+
+### Get Category Sub-Categories with Pagination
+GET {{baseUrl}}/subCategories/getSubCategoriesByCategory/1?limit=10&page=0
+
+### INACTIVE SUB-CATEGORIES
+
+### Create Inactive Sub-Category
+POST {{baseUrl}}/subCategories/createSubCategory
+Content-Type: application/json
+
+{
+  "name": "Discontinued",
+  "categoryId": 1,
+  "isActive": false
+}
+
+### Deactivate Sub-Category
+PUT {{baseUrl}}/subCategories/updateSubCategory/1
+Content-Type: application/json
+
+{
+  "isActive": false
+}
+
+### Reactivate Sub-Category
+PUT {{baseUrl}}/subCategories/updateSubCategory/1
+Content-Type: application/json
+
+{
+  "isActive": true
+}

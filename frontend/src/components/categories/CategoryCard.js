@@ -2,20 +2,17 @@
 
 /**
  * @file CategoryCard.js
- * @description Category Display Card Component (F-02 Catalogue module).
+ * @description Category Display Card Component.
  * Renders an individual category card in the admin category grid, featuring:
  * - Category banner image with hover zoom effect.
  * - Floating active/inactive status toggle and badge.
- * - Garment fit badges (Slim Fit, Normal Fit, Special Dress).
  * - Name, SEO slug, and description text.
- * - Mini metrics summary (Product count, aggregated inventory stock, size charts count).
+ * - Mini metrics summary (linked product count).
  * - "View" (detail) and "Edit" action buttons.
  */
 
 import { Eye, Layers, Pencil } from "lucide-react";
-import Image from "next/image";
-import { Badge, Button } from "@/components/admin/ui";
-import { ALL_PRODUCTS } from "../../lib/categories/data";
+import { Button } from "@/components/admin/ui";
 import Toggle from "./Toggle";
 import CategoryBadge from "./Badge";
 
@@ -23,21 +20,15 @@ import CategoryBadge from "./Badge";
  * CategoryCard Component
  *
  * @param {Object} props - Component properties
- * @param {Object} props.cat - Category object containing details (id, name, slug, description, image, active, productIds, sizeCharts)
+ * @param {Object} props.cat - Category object containing details (id, name, slug, description, image, active, productIds)
  * @param {Function} props.onEdit - Callback function invoked to navigate to category edit screen
  * @param {Function} props.onDetail - Callback function invoked to navigate to category detail screen
  * @param {Function} props.onToggle - Callback function invoked when the active/inactive toggle is flipped
  * @returns {JSX.Element} The rendered category card component
  */
 export default function CategoryCard({ cat, onEdit, onDetail, onToggle }) {
-  /**
-   * Calculates total inventory units on hand for this specific category
-   * by summing stock quantities of all products whose IDs are listed in `cat.productIds`.
-   */
-  const totalStock = ALL_PRODUCTS.filter((p) => cat.productIds.includes(p.id)).reduce(
-    (s, p) => s + p.stock,
-    0
-  );
+  /** Derived on the provider from `products.category_id`. */
+  const productCount = cat.productIds?.length ?? 0;
 
   return (
     <div className="group relative flex flex-col rounded-xl bg-white ring-1 ring-ink-200/80 shadow-xs hover:ring-brand-300 hover:shadow-md transition-all duration-150 overflow-hidden">
@@ -45,7 +36,7 @@ export default function CategoryCard({ cat, onEdit, onDetail, onToggle }) {
         ========================================================================
         IMAGE HEADER SECTION
         Displays category banner graphic or fallback icon, overlaid with
-        the active toggle (top-right) and fit variant chips (bottom-left).
+        the active toggle (top-right).
         ========================================================================
       */}
       <div className="relative h-44 w-full overflow-hidden bg-ink-100">
@@ -72,21 +63,6 @@ export default function CategoryCard({ cat, onEdit, onDetail, onToggle }) {
         <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 rounded-full bg-white/95 px-2.5 py-1 shadow-sm backdrop-blur-xs ring-1 ring-black/5">
           <Toggle checked={cat.active} onChange={() => onToggle(cat.id)} size="sm" />
           <CategoryBadge active={cat.active} />
-        </div>
-
-        {/* 
-          Bottom Floating Fit Variant Badges:
-          Displays which size charts (e.g. Slim Fit, Normal Fit, Special) are configured.
-        */}
-        <div className="absolute bottom-2.5 left-2.5 flex flex-wrap gap-1">
-          {cat.sizeCharts.map((sc) => (
-            <span
-              key={sc.fit}
-              className="rounded bg-white/90 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-brand-800 shadow-xs backdrop-blur-xs ring-1 ring-brand-200/50"
-            >
-              {sc.fit === "Slim Fit" ? "Slim Fit" : sc.fit === "Normal Fit" ? "Normal Fit" : "Special"}
-            </span>
-          ))}
         </div>
       </div>
 
@@ -115,23 +91,10 @@ export default function CategoryCard({ cat, onEdit, onDetail, onToggle }) {
           {cat.description || "No description provided."}
         </p>
 
-        {/* 
-          Mini Metrics Grid:
-          Shows Linked Products count, Total Available Stock, and Active Size Charts count.
-        */}
-        <div className="mt-3 grid grid-cols-3 gap-1.5 rounded-lg bg-ink-50/70 p-2 ring-1 ring-ink-200/60 text-center">
-          <div>
-            <p className="font-mono text-xs font-semibold text-ink-900">{cat.productIds.length}</p>
-            <p className="text-[10px] text-ink-500">Products</p>
-          </div>
-          <div className="border-x border-ink-200/60">
-            <p className="font-mono text-xs font-semibold text-ink-900">{totalStock}</p>
-            <p className="text-[10px] text-ink-500">Stock</p>
-          </div>
-          <div>
-            <p className="font-mono text-xs font-semibold text-ink-900">{cat.sizeCharts.length}</p>
-            <p className="text-[10px] text-ink-500">Charts</p>
-          </div>
+        {/* Mini Metrics: linked product count. */}
+        <div className="mt-3 rounded-lg bg-ink-50/70 p-2 ring-1 ring-ink-200/60 text-center">
+          <p className="font-mono text-xs font-semibold text-ink-900">{productCount}</p>
+          <p className="text-[10px] text-ink-500">Products</p>
         </div>
 
         {/* 

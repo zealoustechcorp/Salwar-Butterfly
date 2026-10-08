@@ -1,0 +1,36 @@
+{
+  "name": "backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "nodemon --env-file=.env --import=./src/instrument.js src/server.js",
+    "start": "nodemon --env-file=.env --import=./src/instrument.js src/server.js",
+    "test": "node --env-file-if-exists=.env --test --test-force-exit \"tests/**/*.test.js\"",
+    "db:check": "node --env-file=.env src/scripts/checkDb.js",
+    "db:migrate": "node --env-file=.env src/scripts/migrate.js",
+    "db:import-catalogue": "node --env-file=.env src/scripts/importCatalogue.js",
+    "admin:create": "node --env-file=.env src/scripts/createAdmin.js",
+    "wa:check": "node --env-file=.env src/scripts/whatsappCheck.js"
+  },
+  "dependencies": {
+    "@sentry/node": "^10.74.0",
+    "bcrypt": "^6.0.0",
+    "bullmq": "^6.3.5",
+    "cloudinary": "^2.10.1",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.6.2",
+    "helmet": "^8.3.0",
+    "ioredis": "^6.0.0",
+    "jsonwebtoken": "^9.0.3",
+    "morgan": "^1.11.0",
+    "multer": "^2.2.0",
+    "nodemon": "^3.1.14",
+    "pg": "^8.16.3",
+    "rate-limit-redis": "^6.0.1",
+    "winston": "^3.19.0",
+    "winston-daily-rotate-file": "^5.0.0"
+  }
+}

@@ -4,57 +4,108 @@ import { useMemo, useState } from "react";
 
 import { applyDiscount, removeDiscount } from "@/lib/api/products";
 import { money } from "@/lib/format";
+import { calculateSalePrice, MIN_PRICE, validateDiscountPercentage } from "@/lib/validate";
 import { Button, Field, Input, Modal, useToast } from "./ui";
 
 const PRESETS = [5, 10, 15, 20, 25, 30, 40, 50];
 
 /**
- * F-03.12 — "Allocate and remove discount/offer price for a specific product or
- * variant using discount percentage values."
+ * Allocates or removes an offer across the selected products.
  *
- * Percentages only. The sale price is always derived, never typed, so the two
- * numbers cannot drift apart the way independent price columns would.
+ * Percentages only. `current_price` is derived by the API from the base
+ * price and the percentage, so the two numbers cannot drift apart the
+ * way independent price columns would — and removing an offer is simply
+ * writing 0.
  */
-export function DiscountDialog({ open, onClose, targets, onDone }) {
+export function DiscountDialog({ open, onClose, products, onDone }) {
   // The form lives in its own component so closing the dialog unmounts it and
   // the next open starts clean — no reset-on-open effect needed.
   if (!open) return null;
-  return <DiscountForm onClose={onClose} targets={targets} onDone={onDone} />;
+  return <DiscountForm onClose={onClose} products={products} onDone={onDone} />;
 }
 
-function DiscountForm({ onClose, targets, onDone }) {
+function DiscountForm({ onClose, products = [], onDone }) {
   const [percent, setPercent] = useState(10);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const toast = useToast();
 
-  const { products = [], variants = [] } = targets || {};
-  const count = products.length + variants.length;
-
   const preview = useMemo(() => {
-    const sample = products[0] || variants[0];
+    const sample = products[0];
     if (!sample) return null;
-    const base = sample.base_price ?? sample.pricing?.unit_price ?? 0;
-    const value = Number(percent) || 0;
-    return { label: sample.name || sample.sku, base, next: Math.round(base * (100 - value)) / 100 };
-  }, [products, variants, percent]);
+
+    return {
+      label: sample.name,
+      base: Number(sample.basePrice) || 0,
+      // The API's own arithmetic, not a second version of it — the old
+      // line rounded differently from the server for any percentage that
+      // was not whole, so the preview showed a price nobody would pay.
+      next: calculateSalePrice(sample.basePrice, percent),
+    };
+  }, [products, percent]);
+
+  /**
+   * The products this percentage would make free.
+   *
+   * Applied across a selection, one percentage meets many base prices, so
+   * "100% is too much" is not the only way to get there — a low-priced
+   * piece rounds to ₹0 well before a high-priced one does. The check is on
+   * the outcome for each product, which is the only thing that answers it.
+   */
+  const wouldBeFree = products.filter(
+    (product) => calculateSalePrice(product.basePrice, percent) < MIN_PRICE,
+  );
+
+  /**
+   * The percentage, but only when it is about to be used.
+   *
+   * `min` and `max` on the input are browser hints and nothing more —
+   * there is no form submit here for constraint validation to block, so
+   * 150 and -5 both reach this function as typed. Removing an offer sends
+   * no percentage at all, so it is not checked on that path.
+   */
+  const percentError =
+    validateDiscountPercentage(percent) ??
+    (wouldBeFree.length
+      ? wouldBeFree.length === products.length
+        ? "That leaves every selected product at ₹0"
+        : `That leaves ${wouldBeFree.length} of the selected products at ₹0`
+      : null);
 
   async function run(mode) {
+    if (mode === "apply") {
+      const problem = percentError ?? (String(percent).trim() ? null : "A percentage is required");
+
+      if (problem) {
+        setError({ fields: { percent: problem } });
+        toast.error("That offer was not applied", problem);
+        return;
+      }
+    }
+
     setBusy(true);
     setError(null);
-    const payload = {
-      productIds: products.map((p) => p.id),
-      variantIds: variants.map((v) => v.id),
-    };
+
+    const productIds = products.map((product) => product.id);
+
     try {
       const result =
-        mode === "apply" ? await applyDiscount({ ...payload, percent }) : await removeDiscount(payload);
-      toast.success(result.message);
-      onDone?.();
+        mode === "apply"
+          ? await applyDiscount({ productIds, percent })
+          : await removeDiscount({ productIds });
+
+      toast.success(
+        result.message,
+        result.failed.length ? `${result.failed.length} product(s) could not be updated.` : undefined,
+      );
+      await onDone?.();
       onClose();
     } catch (err) {
       setError(err);
-      if (err.fields?.percent) setError({ ...err, message: err.fields.percent });
+      toast.error(
+        mode === "apply" ? "Could not apply the offer" : "Could not remove the offer",
+        err.message,
+      );
     } finally {
       setBusy(false);
     }
@@ -64,9 +115,8 @@ function DiscountForm({ onClose, targets, onDone }) {
     <Modal
       open
       onClose={onClose}
-      requirement="F-03.12"
       title="Discount / offer price"
-      description={`${count} selected — ${products.length} product${products.length === 1 ? "" : "s"}, ${variants.length} variant${variants.length === 1 ? "" : "s"}.`}
+      description={`${products.length} product${products.length === 1 ? "" : "s"} selected.`}
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={busy}>
@@ -75,7 +125,12 @@ function DiscountForm({ onClose, targets, onDone }) {
           <Button variant="danger" busy={busy} onClick={() => run("remove")}>
             Remove offer
           </Button>
-          <Button variant="primary" busy={busy} onClick={() => run("apply")}>
+          <Button
+            variant="primary"
+            busy={busy}
+            disabled={Boolean(percentError)}
+            onClick={() => run("apply")}
+          >
             Apply {Number(percent) || 0}%
           </Button>
         </>
@@ -102,16 +157,23 @@ function DiscountForm({ onClose, targets, onDone }) {
         <Field
           label="Discount percentage"
           required
-          error={error?.fields?.percent}
-          hint="0–100. Setting 0 is how an offer is removed at the database level."
+          // The live check first: a percentage that is out of range is
+          // wrong as soon as it is typed, and waiting for the button to be
+          // pressed to say so is a preview showing a price nobody can set.
+          error={
+            percentError ??
+            error?.fields?.percent ??
+            error?.fields?.discountPercentage
+          }
+          hint="0–99. Setting 0 is how an offer is removed at the database level."
         >
           <Input
             type="number"
             min={0}
-            max={100}
+            max={99}
             step={0.5}
             value={percent}
-            invalid={Boolean(error?.fields?.percent)}
+            invalid={Boolean(percentError || error?.fields?.percent)}
             onChange={(e) => setPercent(e.target.value)}
           />
         </Field>
@@ -127,8 +189,7 @@ function DiscountForm({ onClose, targets, onDone }) {
               <span className="text-xs text-ink-500">customer pays</span>
             </p>
             <p className="mt-1.5 text-[11px] text-ink-500">
-              Variant selections write <code className="font-mono">discount_percent_override</code>; product
-              selections write <code className="font-mono">discount_percent</code>. Overrides win.
+              Each product is saved individually, so a failure on one leaves the rest applied.
             </p>
           </div>
         ) : null}

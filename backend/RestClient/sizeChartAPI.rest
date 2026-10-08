@@ -1,0 +1,193 @@
+### Base URL
+@baseUrl = http://localhost:4000/api
+
+### An admin token. Sign in with adminAuthAPI.rest and paste it here —
+### every /sizeCharts route is behind the admin guard.
+@token = PASTE_ADMIN_TOKEN
+
+### A chart id, from the list below.
+@chartId = PASTE_CHART_ID
+
+
+### ============================================================
+### SIZE CHARTS — F-06
+### ============================================================
+###
+### The tables the storefront prints beside every size picker. Shop-wide
+### rather than per category: one chart per fit, and a shopper picks
+### between them with a tab.
+###
+### 014_create_size_charts.sql seeds Normal Fit and Slim Fit, so a fresh
+### database already answers the two reads below with the shop's real
+### charts.
+
+
+### ============================================================
+### PUBLIC — what a shopper reads
+### ============================================================
+###
+### No token. Six columns: the id, the print position and the published
+### flag are the admin's business and are not in the payload at all.
+
+GET {{baseUrl}}/storefront/getSizeCharts
+
+
+### ============================================================
+### Get All Size Charts (admin — published or not)
+### ============================================================
+
+GET {{baseUrl}}/sizeCharts/getSizeCharts
+Authorization: Bearer {{token}}
+
+
+### ============================================================
+### Get Size Chart by ID
+### ============================================================
+
+GET {{baseUrl}}/sizeCharts/getSizeChartById/{{chartId}}
+Authorization: Bearer {{token}}
+
+
+### ============================================================
+### Create Size Chart — a new fit
+### ============================================================
+###
+### `columns` are keys, and the set is closed — see
+### config/size_chart.policy.js. "size" must be first.
+###
+### A null measurement is a blank cell, printed as a dash. Do not send 0
+### for "not stated": zero is a measurement.
+
+POST {{baseUrl}}/sizeCharts/createSizeChart
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "fit": "Special Dress",
+  "title": "Special dress — gowns and heavy anarkalis",
+  "unit": "in",
+  "columns": ["size", "bust", "waist", "hip", "length"],
+  "rows": [
+    { "size": "S",  "bust": 36, "waist": 30, "hip": 39, "length": 54 },
+    { "size": "M",  "bust": 38, "waist": 32, "hip": 41, "length": 55 },
+    { "size": "L",  "bust": 40, "waist": 34, "hip": 43, "length": 56 },
+    { "size": "XL", "bust": 42, "waist": 36, "hip": 45, "length": null }
+  ]
+}
+
+
+### ============================================================
+### Update Size Chart — a full replace
+### ============================================================
+###
+### Send the whole chart. There is no partial update of a measurement
+### grid: dropping a column and clearing it are different edits, and a
+### per-field patch could not tell them apart.
+###
+### `position` and `active` are optional and keep whatever the chart
+### already had — correcting a hip measurement must not move the tab or
+### republish a chart the shop had taken down.
+
+PUT {{baseUrl}}/sizeCharts/updateSizeChart/{{chartId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "fit": "Special Dress",
+  "title": "Special dress — gowns, heavy anarkalis and occasion wear",
+  "unit": "in",
+  "columns": ["size", "bust", "waist", "hip", "length"],
+  "rows": [
+    { "size": "S",  "bust": 36, "waist": 30, "hip": 39, "length": 54 },
+    { "size": "M",  "bust": 38, "waist": 32, "hip": 41, "length": 55 },
+    { "size": "L",  "bust": 40, "waist": 34, "hip": 43, "length": 56 },
+    { "size": "XL", "bust": 42, "waist": 36, "hip": 45, "length": 57 }
+  ]
+}
+
+
+### ============================================================
+### Hide a chart from the storefront (and put it back)
+### ============================================================
+
+PATCH {{baseUrl}}/sizeCharts/setSizeChartActive/{{chartId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "active": false
+}
+
+
+### ============================================================
+### Reorder — the order the tabs appear in
+### ============================================================
+###
+### Every chart, in the order they should print. A partial list is
+### refused rather than half-applied: it would renumber the ones named
+### from 1 and leave the rest sharing positions with them.
+
+PATCH {{baseUrl}}/sizeCharts/reorderSizeCharts
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "ids": [
+    "PASTE_FIRST_CHART_ID",
+    "PASTE_SECOND_CHART_ID"
+  ]
+}
+
+
+### ============================================================
+### Delete Size Chart
+### ============================================================
+###
+### Permanent, and the measurements are kept nowhere else. Hiding is
+### what setSizeChartActive is for.
+
+DELETE {{baseUrl}}/sizeCharts/deleteSizeChart/{{chartId}}
+Authorization: Bearer {{token}}
+
+
+### ============================================================
+### Validation — these should all fail with 400
+### ============================================================
+
+### A first column that is not "size"
+POST {{baseUrl}}/sizeCharts/createSizeChart
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "fit": "Broken",
+  "title": "Columns out of order",
+  "columns": ["bust", "size"],
+  "rows": [{ "size": "M", "bust": 38 }]
+}
+
+
+### A measurement key the columns do not declare
+POST {{baseUrl}}/sizeCharts/createSizeChart
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "fit": "Broken",
+  "title": "Row carries a column the chart has not got",
+  "columns": ["size", "bust"],
+  "rows": [{ "size": "M", "bust": 38, "hip": 40 }]
+}
+
+
+### A fit that already exists — 409
+POST {{baseUrl}}/sizeCharts/createSizeChart
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "fit": "slim fit",
+  "title": "Case does not make it a different fit",
+  "columns": ["size", "bust"],
+  "rows": [{ "size": "M", "bust": 38 }]
+}

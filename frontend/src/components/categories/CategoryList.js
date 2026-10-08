@@ -2,7 +2,7 @@
 
 /**
  * @file CategoryList.js
- * @description Master Category Directory View (F-02 Catalogue module, F-02.01).
+ * @description Master Category Directory View.
  * Presents the administrative catalog management interface with:
  * - Module title header and "+ Add category" primary action.
  * - Real-time KPI stat bar summarizing category counts and inventory.
@@ -14,7 +14,7 @@
 
 import { FolderPlus, Plus, Search, X } from "lucide-react";
 import { useState } from "react";
-import { Button, EmptyState, Input, RequirementTag } from "@/components/admin/ui";
+import { Button, EmptyState, Input } from "@/components/admin/ui";
 import CategoryCard from "./CategoryCard";
 import StatBar from "./StatBar";
 
@@ -62,20 +62,17 @@ export default function CategoryList({ categories, onAdd, onEdit, onDetail, onTo
 
   return (
     <div className="space-y-5">
-      {/* 
+      {/*
         ========================================================================
         HEADER SECTION
-        Module title, FRS specification requirement tags, and primary action.
+        Module title and primary action.
         ========================================================================
       */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-xs font-semibold tracking-wider text-brand-600 uppercase">
-              F-02 Catalogue
-            </span>
-            <RequirementTag id="F-02.01" />
-          </div>
+          <span className="font-mono text-xs font-semibold tracking-wider text-brand-600 uppercase">
+            Catalogue
+          </span>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink-900 sm:text-3xl">
             Categories
           </h1>

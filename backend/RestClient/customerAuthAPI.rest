@@ -1,0 +1,139 @@
+### Base URL
+@baseUrl = http://localhost:4000/api
+
+### ============================================================
+### STOREFRONT SIGN-IN  (F-01.02)
+###
+### The mirror of /admin/auth. Same JWT secret, different `typ`
+### claim — so a shopper's token verifies perfectly against an admin
+### route and still gets a 403. Signature valid, audience wrong.
+###
+### Password only for now. The FRS also asks for email OTP, which
+### needs an email provider this project has not chosen yet.
+### ============================================================
+
+
+### Register first — public (F-05.01)
+POST {{baseUrl}}/customers/register
+Content-Type: application/json
+
+{
+  "name": "Meera R",
+  "email": "meera@example.com",
+  "phone": "9876500011",
+  "password": "shopper-password"
+}
+
+
+### ============ SIGN IN ============
+
+# @name customerLogin
+POST {{baseUrl}}/customers/auth/login
+Content-Type: application/json
+
+{
+  "email": "meera@example.com",
+  "password": "shopper-password"
+}
+
+###
+@customerToken = {{customerLogin.response.body.data.token}}
+@customerId = {{customerLogin.response.body.data.customer.id}}
+
+
+### Wrong password — 401 INVALID_CREDENTIALS
+POST {{baseUrl}}/customers/auth/login
+Content-Type: application/json
+
+{
+  "email": "meera@example.com",
+  "password": "not-the-password"
+}
+
+### Unknown email — the SAME 401 and the same message.
+### Anything else answers "does this person shop here?" for free.
+POST {{baseUrl}}/customers/auth/login
+Content-Type: application/json
+
+{
+  "email": "nobody@example.com",
+  "password": "shopper-password"
+}
+
+
+### ============ THE SIGNED-IN SHOPPER ============
+
+### Who am I (F-05.02)
+### Re-reads the row rather than trusting the token, so an account
+### closed from the admin panel stops working at once.
+GET {{baseUrl}}/customers/auth/me
+Authorization: Bearer {{customerToken}}
+
+### Refused: 403, an admin token is not a customer token
+GET {{baseUrl}}/customers/auth/me
+Authorization: Bearer {{adminToken}}
+
+### Edit my own details (F-05.02 / F-05.06)
+### No `:id` in the path — the row edited is the one the token names,
+### so there is nothing for a caller to substitute.
+PUT {{baseUrl}}/customers/auth/me
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{
+  "phone": "9876500022"
+}
+
+### Refused: 409, and the clashing field is named in `errors`
+PUT {{baseUrl}}/customers/auth/me
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{
+  "email": "jane@example.com"
+}
+
+### Refused: 400, nothing to change
+PUT {{baseUrl}}/customers/auth/me
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{}
+
+
+### ============ PASSWORD  (F-05.06) ============
+
+### Change my own password.
+###
+### Three checks, each load-bearing: the token is genuine, it is a
+### customer's and not an admin's, and the id is the caller's own.
+### The current password is required on top.
+POST {{baseUrl}}/customers/{{customerId}}/change-password
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{
+  "oldPassword": "shopper-password",
+  "newPassword": "a-different-password"
+}
+
+### Refused: 404 for somebody else's id.
+### 404 and not 403 on purpose — "that account exists but is not
+### yours" still confirms the account exists.
+POST {{baseUrl}}/customers/37eaec34-f7b4-4001-95b1-1f2c18535288/change-password
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{
+  "oldPassword": "shopper-password",
+  "newPassword": "a-different-password"
+}
+
+
+### ============ SIGN OUT ============
+
+### Best-effort. JWTs are stateless, so the client discarding its
+### token IS the logout — this exists so the act is auditable and a
+### future denylist has somewhere to live.
+POST {{baseUrl}}/customers/auth/logout
+Authorization: Bearer {{customerToken}}

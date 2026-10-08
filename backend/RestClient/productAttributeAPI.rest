@@ -1,0 +1,123 @@
+### Base URL
+@baseUrl = http://localhost:4000/api
+
+@valueId = 8f2a1c44-1c0c-4511-b091-246a213e8373
+
+
+### ============================================================
+### PRODUCT ATTRIBUTE REGISTER
+###
+### The approved values the product form's dropdowns offer.
+### `products.attributes` records what a product IS;
+### this records what MAY be chosen.
+### ============================================================
+
+
+### ============================================================
+### Add a value  (the text field on the attributes screen)
+###
+### Appended to the end of its group unless `position` is given.
+### ============================================================
+POST {{baseUrl}}/productAttributes/createAttributeValue
+Content-Type: application/json
+
+{
+  "groupName": "fabric",
+  "value": "Chanderi"
+}
+
+
+### ============================================================
+### The whole register, grouped  (attributes screen)
+###
+### Includes retired values and a usageCount per value.
+### ============================================================
+GET {{baseUrl}}/productAttributes/getAllAttributeValues
+
+
+### ============================================================
+### Only what may be chosen  (product form dropdowns)
+### ============================================================
+GET {{baseUrl}}/productAttributes/getAllAttributeValues?activeOnly=true
+
+
+### ============================================================
+### One group
+### ============================================================
+GET {{baseUrl}}/productAttributes/getAttributeValuesByGroup/fabric
+
+
+### ============================================================
+### Rename — rewrites the value on every product using it
+###
+### meta.productsUpdated reports how many were carried along.
+### ============================================================
+PUT {{baseUrl}}/productAttributes/updateAttributeValue/{{valueId}}
+Content-Type: application/json
+
+{
+  "value": "Chanderi Silk"
+}
+
+
+### ============================================================
+### Retire — hides it from new products, existing ones keep it
+### ============================================================
+PATCH {{baseUrl}}/productAttributes/updateAttributeValueStatus/{{valueId}}
+Content-Type: application/json
+
+{
+  "active": false
+}
+
+
+### ============================================================
+### Offer it again
+### ============================================================
+PATCH {{baseUrl}}/productAttributes/updateAttributeValueStatus/{{valueId}}
+Content-Type: application/json
+
+{
+  "active": true
+}
+
+
+### ============================================================
+### Reorder within its group
+### ============================================================
+PUT {{baseUrl}}/productAttributes/updateAttributeValue/{{valueId}}
+Content-Type: application/json
+
+{
+  "position": 0
+}
+
+
+### ============================================================
+### Delete  — 409 while any product still carries the value
+### ============================================================
+DELETE {{baseUrl}}/productAttributes/deleteAttributeValue/{{valueId}}
+
+
+### ============================================================
+### Validation: group name must be a usable JSON key -> 400
+### ============================================================
+POST {{baseUrl}}/productAttributes/createAttributeValue
+Content-Type: application/json
+
+{
+  "groupName": "Fabric Type!",
+  "value": "Cotton"
+}
+
+
+### ============================================================
+### Validation: duplicate within a group -> 409
+### ============================================================
+POST {{baseUrl}}/productAttributes/createAttributeValue
+Content-Type: application/json
+
+{
+  "groupName": "fabric",
+  "value": "Chanderi"
+}

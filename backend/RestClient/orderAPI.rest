@@ -1,0 +1,363 @@
+### Base URL
+@baseUrl = http://localhost:4000/api
+
+### Tokens — paste from /admin/auth/login and /customers/auth/login
+@adminToken = PASTE_ADMIN_TOKEN
+@customerToken = PASTE_CUSTOMER_TOKEN
+
+### Fill from your own catalogue — GET /inventory/getInventory lists them
+@variantId = 8f2a1c44-1c0c-4511-b091-246a213e8373
+@otherVariantId = 6b13d902-77aa-4f22-9c31-5d2b0e441a90
+@orderId = PASTE_ORDER_ID
+
+
+### ============================================================
+### ORDERS  (F-07)
+###
+### This is what replaces the WhatsApp hand-off on the bag page.
+### The bag used to be formatted into a message and opened in
+### wa.me; it now becomes a row in `orders` with its lines in
+### `order_items`, and the shop works from the admin queue.
+###
+### Two rules run through every endpoint below:
+###
+###   Prices come from the database, never the request. A line is
+###   a variantId and a quantity. There is no field to send a
+###   price in, which is stronger than checking one.
+###
+###   Placing an order reserves stock, in the same transaction.
+###   Two shoppers racing for the last piece resolve rather than
+###   both succeeding — the second is refused with the count.
+###   Cancelling puts it back.
+###
+### Status has two axes, because they move independently:
+###
+###   status          pending_payment → confirmed → packed
+###                   → shipped → delivered, or cancelled
+###   payment_status  pending / paid / failed / refunded
+###
+### Cancelling is reachable up to `packed` and from nowhere
+### after — once it is with the courier it is a return, not a
+### cancellation.
+### ============================================================
+
+
+### ============================================================
+### PLACE AN ORDER — as a guest
+###
+### No Authorization header at all. The bag page promises
+### checkout without an account, so this is a supported path,
+### not a fallback. The order carries its contact snapshot and
+### is found later by number + email.
+### ============================================================
+POST {{baseUrl}}/orders/placeOrder
+Content-Type: application/json
+
+{
+  "contact": {
+    "name": "Meera Krishnan",
+    "email": "meera@example.com",
+    "phone": "9876543210"
+  },
+  "shippingAddress": {
+    "line1": "14 Bharathi Street",
+    "line2": "Gandhipuram",
+    "landmark": "Opposite the water tank",
+    "city": "Coimbatore",
+    "state": "Tamil Nadu",
+    "postalCode": "641012"
+  },
+  "items": [
+    { "variantId": "{{variantId}}", "quantity": 1 }
+  ],
+  "customerNote": "Please deliver after 6pm"
+}
+
+
+### ============================================================
+### PLACE AN ORDER — signed in
+###
+### Identical body. The only difference is the header: the order
+### attaches to the account the token names, which is what makes
+### it show up under /getMyOrders. `customerId` is never read
+### from the body — a shopper must not be able to file an order
+### under somebody else's account.
+### ============================================================
+POST {{baseUrl}}/orders/placeOrder
+Content-Type: application/json
+Authorization: Bearer {{customerToken}}
+
+{
+  "contact": {
+    "name": "Meera Krishnan",
+    "email": "meera@example.com",
+    "phone": "9876543210"
+  },
+  "shippingAddress": {
+    "line1": "14 Bharathi Street",
+    "city": "Coimbatore",
+    "state": "Tamil Nadu",
+    "postalCode": "641012"
+  },
+  "items": [
+    { "variantId": "{{variantId}}", "quantity": 2 },
+    { "variantId": "{{otherVariantId}}", "quantity": 1 }
+  ]
+}
+
+
+### ============================================================
+### PLACE AN ORDER — rejected: not enough stock
+###
+### 409, naming the piece and the count left, so the bag can say
+### "only 2 left of this" rather than "checkout failed".
+### ============================================================
+POST {{baseUrl}}/orders/placeOrder
+Content-Type: application/json
+
+{
+  "contact": {
+    "name": "Meera Krishnan",
+    "email": "meera@example.com",
+    "phone": "9876543210"
+  },
+  "shippingAddress": {
+    "line1": "14 Bharathi Street",
+    "city": "Coimbatore",
+    "state": "Tamil Nadu",
+    "postalCode": "641012"
+  },
+  "items": [
+    { "variantId": "{{variantId}}", "quantity": 19 }
+  ]
+}
+
+
+### ============================================================
+### PLACE AN ORDER — rejected: the same size twice
+###
+### 400. "2 × M" and "1 × M, 1 × M" are the same order to a
+### shopper and two rows to every report, so one line per size is
+### enforced in the validator and again by a unique index.
+### ============================================================
+POST {{baseUrl}}/orders/placeOrder
+Content-Type: application/json
+
+{
+  "contact": {
+    "name": "Meera Krishnan",
+    "email": "meera@example.com",
+    "phone": "9876543210"
+  },
+  "shippingAddress": {
+    "line1": "14 Bharathi Street",
+    "city": "Coimbatore",
+    "state": "Tamil Nadu",
+    "postalCode": "641012"
+  },
+  "items": [
+    { "variantId": "{{variantId}}", "quantity": 1 },
+    { "variantId": "{{variantId}}", "quantity": 1 }
+  ]
+}
+
+
+### ============================================================
+### TRACK AN ORDER — no account
+###
+### A POST although it reads: the email is the second factor and
+### does not belong in a query string. Both a wrong number and a
+### wrong email return the same 404, so this cannot be used to
+### test whether an order number exists.
+### ============================================================
+POST {{baseUrl}}/orders/trackOrder
+Content-Type: application/json
+
+{
+  "orderNumber": "SB-001001",
+  "email": "meera@example.com"
+}
+
+
+### ============================================================
+### MY ORDERS — storefront token
+### ============================================================
+GET {{baseUrl}}/orders/getMyOrders
+Accept: application/json
+Authorization: Bearer {{customerToken}}
+
+
+### ============================================================
+### MY ORDERS — only the ones on their way
+### ============================================================
+GET {{baseUrl}}/orders/getMyOrders?status=shipped&limit=10
+Accept: application/json
+Authorization: Bearer {{customerToken}}
+
+
+### ============================================================
+### ONE ORDER
+###
+### Either token works. A shopper gets their own and a 404 for
+### anyone else's — 404 rather than 403, because "that order
+### exists but is not yours" confirms it exists.
+### ============================================================
+GET {{baseUrl}}/orders/getOrderById/{{orderId}}
+Accept: application/json
+Authorization: Bearer {{customerToken}}
+
+
+### ============================================================
+### THE ADMIN QUEUE — newest first
+### ============================================================
+GET {{baseUrl}}/orders/getAllOrders
+Accept: application/json
+Authorization: Bearer {{adminToken}}
+
+
+### ============================================================
+### WHAT NEEDS PACKING
+###
+### Paid and accepted, not yet packed — the queue the shop works
+### from in the morning. Oldest first, because within a status
+### the oldest order is the most urgent.
+### ============================================================
+GET {{baseUrl}}/orders/getAllOrders?status=confirmed&sort=oldest
+Accept: application/json
+Authorization: Bearer {{adminToken}}
+
+
+### ============================================================
+### FIND AN ORDER FROM A PHONE CALL
+###
+### Searches the order number, name, email and phone. "1042"
+### finds SB-001042.
+### ============================================================
+GET {{baseUrl}}/orders/getAllOrders?search=9876543210
+Accept: application/json
+Authorization: Bearer {{adminToken}}
+
+
+### ============================================================
+### THE TILES
+###
+### Counts and revenue per status over the whole book, not the
+### current page. Revenue excludes cancelled and unpaid orders —
+### an order awaiting payment is a hope, not a sale.
+### ============================================================
+GET {{baseUrl}}/orders/getOrderSummary
+Accept: application/json
+Authorization: Bearer {{adminToken}}
+
+
+### ============================================================
+### PAYMENT RECEIVED
+###
+### pending_payment → confirmed, and payment_status → paid, in
+### one statement. This is the only point where the money and the
+### parcel are known to agree, which is why they move together.
+###
+### `reference` is the UPI or bank reference — optional, because
+### the shop may be looking at a screenshot, but it is the only
+### thread back from an order to the transfer that paid for it.
+###
+### When a gateway lands its webhook calls the same service
+### method and this stays as the manual fallback.
+### ============================================================
+POST {{baseUrl}}/orders/confirmPayment/{{orderId}}
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "reference": "UPI 428193746512"
+}
+
+
+### ============================================================
+### PACKED
+### ============================================================
+PATCH {{baseUrl}}/orders/updateOrderStatus/{{orderId}}
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "status": "packed"
+}
+
+
+### ============================================================
+### SHIPPED
+### ============================================================
+PATCH {{baseUrl}}/orders/updateOrderStatus/{{orderId}}
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "status": "shipped",
+  "note": "DTDC, docket 7719004421"
+}
+
+
+### ============================================================
+### DELIVERED
+### ============================================================
+PATCH {{baseUrl}}/orders/updateOrderStatus/{{orderId}}
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "status": "delivered"
+}
+
+
+### ============================================================
+### AN ILLEGAL MOVE
+###
+### 409, saying what this order can actually become. An order
+### that jumped from pending_payment to delivered would have
+### skipped taking the money, and the admin panel is a screen
+### with buttons on it.
+### ============================================================
+PATCH {{baseUrl}}/orders/updateOrderStatus/{{orderId}}
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "status": "delivered"
+}
+
+
+### ============================================================
+### CANCEL — by the shopper
+###
+### Only while it is still awaiting payment. After that the shop
+### has the money and has started picking, and cancelling is a
+### conversation, not a button. The reason is optional here — a
+### shopper who changes their mind owes nobody an explanation.
+###
+### Whatever cancels it, the stock goes back on the shelf in the
+### same transaction.
+### ============================================================
+POST {{baseUrl}}/orders/cancelOrder/{{orderId}}
+Content-Type: application/json
+Authorization: Bearer {{customerToken}}
+
+{
+  "reason": "Ordered the wrong size"
+}
+
+
+### ============================================================
+### CANCEL — by the shop
+###
+### Reachable up to `packed`. The reason is required from an
+### admin: the customer will ask about this next week, and
+### "cancelled, no reason recorded" is not an answer.
+### ============================================================
+POST {{baseUrl}}/orders/cancelOrder/{{orderId}}
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "reason": "The last piece was damaged in storage — refunded in full"
+}

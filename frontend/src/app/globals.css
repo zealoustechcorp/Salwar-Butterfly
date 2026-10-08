@@ -129,6 +129,23 @@
   --color-sb-gold: #bc8a69;         /* 2.83:1 on cream */
   --color-sb-pink-deco: #d49a9b;    /* 2.22:1 on cream */
   --color-sb-maroon-deco: #5d2826;  /* butterfly outlines (10.99:1 — text-safe too) */
+
+  /*
+    The width at which the storefront's top bar can hold the wordmark, the full
+    nav, a search field wide enough to type in, and the icon cluster all on one
+    line. Measured against the real rendered bar, not guessed: below this the
+    search drops to its own row under the header. `lg` is where the nav itself
+    appears, and by `xl` the gap is generous — the useful edge sits between the
+    two, so it gets its own name rather than an arbitrary value repeated across
+    five files. Utilities: wide:block, wide:hidden, wide:scroll-mt-28.
+
+    In rem (72.5rem = 1160px at the default root size), and that matters:
+    Tailwind orders the breakpoint media queries by raw value, so a px entry
+    sorts ahead of every rem default and lands FIRST in the sheet. `lg:top-44`
+    would then have won over `wide:top-28` on the bag's sticky summary at every
+    width above 1160px. Keep this unit in step with the built-in scale.
+  */
+  --breakpoint-wide: 72.5rem;
 }
 
 @theme inline {
@@ -163,8 +180,243 @@ body {
   font-family: var(--font-karla), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
+/* ---------------------------------------------------------------------------
+   Admin scrollbars — hidden outright, everywhere inside the console (sidebar
+   rail, data tables, dialog bodies). Scoped to .admin-root and its subtree;
+   the storefront keeps its native bars.
+
+   Hiding the bar does NOT disable scrolling: wheel, trackpad, keyboard and
+   touch all still work, and the containers keep their overflow-auto. What is
+   lost is the visible affordance — nothing on screen announces that a region
+   scrolls, and there is no thumb to drag. Mouse-only users on a long orders
+   table have to discover the overflow by trying it.
+
+   scrollbar-width is inherited, so the one declaration on .admin-root covers
+   every descendant in Firefox. WebKit/Chromium has no inherited form — it
+   needs the pseudo-element, hence the descendant selector alongside the
+   element's own.
+   --------------------------------------------------------------------------- */
+.admin-root {
+  scrollbar-width: none;
+}
+
+.admin-root::-webkit-scrollbar,
+.admin-root *::-webkit-scrollbar {
+  display: none;
+}
+
+/* ---------------------------------------------------------------------------
+   Scroll hint — puts back the affordance the hidden scrollbar took away. The
+   last row of a scrollable region dissolves into the surface instead of being
+   sliced off flat, which is what tells you to keep scrolling: a clean cut
+   reads as the end of the list, a fade reads as "there is more".
+
+   A mask, not a background gradient. The usual scroll-shadow trick paints
+   gradients into `background`, which sits BEHIND the links — the text stays
+   fully opaque and only the edge picks up a faint shading. Masking fades the
+   content itself, which is the cue that actually reads.
+
+   Both edges are driven by the element's real scroll position (see
+   AdminShell's Sidebar): the data attributes swap the two lengths in, so an
+   edge fades only while there is content past it and a rail short enough to
+   fit shows no fade at all. At 0px both stops collapse and the mask is fully
+   opaque — a no-op, not an invisible 1px seam.
+   --------------------------------------------------------------------------- */
+.admin-scroll-hint {
+  --scroll-fade-top: 0px;
+  --scroll-fade-bottom: 0px;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--scroll-fade-top),
+    #000 calc(100% - var(--scroll-fade-bottom)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--scroll-fade-top),
+    #000 calc(100% - var(--scroll-fade-bottom)),
+    transparent 100%
+  );
+}
+
+.admin-scroll-hint[data-fade-top="true"] {
+  --scroll-fade-top: 28px;
+}
+
+.admin-scroll-hint[data-fade-bottom="true"] {
+  --scroll-fade-bottom: 36px;
+}
+
+/* The customer storefront paints its own cream ground so it never inherits the
+   body's dark-mode fallback, and it carries Karla as the body face — Cormorant
+   is headings-only (Docs/Design_Brand-Palette-and-Typography.md §5). */
+.sb-root {
+  background: var(--color-sb-bg);
+  color: var(--color-sb-text);
+  font-family: var(--font-karla), "Segoe UI", system-ui, sans-serif;
+}
+
+/* The logo's "DRESS SHOP" lockup, as a utility: Karla 700, uppercase, 0.2em. */
+.sb-eyebrow {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+}
+
+/* Rose-gold hairline — ornament only, never behind or as text. */
+.sb-rule {
+  background: linear-gradient(90deg, transparent, var(--color-sb-gold), transparent);
+}
+
 .tabular {
   font-variant-numeric: tabular-nums;
+}
+
+.sb-no-scrollbar {
+  scrollbar-width: none;
+}
+
+.sb-no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Scrolling itself is untouched by the rule above — wheel, trackpad, keyboard
+   and touch all still work, and a container keeps its overflow-auto. What is
+   lost is the affordance: nothing on screen says a region scrolls, and there
+   is no thumb to drag. Worth it on a bar the shop would rather not show; the
+   cost lands on a mouse-only shopper, who has to discover the overflow by
+   trying it. WebKit needs the pseudo-element on the element that scrolls —
+   scrollbar-width is inherited in Firefox, ::-webkit-scrollbar is not. */
+
+@keyframes sb-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* The track holds two identical copies, so -50% loops seamlessly. */
+.sb-marquee {
+  animation: sb-marquee 30s linear infinite;
+}
+
+@keyframes sb-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(-3deg);
+  }
+}
+
+.sb-float {
+  animation: sb-float 7s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sb-marquee,
+  .sb-float {
+    animation: none;
+  }
+}
+
+/* A soft dark halo, for an icon drawn straight onto a photograph.
+
+   The carousel's edge chevrons have no plate under them — see <CarouselEdge>
+   — so on a pale banner a cream glyph would be cream on nearly-cream. One
+   drop-shadow gives it an edge to be seen against without putting a shape
+   back around it.
+
+   Here rather than as an arbitrary Tailwind value because
+   `drop-shadow-[0_1px_4px_rgba(0,0,0,0.65)]` silently compiles to nothing:
+   the commas inside the `rgba()` break the candidate scanner, so the class
+   lands in the markup and no rule is ever generated for it. Checked against
+   tailwindcss 4.3.3. A named class is also simply the pattern the rest of
+   this file follows. */
+.sb-icon-halo {
+  filter: drop-shadow(0 1px 4px rgb(0 0 0 / 0.65));
+}
+
+/* The carousel's active dot, draining rather than counting.
+
+   How long a banner has left is worth showing — an autoplaying carousel that
+   moves with no warning is the reason people describe carousels as things that
+   snatch pages away — but it is not worth a number. "4… 3… 2…" beside a
+   photograph is a countdown to something, and nothing here is being counted
+   down to; a bar that fills is the same information read at a glance and
+   forgotten just as fast.
+
+   `scaleX` on a transform-origin of the left edge, so the fill is composited
+   rather than laid out sixty times a second: animating `width` on a dot in the
+   first fold means a reflow per frame for the length of every slide.
+
+   `both` keeps the fill at zero width before it starts and full at the end —
+   the element is remounted for each new slide, and without it there is a frame
+   where an unstarted animation shows the bar already full. The duration and
+   the play state come from the carousel, which owns the timer this mirrors. */
+@keyframes sb-dot-fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.sb-dot-fill {
+  animation: sb-dot-fill linear both;
+  transform-origin: left center;
+}
+
+/* No autoplay for a shopper who asked for less motion — see useCarousel — so
+   there is nothing to show the time remaining *of*. The dot goes back to being
+   a plain filled dot rather than an empty track that never fills. */
+@media (prefers-reduced-motion: reduce) {
+  .sb-dot-fill {
+    animation: none;
+    transform: scaleX(1);
+  }
+}
+
+/* A picture's slot while the picture is on its way.
+
+   A band of light sweeps across a blush ground, which says "loading" without
+   pretending to be the picture — the garment illustration used to stand in
+   here, and read as the product itself until the photograph swapped in.
+   `background-position` rather than a moving child, so the slot needs no
+   extra markup and stays exactly the frame it is filling. */
+@keyframes sb-shimmer {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -50% 0;
+  }
+}
+
+.sb-skeleton {
+  background-color: color-mix(in srgb, var(--color-sb-surface) 55%, var(--color-sb-bg));
+  background-image: linear-gradient(
+    100deg,
+    transparent 30%,
+    rgb(255 255 255 / 0.55) 50%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: sb-shimmer 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sb-skeleton {
+    animation: none;
+    background-image: none;
+  }
 }
 
 @keyframes sb-fade-up {
