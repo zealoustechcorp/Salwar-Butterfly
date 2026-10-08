@@ -6,7 +6,8 @@ import { useState } from "react";
 import { CATEGORY_SHAPE, GarmentArt } from "./GarmentArt";
 
 /**
- * The shop's own photograph, with the brand illustration behind it.
+ * The shop's own photograph, with a skeleton while it loads and the brand
+ * illustration if it never arrives.
  *
  * Every asset on the live shop's Cloudinary account currently 401s
  * (`cloud_name ddvui6pi4 is disabled`), so in practice the illustration is what
@@ -26,31 +27,40 @@ export function Photo({
   hoverSrc = null,
 }) {
   const [failed, setFailed] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const [hoverFailed, setHoverFailed] = useState(false);
   const shape = CATEGORY_SHAPE[categoryName] || "straight";
+  const showPhoto = src && !failed;
 
   return (
     <>
-      {/* The illustration is always the bottom layer, so it is in the server
-          HTML too: a failed photo reveals it instead of a broken-image icon,
-          and a client with no JS still sees something. */}
-      <span className="absolute inset-0">
-        <GarmentArt shape={shape} seed={seed} label={alt} />
-      </span>
+      {/* The illustration is for a piece with no photograph, or one whose
+          photograph failed — never a stand-in while it is still loading,
+          where it read as the product itself until the real one swapped in. */}
+      {showPhoto ? (
+        loaded ? null : <span aria-hidden="true" className="sb-skeleton absolute inset-0" />
+      ) : (
+        <span className="absolute inset-0">
+          <GarmentArt shape={shape} seed={seed} label={alt} />
+        </span>
+      )}
 
-      {src && !failed ? (
+      {showPhoto ? (
         <Image
           src={src}
           alt={alt}
           fill
           priority={priority}
           sizes={sizes}
+          onLoad={() => setLoaded(true)}
           onError={() => setFailed(true)}
-          className={className}
+          // Hidden rather than faded in: callers bring their own transition
+          // (a hover zoom), and a second transition class would replace it.
+          className={`${className ?? ""} ${loaded ? "" : "opacity-0"}`}
         />
       ) : null}
 
-      {src && !failed && hoverSrc && !hoverFailed ? (
+      {showPhoto && loaded && hoverSrc && !hoverFailed ? (
         <Image
           src={hoverSrc}
           alt=""

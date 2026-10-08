@@ -1,4 +1,7 @@
+"use client";
+
 import Image from "next/image";
+import { useState } from "react";
 
 /**
  * A picture in a frame whose shape the picture does not get to decide.
@@ -49,17 +52,21 @@ export function MediaFrame({
   // next/image rejects `loading` alongside `priority` — the first is
   // already implied by the second.
   const timing = priority ? { priority: true } : loading ? { loading } : {};
+  // The frame shimmers until the picture is in, rather than sitting empty.
+  const [loaded, setLoaded] = useState(false);
 
   return (
     <div className={`relative overflow-hidden ${ratio} ${className}`}>
+      {loaded ? null : <span aria-hidden="true" className="sb-skeleton absolute inset-0" />}
       <Image
         src={src}
         alt={alt}
         fill
         sizes={sizes}
         draggable={false}
+        onLoad={() => setLoaded(true)}
         onError={onError}
-        className="object-cover select-none"
+        className={`object-cover select-none transition-opacity duration-300 ${loaded ? "opacity-100" : "opacity-0"}`}
         {...timing}
       />
     </div>
