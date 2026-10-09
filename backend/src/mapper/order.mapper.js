@@ -110,6 +110,17 @@ export const OrderMapper = {
 
       cancellationReason: row.cancellation_reason ?? null,
 
+      // Entered when the order is marked packed, and emailed to the
+      // shopper then. Null until that point. On both DTOs: the courier
+      // and tracking number are the shopper's to see.
+      shipment: row.tracking_number
+        ? {
+            courierName: row.courier_name ?? null,
+            trackingNumber: row.tracking_number,
+            trackingUrl: row.tracking_url ?? null,
+          }
+        : null,
+
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };

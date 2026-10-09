@@ -316,9 +316,51 @@ export const validateStatusChange = (req, res, next) => {
   const noteError = textField(note, "Note", { required: false, max: 1000 });
   if (noteError) errors.note = noteError;
 
+  // ---- shipment --------------------------------------------
+  //
+  // Required when marking packed: the "your order is packed" email sends
+  // the tracking number to the shopper, and an email that promises one
+  // and leaves it blank is worse than no email. Ignored for any other
+  // status, so a stray field cannot overwrite a shipment already sent.
+  const { courierName, trackingNumber, trackingUrl } = req.body ?? {};
+
+  if (status === ORDER_STATUS.PACKED) {
+    const courierError = textField(courierName, "Courier", { required: true, max: 80 });
+    if (courierError) errors.courierName = courierError;
+
+    const trackingError = textField(trackingNumber, "Tracking number", { required: true, max: 80 });
+    if (trackingError) errors.trackingNumber = trackingError;
+
+    if (trackingUrl !== undefined && trackingUrl !== null && String(trackingUrl).trim() !== "") {
+      let valid = false;
+
+      try {
+        const url = new URL(String(trackingUrl).trim());
+        valid = url.protocol === "https:" || url.protocol === "http:";
+      } catch {
+        valid = false;
+      }
+
+      if (!valid) {
+        errors.trackingUrl = "Tracking link must be a full web address starting with https://";
+      } else if (String(trackingUrl).trim().length > 500) {
+        errors.trackingUrl = "Tracking link must not exceed 500 characters";
+      }
+    }
+  }
+
   if (Object.keys(errors).length > 0) {
     throw new ApiError(400, "Validation failed", errors);
   }
+
+  req.body.shipment =
+    status === ORDER_STATUS.PACKED
+      ? {
+          courierName: String(courierName).trim(),
+          trackingNumber: String(trackingNumber).trim(),
+          trackingUrl: trackingUrl ? String(trackingUrl).trim() || null : null,
+        }
+      : null;
 
   next();
 };

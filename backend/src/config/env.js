@@ -433,6 +433,97 @@ if (whatsappEnabled && !(whatsappAppSecret && whatsappVerifyToken)) {
 }
 
 // ============================================================
+// EMAIL (RESEND)
+// ============================================================
+//
+// Order emails and password reset.
+//
+// Optional in the same way WhatsApp is. With no API key every order
+// email is recorded as `skipped` and nothing else changes — except that
+// "forgot password" cannot work, which the reset endpoint says plainly.
+//
+//   RESEND_API_KEY      sends. Resend dashboard -> API Keys.
+//   EMAIL_FROM          the sender. Until a domain is verified on Resend
+//                       this must be onboarding@resend.dev, and Resend
+//                       will then only deliver to the address that owns
+//                       the Resend account — see EMAIL_TEST_RECIPIENT.
+//   ADMIN_NOTIFY_EMAIL  where "new order" alerts go. Comma-separated for
+//                       more than one.
+//   STOREFRONT_URL      the shop's public origin, for the links inside
+//                       the emails (reset link, order page).
+
+// `||`, not `??`, matching the WhatsApp block: .env.example ships these
+// present and empty.
+const resendApiKey = process.env.RESEND_API_KEY || null;
+
+const emailFrom =
+  process.env.EMAIL_FROM || "Salwar Butterfly <onboarding@resend.dev>";
+
+const emailReplyTo = process.env.EMAIL_REPLY_TO || null;
+
+const adminNotifyEmails = (process.env.ADMIN_NOTIFY_EMAIL || "")
+  .split(",")
+  .map((address) => address.trim().toLowerCase())
+  .filter(Boolean);
+
+const emailEnabled = Boolean(resendApiKey);
+
+let storefrontUrl;
+
+try {
+  storefrontUrl = new URL(process.env.STOREFRONT_URL || corsOrigin).origin;
+} catch {
+  throw new Error(
+    `STOREFRONT_URL is not a valid URL: "${process.env.STOREFRONT_URL}". ` +
+      "Expected the shop's public address, e.g. https://salwarbutterfly.in",
+  );
+}
+
+// The logo at the top of every email. It has to be a public https URL —
+// Gmail and Outlook block embedded (data:) images — so it lives in the
+// R2 bucket beside the product photos. EMAIL_LOGO_URL overrides it;
+// unset, the copy uploaded to email/salwar-butterfly-logo.jpg is used.
+const emailLogoUrl =
+  process.env.EMAIL_LOGO_URL || `${r2PublicUrl.origin}/email/salwar-butterfly-logo.jpg`;
+
+// ---- TEST MODE ------------------------------------------------
+//
+// The email counterpart to WHATSAPP_TEST_RECIPIENT: every outbound
+// email, customer and admin alike, goes to this one address instead.
+//
+// Needed in practice while Resend has no verified domain, because Resend
+// refuses to send to anyone but the account owner until one is — and a
+// test order carries whatever email was typed into the checkout.
+const emailTestRecipient =
+  (process.env.EMAIL_TEST_RECIPIENT || "").trim().toLowerCase() || null;
+
+if (emailTestRecipient && nodeEnv === "production") {
+  throw new Error(
+    "EMAIL_TEST_RECIPIENT must not be set in production — it would " +
+      "redirect every customer and admin email to one address.",
+  );
+}
+
+// console, not the logger — same cycle as the warnings above.
+if (emailTestRecipient) {
+  console.warn(
+    `[env] Email TEST MODE — every email is redirected to ${emailTestRecipient}`,
+  );
+}
+
+if (emailEnabled && adminNotifyEmails.length === 0) {
+  console.warn(
+    "[env] ADMIN_NOTIFY_EMAIL not set — the shop will not be emailed about new orders",
+  );
+}
+
+if (!emailEnabled && nodeEnv === "production") {
+  console.warn(
+    "[env] RESEND_API_KEY not set — order emails are off and password reset cannot work",
+  );
+}
+
+// ============================================================
 // EXPORT CONFIG
 // ============================================================
 
@@ -533,5 +624,22 @@ export const env = Object.freeze({
     // null in every ordinary deployment. Non-null means every send is
     // redirected here — see the TEST MODE note above.
     testRecipient: whatsappTestRecipient,
+  }),
+
+  // ==========================================================
+  // EMAIL
+  // ==========================================================
+
+  email: Object.freeze({
+    enabled: emailEnabled,
+    resendApiKey,
+    from: emailFrom,
+    replyTo: emailReplyTo,
+    adminRecipients: Object.freeze(adminNotifyEmails),
+    storefrontUrl,
+    logoUrl: emailLogoUrl,
+
+    // null in every ordinary deployment — see the TEST MODE note above.
+    testRecipient: emailTestRecipient,
   }),
 });

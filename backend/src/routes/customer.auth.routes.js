@@ -5,12 +5,15 @@ import express from "express";
 import { CustomerAuthController } from "../controllers/customer.auth.controller.js";
 import {
   validateCustomerLogin,
+  validateForgotPassword,
+  validateResetPassword,
   validateUpdateCustomer,
 } from "../validators/customer.validator.js";
 import { authenticate } from "../middlewares/auth.middleware.js";
 import { requireCustomer } from "../middlewares/authorize.middleware.js";
 import {
   authRateLimiter,
+  passwordResetRateLimiter,
   refreshRateLimiter,
 } from "../middlewares/rateLimiter.js";
 
@@ -41,6 +44,24 @@ router.post(
   authRateLimiter,
   validateCustomerLogin,
   CustomerAuthController.login,
+);
+
+// "Forgot password": emails a single-use link. Answers the same whether
+// or not the address has an account — see password_reset.service.js.
+router.post(
+  "/forgot-password",
+  passwordResetRateLimiter,
+  validateForgotPassword,
+  CustomerAuthController.forgotPassword,
+);
+
+// Sets the new password from the emailed link. On the sign-in limiter:
+// a token is a credential, and guessing one is guessing a password.
+router.post(
+  "/reset-password",
+  authRateLimiter,
+  validateResetPassword,
+  CustomerAuthController.resetPassword,
 );
 
 // ============================================================

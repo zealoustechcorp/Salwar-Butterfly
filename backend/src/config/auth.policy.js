@@ -205,4 +205,6 @@ export const REVOKE_REASON = Object.freeze({
   LOGOUT: "logout",
   REUSE_DETECTED: "reuse_detected",
   ROTATED_OUT: "rotated_out",
+  /** Every session ended because the password was reset by email. */
+  PASSWORD_RESET: "password_reset",
 });

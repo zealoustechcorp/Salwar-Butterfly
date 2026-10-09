@@ -11,10 +11,11 @@
  * a screen reader, none of which the header's drawer needs to get right.
  */
 
-import { AlertCircle, Eye, EyeOff, Loader2, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, Eye, EyeOff, Loader2, MailCheck, X } from "lucide-react";
 import { Dialog as DialogPrimitive } from "radix-ui";
 import { useState } from "react";
 
+import { requestPasswordReset } from "@/lib/store/auth";
 import {
   collect,
   hasErrors,
@@ -123,6 +124,12 @@ function AuthForm({ intent, signIn, signUp, closeAuth }) {
     setBanner(null);
   };
 
+  const showForgot = () => {
+    setMode("forgot");
+    setErrors({});
+    setBanner(null);
+  };
+
   const onSubmit = async (event) => {
     event.preventDefault();
     if (pending) return;
@@ -170,6 +177,17 @@ function AuthForm({ intent, signIn, signUp, closeAuth }) {
       setPending(false);
     }
   };
+
+  // After every hook above, so switching modes never changes hook order.
+  // The email typed so far carries over — they were just typing it.
+  if (mode === "forgot") {
+    return (
+      <ForgotPasswordForm
+        initialEmail={values.email}
+        onBack={() => setMode("signin")}
+      />
+    );
+  }
 
   return (
     <form onSubmit={onSubmit} noValidate>
@@ -251,6 +269,18 @@ function AuthForm({ intent, signIn, signUp, closeAuth }) {
           isSignUp={isSignUp}
           error={errorFor("password")}
         />
+
+        {isSignUp ? null : (
+          <div className="-mt-1 text-right">
+            <button
+              type="button"
+              onClick={showForgot}
+              className="text-xs font-semibold text-sb-link underline underline-offset-4 hover:text-sb-heading"
+            >
+              Forgot password?
+            </button>
+          </div>
+        )}
       </div>
 
       {/* A refusal with no field to sit under. The toast that went up with
@@ -296,6 +326,134 @@ function AuthForm({ intent, signIn, signUp, closeAuth }) {
           Keep browsing
         </button>
       </p>
+    </form>
+  );
+}
+
+/**
+ * "Forgot password": asks for the email and sends a reset link.
+ *
+ * The confirmation reads the same whether or not the address has an
+ * account — the API answers identically, and so must this screen, or it
+ * becomes a way to check who shops here.
+ */
+function ForgotPasswordForm({ initialEmail, onBack }) {
+  const toast = useStoreToast();
+
+  const [email, setEmail] = useState(initialEmail ?? "");
+  const [error, setError] = useState(null);
+  const [pending, setPending] = useState(false);
+  const [sentTo, setSentTo] = useState(null);
+
+  const onSubmit = async (event) => {
+    event.preventDefault();
+    if (pending) return;
+
+    const invalid = validateEmail(email);
+
+    if (invalid) {
+      setError(invalid);
+      return;
+    }
+
+    setPending(true);
+    setError(null);
+
+    const result = await requestPasswordReset({ email: email.trim() });
+
+    setPending(false);
+
+    if (result.ok) {
+      setSentTo(email.trim());
+      return;
+    }
+
+    if (result.field === "email") {
+      setError(result.error);
+    }
+
+    toast.error("Could not send the reset link", result.error);
+  };
+
+  if (sentTo) {
+    return (
+      <div>
+        <MailCheck className="size-7 text-sb-gold-text" strokeWidth={1.4} aria-hidden="true" />
+
+        <DialogPrimitive.Title className="mt-3 font-display text-2xl font-semibold text-sb-heading">
+          Check your email
+        </DialogPrimitive.Title>
+        <DialogPrimitive.Description className="mt-1.5 text-sm leading-relaxed text-sb-text-muted">
+          If an account exists for <strong className="text-sb-text">{sentTo}</strong>,
+          we have sent a link to reset your password. It works once and expires
+          in 30 minutes.
+        </DialogPrimitive.Description>
+
+        <p className="mt-4 text-xs leading-relaxed text-sb-text-muted">
+          Nothing arrived after a few minutes? Check your spam folder, or make
+          sure this is the email you signed up with.
+        </p>
+
+        <button
+          type="button"
+          onClick={onBack}
+          className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-sb-btn-primary px-6 py-3 text-sm font-semibold text-sb-bg transition-colors hover:bg-sb-btn-rose"
+        >
+          Back to sign in
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={onSubmit} noValidate>
+      <Butterfly className="size-7 text-sb-gold-text" strokeWidth={1.2} />
+
+      <DialogPrimitive.Title className="mt-3 font-display text-2xl font-semibold text-sb-heading">
+        Forgot your password?
+      </DialogPrimitive.Title>
+      <DialogPrimitive.Description className="mt-1.5 text-sm text-sb-text-muted">
+        Enter the email you signed up with and we will send you a link to
+        choose a new one.
+      </DialogPrimitive.Description>
+
+      <div className="mt-5">
+        <Field id="forgot-email" label="Email" error={error}>
+          <input
+            id="forgot-email"
+            type="email"
+            value={email}
+            onChange={(event) => {
+              setEmail(event.target.value);
+              setError(null);
+            }}
+            autoComplete="email"
+            autoFocus
+            placeholder="you@example.com"
+            aria-invalid={Boolean(error)}
+            aria-describedby={error ? "forgot-email-error" : undefined}
+            className={FIELD_CLASS}
+          />
+        </Field>
+      </div>
+
+      <button
+        type="submit"
+        disabled={pending}
+        className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-sb-btn-primary px-6 py-3 text-sm font-semibold text-sb-bg transition-colors hover:bg-sb-btn-rose disabled:cursor-not-allowed disabled:bg-sb-text-muted/40"
+      >
+        {pending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
+        Send reset link
+      </button>
+
+      <button
+        type="button"
+        onClick={onBack}
+        className="mx-auto mt-4 flex items-center gap-1.5 text-sm font-semibold text-sb-link underline underline-offset-4 hover:text-sb-heading"
+      >
+        <ArrowLeft className="size-3.5" aria-hidden="true" />
+        Back to sign in
+      </button>
     </form>
   );
 }

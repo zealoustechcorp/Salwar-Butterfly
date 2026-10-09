@@ -203,6 +203,47 @@ export const validateCustomerLogin = (req, res, next) => {
 };
 
 // ============================================================
+// PASSWORD RESET
+// ============================================================
+
+export const validateForgotPassword = (req, res, next) => {
+  const { email } = req.body ?? {};
+
+  const emailError = validateEmail(email, true);
+
+  if (emailError) {
+    throw new ApiError(400, "Validation failed", { email: emailError });
+  }
+
+  // Lower-cased, matching validateCustomerLogin: the lookup is an exact
+  // match against the stored, lower-cased address.
+  req.body.email = email.trim().toLowerCase();
+
+  next();
+};
+
+export const validateResetPassword = (req, res, next) => {
+  const { token, password } = req.body ?? {};
+
+  const errors = {};
+
+  // The token is 43 base64url characters; anything far from that is not
+  // one of ours and is refused before it costs a bcrypt hash.
+  if (typeof token !== "string" || !/^[A-Za-z0-9_-]{20,200}$/.test(token)) {
+    errors.token = "This reset link is not valid. Please ask for a new one.";
+  }
+
+  const passwordError = validatePassword(password, true);
+  if (passwordError) errors.password = passwordError;
+
+  if (Object.keys(errors).length > 0) {
+    throw new ApiError(400, "Validation failed", errors);
+  }
+
+  next();
+};
+
+// ============================================================
 // UPDATE CUSTOMER
 // ============================================================
 

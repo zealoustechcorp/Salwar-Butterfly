@@ -10,6 +10,7 @@ import {
   startNotificationSweeper,
   stopNotificationSweeper,
 } from './queues/notification.sweeper.js';
+import { startEmailSweeper, stopEmailSweeper } from './queues/email.sweeper.js';
 import { RefreshTokenRepository } from './repository/refresh_token.repository.js';
 
 const server = http.createServer(app);
@@ -51,6 +52,8 @@ async function start() {
   // committed notification eventually goes out. A no-op when WhatsApp is
   // not configured.
   startNotificationSweeper();
+  // The same floor under the email outbox. A no-op without RESEND_API_KEY.
+  startEmailSweeper();
   sweepExpiredSessions();
   server.listen(env.port, () => {
     console.log(`[server] Listening on http://localhost:${env.port} (${env.nodeEnv})`);
@@ -67,6 +70,7 @@ async function shutdown(signal) {
     // drain. A send already in flight finishes or is picked up by the
     // next process — the outbox row is still there either way.
     stopNotificationSweeper();
+    stopEmailSweeper();
     await stopWebhookWorker();
     await closeWebhookQueue();
     await closeDb();

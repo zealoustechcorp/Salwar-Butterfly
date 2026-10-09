@@ -1,6 +1,10 @@
 // src/controllers/customer.auth.controller.js
 
 import { CustomerAuthService } from "../services/customer.auth.service.js";
+import {
+  PasswordResetService,
+  RESET_REQUESTED_MESSAGE,
+} from "../services/password_reset.service.js";
 import { AUTH_AUDIENCE } from "../config/auth.policy.js";
 import {
   clearRefreshCookie,
@@ -31,6 +35,41 @@ const sendSession = (res, session) => {
 };
 
 export const CustomerAuthController = {
+  // ==========================================================
+  // POST /api/customers/auth/forgot-password
+  // ==========================================================
+
+  forgotPassword: asyncHandler(async (req, res) => {
+    await PasswordResetService.requestReset(req.body.email, { ip: req.ip });
+
+    // The same answer for every address — see password_reset.service.js.
+    return okResponse({
+      res,
+      data: null,
+      message: RESET_REQUESTED_MESSAGE,
+    });
+  }),
+
+  // ==========================================================
+  // POST /api/customers/auth/reset-password
+  // ==========================================================
+
+  resetPassword: asyncHandler(async (req, res) => {
+    const { token, password } = req.body;
+
+    await PasswordResetService.resetPassword(token, password);
+
+    // Every session was ended, including any refresh cookie this browser
+    // holds, so clear it rather than leave a dead one behind.
+    clearRefreshCookie(res, AUDIENCE);
+
+    return okResponse({
+      res,
+      data: null,
+      message: "Your password has been changed. Please sign in with the new one.",
+    });
+  }),
+
   // ==========================================================
   // POST /api/customers/auth/login
   // ==========================================================

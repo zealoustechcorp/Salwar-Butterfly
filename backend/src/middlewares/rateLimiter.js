@@ -165,6 +165,22 @@ export const refreshRateLimiter = createLimiter({
 });
 
 /**
+ * "Forgot password".
+ *
+ * Its own bucket, and tighter than sign-in: every accepted request can
+ * send an email, so this is the limiter that stops the form being used
+ * to flood an inbox or burn the Resend quota. Five per fifteen minutes is
+ * more than a shopper who mistyped their address twice will ever need.
+ */
+export const passwordResetRateLimiter = createLimiter({
+  name: "password-reset",
+  prefix: "rl:pwreset:",
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  message: "Too many password reset requests. Please try again in a few minutes.",
+});
+
+/**
  * Checkout (F-07.01).
  *
  * Placing an order is open to guests, opens a transaction and takes a

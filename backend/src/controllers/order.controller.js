@@ -293,14 +293,16 @@ export const OrderController = {
   changeStatus: asyncHandler(async (req, res) => {
     try {
       const { id } = req.params;
-      const { status, note } = req.body;
+      const { status, note, shipment } = req.body;
 
       logger.info("Change order status endpoint called", {
         orderId: id,
         status,
       });
 
-      const order = await OrderService.changeStatus(id, status, { note });
+      // `shipment` is built by validateStatusChange — present only when
+      // marking packed, where the tracking email needs it.
+      const order = await OrderService.changeStatus(id, status, { note, shipment });
 
       return okResponse({
         res,
