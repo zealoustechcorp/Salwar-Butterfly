@@ -20,6 +20,13 @@ const app = express();
 
 app.disable("x-powered-by");
 
+// One reverse proxy (the host's load balancer) sits in front of the API in
+// production. Trusting exactly one hop makes req.ip the shopper's address
+// from X-Forwarded-For rather than the proxy's — without it every visitor
+// shares one rate-limit bucket. Not `true`: that would trust any
+// X-Forwarded-For a client sends and let them pick their own IP.
+app.set("trust proxy", 1);
+
 app.use(
   helmet({
     contentSecurityPolicy: env.isProd,

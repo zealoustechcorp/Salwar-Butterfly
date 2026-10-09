@@ -1,5 +1,6 @@
 import { Geist, Geist_Mono, Cormorant_Garamond, Karla } from "next/font/google";
 import "./globals.css";
+import { SITE_URL } from "@/lib/site";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -27,6 +28,10 @@ const karla = Karla({
 });
 
 export const metadata = {
+  // Resolves the relative URLs in metadata below and in every page — the
+  // og:image on a product page in particular, which a link preview on
+  // WhatsApp or Instagram cannot use unless it is absolute.
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "Salwar Butterfly",
     template: "%s · Salwar Butterfly",

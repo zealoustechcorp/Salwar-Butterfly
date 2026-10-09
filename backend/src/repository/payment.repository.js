@@ -342,6 +342,16 @@ export const PaymentRepository = {
    * conflict — an admin may have confirmed a transfer by hand moments
    * before the gateway callback landed. The attempt is still marked paid;
    * only the order UPDATE finds nothing to do.
+   *
+   * A `failed` attempt settles too, and must. A Razorpay order outlives a
+   * declined payment: the sheet stays open, offers "Retry payment", and
+   * the retry is a new payment against the same order — so the same row.
+   * By then payment.failed has already marked it failed, and guarding on
+   * `created` alone would refuse the capture that followed while still
+   * reporting `alreadyPaid`: money taken, order left pending, nobody
+   * told. Only `paid` and `refunded` are terminal, and those are what the
+   * guard still excludes. The failure's error fields are cleared, since
+   * they describe a payment that is no longer the one this row records.
    */
   async settle(paymentId, { providerPaymentId, method = null }) {
     try {
@@ -351,10 +361,12 @@ export const PaymentRepository = {
            SET status = $2,
                provider_payment_id = $3,
                method = COALESCE($4, method),
+               error_code = NULL,
+               error_description = NULL,
                paid_at = COALESCE(paid_at, NOW()),
                updated_at = NOW()
            WHERE id = $1::uuid
-             AND status = $5
+             AND status IN ($5, $6)
            RETURNING ${COLUMNS}`,
           [
             paymentId,
@@ -362,6 +374,7 @@ export const PaymentRepository = {
             providerPaymentId,
             method,
             PAYMENT_ATTEMPT_STATUS.CREATED,
+            PAYMENT_ATTEMPT_STATUS.FAILED,
           ],
         );
 

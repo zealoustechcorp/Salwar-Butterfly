@@ -6,7 +6,7 @@
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon --env-file=.env --import=./src/instrument.js src/server.js",
-    "start": "nodemon --env-file=.env --import=./src/instrument.js src/server.js",
+    "start": "node --env-file-if-exists=.env --import=./src/instrument.js src/server.js",
     "test": "node --env-file-if-exists=.env --test --test-force-exit \"tests/**/*.test.js\"",
     "db:check": "node --env-file=.env src/scripts/checkDb.js",
     "db:migrate": "node --env-file=.env src/scripts/migrate.js",
