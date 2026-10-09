@@ -3,7 +3,7 @@ import { CategoryMapper } from "../mapper/category.mapper.js";
 import { CreateCategoryDTO, UpdateCategoryDTO } from "../dto/category.dto.js";
 import { ApiError } from "../utils/ApiError.js";
 import { logger } from "../utils/logger.js";
-import { CloudinaryStorage } from "../config/cloudinary.cdn.js";
+import { ImageStorage } from "../config/r2.storage.js";
 
 export class CategoryService {
   static async create(data) {
@@ -50,7 +50,7 @@ export class CategoryService {
       if (data.imageFile?.buffer) {
         logger.info("Uploading category image", { slug: categoryDTO.slug });
         try {
-          uploadedImage = await CloudinaryStorage.uploadImage(
+          uploadedImage = await ImageStorage.uploadImage(
             data.imageFile.buffer,
             {
               folder: "categories",
@@ -112,7 +112,7 @@ export class CategoryService {
           logger.info("Cleaning up uploaded image after create failure", {
             imagePublicId: uploadedImage.imagePublicId,
           });
-          await CloudinaryStorage.deleteImage(uploadedImage.imagePublicId);
+          await ImageStorage.deleteImage(uploadedImage.imagePublicId);
         } catch (cleanupError) {
           logger.error("Failed to cleanup image", {
             error: cleanupError.message,
@@ -259,7 +259,7 @@ export class CategoryService {
         if (updateData.imageFile?.buffer) {
           logger.info("Uploading new category image", { categoryId: id });
           try {
-            uploadedImage = await CloudinaryStorage.uploadImage(
+            uploadedImage = await ImageStorage.uploadImage(
               updateData.imageFile.buffer,
               {
                 folder: "categories",
@@ -334,7 +334,7 @@ export class CategoryService {
       if (uploadedImage?.imagePublicId) {
         try {
           logger.info("Cleaning up uploaded image after update failure");
-          await CloudinaryStorage.deleteImage(uploadedImage.imagePublicId);
+          await ImageStorage.deleteImage(uploadedImage.imagePublicId);
         } catch (cleanupError) {
           logger.error("Failed to cleanup image", {
             error: cleanupError.message,
@@ -371,14 +371,14 @@ export class CategoryService {
 
         if (category.image_public_id) {
           try {
-            logger.info("Deleting category image from Cloudinary", {
+            logger.info("Deleting category image from R2", {
               imagePublicId: category.image_public_id,
             });
-            await CloudinaryStorage.deleteImage(category.image_public_id);
-          } catch (cloudinaryError) {
-            logger.error("Cloudinary image delete failed", {
+            await ImageStorage.deleteImage(category.image_public_id);
+          } catch (storageError) {
+            logger.error("R2 image delete failed", {
               imagePublicId: category.image_public_id,
-              error: cloudinaryError.message,
+              error: storageError.message,
             });
           }
         }

@@ -2,7 +2,7 @@
 //
 // The Meta WhatsApp Cloud API client.
 //
-// Sits beside razorpay.gateway.js and cloudinary.cdn.js and does the
+// Sits beside razorpay.gateway.js and r2.storage.js and does the
 // same job: it is the only file in the project that knows a third
 // party's wire format, so the service above it talks in template names
 // and phone numbers and never in Graph API versions, `messaging_product`

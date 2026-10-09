@@ -3,6 +3,7 @@
 import multer from "multer";
 
 import { ApiError } from "../utils/ApiError.js";
+import { detectImageType } from "../utils/imageType.js";
 import { MAX_BANNERS_PER_UPLOAD } from "../config/banner.policy.js";
 import { MAX_STORIES_PER_UPLOAD } from "../config/customer_story.policy.js";
 
@@ -39,7 +40,7 @@ const MAX_BATCH_FILES = Math.max(
 //
 // Store the uploaded image in memory.
 //
-// The buffer will later be sent directly to Cloudinary.
+// The buffer will later be sent directly to R2 (see r2.storage.js).
 //
 
 const storage = multer.memoryStorage();
@@ -53,7 +54,8 @@ const storage = multer.memoryStorage();
 //
 // We only use it as preliminary information.
 //
-// The actual file content is validated later using magic bytes.
+// The actual file content is validated later using magic bytes
+// (utils/imageType.js).
 //
 
 const ALLOWED_MIME_TYPES = new Set([
@@ -121,76 +123,6 @@ const uploadMany = multer({
 
   fileFilter,
 });
-
-// ============================================================
-// IMAGE SIGNATURE VALIDATION
-// ============================================================
-//
-// MIME type supplied by the client cannot be trusted.
-//
-// These functions inspect the actual binary contents of the
-// uploaded file.
-//
-
-const isJPEG = (buffer) => {
-  if (!buffer || buffer.length < 3) {
-    return false;
-  }
-
-  return buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
-};
-
-// ------------------------------------------------------------
-
-const isPNG = (buffer) => {
-  if (!buffer || buffer.length < 8) {
-    return false;
-  }
-
-  return (
-    buffer[0] === 0x89 &&
-    buffer[1] === 0x50 &&
-    buffer[2] === 0x4e &&
-    buffer[3] === 0x47 &&
-    buffer[4] === 0x0d &&
-    buffer[5] === 0x0a &&
-    buffer[6] === 0x1a &&
-    buffer[7] === 0x0a
-  );
-};
-
-// ------------------------------------------------------------
-
-const isWEBP = (buffer) => {
-  if (!buffer || buffer.length < 12) {
-    return false;
-  }
-
-  return (
-    buffer.toString("ascii", 0, 4) === "RIFF" &&
-    buffer.toString("ascii", 8, 12) === "WEBP"
-  );
-};
-
-// ============================================================
-// DETECT IMAGE TYPE
-// ============================================================
-
-const detectImageType = (buffer) => {
-  if (isJPEG(buffer)) {
-    return "image/jpeg";
-  }
-
-  if (isPNG(buffer)) {
-    return "image/png";
-  }
-
-  if (isWEBP(buffer)) {
-    return "image/webp";
-  }
-
-  return null;
-};
 
 // ============================================================
 // VALIDATE UPLOADED IMAGE

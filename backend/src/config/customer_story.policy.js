@@ -54,5 +54,5 @@ export const MAX_STORIES_ON_HOME = 24;
  */
 export const MAX_STORIES_PER_UPLOAD = 8;
 
-/** Where story images are stored on Cloudinary. */
+/** Where story images are stored in R2. */
 export const STORY_FOLDER = "stories";

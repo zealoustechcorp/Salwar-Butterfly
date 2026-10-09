@@ -2,7 +2,7 @@
 //
 // The Razorpay REST client (F-10).
 //
-// Sits beside cloudinary.cdn.js and does the same job: it is the only
+// Sits beside r2.storage.js and does the same job: it is the only
 // file in the project that knows a third party's wire format, so the
 // service above it talks in rupees and order ids and never in paise,
 // Basic auth headers or `rzp_` prefixes.

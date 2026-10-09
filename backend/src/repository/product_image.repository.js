@@ -280,7 +280,7 @@ export const ProductImageRepository = {
    * Deletes one image and closes the gap it leaves, so the next image
    * becomes the cover rather than the gallery starting at position 1.
    *
-   * @returns {Promise<object|null>} the deleted row, for its Cloudinary handle
+   * @returns {Promise<object|null>} the deleted row, for its R2 object key
    */
   async delete(id) {
     try {

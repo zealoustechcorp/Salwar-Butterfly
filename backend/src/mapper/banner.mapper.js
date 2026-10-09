@@ -17,7 +17,7 @@
 // The three fields it drops are the three a public reader must not have:
 // `id` invites a client to start sending it back, `active` would tell an
 // anonymous reader how many banners the shop has taken down, and
-// `image_public_id` is the handle that deletes the file off Cloudinary.
+// `image_public_id` is the handle that deletes the file off R2.
 // That last one is not a leak of taste — it is the destructive key,
 // printed on an endpoint with no token in front of it.
 //

@@ -22,10 +22,12 @@ const required = [
   "DATABASE_URL",
   "JWT_SECRET",
 
-  // Cloudinary
-  "CLOUDINARY_CLOUD_NAME",
-  "CLOUDINARY_API_KEY",
-  "CLOUDINARY_API_SECRET",
+  // Cloudflare R2 (image storage)
+  "R2_ACCOUNT_ID",
+  "R2_ACCESS_KEY_ID",
+  "R2_SECRET_ACCESS_KEY",
+  "R2_BUCKET",
+  "R2_PUBLIC_URL",
 ];
 
 for (const key of required) {
@@ -158,31 +160,30 @@ if (process.env.JWT_EXPIRES_IN) {
 }
 
 // ============================================================
-// CLOUDINARY
+// CLOUDFLARE R2
 // ============================================================
+//
+// Required, like the database: every admin screen that takes a picture
+// writes it here, and the storefront loads it back from R2_PUBLIC_URL —
+// the custom domain connected to the bucket, which is Cloudflare's CDN.
+//
+// The public URL is stored inside every image row, so its exact form
+// matters: one canonical https origin with no trailing slash, or the
+// rows written today and the ones written next month disagree.
 
-// ============================================================
-// CLOUDINARY
-// ============================================================
+let r2PublicUrl;
 
-const cloudinaryCloudName = process.env.CLOUDINARY_CLOUD_NAME;
-const cloudinaryApiKey = process.env.CLOUDINARY_API_KEY;
-const cloudinaryApiSecret = process.env.CLOUDINARY_API_SECRET;
-
-if (!cloudinaryCloudName) {
+try {
+  r2PublicUrl = new URL(process.env.R2_PUBLIC_URL);
+} catch {
   throw new Error(
-    "Missing required environment variable: CLOUDINARY_CLOUD_NAME",
+    `R2_PUBLIC_URL is not a valid URL: "${process.env.R2_PUBLIC_URL}". ` +
+      "Expected the bucket's custom domain, e.g. https://images.salwarbutterfly.in",
   );
 }
 
-if (!cloudinaryApiKey) {
-  throw new Error("Missing required environment variable: CLOUDINARY_API_KEY");
-}
-
-if (!cloudinaryApiSecret) {
-  throw new Error(
-    "Missing required environment variable: CLOUDINARY_API_SECRET",
-  );
+if (r2PublicUrl.protocol !== "https:" && nodeEnv === "production") {
+  throw new Error("R2_PUBLIC_URL must use https in production");
 }
 
 // ============================================================
@@ -468,13 +469,15 @@ export const env = Object.freeze({
   refreshTokenTtl,
 
   // ==========================================================
-  // CLOUDINARY
+  // CLOUDFLARE R2
   // ==========================================================
 
-  cloudinary: Object.freeze({
-    cloudName: cloudinaryCloudName,
-    apiKey: cloudinaryApiKey,
-    apiSecret: cloudinaryApiSecret,
+  r2: Object.freeze({
+    accountId: process.env.R2_ACCOUNT_ID,
+    accessKeyId: process.env.R2_ACCESS_KEY_ID,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+    bucket: process.env.R2_BUCKET,
+    publicUrl: r2PublicUrl.origin,
   }),
 
   // ==========================================================

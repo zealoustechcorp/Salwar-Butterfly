@@ -6,7 +6,7 @@ export const ProductImageMapper = {
       id: row.id,
       productId: row.product_id,
       imageUrl: row.image_url,
-      // The Cloudinary handle is returned deliberately: the admin gallery
+      // The R2 object key is returned deliberately: the admin gallery
       // has no use for it, but it is the only way to tell two rows of the
       // same photograph apart when diagnosing a duplicate upload.
       imagePublicId: row.image_public_id,

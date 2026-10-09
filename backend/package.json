@@ -11,14 +11,15 @@
     "db:check": "node --env-file=.env src/scripts/checkDb.js",
     "db:migrate": "node --env-file=.env src/scripts/migrate.js",
     "db:import-catalogue": "node --env-file=.env src/scripts/importCatalogue.js",
+    "images:migrate-r2": "node --env-file=.env src/scripts/migrateImagesToR2.js",
     "admin:create": "node --env-file=.env src/scripts/createAdmin.js",
     "wa:check": "node --env-file=.env src/scripts/whatsappCheck.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1148.0",
     "@sentry/node": "^10.74.0",
     "bcrypt": "^6.0.0",
     "bullmq": "^6.3.5",
-    "cloudinary": "^2.10.1",
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "express-rate-limit": "^8.6.2",

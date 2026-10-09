@@ -4,7 +4,7 @@ import { ProductRepository } from "../repository/poduct.repository.js";
 import { SizeChartRepository } from "../repository/size_chart.repository.js";
 import { CreateProductDTO, UpdateProductDTO } from "../dto/product.dto.js";
 import { ProductMapper } from "../mapper/product.mapper.js";
-import { CloudinaryStorage } from "../config/cloudinary.cdn.js";
+import { ImageStorage } from "../config/r2.storage.js";
 import { FIT_GROUP } from "../config/attribute.groups.js";
 import { ApiError } from "../utils/ApiError.js";
 import { logger } from "../utils/logger.js";
@@ -788,9 +788,9 @@ export const ProductService = {
 
       if (!deleted) throw new ApiError(404, "Product not found");
 
-      // `product_images` cascades with the product, but Cloudinary knows
+      // `product_images` cascades with the product, but R2 knows
       // nothing about the foreign key — without this the photographs stay
-      // on the account with nothing left pointing at them. Best effort:
+      // in the bucket with nothing left pointing at them. Best effort:
       // the product is already gone, so a failure here is a storage leak
       // to clean up later, not a reason to report the delete as failed.
       const images = Array.isArray(product.images) ? product.images : [];
@@ -799,13 +799,13 @@ export const ProductService = {
         const results = await Promise.allSettled(
           images
             .filter((image) => image.imagePublicId)
-            .map((image) => CloudinaryStorage.deleteImage(image.imagePublicId)),
+            .map((image) => ImageStorage.deleteImage(image.imagePublicId)),
         );
 
         const failed = results.filter((r) => r.status === "rejected").length;
 
         if (failed > 0) {
-          logger.error("Product deleted but some images remain on Cloudinary", {
+          logger.error("Product deleted but some images remain in R2", {
             productId: normalizedId,
             failed,
             total: images.length,

@@ -17,3 +17,6 @@ npm-debug.log*
 Thumbs.db
 .vscode/
 .idea/
+
+# Old -> new image URL mapping written by backend images:migrate-r2
+r2-migration-*.json

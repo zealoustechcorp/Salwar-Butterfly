@@ -22,7 +22,7 @@
  * set once.
  *
  * Counted across hidden banners too. A hidden slide still holds a
- * Cloudinary file the shop is paying to store, and a cap that only
+ * R2 file the shop is paying to store, and a cap that only
  * counted the live ones would not bound anything.
  */
 export const MAX_BANNERS = 12;
@@ -40,11 +40,11 @@ export const MAX_BANNERS = 12;
 export const MAX_BANNERS_PER_UPLOAD = 8;
 
 /**
- * Where new banner files are stored on Cloudinary.
+ * Where new banner files are stored in R2.
  *
  * The five seeded in 017 are not here. They are in `shop/settings`,
  * where the shop originally uploaded them, and they stay there — moving
- * a file on Cloudinary changes its public id and therefore its URL, so
+ * a file in R2 changes its key and therefore its URL, so
  * tidying the folder name would break every row that already points at
  * one. New uploads land here; old ones are found by the id in their row,
  * which is the only thing either folder is read by.

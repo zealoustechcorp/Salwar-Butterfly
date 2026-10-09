@@ -32,9 +32,11 @@ import { randomUUID } from "node:crypto";
 process.env.NODE_ENV = "test";
 process.env.DATABASE_URL ??= "postgres://user:pass@localhost:5432/test";
 process.env.JWT_SECRET ??= "test-secret-that-is-long-enough-32+";
-process.env.CLOUDINARY_CLOUD_NAME ??= "test";
-process.env.CLOUDINARY_API_KEY ??= "test";
-process.env.CLOUDINARY_API_SECRET ??= "test";
+process.env.R2_ACCOUNT_ID ??= "test";
+process.env.R2_ACCESS_KEY_ID ??= "test";
+process.env.R2_SECRET_ACCESS_KEY ??= "test";
+process.env.R2_BUCKET ??= "test";
+process.env.R2_PUBLIC_URL ??= "https://images.test";
 
 const { SessionService } = await import("../src/services/session.service.js");
 const { query, closeDb } = await import("../src/config/db.js");

@@ -15,14 +15,14 @@
 // a row still amounts to a story — every row has an image, so every row
 // is a card.
 //
-// The Cloudinary ordering rules are banner.service.js's, for the same
+// The storage ordering rules are banner.service.js's, for the same
 // reasons: upload before insert, upload before delete when replacing,
 // row before file when deleting. Never leave a row pointing at a file
 // that is not there.
 
 import { CustomerStoryRepository } from "../repository/customer_story.repository.js";
 import { CustomerStoryMapper } from "../mapper/customer_story.mapper.js";
-import { CloudinaryStorage } from "../config/cloudinary.cdn.js";
+import { ImageStorage } from "../config/r2.storage.js";
 import { MAX_STORIES, STORY_FOLDER } from "../config/customer_story.policy.js";
 import { ApiError } from "../utils/ApiError.js";
 import { logger } from "../utils/logger.js";
@@ -69,8 +69,8 @@ const discardUploads = async (uploaded, reason) => {
 
   await Promise.all(
     uploaded.map((image) =>
-      CloudinaryStorage.deleteImage(image.imagePublicId).catch((error) => {
-        logger.error("Orphaned story image left on Cloudinary", {
+      ImageStorage.deleteImage(image.imagePublicId).catch((error) => {
+        logger.error("Orphaned story image left in R2", {
           publicId: image.imagePublicId,
           error: error?.message,
         });
@@ -163,7 +163,7 @@ export const CustomerStoryService = {
 
     const results = await Promise.allSettled(
       files.map((file) =>
-        CloudinaryStorage.uploadImage(file.buffer, { folder: STORY_FOLDER }),
+        ImageStorage.uploadImage(file.buffer, { folder: STORY_FOLDER }),
       ),
     );
 
@@ -258,7 +258,7 @@ export const CustomerStoryService = {
    * Swaps a story's photograph.
    *
    * The old file is deleted only once the row points at the new one —
-   * see banner.service.js, which explains why Cloudinary's own
+   * see banner.service.js, which explains why ImageStorage's own
    * `replaceImage` is the wrong way round for this.
    */
   async replaceImage(storyId, file) {
@@ -273,7 +273,7 @@ export const CustomerStoryService = {
     let uploaded;
 
     try {
-      uploaded = await CloudinaryStorage.uploadImage(file.buffer, {
+      uploaded = await ImageStorage.uploadImage(file.buffer, {
         folder: STORY_FOLDER,
       });
     } catch (error) {
@@ -316,8 +316,8 @@ export const CustomerStoryService = {
     // nothing else, so a failure here is logged rather than raised — the
     // shop's edit succeeded, and telling them otherwise would invite
     // them to retry an upload that already worked.
-    CloudinaryStorage.deleteImage(existing.image_public_id).catch((error) => {
-      logger.error("Replaced story image left on Cloudinary", {
+    ImageStorage.deleteImage(existing.image_public_id).catch((error) => {
+      logger.error("Replaced story image left in R2", {
         storyId: id,
         publicId: existing.image_public_id,
         error: error?.message,
@@ -427,8 +427,8 @@ export const CustomerStoryService = {
     // The row is gone, so the admin's action has succeeded whatever
     // happens next. A file left behind costs storage and is findable
     // from this log line.
-    CloudinaryStorage.deleteImage(removed.image_public_id).catch((error) => {
-      logger.error("Deleted story's image left on Cloudinary", {
+    ImageStorage.deleteImage(removed.image_public_id).catch((error) => {
+      logger.error("Deleted story's image left in R2", {
         storyId: id,
         publicId: removed.image_public_id,
         error: error?.message,
