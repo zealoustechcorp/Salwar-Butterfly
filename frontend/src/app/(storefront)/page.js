@@ -7,6 +7,7 @@ import { FabricStrip, FollowSection, OfferBanner } from "@/components/store/Prom
 import { getBanners } from "@/lib/store/banners";
 import { getHomePageData } from "@/lib/store/catalogue";
 import { getCustomerStories } from "@/lib/store/customerStories";
+import { SITE_URL } from "@/lib/site";
 
 /**
  * Storefront home (F-06 Product Browsing).
@@ -42,6 +43,12 @@ export default async function StorefrontHome() {
 
   return (
     <>
+      <script
+        type="application/ld+json"
+        // JSON.stringify output contains no "</script>", and nothing in it
+        // comes from a shopper — the shop's own name, links and logo.
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(siteJsonLd(shop)) }}
+      />
       {/* Banners and nothing else: the hero's copy block — brand line, shop
           buttons and the shop-wide review score — has been removed, so the
           shop-wide `rating` is not read on this page at all any more. It is
@@ -64,4 +71,42 @@ export default async function StorefrontHome() {
       <FollowSection shop={shop} />
     </>
   );
+}
+
+/**
+ * Who the site belongs to, for search engines (schema.org).
+ *
+ * `WebSite.name` is what Google prints as the site name above a result, and
+ * `Organization.logo` is what Google and Bing may show as the brand mark.
+ * The logo is the site's own app icon rather than `shop.logo`, which still
+ * points at the old Cloudinary account and answers 401.
+ */
+function siteJsonLd(shop) {
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": `${SITE_URL}/#website`,
+        url: SITE_URL,
+        name: shop.name,
+        publisher: { "@id": `${SITE_URL}/#organization` },
+        potentialAction: {
+          "@type": "SearchAction",
+          target: `${SITE_URL}/shop?q={search_term_string}`,
+          "query-input": "required name=search_term_string",
+        },
+      },
+      {
+        "@type": ["Organization", "OnlineStore"],
+        "@id": `${SITE_URL}/#organization`,
+        name: shop.name,
+        url: SITE_URL,
+        logo: `${SITE_URL}/icon.png`,
+        email: shop.email,
+        telephone: `+91${shop.phone}`,
+        sameAs: [shop.instagram].filter(Boolean),
+      },
+    ],
+  };
 }

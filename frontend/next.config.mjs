@@ -26,6 +26,29 @@ const nextConfig = {
       },
     ],
   },
+
+  /**
+   * The previous site's fixed addresses, which search engines still list
+   * under the home page ("Your cart is empty" is its /cart). Permanent, so
+   * they are replaced in the index rather than kept. The query string is
+   * carried over, which is what makes /search?q=… land as /shop?q=….
+   * Its /collections and /products URLs need the catalogue to resolve and
+   * are route handlers instead — see lib/store/legacyUrls.js.
+   */
+  async redirects() {
+    return [
+      { source: "/cart", destination: "/bag", permanent: true },
+      { source: "/cart/:path*", destination: "/bag", permanent: true },
+      { source: "/search", destination: "/shop", permanent: true },
+      { source: "/account/:path+", destination: "/account", permanent: true },
+      { source: "/pages/:slug(.*track.*)", destination: "/track", permanent: true },
+      { source: "/pages/:slug(.*(?:return|refund|exchange).*)", destination: "/returns", permanent: true },
+      { source: "/pages/:slug(.*privacy.*)", destination: "/privacy", permanent: true },
+      { source: "/pages/:path*", destination: "/", permanent: true },
+      { source: "/policies/:slug(.*(?:return|refund|shipping).*)", destination: "/returns", permanent: true },
+      { source: "/policies/:path*", destination: "/privacy", permanent: true },
+    ];
+  },
 };
 
 /**
