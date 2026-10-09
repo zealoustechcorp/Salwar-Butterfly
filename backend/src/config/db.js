@@ -3,35 +3,20 @@ import { env } from './env.js';
 
 const { Pool } = pg;
 
-const AIVEN_CA_HINT =
-  'download it from the Aiven console: the PostgreSQL service → Overview → CA Certificate';
-
 /**
- * TLS settings for the managed PostgreSQL service.
- * - With PG_CA_CERT set, the server certificate is fully verified against that CA.
- * - Without it, TLS is still used (sslmode=require) but the CA chain is not verified.
- *
- * Aiven signs each project's certificate with its own private CA rather than a
- * public root, so the CA is what makes verification possible at all —
- * rejectUnauthorized: true on its own would reject the real server too.
+ * TLS settings for the managed PostgreSQL service. The certificate is always
+ * verified; PG_CA_CERT only decides what it is verified against.
+ * - Without it, Node's built-in public roots. Neon's certificates are issued
+ *   by a public CA (Let's Encrypt), so this is the normal case.
+ * - With it, that CA alone — for a provider that signs with a private CA of
+ *   its own (Aiven, for one), which the public roots would reject.
  */
 function buildSslConfig() {
   if (env.pgCaCert) {
     return { rejectUnauthorized: true, ca: env.pgCaCert };
   }
 
-  // Encrypted, but unauthenticated: any certificate is accepted, so anyone who
-  // can redirect the traffic can terminate the TLS and read the credentials out
-  // of the startup packet. Production never reaches here — env.js refuses to
-  // boot without the variable — which leaves this the developer's own machine,
-  // where the only real danger is not knowing.
-  console.warn(
-    '[db] PG_CA_CERT not set — the Postgres TLS certificate is NOT being ' +
-      `verified. To fix: ${AIVEN_CA_HINT}, and paste its contents into ` +
-      'PG_CA_CERT in backend/.env',
-  );
-
-  return { rejectUnauthorized: false };
+  return { rejectUnauthorized: true };
 }
 
 /**

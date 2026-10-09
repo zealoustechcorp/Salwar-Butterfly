@@ -75,15 +75,9 @@ if (jwtSecret.length < 32) {
 // DATABASE TLS
 // ============================================================
 //
-// Without a CA certificate the Postgres connection is encrypted but not
-// authenticated: db.js falls back to rejectUnauthorized: false, which accepts
-// any certificate the other end presents. Anyone able to redirect the traffic
-// can then terminate the TLS and read the password out of the startup packet.
-//
-// That is a tolerable trade on a laptop and not in production, so it is the
-// same shape as the CORS rule below — refuse to boot rather than go live
-// silently unsafe. Development and test warn and continue (see db.js) so the
-// API, the migrations and the tests still run without the cert on hand.
+// Optional. db.js always verifies the Postgres certificate; without this it
+// verifies against Node's built-in public roots, which is right for Neon.
+// Set it only for a provider that signs with its own private CA (Aiven).
 
 // The PEM itself rather than a path to it, so the cert travels with the rest
 // of the config and no file has to ship alongside the code. Accepts either a
@@ -95,14 +89,6 @@ if (pgCaCert && !pgCaCert.includes("-----BEGIN CERTIFICATE-----")) {
   throw new Error(
     "PG_CA_CERT does not look like a PEM certificate — paste the whole file, " +
       "-----BEGIN CERTIFICATE----- through -----END CERTIFICATE-----.",
-  );
-}
-
-if (nodeEnv === "production" && !pgCaCert) {
-  throw new Error(
-    "PG_CA_CERT must be configured in production — the Postgres TLS " +
-      "certificate would otherwise go unverified. Download the CA from the " +
-      "Aiven console (the PostgreSQL service → Overview → CA Certificate).",
   );
 }
 
@@ -405,7 +391,7 @@ if (whatsappTestRecipientRaw && !whatsappTestRecipient) {
   );
 }
 
-// The same refusal as CORS_ORIGIN and PG_CA_CERT above, for the
+// The same refusal as CORS_ORIGIN above, for the
 // same reason. A redirect left in a production .env sends every
 // customer's order updates to one handset and tells nobody it did.
 if (whatsappTestRecipient && nodeEnv === "production") {
