@@ -426,7 +426,7 @@ export const OrderService = {
    * second is what makes it safe when two admins have the same order
    * open.
    */
-  async changeStatus(id, nextStatus, { note = null } = {}) {
+  async changeStatus(id, nextStatus, { note = null, shipment = null } = {}) {
     try {
       const orderId = assertUuid(id, "order ID");
       const order = await loadOrder(orderId);
@@ -460,6 +460,7 @@ export const OrderService = {
 
       const row = await OrderRepository.updateStatus(orderId, current, nextStatus, {
         note: trimOrNull(note),
+        shipment,
       });
 
       // Only reachable if the order moved between the read above and

@@ -18,7 +18,7 @@
  * page, which needs only the order number and the email.
  */
 
-import { CheckCircle2, Mail, Package } from "lucide-react";
+import { CheckCircle2, Clock, Mail, Package } from "lucide-react";
 import Link from "next/link";
 import { useState, useSyncExternalStore } from "react";
 
@@ -41,21 +41,39 @@ import { PayNow } from "./PayNow";
  * `undefined` means "not looked yet", `null` means "looked, nothing there".
  * The two are distinct because the empty case is a real screen rather than a
  * spinner that never resolves.
+ *
+ * Storage is checked on every call, not only the first. The cache is module
+ * state, so it outlives the page: checkout reaches this screen with a client
+ * navigation, the module is not reloaded, and a cache that answered without
+ * looking would show the *previous* order to a shopper who just placed a new
+ * one — the new entry sitting unread in storage. An entry present means a
+ * fresh order and replaces the cache; an empty storage returns the cache
+ * untouched, which is what keeps repeated calls stable.
  */
 let cached;
 
 function read() {
-  if (cached !== undefined) return cached;
-
   try {
     const raw = window.sessionStorage.getItem(LAST_ORDER_KEY);
-    // Cleared as it is read. A confirmation belongs to the shopper who just
-    // checked out, not to the next person to open this browser.
-    window.sessionStorage.removeItem(LAST_ORDER_KEY);
-    cached = raw ? JSON.parse(raw) : null;
+
+    if (raw !== null) {
+      // Cleared as it is read. A confirmation belongs to the shopper who
+      // just checked out, not to the next person to open this browser.
+      window.sessionStorage.removeItem(LAST_ORDER_KEY);
+
+      try {
+        cached = JSON.parse(raw);
+      } catch {
+        // A new order whose entry is corrupt: show nothing rather than the
+        // previous order.
+        cached = null;
+      }
+    }
   } catch {
-    cached = null;
+    // Storage blocked: nothing new could have been written either.
   }
+
+  if (cached === undefined) cached = null;
 
   return cached;
 }
@@ -128,13 +146,25 @@ export function OrderConfirmation({ shop }) {
 
   return (
     <section className="mx-auto max-w-3xl px-4 py-9 sm:px-6 sm:py-13 lg:px-8">
+      {/* The header follows the payment, not the order. The order exists
+          before it is paid for — that is what holds the sizes — but a tick
+          and a "thank you" above an unpaid order read as "done" and send
+          the shopper away before the step that actually confirms it. */}
       <div className="flex items-center gap-2.5">
-        <CheckCircle2 className="size-5 text-sb-link" aria-hidden="true" />
-        <p className="sb-eyebrow text-[10px] text-sb-gold-text">Order placed</p>
+        {awaitingPayment ? (
+          <Clock className="size-5 text-sb-gold-text" aria-hidden="true" />
+        ) : (
+          <CheckCircle2 className="size-5 text-sb-link" aria-hidden="true" />
+        )}
+        <p className="sb-eyebrow text-[10px] text-sb-gold-text">
+          {awaitingPayment ? "One step left" : "Order confirmed"}
+        </p>
       </div>
 
       <h1 className="mt-2 font-display text-3xl font-semibold text-sb-heading sm:text-4xl">
-        Thank you, {order.contact.name.split(" ")[0]}
+        {awaitingPayment
+          ? `Almost there, ${order.contact.name.split(" ")[0]}`
+          : `Thank you, ${order.contact.name.split(" ")[0]}`}
       </h1>
 
       <p className="mt-3 max-w-xl text-sm leading-relaxed text-sb-text-muted">

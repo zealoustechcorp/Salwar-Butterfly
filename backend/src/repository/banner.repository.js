@@ -122,9 +122,9 @@ export const BannerRepository = {
   /**
    * Adds a batch of already-uploaded images to the end of the carousel.
    *
-   * Takes `{ imageUrl, imagePublicId }` — the shape CloudinaryStorage
-   * hands back — because by the time this runs the files are already on
-   * Cloudinary. The service is what puts them there, and what deletes
+   * Takes `{ imageUrl, imagePublicId }` — the shape ImageStorage
+   * hands back — because by the time this runs the files are already in
+   * R2. The service is what puts them there, and what deletes
    * them again if this throws.
    *
    * One transaction, and the positions are read inside it. Two admins
@@ -274,7 +274,7 @@ export const BannerRepository = {
    * Removes a banner outright.
    *
    * Returns the row rather than a boolean, because the caller needs the
-   * `image_public_id` off it to delete the file from Cloudinary — and
+   * `image_public_id` off it to delete the file from R2 — and
    * after this statement there is nowhere left to read it from.
    *
    * A hard delete, and nothing points at these rows: a banner is read by

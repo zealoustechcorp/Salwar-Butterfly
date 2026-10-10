@@ -23,10 +23,10 @@ export const CategoryMapper = {
 
       description: category.description ?? null,
 
-      // Cloudinary secure URL
+      // R2 public URL
       image: category.image ?? null,
 
-      // Cloudinary public ID
+      // R2 object key
       imagePublicId: category.image_public_id ?? null,
 
       // JSONB size-fit matrices, as stored

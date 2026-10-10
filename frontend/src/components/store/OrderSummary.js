@@ -14,7 +14,7 @@
  * changed between adding to the bag and checking out.
  */
 
-import { Package } from "lucide-react";
+import { Package, Truck } from "lucide-react";
 
 import { money } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -178,6 +178,28 @@ export function OrderCard({ order, actions = null, defaultOpen = false }) {
             : ""}
         </span>
       </p>
+
+      {/* Entered by the shop when the order is packed, and emailed then
+          too. Shown here so the number is never only in an inbox. */}
+      {order.shipment?.trackingNumber && order.status !== "cancelled" ? (
+        <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-sb-gold/30 px-3.5 py-2.5 text-xs text-sb-text">
+          <Truck className="size-3.5 shrink-0 text-sb-gold-text" aria-hidden="true" />
+          <span>
+            {order.shipment.courierName ? `${order.shipment.courierName} · ` : ""}
+            <span className="font-semibold tabular">{order.shipment.trackingNumber}</span>
+          </span>
+          {order.shipment.trackingUrl ? (
+            <a
+              href={order.shipment.trackingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-sb-link underline underline-offset-4 hover:text-sb-heading"
+            >
+              Track parcel
+            </a>
+          ) : null}
+        </div>
+      ) : null}
 
       <details className="group mt-3" open={defaultOpen}>
         <summary className="cursor-pointer list-none text-sm font-semibold text-sb-link underline underline-offset-4 hover:text-sb-heading">

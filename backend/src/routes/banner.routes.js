@@ -10,7 +10,7 @@
 // The shopper's read is `GET /storefront/getBanners`, in the GET-only
 // router whose columns are named one at a time. That is where a banner
 // loses its id, its position, its active flag and — the one that
-// matters — its Cloudinary public id, which is the handle that deletes
+// matters — its R2 object key, which is the handle that deletes
 // the file. Not here, and not by a filter downstream.
 
 import express from "express";
@@ -96,7 +96,7 @@ router.patch(
 // for why a partial list is refused rather than half-applied.
 router.patch("/reorderBanners", validateReorder, BannerController.reorder);
 
-// Destroys the Cloudinary file along with the row. `setBannerActive` is
+// Destroys the R2 file along with the row. `setBannerActive` is
 // the reversible gesture, and it is the one the admin screen offers
 // first.
 router.delete(

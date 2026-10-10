@@ -163,7 +163,9 @@ const MOVES = {
     { kind: "cancel", status: ORDER_STATUS.CANCELLED, label: "Cancel order" },
   ],
   [ORDER_STATUS.CONFIRMED]: [
-    { kind: "advance", status: ORDER_STATUS.PACKED, label: "Mark packed" },
+    // Its own kind: packing asks for the courier and tracking number,
+    // which are emailed to the customer with the status change.
+    { kind: "pack", status: ORDER_STATUS.PACKED, label: "Mark packed" },
     { kind: "cancel", status: ORDER_STATUS.CANCELLED, label: "Cancel order" },
   ],
   [ORDER_STATUS.PACKED]: [
@@ -308,6 +310,15 @@ export function toOrder(dto) {
 
     cancellationReason: dto.cancellationReason ?? null,
 
+    // Null until the order is packed.
+    shipment: dto.shipment
+      ? {
+          courierName: dto.shipment.courierName ?? null,
+          trackingNumber: dto.shipment.trackingNumber ?? "",
+          trackingUrl: dto.shipment.trackingUrl ?? null,
+        }
+      : null,
+
     createdAt: dto.createdAt ?? null,
     updatedAt: dto.updatedAt ?? null,
   };
@@ -426,10 +437,22 @@ export async function confirmPayment(id, { reference } = {}, { token } = {}) {
  * and have their own calls above and below. The API refuses them here
  * by name rather than half-doing the job.
  */
-export async function advanceOrder(id, status, { note } = {}, { token } = {}) {
+export async function advanceOrder(id, status, { note, shipment } = {}, { token } = {}) {
   const data = await api.patch(
     `/orders/updateOrderStatus/${encodeURIComponent(id)}`,
-    { status, note: note?.trim() || undefined },
+    {
+      status,
+      note: note?.trim() || undefined,
+      // Required by the API when marking packed: the customer is emailed
+      // the courier and tracking number at that moment.
+      ...(shipment
+        ? {
+            courierName: shipment.courierName?.trim() || undefined,
+            trackingNumber: shipment.trackingNumber?.trim() || undefined,
+            trackingUrl: shipment.trackingUrl?.trim() || undefined,
+          }
+        : {}),
+    },
     { token },
   );
 

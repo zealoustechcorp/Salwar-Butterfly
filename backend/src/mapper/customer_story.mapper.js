@@ -12,7 +12,7 @@
 //   toPublic  the home page. What is printed on a card, and nothing
 //             else: no story id, no position, no published flag, and
 //             above all no `image_public_id`, which is the handle that
-//             deletes the file off Cloudinary.
+//             deletes the file off R2.
 //
 // The product is the one field that is *narrowed* rather than dropped.
 // A product id is already public — it is in the catalogue and in every

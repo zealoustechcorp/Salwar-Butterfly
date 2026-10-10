@@ -49,7 +49,7 @@ router.get("/getProductReviews/:id", StorefrontController.getProductReviews);
 // The fourth public read, added the way this file's header says one
 // should be: a single endpoint backed by a one-column list in
 // storefront.repository.js. The admin's own /banners router returns the
-// id, the position, the active flag and the Cloudinary public id — the
+// id, the position, the active flag and the R2 object key — the
 // last of which is the handle that deletes the file — and none of them
 // are here. The difference is enforced by that column list rather than
 // by a filter downstream.
@@ -62,7 +62,7 @@ router.get("/getBanners", StorefrontController.getBanners);
 // twice: it carries a customer's name, their words and their
 // photograph, which is exactly what the shop has chosen to publish and
 // nothing more. The admin's own /customerStories router returns the id,
-// the position, the published flag and the Cloudinary public id, and
+// the position, the published flag and the R2 object key, and
 // none of those are here.
 router.get("/getCustomerStories", StorefrontController.getCustomerStories);
 

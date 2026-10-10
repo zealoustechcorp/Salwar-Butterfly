@@ -22,10 +22,12 @@ const required = [
   "DATABASE_URL",
   "JWT_SECRET",
 
-  // Cloudinary
-  "CLOUDINARY_CLOUD_NAME",
-  "CLOUDINARY_API_KEY",
-  "CLOUDINARY_API_SECRET",
+  // Cloudflare R2 (image storage)
+  "R2_ACCOUNT_ID",
+  "R2_ACCESS_KEY_ID",
+  "R2_SECRET_ACCESS_KEY",
+  "R2_BUCKET",
+  "R2_PUBLIC_URL",
 ];
 
 for (const key of required) {
@@ -73,15 +75,9 @@ if (jwtSecret.length < 32) {
 // DATABASE TLS
 // ============================================================
 //
-// Without a CA certificate the Postgres connection is encrypted but not
-// authenticated: db.js falls back to rejectUnauthorized: false, which accepts
-// any certificate the other end presents. Anyone able to redirect the traffic
-// can then terminate the TLS and read the password out of the startup packet.
-//
-// That is a tolerable trade on a laptop and not in production, so it is the
-// same shape as the CORS rule below — refuse to boot rather than go live
-// silently unsafe. Development and test warn and continue (see db.js) so the
-// API, the migrations and the tests still run without the cert on hand.
+// Optional. db.js always verifies the Postgres certificate; without this it
+// verifies against Node's built-in public roots, which is right for Neon.
+// Set it only for a provider that signs with its own private CA (Aiven).
 
 // The PEM itself rather than a path to it, so the cert travels with the rest
 // of the config and no file has to ship alongside the code. Accepts either a
@@ -93,14 +89,6 @@ if (pgCaCert && !pgCaCert.includes("-----BEGIN CERTIFICATE-----")) {
   throw new Error(
     "PG_CA_CERT does not look like a PEM certificate — paste the whole file, " +
       "-----BEGIN CERTIFICATE----- through -----END CERTIFICATE-----.",
-  );
-}
-
-if (nodeEnv === "production" && !pgCaCert) {
-  throw new Error(
-    "PG_CA_CERT must be configured in production — the Postgres TLS " +
-      "certificate would otherwise go unverified. Download the CA from the " +
-      "Aiven console (the PostgreSQL service → Overview → CA Certificate).",
   );
 }
 
@@ -158,31 +146,30 @@ if (process.env.JWT_EXPIRES_IN) {
 }
 
 // ============================================================
-// CLOUDINARY
+// CLOUDFLARE R2
 // ============================================================
+//
+// Required, like the database: every admin screen that takes a picture
+// writes it here, and the storefront loads it back from R2_PUBLIC_URL —
+// the custom domain connected to the bucket, which is Cloudflare's CDN.
+//
+// The public URL is stored inside every image row, so its exact form
+// matters: one canonical https origin with no trailing slash, or the
+// rows written today and the ones written next month disagree.
 
-// ============================================================
-// CLOUDINARY
-// ============================================================
+let r2PublicUrl;
 
-const cloudinaryCloudName = process.env.CLOUDINARY_CLOUD_NAME;
-const cloudinaryApiKey = process.env.CLOUDINARY_API_KEY;
-const cloudinaryApiSecret = process.env.CLOUDINARY_API_SECRET;
-
-if (!cloudinaryCloudName) {
+try {
+  r2PublicUrl = new URL(process.env.R2_PUBLIC_URL);
+} catch {
   throw new Error(
-    "Missing required environment variable: CLOUDINARY_CLOUD_NAME",
+    `R2_PUBLIC_URL is not a valid URL: "${process.env.R2_PUBLIC_URL}". ` +
+      "Expected the bucket's custom domain, e.g. https://images.salwarbutterfly.in",
   );
 }
 
-if (!cloudinaryApiKey) {
-  throw new Error("Missing required environment variable: CLOUDINARY_API_KEY");
-}
-
-if (!cloudinaryApiSecret) {
-  throw new Error(
-    "Missing required environment variable: CLOUDINARY_API_SECRET",
-  );
+if (r2PublicUrl.protocol !== "https:" && nodeEnv === "production") {
+  throw new Error("R2_PUBLIC_URL must use https in production");
 }
 
 // ============================================================
@@ -404,7 +391,7 @@ if (whatsappTestRecipientRaw && !whatsappTestRecipient) {
   );
 }
 
-// The same refusal as CORS_ORIGIN and PG_CA_CERT above, for the
+// The same refusal as CORS_ORIGIN above, for the
 // same reason. A redirect left in a production .env sends every
 // customer's order updates to one handset and tells nobody it did.
 if (whatsappTestRecipient && nodeEnv === "production") {
@@ -429,6 +416,97 @@ if (whatsappTestRecipient) {
 // that cannot be verified is not accepted.
 if (whatsappEnabled && !(whatsappAppSecret && whatsappVerifyToken)) {
   console.warn("[env] WhatsApp receipts disabled (APP_SECRET/VERIFY_TOKEN missing)");
+}
+
+// ============================================================
+// EMAIL (RESEND)
+// ============================================================
+//
+// Order emails and password reset.
+//
+// Optional in the same way WhatsApp is. With no API key every order
+// email is recorded as `skipped` and nothing else changes — except that
+// "forgot password" cannot work, which the reset endpoint says plainly.
+//
+//   RESEND_API_KEY      sends. Resend dashboard -> API Keys.
+//   EMAIL_FROM          the sender. Until a domain is verified on Resend
+//                       this must be onboarding@resend.dev, and Resend
+//                       will then only deliver to the address that owns
+//                       the Resend account — see EMAIL_TEST_RECIPIENT.
+//   ADMIN_NOTIFY_EMAIL  where "new order" alerts go. Comma-separated for
+//                       more than one.
+//   STOREFRONT_URL      the shop's public origin, for the links inside
+//                       the emails (reset link, order page).
+
+// `||`, not `??`, matching the WhatsApp block: .env.example ships these
+// present and empty.
+const resendApiKey = process.env.RESEND_API_KEY || null;
+
+const emailFrom =
+  process.env.EMAIL_FROM || "Salwar Butterfly <onboarding@resend.dev>";
+
+const emailReplyTo = process.env.EMAIL_REPLY_TO || null;
+
+const adminNotifyEmails = (process.env.ADMIN_NOTIFY_EMAIL || "")
+  .split(",")
+  .map((address) => address.trim().toLowerCase())
+  .filter(Boolean);
+
+const emailEnabled = Boolean(resendApiKey);
+
+let storefrontUrl;
+
+try {
+  storefrontUrl = new URL(process.env.STOREFRONT_URL || corsOrigin).origin;
+} catch {
+  throw new Error(
+    `STOREFRONT_URL is not a valid URL: "${process.env.STOREFRONT_URL}". ` +
+      "Expected the shop's public address, e.g. https://salwarbutterfly.in",
+  );
+}
+
+// The logo at the top of every email. It has to be a public https URL —
+// Gmail and Outlook block embedded (data:) images — so it lives in the
+// R2 bucket beside the product photos. EMAIL_LOGO_URL overrides it;
+// unset, the copy uploaded to email/salwar-butterfly-logo.jpg is used.
+const emailLogoUrl =
+  process.env.EMAIL_LOGO_URL || `${r2PublicUrl.origin}/email/salwar-butterfly-logo.jpg`;
+
+// ---- TEST MODE ------------------------------------------------
+//
+// The email counterpart to WHATSAPP_TEST_RECIPIENT: every outbound
+// email, customer and admin alike, goes to this one address instead.
+//
+// Needed in practice while Resend has no verified domain, because Resend
+// refuses to send to anyone but the account owner until one is — and a
+// test order carries whatever email was typed into the checkout.
+const emailTestRecipient =
+  (process.env.EMAIL_TEST_RECIPIENT || "").trim().toLowerCase() || null;
+
+if (emailTestRecipient && nodeEnv === "production") {
+  throw new Error(
+    "EMAIL_TEST_RECIPIENT must not be set in production — it would " +
+      "redirect every customer and admin email to one address.",
+  );
+}
+
+// console, not the logger — same cycle as the warnings above.
+if (emailTestRecipient) {
+  console.warn(
+    `[env] Email TEST MODE — every email is redirected to ${emailTestRecipient}`,
+  );
+}
+
+if (emailEnabled && adminNotifyEmails.length === 0) {
+  console.warn(
+    "[env] ADMIN_NOTIFY_EMAIL not set — the shop will not be emailed about new orders",
+  );
+}
+
+if (!emailEnabled && nodeEnv === "production") {
+  console.warn(
+    "[env] RESEND_API_KEY not set — order emails are off and password reset cannot work",
+  );
 }
 
 // ============================================================
@@ -468,13 +546,15 @@ export const env = Object.freeze({
   refreshTokenTtl,
 
   // ==========================================================
-  // CLOUDINARY
+  // CLOUDFLARE R2
   // ==========================================================
 
-  cloudinary: Object.freeze({
-    cloudName: cloudinaryCloudName,
-    apiKey: cloudinaryApiKey,
-    apiSecret: cloudinaryApiSecret,
+  r2: Object.freeze({
+    accountId: process.env.R2_ACCOUNT_ID,
+    accessKeyId: process.env.R2_ACCESS_KEY_ID,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+    bucket: process.env.R2_BUCKET,
+    publicUrl: r2PublicUrl.origin,
   }),
 
   // ==========================================================
@@ -530,5 +610,22 @@ export const env = Object.freeze({
     // null in every ordinary deployment. Non-null means every send is
     // redirected here — see the TEST MODE note above.
     testRecipient: whatsappTestRecipient,
+  }),
+
+  // ==========================================================
+  // EMAIL
+  // ==========================================================
+
+  email: Object.freeze({
+    enabled: emailEnabled,
+    resendApiKey,
+    from: emailFrom,
+    replyTo: emailReplyTo,
+    adminRecipients: Object.freeze(adminNotifyEmails),
+    storefrontUrl,
+    logoUrl: emailLogoUrl,
+
+    // null in every ordinary deployment — see the TEST MODE note above.
+    testRecipient: emailTestRecipient,
   }),
 });

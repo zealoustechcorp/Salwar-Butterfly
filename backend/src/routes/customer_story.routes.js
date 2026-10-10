@@ -11,7 +11,7 @@
 // The shopper's read is `GET /storefront/getCustomerStories`, in the
 // GET-only router whose columns are named one at a time. That is where a
 // story loses its id, its position, its published flag and its
-// Cloudinary public id.
+// R2 object key.
 
 import express from "express";
 

@@ -95,11 +95,16 @@ export async function openCheckout(session, shop) {
   }
 
   return new Promise((resolve) => {
-    // Razorpay can fire both a failure event and a dismissal for one
-    // sheet — the modal closes after the failure. Whichever lands first
-    // is the answer; the rest are ignored so the promise settles once
-    // with the more specific outcome.
+    // A failed attempt is not the end of the sheet. Razorpay keeps it
+    // open and offers "Retry payment" on the same order, so a declined
+    // card can be followed by a successful UPI payment moments later.
+    // Settling on the failure event would swallow that success — the
+    // handler below would find the promise already settled, verifyPayment
+    // would never be called, and a shopper who paid would be told they
+    // had not. So a failure is only remembered here, and becomes the
+    // answer when the sheet is closed without a later success.
     let settled = false;
+    let lastFailure = null;
 
     const settle = (value) => {
       if (settled) return;
@@ -148,8 +153,11 @@ export async function openCheckout(session, shop) {
       modal: {
         // Fires when the shopper closes the sheet without paying. Their
         // order still exists and their stock is still held, so this is a
-        // pause rather than a failure, and the copy above says so.
-        ondismiss: () => settle({ status: PAYMENT_RESULT.DISMISSED }),
+        // pause rather than a failure, and the copy above says so — unless
+        // an attempt failed before they gave up, in which case its reason
+        // is the more useful thing to show.
+        ondismiss: () =>
+          settle(lastFailure ?? { status: PAYMENT_RESULT.DISMISSED }),
 
         // Without this, closing the sheet by clicking the backdrop can
         // leave the page scroll-locked behind a modal that is gone.
@@ -157,13 +165,14 @@ export async function openCheckout(session, shop) {
       },
     });
 
+    // Remembered, not settled — see the note at the top of the promise.
     razorpay.on("payment.failed", (event) => {
-      settle({
+      lastFailure = {
         status: PAYMENT_RESULT.FAILED,
         error:
           event?.error?.description ??
           "The payment did not go through. Nothing has been charged.",
-      });
+      };
     });
 
     razorpay.open();

@@ -162,7 +162,7 @@ router.use('/reviews', adminOnly, reviewRoutes);
 
 // The home page carousel (F-06). Guarded with the catalogue's other
 // writers, and for a sharper reason than most: a banner row carries the
-// Cloudinary public id of its own file, which is the handle that deletes
+// R2 object key of its own file, which is the handle that deletes
 // it. What a shopper reads is /storefront/getBanners, which is a
 // different column list in a GET-only router.
 router.use('/banners', adminOnly, bannerRoutes);

@@ -305,7 +305,7 @@ const SIZE_CHARTS_SQL = `
 // anonymous reader how many banners the shop has taken down.
 //
 // `image_public_id` is the one that would actually matter. It is
-// Cloudinary's handle for the file and the only argument its destroy
+// R2's handle for the file and the only argument its destroy
 // call accepts, so publishing it on an endpoint with no token in front
 // of it would put the delete key for the shop's own artwork in the page
 // source. The admin API next door returns it because the admin screen is
@@ -344,7 +344,7 @@ const BANNERS_SQL = `
 //
 // Five columns, and the same four are missing as everywhere else here:
 // the story's own id, its position, its published flag and its
-// Cloudinary public id.
+// R2 object key.
 //
 // `product_id` is the exception, and it is here because it is the
 // point: a story that names a piece is a card that links to it, and the

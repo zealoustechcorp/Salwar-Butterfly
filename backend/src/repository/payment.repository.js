@@ -23,6 +23,7 @@ import {
 import { ORDER_STATUS, PAYMENT_STATUS } from "../config/order.policy.js";
 import { NOTIFY_EVENT } from "../config/whatsapp.policy.js";
 import { NotificationService } from "../services/notification.service.js";
+import { EmailService } from "../services/email.service.js";
 
 const handleDatabaseError = (error, operation, context = {}) => {
   logger.error(`Payment repository error: ${operation}`, {
@@ -341,6 +342,16 @@ export const PaymentRepository = {
    * conflict — an admin may have confirmed a transfer by hand moments
    * before the gateway callback landed. The attempt is still marked paid;
    * only the order UPDATE finds nothing to do.
+   *
+   * A `failed` attempt settles too, and must. A Razorpay order outlives a
+   * declined payment: the sheet stays open, offers "Retry payment", and
+   * the retry is a new payment against the same order — so the same row.
+   * By then payment.failed has already marked it failed, and guarding on
+   * `created` alone would refuse the capture that followed while still
+   * reporting `alreadyPaid`: money taken, order left pending, nobody
+   * told. Only `paid` and `refunded` are terminal, and those are what the
+   * guard still excludes. The failure's error fields are cleared, since
+   * they describe a payment that is no longer the one this row records.
    */
   async settle(paymentId, { providerPaymentId, method = null }) {
     try {
@@ -350,10 +361,12 @@ export const PaymentRepository = {
            SET status = $2,
                provider_payment_id = $3,
                method = COALESCE($4, method),
+               error_code = NULL,
+               error_description = NULL,
                paid_at = COALESCE(paid_at, NOW()),
                updated_at = NOW()
            WHERE id = $1::uuid
-             AND status = $5
+             AND status IN ($5, $6)
            RETURNING ${COLUMNS}`,
           [
             paymentId,
@@ -361,11 +374,12 @@ export const PaymentRepository = {
             providerPaymentId,
             method,
             PAYMENT_ATTEMPT_STATUS.CREATED,
+            PAYMENT_ATTEMPT_STATUS.FAILED,
           ],
         );
 
         if (paid.rowCount === 0) {
-          return { payment: null, order: null, alreadyPaid: true, notificationIds: [] };
+          return { payment: null, order: null, alreadyPaid: true, notificationIds: [], emailIds: [] };
         }
 
         const payment = paid.rows[0];
@@ -410,6 +424,7 @@ export const PaymentRepository = {
         // promise to announce it commit together. emitTx cannot throw
         // and cannot reach the network; see notification.service.js.
         let notificationIds = [];
+        let emailIds = [];
 
         if (order.rowCount > 0) {
           const confirmed = order.rows[0];
@@ -427,6 +442,9 @@ export const PaymentRepository = {
             NOTIFY_EVENT.ORDER_PAID,
             { unitCount: counts[0]?.units ?? null },
           );
+
+          // Order confirmation to the shopper, new-order alert to the shop.
+          emailIds = await EmailService.emitTx(client, confirmed, NOTIFY_EVENT.ORDER_PAID);
         }
 
         return {
@@ -434,6 +452,7 @@ export const PaymentRepository = {
           order: order.rows[0] ?? null,
           alreadyPaid: false,
           notificationIds,
+          emailIds,
         };
       });
 
@@ -445,6 +464,7 @@ export const PaymentRepository = {
       // Detached and non-throwing, so a WhatsApp cannot fail a payment
       // that has already been banked.
       NotificationService.dispatch(result.notificationIds);
+      EmailService.dispatch(result.emailIds);
 
       return result;
     } catch (error) {

@@ -3,7 +3,7 @@
 // The home page carousel (F-06).
 //
 // Everything here writes to two places at once — a row in Postgres and a
-// file on Cloudinary — and the order those two happen in is most of what
+// file in R2 — and the order those two happen in is most of what
 // this file has to say. There is no transaction spanning both, so each
 // path picks the order whose failure mode is the cheap one:
 //
@@ -26,7 +26,7 @@
 
 import { BannerRepository } from "../repository/banner.repository.js";
 import { BannerMapper } from "../mapper/banner.mapper.js";
-import { CloudinaryStorage } from "../config/cloudinary.cdn.js";
+import { ImageStorage } from "../config/r2.storage.js";
 import { BANNER_FOLDER, MAX_BANNERS } from "../config/banner.policy.js";
 import { ApiError } from "../utils/ApiError.js";
 import { logger } from "../utils/logger.js";
@@ -69,7 +69,7 @@ const asProductError = (error) => {
  *
  * Best effort, and deliberately swallowing: it runs while another error
  * is already on its way to the admin, and a failure to tidy up must not
- * replace "the banners could not be saved" with a Cloudinary message
+ * replace "the banners could not be saved" with an R2 message
  * about a file the shop never knew existed. What is lost is storage, and
  * the log line below is what makes it findable.
  */
@@ -83,8 +83,8 @@ const discardUploads = async (uploaded, reason) => {
 
   await Promise.all(
     uploaded.map((image) =>
-      CloudinaryStorage.deleteImage(image.imagePublicId).catch((error) => {
-        logger.error("Orphaned banner image left on Cloudinary", {
+      ImageStorage.deleteImage(image.imagePublicId).catch((error) => {
+        logger.error("Orphaned banner image left in R2", {
           publicId: image.imagePublicId,
           error: error?.message,
         });
@@ -148,7 +148,7 @@ export const BannerService = {
    * files that are then deleted.
    *
    * The uploads run together rather than one after another — eight
-   * round trips to Cloudinary in sequence is a slow enough form
+   * round trips to R2 in sequence is a slow enough form
    * submission for an admin to wonder whether it worked — and
    * `allSettled` is what makes that safe: if the fourth fails, the three
    * that succeeded have to be found and deleted, and `Promise.all` would
@@ -170,7 +170,7 @@ export const BannerService = {
 
     const results = await Promise.allSettled(
       files.map((file) =>
-        CloudinaryStorage.uploadImage(file.buffer, { folder: BANNER_FOLDER }),
+        ImageStorage.uploadImage(file.buffer, { folder: BANNER_FOLDER }),
       ),
     );
 
@@ -226,7 +226,7 @@ export const BannerService = {
    * Swaps one slide's artwork, leaving it where it is in the order.
    *
    * The old file is deleted only once the row is pointing at the new
-   * one. Cloudinary's own `replaceImage` deletes first and would leave
+   * one. ImageStorage's own `replaceImage` deletes first and would leave
    * the shop with a slide pointing at nothing if the UPDATE then failed.
    */
   async replaceImage(bannerId, file) {
@@ -241,7 +241,7 @@ export const BannerService = {
     let uploaded;
 
     try {
-      uploaded = await CloudinaryStorage.uploadImage(file.buffer, {
+      uploaded = await ImageStorage.uploadImage(file.buffer, {
         folder: BANNER_FOLDER,
       });
     } catch (error) {
@@ -281,8 +281,8 @@ export const BannerService = {
     // nothing else, so a failure here is logged rather than raised —
     // the admin's edit succeeded, and telling them otherwise would
     // invite them to retry an upload that already worked.
-    CloudinaryStorage.deleteImage(existing.image_public_id).catch((error) => {
-      logger.error("Replaced banner image left on Cloudinary", {
+    ImageStorage.deleteImage(existing.image_public_id).catch((error) => {
+      logger.error("Replaced banner image left in R2", {
         bannerId: id,
         publicId: existing.image_public_id,
         error: error?.message,
@@ -407,7 +407,7 @@ export const BannerService = {
   /**
    * Deletes a banner outright, and the file behind it.
    *
-   * There is no undo, and the Cloudinary file goes with the row —
+   * There is no undo, and the R2 file goes with the row —
    * re-adding the banner means uploading the artwork again. Hiding is
    * what `setActive` is for, and it is the gesture the admin screen
    * offers first.
@@ -436,8 +436,8 @@ export const BannerService = {
     // happens next. A file left behind costs storage and is findable
     // from this log line; raising here would report a failure for
     // something that did not fail.
-    CloudinaryStorage.deleteImage(removed.image_public_id).catch((error) => {
-      logger.error("Deleted banner's image left on Cloudinary", {
+    ImageStorage.deleteImage(removed.image_public_id).catch((error) => {
+      logger.error("Deleted banner's image left in R2", {
         bannerId: id,
         publicId: removed.image_public_id,
         error: error?.message,

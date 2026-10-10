@@ -119,6 +119,49 @@ export async function register({ name, email, phone, password }) {
 }
 
 // ============================================================
+// FORGOT / RESET PASSWORD
+// ============================================================
+
+/**
+ * Asks for a reset link. The API answers the same whether or not the
+ * address has an account, so `ok: true` means "if it exists, a link is
+ * on its way" — never "we found you".
+ *
+ * @returns {Promise<{ok: true} | {ok: false, code, field, error}>}
+ */
+export async function requestPasswordReset({ email }) {
+  try {
+    await api.post(
+      "/customers/auth/forgot-password",
+      { email },
+      { token: null },
+    );
+
+    return { ok: true };
+  } catch (error) {
+    return toFailure(error, "email");
+  }
+}
+
+/**
+ * Sets a new password from the emailed link. Every session the account
+ * had is ended by the API, so the shopper signs in again afterwards.
+ */
+export async function resetPassword({ token, password }) {
+  try {
+    await api.post(
+      "/customers/auth/reset-password",
+      { token, password },
+      { token: null },
+    );
+
+    return { ok: true };
+  } catch (error) {
+    return toFailure(error, "password");
+  }
+}
+
+// ============================================================
 // CURRENT CUSTOMER
 // ============================================================
 

@@ -4,7 +4,7 @@ import { ProductImageRepository } from "../repository/product_image.repository.j
 import { ProductRepository } from "../repository/poduct.repository.js";
 import { ProductImageMapper } from "../mapper/product_image.mapper.js";
 import { UpdateProductImageDTO } from "../dto/product_image.dto.js";
-import { CloudinaryStorage } from "../config/cloudinary.cdn.js";
+import { ImageStorage } from "../config/r2.storage.js";
 import { ApiError } from "../utils/ApiError.js";
 import { logger } from "../utils/logger.js";
 
@@ -18,8 +18,8 @@ const UUID_REGEX =
  */
 export const MAX_IMAGES_PER_PRODUCT = 8;
 
-/** Everything a product's photographs are filed under on Cloudinary. */
-const CLOUDINARY_FOLDER = "products";
+/** Everything a product's photographs are filed under in R2. */
+const IMAGE_FOLDER = "products";
 
 const assertUuid = (value, message) => {
   const normalized = String(value ?? "").trim();
@@ -95,13 +95,13 @@ export const ProductImageService = {
   },
 
   /**
-   * Uploads files to Cloudinary and appends them to a product's gallery.
+   * Uploads files to R2 and appends them to a product's gallery.
    *
    * The product is checked, and the room left in its gallery counted,
    * before anything is uploaded — an upload that the database was always
    * going to reject is an asset paid for and orphaned.
    *
-   * If the registration fails after the bytes are on Cloudinary, the
+   * If the registration fails after the bytes are in R2, the
    * uploads are removed again, so a failed request leaves nothing behind.
    *
    * @param {string} productId
@@ -155,8 +155,8 @@ export const ProductImageService = {
           throw new ApiError(400, `Image at position ${index + 1} is empty`);
         }
 
-        const result = await CloudinaryStorage.uploadImage(file.buffer, {
-          folder: CLOUDINARY_FOLDER,
+        const result = await ImageStorage.uploadImage(file.buffer, {
+          folder: IMAGE_FOLDER,
         });
 
         if (!result?.imageUrl || !result?.imagePublicId) {
@@ -191,7 +191,7 @@ export const ProductImageService = {
         added: uploaded.length,
       };
     } catch (error) {
-      // The bytes are on Cloudinary but nothing points at them. Remove
+      // The bytes are in R2 but nothing points at them. Remove
       // them rather than leaving the account to accumulate orphans.
       if (uploaded.length > 0) {
         logger.warn("Rolling back product image uploads", {
@@ -201,7 +201,7 @@ export const ProductImageService = {
 
         await Promise.allSettled(
           uploaded.map((image) =>
-            CloudinaryStorage.deleteImage(image.imagePublicId),
+            ImageStorage.deleteImage(image.imagePublicId),
           ),
         );
       }
@@ -331,9 +331,9 @@ export const ProductImageService = {
   },
 
   /**
-   * Removes one image, from the database first and Cloudinary second.
+   * Removes one image, from the database first and R2 second.
    *
-   * That order is deliberate: a failed Cloudinary delete leaves an
+   * That order is deliberate: a failed R2 delete leaves an
    * unreferenced asset, which costs storage, while the reverse would
    * leave a row pointing at a URL that 404s on the storefront.
    */
@@ -349,12 +349,12 @@ export const ProductImageService = {
 
       if (row.image_public_id) {
         try {
-          await CloudinaryStorage.deleteImage(row.image_public_id);
-        } catch (cloudinaryError) {
-          logger.error("Image row deleted but Cloudinary delete failed", {
+          await ImageStorage.deleteImage(row.image_public_id);
+        } catch (storageError) {
+          logger.error("Image row deleted but R2 delete failed", {
             imageId: normalizedId,
             imagePublicId: row.image_public_id,
-            error: cloudinaryError?.message,
+            error: storageError?.message,
           });
         }
       }

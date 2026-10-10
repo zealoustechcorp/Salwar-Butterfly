@@ -258,7 +258,7 @@ export const CustomerStoryRepository = {
    * Removes a story outright.
    *
    * Returns the row rather than a boolean, because the caller needs the
-   * `image_public_id` off it to delete the file from Cloudinary — and
+   * `image_public_id` off it to delete the file from R2 — and
    * after this statement there is nowhere left to read it from.
    */
   async remove(id) {

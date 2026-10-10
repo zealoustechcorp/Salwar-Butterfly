@@ -2,10 +2,12 @@
 
 import {
   ArrowLeft,
+  ExternalLink,
   Mail,
   MapPin,
   PackageX,
   Phone,
+  Truck,
   User,
 } from "lucide-react";
 import Link from "next/link";
@@ -97,7 +99,7 @@ export default function OrderDetailPage() {
   const [reload, setReload] = useState(0);
   const [busyMove, setBusyMove] = useState(null);
 
-  // "confirm" | "cancel" | null, and a counter beside it. The counter is
+  // "confirm" | "pack" | "cancel" | null, and a counter beside it. The counter is
   // the dialogs' remount key: a reference typed and abandoned must not be
   // offered again against a different transfer, and remounting is how a
   // form is reset without an effect that writes state on open.
@@ -355,8 +357,8 @@ export default function OrderDetailPage() {
                         busy={busyMove === move.status}
                         disabled={Boolean(busyMove)}
                         onClick={() =>
-                          move.kind === "confirm"
-                            ? openDialog("confirm")
+                          move.kind === "confirm" || move.kind === "pack"
+                            ? openDialog(move.kind)
                             : advance(move)
                         }
                       >
@@ -368,6 +370,41 @@ export default function OrderDetailPage() {
               )}
             </div>
           </Card>
+
+          {order.shipment ? (
+            <Card>
+              <CardHeader
+                title="Shipment"
+                description="Emailed to the customer when the order was packed."
+              />
+
+              <div className="space-y-2 px-5 py-4 text-sm">
+                <div className="flex items-start gap-2">
+                  <Truck className="mt-0.5 size-3.5 shrink-0 text-ink-400" aria-hidden="true" />
+                  <div className="min-w-0">
+                    <p className="font-medium text-ink-900">
+                      {order.shipment.courierName || "Courier not recorded"}
+                    </p>
+                    <p className="font-mono text-xs break-all text-ink-600">
+                      {order.shipment.trackingNumber}
+                    </p>
+                  </div>
+                </div>
+
+                {order.shipment.trackingUrl ? (
+                  <a
+                    href={order.shipment.trackingUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-700 hover:underline"
+                  >
+                    Open tracking page
+                    <ExternalLink className="size-3" aria-hidden="true" />
+                  </a>
+                ) : null}
+              </div>
+            </Card>
+          ) : null}
 
           <Card>
             <CardHeader title="Who it goes to" />
@@ -459,6 +496,21 @@ export default function OrderDetailPage() {
         onDone={(updated) => {
           setDialog(null);
           applied(updated, `${updated.orderNumber} confirmed — payment recorded.`);
+        }}
+        onConflict={refresh}
+      />
+
+      <PackOrderDialog
+        key={`pack-${dialogSeq}`}
+        open={dialog === "pack"}
+        order={order}
+        onClose={() => setDialog(null)}
+        onDone={(updated) => {
+          setDialog(null);
+          applied(
+            updated,
+            `${updated.orderNumber} is packed — tracking details emailed to the customer.`,
+          );
         }}
         onConflict={refresh}
       />
@@ -658,6 +710,118 @@ function ConfirmPaymentDialog({ open, order, onClose, onDone, onConflict }) {
             invalid={Boolean(fieldError)}
             placeholder="e.g. 431029884416"
             onChange={(e) => setReference(e.target.value)}
+          />
+        </Field>
+      </div>
+    </Modal>
+  );
+}
+
+/**
+ * Marking packed asks for the shipment, because that is the moment the
+ * customer is emailed their courier and tracking number. The API refuses
+ * the move without both, so the button stays disabled until they are in.
+ */
+function PackOrderDialog({ open, order, onClose, onDone, onConflict }) {
+  const toast = useToast();
+  // Blank on every open — see the note in ConfirmPaymentDialog.
+  const [values, setValues] = useState({
+    courierName: "",
+    trackingNumber: "",
+    trackingUrl: "",
+  });
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [busy, setBusy] = useState(false);
+
+  const set = (key) => (e) => {
+    const value = e.target.value;
+    setValues((current) => ({ ...current, [key]: value }));
+    setFieldErrors((current) => ({ ...current, [key]: undefined }));
+  };
+
+  const ready =
+    values.courierName.trim() !== "" && values.trackingNumber.trim() !== "";
+
+  async function run() {
+    setBusy(true);
+    setFieldErrors({});
+
+    try {
+      onDone(await advanceOrder(order.id, "packed", { shipment: values }));
+    } catch (err) {
+      const fields = err?.fields ?? {};
+
+      if (fields.courierName || fields.trackingNumber || fields.trackingUrl) {
+        setFieldErrors(fields);
+      } else {
+        toast.error(err?.message || "Could not mark that order packed.");
+        if (err?.status === 409) {
+          onClose();
+          onConflict();
+        }
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Mark this order packed?"
+      description={`${order.orderNumber} · ${order.contact.name} · ${order.contact.email}`}
+      size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={busy}>
+            Cancel
+          </Button>
+          <Button variant="primary" busy={busy} disabled={!ready} onClick={run}>
+            Mark packed and email customer
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <p className="text-sm text-ink-600">
+          The customer is emailed these tracking details straight away, so
+          check the number before you save.
+        </p>
+
+        <Field label="Courier" required error={fieldErrors.courierName}>
+          <Input
+            value={values.courierName}
+            invalid={Boolean(fieldErrors.courierName)}
+            placeholder="e.g. Delhivery, DTDC, India Post"
+            onChange={set("courierName")}
+          />
+        </Field>
+
+        <Field label="Tracking number" required error={fieldErrors.trackingNumber}>
+          <Input
+            value={values.trackingNumber}
+            invalid={Boolean(fieldErrors.trackingNumber)}
+            placeholder="e.g. 1234567890123"
+            onChange={set("trackingNumber")}
+          />
+        </Field>
+
+        <Field
+          label="Tracking link"
+          error={fieldErrors.trackingUrl}
+          hint={
+            fieldErrors.trackingUrl
+              ? undefined
+              : "Optional. The courier's tracking page, if it has one — it becomes a button in the email."
+          }
+        >
+          <Input
+            type="url"
+            value={values.trackingUrl}
+            invalid={Boolean(fieldErrors.trackingUrl)}
+            placeholder="https://"
+            onChange={set("trackingUrl")}
           />
         </Field>
       </div>

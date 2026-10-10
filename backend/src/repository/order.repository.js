@@ -25,6 +25,7 @@ import {
 } from "../config/order.policy.js";
 import { NOTIFY_EVENT, eventForStatus } from "../config/whatsapp.policy.js";
 import { NotificationService } from "../services/notification.service.js";
+import { EmailService } from "../services/email.service.js";
 
 /**
  * Codes the service translates into sentences a shopper can act on.
@@ -621,7 +622,7 @@ export const OrderRepository = {
    * @returns {object|null} the updated row, or null when the order was
    *          not in `expectedStatus` — the caller re-reads to say why.
    */
-  async updateStatus(id, expectedStatus, nextStatus, { note = null } = {}) {
+  async updateStatus(id, expectedStatus, nextStatus, { note = null, shipment = null } = {}) {
     const stampColumn = STATUS_TIMESTAMP_COLUMN[nextStatus] ?? null;
 
     // The column name is looked up from a frozen map keyed by a status
@@ -632,6 +633,9 @@ export const OrderRepository = {
       UPDATE orders
       SET status = $3,
           admin_note = COALESCE($4, admin_note),
+          courier_name = COALESCE($5, courier_name),
+          tracking_number = COALESCE($6, tracking_number),
+          tracking_url = COALESCE($7, tracking_url),
           updated_at = NOW()
           ${stampSql}
       WHERE id = $1::uuid
@@ -644,10 +648,18 @@ export const OrderRepository = {
       // changes nothing about its semantics — it was already atomic —
       // and gives the notification emit a SAVEPOINT to live in, so the
       // transition and the promise to announce it commit together.
-      const { row, notificationIds } = await withTransaction(async (client) => {
-        const result = await client.query(text, [id, expectedStatus, nextStatus, note]);
+      const { row, notificationIds, emailIds } = await withTransaction(async (client) => {
+        const result = await client.query(text, [
+          id,
+          expectedStatus,
+          nextStatus,
+          note,
+          shipment?.courierName ?? null,
+          shipment?.trackingNumber ?? null,
+          shipment?.trackingUrl ?? null,
+        ]);
 
-        if (result.rowCount === 0) return { row: null, notificationIds: [] };
+        if (result.rowCount === 0) return { row: null, notificationIds: [], emailIds: [] };
 
         const updated = result.rows[0];
 
@@ -665,10 +677,14 @@ export const OrderRepository = {
           eventForStatus(nextStatus),
         );
 
-        return { row: updated, notificationIds: ids };
+        // Packed carries the tracking number written by this same UPDATE.
+        const emails = await EmailService.emitTx(client, updated, eventForStatus(nextStatus));
+
+        return { row: updated, notificationIds: ids, emailIds: emails };
       });
 
       NotificationService.dispatch(notificationIds);
+      EmailService.dispatch(emailIds);
 
       return row;
     } catch (error) {
@@ -707,7 +723,7 @@ export const OrderRepository = {
     `;
 
     try {
-      const { row, notificationIds } = await withTransaction(async (client) => {
+      const { row, notificationIds, emailIds } = await withTransaction(async (client) => {
         const result = await client.query(text, [
           id,
           ORDER_STATUS.CONFIRMED,
@@ -716,7 +732,7 @@ export const OrderRepository = {
           ORDER_STATUS.PENDING_PAYMENT,
         ]);
 
-        if (result.rowCount === 0) return { row: null, notificationIds: [] };
+        if (result.rowCount === 0) return { row: null, notificationIds: [], emailIds: [] };
 
         const confirmed = result.rows[0];
 
@@ -742,10 +758,13 @@ export const OrderRepository = {
           { unitCount: counts[0]?.units ?? null },
         );
 
-        return { row: confirmed, notificationIds: ids };
+        const emails = await EmailService.emitTx(client, confirmed, NOTIFY_EVENT.ORDER_PAID);
+
+        return { row: confirmed, notificationIds: ids, emailIds: emails };
       });
 
       NotificationService.dispatch(notificationIds);
+      EmailService.dispatch(emailIds);
 
       return row;
     } catch (error) {

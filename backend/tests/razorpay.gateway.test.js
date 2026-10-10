@@ -18,9 +18,11 @@ import assert from "node:assert/strict";
 process.env.NODE_ENV = "test";
 process.env.DATABASE_URL ??= "postgres://user:pass@localhost:5432/test";
 process.env.JWT_SECRET ??= "test-secret-that-is-long-enough-32+";
-process.env.CLOUDINARY_CLOUD_NAME ??= "test";
-process.env.CLOUDINARY_API_KEY ??= "test";
-process.env.CLOUDINARY_API_SECRET ??= "test";
+process.env.R2_ACCOUNT_ID ??= "test";
+process.env.R2_ACCESS_KEY_ID ??= "test";
+process.env.R2_SECRET_ACCESS_KEY ??= "test";
+process.env.R2_BUCKET ??= "test";
+process.env.R2_PUBLIC_URL ??= "https://images.test";
 process.env.RAZORPAY_KEY_ID ??= "rzp_test_key";
 process.env.RAZORPAY_KEY_SECRET ??= "rzp_test_secret";
 
