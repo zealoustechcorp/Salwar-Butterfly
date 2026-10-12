@@ -342,7 +342,7 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
         <span className="font-mono text-xs font-semibold tracking-wider text-brand-600 uppercase">
           Catalogue
         </span>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink-900 sm:text-3xl">
+        <h1 className="mt-1 text-2xl font-semibold tracking-tight break-words text-ink-900 sm:text-3xl">
           {initial ? `Edit Category: ${initial.name}` : "Create New Category"}
         </h1>
         <p className="mt-1 text-xs text-ink-500 sm:text-sm">
@@ -366,7 +366,7 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
               key={t.id}
               type="button"
               onClick={() => setActiveTab(t.id)}
-              className={`relative -mb-px px-4 py-2.5 text-xs font-semibold transition-colors sm:text-sm ${isSelected
+              className={`relative -mb-px flex-1 px-3 py-2.5 text-xs font-semibold transition-colors sm:flex-none sm:px-4 sm:text-sm ${isSelected
                   ? "border-b-2 border-brand-600 text-brand-700 font-bold"
                   : "text-ink-500 hover:text-ink-800"
                 }`}
@@ -386,7 +386,7 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
         {/* PANEL 1: General Information */}
         {activeTab === "general" && (
           <div className="space-y-5">
-            <Card className="p-5 space-y-4">
+            <Card className="p-4 space-y-4 sm:p-5">
               <div className="grid gap-4 sm:grid-cols-2">
                 {/* Category Name Input */}
                 <Field
@@ -425,7 +425,7 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
                       onBlur={() => setSlugTouched(true)}
                       placeholder="e.g. silk-sarees"
                       maxLength={255}
-                      className="pl-6 font-mono text-xs"
+                      className="pl-6 font-mono"
                       invalid={Boolean(apiFields.slug || visibleSlugError)}
                     />
                   </div>
@@ -466,7 +466,7 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
                           <button
                             type="button"
                             onClick={() => setImageFile(null)}
-                            className="absolute right-1.5 top-1.5 rounded-full bg-ink-900/60 p-1 text-white hover:bg-ink-900 transition-colors"
+                            className="absolute right-1.5 top-1.5 rounded-full bg-ink-900/60 p-2 text-white hover:bg-ink-900 transition-colors sm:p-1"
                             title="Discard selected image"
                           >
                             <X className="size-3" />
@@ -481,7 +481,7 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
                     )}
                   </div>
 
-                  <div className="flex-1 space-y-2">
+                  <div className="min-w-0 flex-1 space-y-2">
                     <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-brand-300 bg-brand-50/30 px-4 py-2 text-xs font-medium text-brand-700 hover:bg-brand-50 transition-colors">
                       <UploadCloud className="size-4" />
                       <span>{preview ? "Replace image" : "Upload image file"}</span>
@@ -508,8 +508,8 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
             </Card>
 
             {/* Active / Inactive Storefront Visibility Card */}
-            <Card className="flex items-center justify-between p-4">
-              <div>
+            <Card className="flex items-center justify-between gap-4 p-4">
+              <div className="min-w-0">
                 <p className="text-sm font-semibold text-ink-900">Storefront Visibility</p>
                 <p className="text-xs text-ink-500">
                   {active
@@ -517,7 +517,7 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
                     : "Inactive — hidden from store browsing and navigation"}
                 </p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex shrink-0 items-center gap-3">
                 <Toggle checked={active} onChange={() => setActive(!active)} />
                 <CategoryBadge active={active} />
               </div>
@@ -527,7 +527,7 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
 
         {/* PANEL 2: Associated Products */}
         {activeTab === "products" && (
-          <Card className="p-5 space-y-4">
+          <Card className="p-4 space-y-4 sm:p-5">
             <div>
               <p className="text-sm font-semibold text-ink-900">Select Products</p>
               <p className="text-xs text-ink-500">
@@ -576,12 +576,12 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
                       </p>
                     </div>
                     {locked ? (
-                      <Badge tone="neutral" className="font-medium">
+                      <Badge tone="neutral" className="shrink-0 font-medium">
                         <Lock className="size-3" />
                         In this category
                       </Badge>
                     ) : checked ? (
-                      <Badge tone="brand" className="font-medium">
+                      <Badge tone="brand" className="shrink-0 font-medium">
                         Will move here
                       </Badge>
                     ) : null}
@@ -609,17 +609,22 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
         Save changes / Create category and Cancel actions.
         ========================================================================
       */}
-      <div className="flex items-center gap-3 border-t border-ink-200 pt-4">
+      <div className="flex flex-wrap items-center gap-3 border-t border-ink-200 pt-4">
         <Button
           variant="primary"
           onClick={handleSave}
           disabled={!canSave}
-          className="px-5"
+          className="flex-1 px-5 sm:flex-none"
         >
           {saving ? <Spinner className="size-4" /> : <Check className="size-4" />}
           {saving ? "Saving…" : initial ? "Save changes" : "Create category"}
         </Button>
-        <Button variant="secondary" onClick={onCancel} disabled={saving}>
+        <Button
+          variant="secondary"
+          onClick={onCancel}
+          disabled={saving}
+          className="flex-1 sm:flex-none"
+        >
           Cancel
         </Button>
       </div>

@@ -271,6 +271,9 @@ export function Toggle({ checked, onChange, label, disabled, size = "md" }) {
       onClick={() => onChange(!checked)}
       className={cx(
         "relative inline-flex shrink-0 cursor-pointer rounded-full p-0.5 transition-colors",
+        // An invisible hit area past the track: the small switch is ~32×18px,
+        // too small to hit reliably with a thumb on a phone.
+        "after:absolute after:-inset-2 after:content-['']",
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600",
         dims.w,
         dims.h,
@@ -304,7 +307,7 @@ export function Card({ className, children, ...props }) {
 
 export function CardHeader({ title, description, actions }) {
   return (
-    <header className="flex flex-wrap items-start justify-between gap-3 border-b border-ink-200/80 px-5 py-4">
+    <header className="flex flex-wrap items-start justify-between gap-3 border-b border-ink-200/80 px-4 py-4 sm:px-5">
       <div className="min-w-0">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-ink-900">{title}</h2>
         {description ? <p className="mt-1 text-xs text-ink-500">{description}</p> : null}
@@ -337,10 +340,10 @@ export function EmptyState({ title, description, action, icon }) {
 export function ErrorNotice({ error, onRetry }) {
   if (!error) return null;
   return (
-    <div className="flex items-start gap-3 rounded-lg bg-red-50 p-3 ring-1 ring-inset ring-red-200">
+    <div className="flex flex-wrap items-start gap-3 rounded-lg bg-red-50 p-3 ring-1 ring-inset ring-red-200">
       <TriangleAlert aria-hidden="true" className="mt-px size-4 shrink-0 text-red-600" />
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-red-800">{error.message || "Something went wrong."}</p>
+        <p className="text-sm font-medium break-words text-red-800">{error.message || "Something went wrong."}</p>
         {error.code ? <p className="mt-0.5 font-mono text-[11px] text-red-600">{error.code}</p> : null}
       </div>
       {onRetry ? (
@@ -396,7 +399,7 @@ export function Modal({ open, onClose, title, description, children, footer, siz
           initial="hidden"
           animate="visible"
           exit="hidden"
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 sm:p-8"
+          className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto p-0 sm:items-start sm:p-8"
         >
           <motion.div
             variants={{ hidden: { opacity: 0 }, visible: { opacity: 1 } }}
@@ -417,12 +420,12 @@ export function Modal({ open, onClose, title, description, children, footer, siz
             aria-modal="true"
             aria-labelledby={titleId}
             className={cx(
-              "relative w-full rounded-xl bg-white shadow-xl ring-1 ring-ink-900/10 outline-none",
+              "relative flex max-h-[92dvh] w-full flex-col rounded-t-xl bg-white shadow-xl ring-1 ring-ink-900/10 outline-none sm:max-h-none sm:rounded-xl",
               widths[size],
             )}
           >
-            <header className="flex items-start justify-between gap-4 border-b border-ink-200 px-5 py-4">
-              <div>
+            <header className="flex shrink-0 items-start justify-between gap-4 border-b border-ink-200 px-4 py-4 sm:px-5">
+              <div className="min-w-0">
                 <h2 id={titleId} className="flex items-center gap-2 text-sm font-semibold text-ink-900">
                   {title}
                 </h2>
@@ -437,9 +440,9 @@ export function Modal({ open, onClose, title, description, children, footer, siz
                 <X className="size-4" aria-hidden="true" />
               </button>
             </header>
-            <div className="px-5 py-4">{children}</div>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:overflow-visible sm:px-5">{children}</div>
             {footer ? (
-              <footer className="flex items-center justify-end gap-2 border-t border-ink-200 bg-ink-50/60 px-5 py-3">
+              <footer className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-ink-200 bg-ink-50/60 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5 sm:pb-3">
                 {footer}
               </footer>
             ) : null}

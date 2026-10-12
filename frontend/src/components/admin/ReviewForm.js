@@ -138,9 +138,11 @@ export default function ReviewForm({ review, products = [], onSave, onCancel }) 
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5 pb-24">
+    // The bottom padding clears the fixed save bar, which stacks to two
+    // rows on a phone and so needs more room there than on a desktop.
+    <div className="mx-auto max-w-3xl space-y-5 pb-40 sm:pb-24">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <h1 className="text-xl font-semibold tracking-tight text-ink-900">
             {creating ? "Add a review" : "Edit review"}
           </h1>
@@ -163,7 +165,7 @@ export default function ReviewForm({ review, products = [], onSave, onCancel }) 
           description="Everything here except the visibility toggle is printed on the product page."
         />
 
-        <div className="space-y-4 p-5">
+        <div className="space-y-4 p-4 sm:p-5">
           {/* Field-level messages render beside their inputs; anything
               without a field to attach to needs saying at the top. */}
           {error && Object.keys(error.fields ?? {}).length === 0 ? (
@@ -207,7 +209,7 @@ export default function ReviewForm({ review, products = [], onSave, onCancel }) 
             <Field label="Product" hint="A review cannot be moved to another product.">
               <div className="flex items-center gap-2.5 rounded-lg bg-ink-50 px-3 py-2">
                 <ProductCover product={review.product} size={32} />
-                <span className="text-sm font-medium text-ink-800">
+                <span className="min-w-0 text-sm font-medium break-words text-ink-800">
                   {review.product.name}
                 </span>
               </div>
@@ -241,7 +243,7 @@ export default function ReviewForm({ review, products = [], onSave, onCancel }) 
                     aria-label={`${star} star${star === 1 ? "" : "s"}`}
                     aria-pressed={form.rating === star}
                     onClick={() => setForm((f) => ({ ...f, rating: star }))}
-                    className="rounded p-0.5 transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                    className="rounded p-1.5 transition-transform sm:p-0.5 hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
                   >
                     <Star
                       aria-hidden="true"
@@ -287,8 +289,8 @@ export default function ReviewForm({ review, products = [], onSave, onCancel }) 
             />
           </Field>
 
-          <div className="flex items-center justify-between rounded-lg bg-ink-50 px-3 py-2.5">
-            <div>
+          <div className="flex items-center justify-between gap-3 rounded-lg bg-ink-50 px-3 py-2.5">
+            <div className="min-w-0">
               <p className="text-sm font-medium text-ink-800">
                 Show on the storefront
               </p>
@@ -306,17 +308,30 @@ export default function ReviewForm({ review, products = [], onSave, onCancel }) 
       </Card>
 
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-ink-200 bg-white/95 backdrop-blur lg:left-64">
-        <div className="mx-auto flex max-w-3xl flex-wrap items-center gap-3 px-4 py-3 sm:px-6">
-          <p className="text-xs text-ink-500">
+        {/* On a phone: the summary on a line of its own, then the two
+            buttons sharing the full width. */}
+        <div className="mx-auto flex max-w-3xl flex-wrap items-center gap-x-3 gap-y-2 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6">
+          <p className="w-full text-xs text-ink-500 sm:w-auto">
             {form.rating} star{form.rating === 1 ? "" : "s"} ·{" "}
             {form.published ? "will show on the storefront" : "kept hidden"}
           </p>
 
-          <div className="ml-auto flex items-center gap-2">
-            <Button variant="ghost" onClick={onCancel} disabled={saving}>
+          <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
+            <Button
+              variant="ghost"
+              className="flex-1 sm:flex-none"
+              onClick={onCancel}
+              disabled={saving}
+            >
               Cancel
             </Button>
-            <Button variant="primary" size="lg" busy={saving} onClick={submit}>
+            <Button
+              variant="primary"
+              size="lg"
+              className="flex-1 sm:flex-none"
+              busy={saving}
+              onClick={submit}
+            >
               {creating ? "Add review" : "Save changes"}
             </Button>
           </div>

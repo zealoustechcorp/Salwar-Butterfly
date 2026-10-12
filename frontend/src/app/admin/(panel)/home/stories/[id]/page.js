@@ -266,7 +266,7 @@ export default function StoryDetailPage() {
   if (!story) {
     return (
       <div className="mx-auto max-w-xl">
-        <Card className="p-8">
+        <Card className="p-4 sm:p-8">
           <EmptyState
             icon={<ImageOff aria-hidden="true" />}
             title="Story not found"
@@ -304,7 +304,9 @@ export default function StoryDetailPage() {
           Customer stories
         </LinkButton>
         <span aria-hidden="true">/</span>
-        <span className="font-medium text-ink-700">
+        {/* A customer's name is free text; it truncates rather than pushing
+            the breadcrumb past the edge of a phone. */}
+        <span className="min-w-0 truncate font-medium text-ink-700">
           {story.customerName || `Card ${index + 1}`}
         </span>
       </nav>
@@ -343,7 +345,7 @@ export default function StoryDetailPage() {
           <MediaFrame
             src={story.image}
             ratio="aspect-9/16"
-            className="w-56 rounded-lg ring-1 ring-ink-200"
+            className="w-56 max-w-full rounded-lg ring-1 ring-ink-200"
           />
           <p className="mt-2 text-[11px] text-ink-500">
             Every story is a photograph — it can be swapped, but not removed. A
@@ -365,7 +367,7 @@ export default function StoryDetailPage() {
         <div className="space-y-4 p-4">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <p className="flex items-center gap-2 text-sm font-medium text-ink-800">
+              <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium text-ink-800">
                 {story.published ? "Published" : "Hidden"}
                 <Badge tone={story.published ? "brand" : "amber"}>
                   {story.published ? `Card ${index + 1} of ${total}` : "Not shown"}

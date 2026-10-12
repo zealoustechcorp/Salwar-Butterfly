@@ -286,6 +286,15 @@ export default function InventoryPage() {
     }
   }
 
+  // Shared by the table rows and the phone cards.
+  const selectRow = (id, checked) =>
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+
   const allVisibleSelected = rows.length > 0 && selection.length === rows.length;
 
   // Every selected size is already off sale, so offer the reverse.
@@ -333,7 +342,9 @@ export default function InventoryPage() {
 
       <Card>
         <div className="flex flex-wrap items-center gap-2 border-b border-ink-200/80 p-3">
-          <div className="relative min-w-56 flex-1">
+          {/* Full width on a phone, so each filter below takes its own
+              line instead of squeezing three selects beside the search. */}
+          <div className="relative w-full sm:w-auto sm:min-w-56 sm:flex-1">
             <Search
               aria-hidden="true"
               className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-400"
@@ -351,7 +362,7 @@ export default function InventoryPage() {
             value={query.status}
             onChange={(e) => setQuery((q) => ({ ...q, status: e.target.value, page: 1 }))}
             aria-label="Filter by stock level"
-            className="w-auto"
+            className="w-full sm:w-auto"
           >
             {STATUS_FILTERS.map((filter) => (
               <option key={filter.value} value={filter.value}>
@@ -364,7 +375,7 @@ export default function InventoryPage() {
             value={query.categoryId}
             onChange={(e) => setQuery((q) => ({ ...q, categoryId: e.target.value, page: 1 }))}
             aria-label="Filter by category"
-            className="w-auto"
+            className="w-full sm:w-auto"
           >
             <option value="all">All categories</option>
             {(reference?.categories ?? []).map((category) => (
@@ -378,7 +389,7 @@ export default function InventoryPage() {
             value={query.sort}
             onChange={(e) => setQuery((q) => ({ ...q, sort: e.target.value, page: 1 }))}
             aria-label="Sort"
-            className="w-auto"
+            className="w-full sm:w-auto"
           >
             {STOCK_SORTS.map((sort) => (
               <option key={sort.value} value={sort.value}>
@@ -409,7 +420,7 @@ export default function InventoryPage() {
             <span className="text-xs text-brand-700">
               holding {number(selection.reduce((sum, row) => sum + row.stockQuantity, 0))} units
             </span>
-            <div className="ml-auto flex flex-wrap items-center gap-2">
+            <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto">
               <Button
                 size="sm"
                 variant="secondary"
@@ -488,54 +499,76 @@ export default function InventoryPage() {
             }
           />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-ink-200 bg-ink-50/60 text-left text-[11px] font-semibold tracking-wide text-ink-500 uppercase">
-                  <th className="w-10 px-3 py-2.5">
-                    <Checkbox
-                      checked={allVisibleSelected}
-                      aria-label="Select every size on this page"
-                      onChange={(e) =>
-                        setSelectedIds(
-                          e.target.checked ? new Set(rows.map((row) => row.id)) : new Set(),
-                        )
-                      }
-                    />
-                  </th>
-                  <th className="px-3 py-2.5">Product</th>
-                  <th className="px-3 py-2.5">Size &amp; colour</th>
-                  <th className="px-3 py-2.5 text-center">Stock</th>
-                  <th className="px-3 py-2.5">Status</th>
-                  <th className="px-3 py-2.5">Updated</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-ink-100">
+          <>
+            {/* Phones: one card per size. The select-all lives in the
+                table head on wider screens, so it gets a row of its own. */}
+            <div className="md:hidden">
+              <div className="border-b border-ink-200 bg-ink-50/60 px-3 py-2.5">
+                <Checkbox
+                  checked={allVisibleSelected}
+                  label={<span className="text-xs font-medium text-ink-600">Select all on this page</span>}
+                  onChange={(e) =>
+                    setSelectedIds(e.target.checked ? new Set(rows.map((row) => row.id)) : new Set())
+                  }
+                />
+              </div>
+              <ul className="divide-y divide-ink-100">
                 {rows.map((row) => (
-                  <InventoryRow
+                  <InventoryCard
                     key={row.id}
                     row={row}
                     busy={rowBusy === row.id}
                     selected={selectedIds.has(row.id)}
-                    onSelect={(checked) =>
-                      setSelectedIds((current) => {
-                        const next = new Set(current);
-                        if (checked) next.add(row.id);
-                        else next.delete(row.id);
-                        return next;
-                      })
-                    }
+                    onSelect={(checked) => selectRow(row.id, checked)}
                     onMove={(delta) => move(row, delta)}
                     onCount={(value) => count(row, value)}
                   />
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </ul>
+            </div>
+
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-ink-200 bg-ink-50/60 text-left text-[11px] font-semibold tracking-wide text-ink-500 uppercase">
+                    <th className="w-10 px-3 py-2.5">
+                      <Checkbox
+                        checked={allVisibleSelected}
+                        aria-label="Select every size on this page"
+                        onChange={(e) =>
+                          setSelectedIds(
+                            e.target.checked ? new Set(rows.map((row) => row.id)) : new Set(),
+                          )
+                        }
+                      />
+                    </th>
+                    <th className="px-3 py-2.5">Product</th>
+                    <th className="px-3 py-2.5">Size &amp; colour</th>
+                    <th className="px-3 py-2.5 text-center">Stock</th>
+                    <th className="px-3 py-2.5">Status</th>
+                    <th className="px-3 py-2.5">Updated</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-ink-100">
+                  {rows.map((row) => (
+                    <InventoryRow
+                      key={row.id}
+                      row={row}
+                      busy={rowBusy === row.id}
+                      selected={selectedIds.has(row.id)}
+                      onSelect={(checked) => selectRow(row.id, checked)}
+                      onMove={(delta) => move(row, delta)}
+                      onCount={(value) => count(row, value)}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
 
         {pagination && pagination.totalPages > 1 ? (
-          <div className="flex items-center justify-between gap-3 border-t border-ink-200/80 px-3 py-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-ink-200/80 px-3 py-2.5">
             <p className="text-xs text-ink-500">
               Page {pagination.page} of {pagination.totalPages} · {number(pagination.total)} sizes
             </p>
@@ -591,7 +624,21 @@ export default function InventoryPage() {
   );
 }
 
-function InventoryRow({ row, busy, selected, onSelect, onMove, onCount }) {
+/**
+ * What a row is called out loud, in labels and toasts. "M" alone
+ * identifies nothing once a product is sold in more than one colourway.
+ */
+const spokenLabel = (row) => (row.colour ? `${row.colour} ${row.size}` : `size ${row.size}`);
+
+/**
+ * The ± steppers and the count field for one size.
+ *
+ * Its own component because the same controls appear in two layouts —
+ * the table from `md` up, a stacked card below it — and both are in the
+ * DOM at once, hidden by CSS. Each copy keeps its own draft; only the
+ * visible one can be focused, so only it ever commits.
+ */
+function StockStepper({ row, busy, onMove, onCount }) {
   const toast = useToast();
 
   // The field holds a draft so a keystroke does not fight the saved
@@ -607,9 +654,7 @@ function InventoryRow({ row, busy, selected, onSelect, onMove, onCount }) {
     setDraft(String(row.stockQuantity));
   }
 
-  // What this row is called out loud. "M" alone identifies nothing once
-  // a product is sold in more than one colourway.
-  const label = row.colour ? `${row.colour} ${row.size}` : `size ${row.size}`;
+  const label = spokenLabel(row);
 
   const commit = () => {
     const problem = validateStock(draft, "A stock count");
@@ -634,6 +679,103 @@ function InventoryRow({ row, busy, selected, onSelect, onMove, onCount }) {
     onCount(Number(draft));
   };
 
+  // Steppers are 36px squares on a phone, where they are thumbed, and
+  // back to the compact table size from `sm` up.
+  return (
+    <div className="flex items-center gap-1">
+      <Button
+        size="sm"
+        variant="ghost"
+        disabled={busy || row.stockQuantity === 0}
+        aria-label={`Remove one from ${row.product.name} ${label}`}
+        className="size-9 px-0 sm:h-8 sm:w-auto sm:px-1.5"
+        onClick={() => onMove(-1)}
+      >
+        <Minus className="size-3.5" aria-hidden="true" />
+      </Button>
+
+      <Input
+        type="number"
+        min={0}
+        value={draft}
+        disabled={busy}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+          if (e.key === "Escape") setDraft(String(row.stockQuantity));
+        }}
+        className="tabular h-9 w-20 px-2 py-0 text-center sm:h-8"
+        aria-label={`Stock for ${row.product.name} ${label}`}
+      />
+
+      <Button
+        size="sm"
+        variant="ghost"
+        disabled={busy}
+        aria-label={`Add one to ${row.product.name} ${label}`}
+        className="size-9 px-0 sm:h-8 sm:w-auto sm:px-1.5"
+        onClick={() => onMove(1)}
+      >
+        <Plus className="size-3.5" aria-hidden="true" />
+      </Button>
+    </div>
+  );
+}
+
+/** Product cover, name and category — the context a size row carries. */
+function RowProduct({ row, cover = 36 }) {
+  return (
+    <div className="flex min-w-0 items-center gap-2.5">
+      <ProductCover product={row.product} size={cover} />
+      <div className="min-w-0">
+        <Link
+          href={`/admin/products/${row.productId}`}
+          className="block truncate font-medium text-ink-900 hover:text-brand-700"
+        >
+          {row.product.name}
+        </Link>
+        <p className="truncate text-[11px] text-ink-500">
+          {row.product.categoryName ?? "—"}
+          {row.product.active ? "" : " · product inactive"}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/** The size chip, with the colourway beside it when there is one. */
+function RowSize({ row }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="inline-flex min-w-10 justify-center rounded-md bg-ink-100 px-2 py-1 text-xs font-semibold text-ink-700">
+        {row.size}
+      </span>
+      {/* Swatch and name together, in the size cell rather than a
+          column of its own — most of the catalogue has no colour,
+          and an empty column on every one of those rows would cost
+          width on the screen that is read most. */}
+      {row.colour ? (
+        <span className="inline-flex items-center gap-1 text-xs text-ink-600">
+          <ColourSwatch hex={row.colourHex} />
+          {row.colour}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function RowStatus({ row }) {
+  return (
+    <Badge tone={STOCK_TONE[row.stockStatus] ?? "slate"}>
+      {STOCK_LABEL[row.stockStatus] ?? row.stockStatus}
+    </Badge>
+  );
+}
+
+function InventoryRow({ row, busy, selected, onSelect, onMove, onCount }) {
+  const label = spokenLabel(row);
+
   return (
     <tr className={cx(selected && "bg-brand-50/40", !row.active && "bg-ink-50/50")}>
       <td className="px-3 py-2">
@@ -645,90 +787,66 @@ function InventoryRow({ row, busy, selected, onSelect, onMove, onCount }) {
       </td>
 
       <td className="px-3 py-2">
-        <div className="flex items-center gap-2.5">
-          <ProductCover product={row.product} size={36} />
-          <div className="min-w-0">
-            <Link
-              href={`/admin/products/${row.productId}`}
-              className="block truncate font-medium text-ink-900 hover:text-brand-700"
-            >
-              {row.product.name}
-            </Link>
-            <p className="truncate text-[11px] text-ink-500">
-              {row.product.categoryName ?? "—"}
-              {row.product.active ? "" : " · product inactive"}
-            </p>
-          </div>
+        <RowProduct row={row} />
+      </td>
+
+      <td className="px-3 py-2">
+        <RowSize row={row} />
+      </td>
+
+      <td className="px-3 py-2">
+        <div className="flex justify-center">
+          <StockStepper row={row} busy={busy} onMove={onMove} onCount={onCount} />
         </div>
       </td>
 
       <td className="px-3 py-2">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="inline-flex min-w-10 justify-center rounded-md bg-ink-100 px-2 py-1 text-xs font-semibold text-ink-700">
-            {row.size}
-          </span>
-          {/* Swatch and name together, in the size cell rather than a
-              column of its own — most of the catalogue has no colour,
-              and an empty column on every one of those rows would cost
-              width on the screen that is read most. */}
-          {row.colour ? (
-            <span className="inline-flex items-center gap-1 text-xs text-ink-600">
-              <ColourSwatch hex={row.colourHex} />
-              {row.colour}
-            </span>
-          ) : null}
-        </div>
-      </td>
-
-      <td className="px-3 py-2">
-        <div className="flex items-center justify-center gap-1">
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={busy || row.stockQuantity === 0}
-            aria-label={`Remove one from ${row.product.name} ${label}`}
-            className="px-1.5"
-            onClick={() => onMove(-1)}
-          >
-            <Minus className="size-3.5" aria-hidden="true" />
-          </Button>
-
-          <Input
-            type="number"
-            min={0}
-            value={draft}
-            disabled={busy}
-            onChange={(e) => setDraft(e.target.value)}
-            onBlur={commit}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") e.currentTarget.blur();
-              if (e.key === "Escape") setDraft(String(row.stockQuantity));
-            }}
-            className="tabular h-8 w-20 px-2 py-0 text-center"
-            aria-label={`Stock for ${row.product.name} ${label}`}
-          />
-
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={busy}
-            aria-label={`Add one to ${row.product.name} ${label}`}
-            className="px-1.5"
-            onClick={() => onMove(1)}
-          >
-            <Plus className="size-3.5" aria-hidden="true" />
-          </Button>
-        </div>
-      </td>
-
-      <td className="px-3 py-2">
-        <Badge tone={STOCK_TONE[row.stockStatus] ?? "slate"}>
-          {STOCK_LABEL[row.stockStatus] ?? row.stockStatus}
-        </Badge>
+        <RowStatus row={row} />
       </td>
 
       <td className="px-3 py-2 text-xs text-ink-500">{relativeDate(row.updatedAt)}</td>
     </tr>
+  );
+}
+
+/**
+ * The same row as a card, for phones.
+ *
+ * Six columns do not fit 360px, and a table that scrolls sideways gives
+ * no hint that it does — the stock field, the one thing this screen is
+ * for, would sit off the right edge unseen. So below `md` every column
+ * is restacked rather than dropped: product on top, size and status
+ * under it, the stepper on a line of its own where a thumb can reach it.
+ */
+function InventoryCard({ row, busy, selected, onSelect, onMove, onCount }) {
+  const label = spokenLabel(row);
+
+  return (
+    <li className={cx("flex gap-3 px-3 py-3", selected && "bg-brand-50/40", !row.active && "bg-ink-50/50")}>
+      {/* The label widens the tap target around a 16px box. */}
+      <label className="-m-2 flex shrink-0 cursor-pointer self-start p-2 pt-5">
+        <Checkbox
+          checked={selected}
+          onChange={(e) => onSelect(e.target.checked)}
+          aria-label={`Select ${row.product.name} ${label}`}
+        />
+      </label>
+
+      <div className="min-w-0 flex-1 space-y-2.5">
+        <RowProduct row={row} cover={40} />
+
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+          <RowSize row={row} />
+          <RowStatus row={row} />
+          <span className="ml-auto text-[11px] text-ink-500">{relativeDate(row.updatedAt)}</span>
+        </div>
+
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-xs font-medium text-ink-600">Stock</span>
+          <StockStepper row={row} busy={busy} onMove={onMove} onCount={onCount} />
+        </div>
+      </div>
+    </li>
   );
 }
 

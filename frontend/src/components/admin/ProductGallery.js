@@ -271,9 +271,9 @@ export function ProductGallery({ productId, images, onChange, disabled = false }
             <Thumbnail
               src={pendingDelete.url}
               alt={pendingDelete.altText || "Product photograph"}
-              className="size-20 rounded-lg"
+              className="size-20 shrink-0 rounded-lg"
             />
-            <div className="text-xs text-ink-600">
+            <div className="min-w-0 text-xs break-words text-ink-600">
               {pendingDelete.isPrimary ? (
                 <p className="font-medium text-ink-800">
                   This is the cover image. The next one takes its place.
@@ -410,11 +410,17 @@ export function StagedGallery({ files, onChange, disabled = false }) {
                 ) : null}
               </div>
 
-              <div className="flex items-center justify-between gap-1 border-t border-ink-200 px-2 py-1.5">
-                <span className="truncate text-[11px] text-ink-500" title={file.name}>
+              {/* Stacked on a phone: a two-up tile is narrower than the
+                  three buttons, and side by side they left the file name
+                  a few pixels of ellipsis. */}
+              <div className="flex flex-wrap items-center justify-between gap-x-1 gap-y-0.5 border-t border-ink-200 px-2 py-1.5">
+                <span
+                  className="w-full truncate text-[11px] text-ink-500 sm:w-auto sm:min-w-0 sm:flex-1"
+                  title={file.name}
+                >
                   {file.name}
                 </span>
-                <span className="flex shrink-0 items-center">
+                <span className="flex w-full shrink-0 items-center justify-between sm:w-auto">
                   <MoveButtons
                     index={index}
                     total={files.length}
@@ -455,7 +461,7 @@ function ImageTile({
   onRemove,
 }) {
   return (
-    <li className="overflow-hidden rounded-lg ring-1 ring-ink-200">
+    <li className="group overflow-hidden rounded-lg ring-1 ring-ink-200">
       <div className="relative aspect-3/4 bg-ink-50">
         <Thumbnail
           src={image.url}
@@ -468,12 +474,14 @@ function ImageTile({
             <Badge tone="gold">Cover</Badge>
           </span>
         ) : (
+          // Hidden until hover only where there is a hover: a touch
+          // screen has none, and there the button would never appear.
           <button
             type="button"
             disabled={disabled}
             onClick={onPromote}
             title="Make this the cover image"
-            className="absolute top-1.5 left-1.5 inline-flex items-center gap-1 rounded-md bg-white/90 px-1.5 py-1 text-[11px] font-medium text-ink-700 opacity-0 ring-1 ring-ink-300 transition-opacity group-hover:opacity-100 hover:bg-white focus-visible:opacity-100 disabled:opacity-50"
+            className="absolute top-1.5 left-1.5 inline-flex min-h-8 items-center gap-1 rounded-md bg-white/90 px-2 py-1 text-[11px] font-medium text-ink-700 ring-1 ring-ink-300 transition-opacity group-hover:opacity-100 hover:bg-white focus-visible:opacity-100 disabled:opacity-50 sm:min-h-0 sm:px-1.5 [@media(hover:hover)]:opacity-0"
           >
             <Star className="size-3" aria-hidden="true" />
             Cover
@@ -495,7 +503,7 @@ function ImageTile({
           }}
           placeholder="Describe the photo…"
           maxLength={200}
-          className="h-7 text-[11px]"
+          className="h-8 text-[11px] sm:h-7"
           aria-label={`Description for image ${index + 1}`}
         />
 

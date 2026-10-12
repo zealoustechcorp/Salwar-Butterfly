@@ -247,7 +247,7 @@ export default function ProductsListPage() {
 
       <Card>
         <div className="flex flex-wrap items-center gap-2 border-b border-ink-200/80 p-3">
-          <div className="relative min-w-56 flex-1">
+          <div className="relative w-full flex-1 sm:w-auto sm:min-w-56">
             <Search
               aria-hidden="true"
               className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-400"
@@ -261,81 +261,86 @@ export default function ProductsListPage() {
             />
           </div>
 
-          <Select
-            value={query.categoryId}
-            onChange={(e) => setQuery((q) => ({ ...q, categoryId: e.target.value, page: 1 }))}
-            aria-label="Filter by category"
-            className="w-auto"
-          >
-            <option value="all">All categories</option>
-            {(reference?.categories ?? []).map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-                {c.active ? "" : " (inactive)"}
-              </option>
-            ))}
-          </Select>
+          {/* Two filters a row on a phone, where six auto-width dropdowns
+              would wrap into a ragged staircase. From `sm` the wrapper
+              dissolves and they flow in the bar exactly as before. */}
+          <div className="grid w-full grid-cols-2 gap-2 sm:contents">
+            <Select
+              value={query.categoryId}
+              onChange={(e) => setQuery((q) => ({ ...q, categoryId: e.target.value, page: 1 }))}
+              aria-label="Filter by category"
+              className="w-full sm:w-auto"
+            >
+              <option value="all">All categories</option>
+              {(reference?.categories ?? []).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                  {c.active ? "" : " (inactive)"}
+                </option>
+              ))}
+            </Select>
 
-          <Select
-            value={query.status}
-            onChange={(e) => setQuery((q) => ({ ...q, status: e.target.value, page: 1 }))}
-            aria-label="Filter by status"
-            className="w-auto"
-          >
-            <option value="all">Any status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </Select>
+            <Select
+              value={query.status}
+              onChange={(e) => setQuery((q) => ({ ...q, status: e.target.value, page: 1 }))}
+              aria-label="Filter by status"
+              className="w-full sm:w-auto"
+            >
+              <option value="all">Any status</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </Select>
 
-          <Select
-            value={query.discount}
-            onChange={(e) => setQuery((q) => ({ ...q, discount: e.target.value, page: 1 }))}
-            aria-label="Filter by offer"
-            className="w-auto"
-          >
-            <option value="all">Any price</option>
-            <option value="discounted">On offer</option>
-            <option value="full_price">Full price</option>
-          </Select>
+            <Select
+              value={query.discount}
+              onChange={(e) => setQuery((q) => ({ ...q, discount: e.target.value, page: 1 }))}
+              aria-label="Filter by offer"
+              className="w-full sm:w-auto"
+            >
+              <option value="all">Any price</option>
+              <option value="discounted">On offer</option>
+              <option value="full_price">Full price</option>
+            </Select>
 
-          <Select
-            value={query.stock}
-            onChange={(e) => setQuery((q) => ({ ...q, stock: e.target.value, page: 1 }))}
-            aria-label="Filter by stock"
-            className="w-auto"
-          >
-            <option value="all">Any stock</option>
-            <option value="in_stock">In stock</option>
-            <option value="low_stock">Low stock</option>
-            <option value="out_of_stock">Out of stock</option>
-            <option value="unavailable">No sizes</option>
-          </Select>
+            <Select
+              value={query.stock}
+              onChange={(e) => setQuery((q) => ({ ...q, stock: e.target.value, page: 1 }))}
+              aria-label="Filter by stock"
+              className="w-full sm:w-auto"
+            >
+              <option value="all">Any stock</option>
+              <option value="in_stock">In stock</option>
+              <option value="low_stock">Low stock</option>
+              <option value="out_of_stock">Out of stock</option>
+              <option value="unavailable">No sizes</option>
+            </Select>
 
-          <Select
-            value={query.featured}
-            onChange={(e) => setQuery((q) => ({ ...q, featured: e.target.value, page: 1 }))}
-            aria-label="Filter by featured"
-            className="w-auto"
-          >
-            <option value="all">Featured or not</option>
-            <option value="featured">Featured</option>
-            <option value="not_featured">Not featured</option>
-          </Select>
+            <Select
+              value={query.featured}
+              onChange={(e) => setQuery((q) => ({ ...q, featured: e.target.value, page: 1 }))}
+              aria-label="Filter by featured"
+              className="w-full sm:w-auto"
+            >
+              <option value="all">Featured or not</option>
+              <option value="featured">Featured</option>
+              <option value="not_featured">Not featured</option>
+            </Select>
 
-          <Select
-            value={query.sort}
-            onChange={(e) => setQuery((q) => ({ ...q, sort: e.target.value, page: 1 }))}
-            aria-label="Sort"
-            className="w-auto"
-          >
-            <option value="newest">Newest first</option>
-            <option value="oldest">Oldest first</option>
-            <option value="name_asc">Name A–Z</option>
-            <option value="name_desc">Name Z–A</option>
-            <option value="price_desc">Price high → low</option>
-            <option value="price_asc">Price low → high</option>
-            <option value="discount_desc">Biggest offer</option>
-          </Select>
+            <Select
+              value={query.sort}
+              onChange={(e) => setQuery((q) => ({ ...q, sort: e.target.value, page: 1 }))}
+              aria-label="Sort"
+              className="w-full sm:w-auto"
+            >
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="name_asc">Name A–Z</option>
+              <option value="name_desc">Name Z–A</option>
+              <option value="price_desc">Price high → low</option>
+              <option value="price_asc">Price low → high</option>
+              <option value="discount_desc">Biggest offer</option>
+            </Select>
+          </div>
 
           {filtersDirty ? (
             <Button
@@ -403,29 +408,22 @@ export default function ProductsListPage() {
             }
           />
         ) : view === "list" ? (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[880px] border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-ink-200 bg-ink-50/60 text-left text-[11px] font-semibold tracking-wide text-ink-500 uppercase">
-                  <th className="w-10 px-3 py-2.5">
-                    <Checkbox
-                      checked={allSelected}
-                      onChange={toggleAll}
-                      aria-label="Select all products on this page"
-                      className={cx(!allSelected && someSelected && "opacity-70")}
-                    />
-                  </th>
-                  <th className="px-3 py-2.5">Product</th>
-                  <th className="px-3 py-2.5">Category</th>
-                  <th className="px-3 py-2.5 text-right">Price</th>
-                  <th className="px-3 py-2.5">Sizes & stock</th>
-                  <th className="px-3 py-2.5">Storefront</th>
-                  <th className="px-3 py-2.5 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className={cx("divide-y divide-ink-100", loading && "opacity-60")}>
+          <>
+            {/* Below `md` the list becomes stacked cards: an 880px table in a
+                phone-width card would scroll sideways with no scrollbar to say
+                so, hiding the price and every action off the right edge. */}
+            <div className={cx("space-y-2 bg-ink-50/50 p-3 md:hidden", loading && "opacity-60")}>
+              <div className="flex items-center px-1">
+                <Checkbox
+                  checked={allSelected}
+                  onChange={toggleAll}
+                  label={`Select all ${rows.length} product${rows.length === 1 ? "" : "s"} on this page`}
+                  className={cx(!allSelected && someSelected && "opacity-70")}
+                />
+              </div>
+              <ul className="space-y-2">
                 {rows.map((product) => (
-                  <ProductRow
+                  <ProductListCard
                     key={product.id}
                     product={product}
                     selected={selectedIds.has(product.id)}
@@ -434,9 +432,43 @@ export default function ProductsListPage() {
                     onToggleActive={() => toggleRowActive(product)}
                   />
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </ul>
+            </div>
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full min-w-[880px] border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-ink-200 bg-ink-50/60 text-left text-[11px] font-semibold tracking-wide text-ink-500 uppercase">
+                    <th className="w-10 px-3 py-2.5">
+                      <Checkbox
+                        checked={allSelected}
+                        onChange={toggleAll}
+                        aria-label="Select all products on this page"
+                        className={cx(!allSelected && someSelected && "opacity-70")}
+                      />
+                    </th>
+                    <th className="px-3 py-2.5">Product</th>
+                    <th className="px-3 py-2.5">Category</th>
+                    <th className="px-3 py-2.5 text-right">Price</th>
+                    <th className="px-3 py-2.5">Sizes & stock</th>
+                    <th className="px-3 py-2.5">Storefront</th>
+                    <th className="px-3 py-2.5 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className={cx("divide-y divide-ink-100", loading && "opacity-60")}>
+                  {rows.map((product) => (
+                    <ProductRow
+                      key={product.id}
+                      product={product}
+                      selected={selectedIds.has(product.id)}
+                      busy={rowBusy === product.id}
+                      onToggleSelect={() => toggleProduct(product.id)}
+                      onToggleActive={() => toggleRowActive(product)}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         ) : (
           <div className={cx("space-y-3 bg-ink-50/50 p-3 sm:p-4", loading && "opacity-60")}>
             <div className="flex items-center px-1">
@@ -507,11 +539,11 @@ function PageHeader() {
           exactly one category and carries its own price and offer.
         </p>
       </div>
-      <div className="flex items-center gap-2">
-        <LinkButton variant="secondary" href="/admin/products/bulk">
+      <div className="flex w-full items-center gap-2 sm:w-auto">
+        <LinkButton variant="secondary" href="/admin/products/bulk" className="flex-1 sm:flex-none">
           Bulk upload
         </LinkButton>
-        <LinkButton variant="primary" href="/admin/products/new">
+        <LinkButton variant="primary" href="/admin/products/new" className="flex-1 sm:flex-none">
           Add product
         </LinkButton>
       </div>
@@ -562,7 +594,9 @@ function pageNumbers(page, pages) {
 function Pager({ page, pages, onPage }) {
   if (pages <= 1) return null;
   return (
-    <nav aria-label="Product pages" className="flex items-center gap-0.5">
+    // Wraps rather than overflowing: at its widest (first, gap, three around
+    // the current page, gap, last) it is right at a phone footer's width.
+    <nav aria-label="Product pages" className="flex flex-wrap items-center gap-0.5">
       <button
         type="button"
         onClick={() => onPage(page - 1)}
@@ -615,7 +649,7 @@ function ViewToggleButton({ active, onClick, title, icon }) {
       title={title}
       aria-label={title}
       className={cx(
-        "flex size-8 items-center justify-center rounded-md transition-colors",
+        "flex size-9 items-center justify-center rounded-md transition-colors sm:size-8",
         active ? "bg-brand-600 text-white" : "text-ink-500 hover:bg-ink-100 hover:text-ink-800",
       )}
     >
@@ -666,6 +700,9 @@ function ProductGridCard({ product, selected, busy, onToggleSelect, onToggleActi
             "opacity-0 transition-opacity duration-150",
             "group-hover:pointer-events-auto group-hover:opacity-100",
             "group-focus-within:pointer-events-auto group-focus-within:opacity-100",
+            // A touch screen has no hover to reveal View/Edit with, and a tap
+            // on the cover focuses nothing — so there the overlay simply stays.
+            "[@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100",
           )}
         >
           <div className="space-y-0.5 text-[11px] leading-snug text-white/90">
@@ -725,6 +762,83 @@ function ProductGridCard({ product, selected, busy, onToggleSelect, onToggleActi
             label={`Toggle ${product.name} on the storefront`}
             size="sm"
           />
+        </div>
+      </div>
+    </li>
+  );
+}
+
+/**
+ * List view below `md`: the same fields and actions as <ProductRow>,
+ * stacked into a card a phone can show without scrolling sideways.
+ */
+function ProductListCard({ product, selected, busy, onToggleSelect, onToggleActive }) {
+  return (
+    <li
+      className={cx(
+        "rounded-xl bg-white p-3 shadow-sm shadow-ink-900/[0.03] ring-1",
+        selected ? "ring-2 ring-brand-400" : "ring-ink-200/80",
+      )}
+    >
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 items-center">
+          <Checkbox checked={selected} onChange={onToggleSelect} aria-label={`Select ${product.name}`} />
+        </span>
+        <ProductCover product={product} size={40} />
+        <div className="min-w-0 flex-1">
+          <Link
+            href={`/admin/products/${product.id}`}
+            className="block truncate font-medium text-ink-900 hover:text-brand-700 hover:underline"
+          >
+            {product.name}
+          </Link>
+          <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] text-ink-500">
+            <span className="truncate font-mono">/{product.slug}</span>
+            {product.isFeatured ? <Badge tone="gold">Featured</Badge> : null}
+          </div>
+          <p className="mt-0.5 truncate text-[11px] text-ink-500">
+            {product.categoryName}
+            {product.categoryActive ? "" : " · category inactive"}
+          </p>
+        </div>
+        <PriceCell
+          basePrice={product.basePrice}
+          salePrice={product.currentPrice}
+          discountPercent={product.discountPercentage}
+        />
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] text-ink-400">
+        <StockBadge active={product.stock.activeSizeCount > 0} stock={product.stock.totalStock} />
+        <span>
+          {product.stock.sizeCount
+            ? `${product.stock.sizeCount} sizes · ${number(product.stock.totalStock)} units`
+            : "no sizes yet"}
+        </span>
+        <span>updated {relativeDate(product.updatedAt)}</span>
+      </div>
+
+      <div className="mt-3 flex items-center gap-2 border-t border-ink-100 pt-3">
+        <Toggle
+          checked={product.active}
+          onChange={onToggleActive}
+          disabled={busy}
+          label={`Toggle ${product.name} on the storefront`}
+          size="sm"
+        />
+        <ActiveDot active={product.active} />
+        <div className="ml-auto flex items-center gap-1.5">
+          <LinkButton size="sm" variant="ghost" href={`/admin/products/${product.id}`} className="h-9">
+            View
+          </LinkButton>
+          <LinkButton
+            size="sm"
+            variant="secondary"
+            href={`/admin/products/${product.id}/edit`}
+            className="h-9"
+          >
+            Edit
+          </LinkButton>
         </div>
       </div>
     </li>

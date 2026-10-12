@@ -115,7 +115,7 @@ export default function ProductDetailPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
-      <nav className="flex items-center gap-1.5 text-xs text-ink-500">
+      <nav className="flex min-w-0 items-center gap-1.5 text-xs text-ink-500">
         <LinkButton variant="ghost" size="sm" href="/admin/products">
           Products
         </LinkButton>
@@ -127,7 +127,7 @@ export default function ProductDetailPage() {
         <div className="flex min-w-0 items-start gap-4">
           <ProductCover product={product} size={64} rounded="rounded-xl" />
           <div className="min-w-0">
-            <h1 className="flex flex-wrap items-center gap-2 text-xl font-semibold tracking-tight text-ink-900">
+            <h1 className="flex flex-wrap items-center gap-2 text-xl font-semibold tracking-tight break-words text-ink-900">
               {product.name}
               {product.isFeatured ? <Badge tone="gold">Featured</Badge> : null}
               {product.discountPercentage > 0 ? (
@@ -135,7 +135,7 @@ export default function ProductDetailPage() {
               ) : null}
             </h1>
             <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-ink-500">
-              <span className="font-mono">/{product.slug}</span>
+              <span className="font-mono break-all">/{product.slug}</span>
               <span aria-hidden="true">·</span>
               <span>{names.category}</span>
               <span aria-hidden="true">·</span>
@@ -144,14 +144,18 @@ export default function ProductDetailPage() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="secondary" onClick={() => setDiscountOpen(true)}>
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+          <Button variant="secondary" className="flex-1 sm:flex-none" onClick={() => setDiscountOpen(true)}>
             Discount…
           </Button>
-          <Button variant="secondary" busy={busy} onClick={toggleActive}>
+          <Button variant="secondary" className="flex-1 sm:flex-none" busy={busy} onClick={toggleActive}>
             {product.active ? "Deactivate" : "Activate"}
           </Button>
-          <LinkButton variant="primary" href={`/admin/products/${product.id}/edit`}>
+          <LinkButton
+            variant="primary"
+            className="flex-1 sm:flex-none"
+            href={`/admin/products/${product.id}/edit`}
+          >
             Edit product
           </LinkButton>
         </div>
@@ -234,12 +238,12 @@ export default function ProductDetailPage() {
               }
             />
             {product.images.length === 0 ? (
-              <p className="px-5 py-6 text-sm text-ink-500">
+              <p className="px-4 py-6 text-sm text-ink-500 sm:px-5">
                 No photographs yet — this product shows an illustrated swatch everywhere it
                 appears. Add them from the edit screen.
               </p>
             ) : (
-              <ul className="flex flex-wrap gap-3 px-5 py-4">
+              <ul className="flex flex-wrap gap-3 px-4 py-4 sm:px-5">
                 {product.images.map((image, index) => (
                   <li key={image.id} className="relative">
                     <GalleryThumbnail
@@ -273,30 +277,32 @@ export default function ProductDetailPage() {
               }
             />
             {variants.length === 0 ? (
-              <p className="px-5 py-6 text-sm text-ink-500">
+              <p className="px-4 py-6 text-sm text-ink-500 sm:px-5">
                 No sizes recorded, so there is nothing a shopper can add to a bag. Add them from
                 the edit screen.
               </p>
             ) : (
+              // Kept as a table on a phone: four short columns fit at 360px
+              // once the 420px floor and the wide cell padding are lifted.
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[420px] border-collapse text-sm">
+                <table className="w-full border-collapse text-sm sm:min-w-[420px]">
                   <thead>
                     <tr className="border-b border-ink-200 bg-ink-50/60 text-left text-[11px] font-semibold tracking-wide text-ink-500 uppercase">
-                      <th className="px-5 py-2.5">Size</th>
+                      <th className="px-3 py-2.5 sm:px-5">Size</th>
                       {/* Only when the product is sold by colour — an
                           empty column on every other product would be
                           noise on the screen that is read most. */}
-                      {summary.colourCount ? <th className="px-5 py-2.5">Colour</th> : null}
-                      <th className="px-5 py-2.5 text-right">Stock</th>
-                      <th className="px-5 py-2.5">Status</th>
+                      {summary.colourCount ? <th className="px-3 py-2.5 sm:px-5">Colour</th> : null}
+                      <th className="px-3 py-2.5 text-right sm:px-5">Stock</th>
+                      <th className="px-3 py-2.5 sm:px-5">Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-ink-100">
                     {variants.map((variant) => (
                       <tr key={variant.id}>
-                        <td className="px-5 py-2.5 font-semibold text-ink-800">{variant.size}</td>
+                        <td className="px-3 py-2.5 font-semibold text-ink-800 sm:px-5">{variant.size}</td>
                         {summary.colourCount ? (
-                          <td className="px-5 py-2.5 text-ink-700">
+                          <td className="px-3 py-2.5 text-ink-700 sm:px-5">
                             {variant.colour ? (
                               <span className="inline-flex items-center gap-1.5">
                                 <ColourSwatch hex={variant.colourHex} />
@@ -307,10 +313,10 @@ export default function ProductDetailPage() {
                             )}
                           </td>
                         ) : null}
-                        <td className="tabular px-5 py-2.5 text-right text-ink-700">
+                        <td className="tabular px-3 py-2.5 text-right text-ink-700 sm:px-5">
                           {number(variant.stockQuantity)}
                         </td>
-                        <td className="px-5 py-2.5">
+                        <td className="px-3 py-2.5 sm:px-5">
                           <StockBadge active={variant.active} stock={variant.stockQuantity} />
                         </td>
                       </tr>
@@ -323,7 +329,7 @@ export default function ProductDetailPage() {
 
           <Card>
             <CardHeader title="Description" />
-            <p className="px-5 py-4 text-sm leading-relaxed whitespace-pre-line text-ink-600">
+            <p className="px-4 py-4 text-sm leading-relaxed break-words whitespace-pre-line text-ink-600 sm:px-5">
               {product.description || (
                 <span className="text-ink-400">No description recorded.</span>
               )}
@@ -334,14 +340,14 @@ export default function ProductDetailPage() {
         <div className="space-y-5">
           <Card>
             <CardHeader title="Attributes" />
-            <dl className="divide-y divide-ink-100 px-5 text-sm">
+            <dl className="divide-y divide-ink-100 px-4 text-sm sm:px-5">
               {Object.keys(product.attributes ?? {}).length === 0 ? (
                 <p className="py-4 text-sm text-ink-400">None recorded.</p>
               ) : (
                 Object.entries(product.attributes).map(([key, value]) => (
                   <div key={key} className="flex items-center justify-between gap-3 py-2.5">
-                    <dt className="text-xs font-medium text-ink-500 capitalize">{key}</dt>
-                    <dd className="text-sm text-ink-800">{value}</dd>
+                    <dt className="shrink-0 text-xs font-medium text-ink-500 capitalize">{key}</dt>
+                    <dd className="min-w-0 text-right text-sm break-words text-ink-800">{value}</dd>
                   </div>
                 ))
               )}
@@ -350,8 +356,8 @@ export default function ProductDetailPage() {
 
           <Card>
             <CardHeader title="Record" />
-            <dl className="divide-y divide-ink-100 px-5 text-sm">
-              <Row label="Product ID" value={<span className="font-mono text-[11px]">{product.id}</span>} />
+            <dl className="divide-y divide-ink-100 px-4 text-sm sm:px-5">
+              <Row label="Product ID" value={<span className="font-mono text-[11px] break-all">{product.id}</span>} />
               <Row label="Category" value={names.category} />
               <Row label="Base price" value={money(product.basePrice)} />
               <Row
@@ -380,8 +386,8 @@ export default function ProductDetailPage() {
 function Row({ label, value }) {
   return (
     <div className="flex items-center justify-between gap-3 py-2.5">
-      <dt className="text-xs font-medium text-ink-500">{label}</dt>
-      <dd className="text-right text-sm text-ink-800">{value}</dd>
+      <dt className="shrink-0 text-xs font-medium text-ink-500">{label}</dt>
+      <dd className="min-w-0 text-right text-sm text-ink-800">{value}</dd>
     </div>
   );
 }

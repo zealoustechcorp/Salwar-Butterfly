@@ -2,7 +2,7 @@
 
 import { ArrowLeft, Check, Circle } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import {
   AttributeFields,
@@ -135,6 +135,18 @@ export default function NewProductPage() {
     }
   }
 
+  /**
+   * Re-reads the published fits when the shop comes back from adding one
+   * in another tab. Dropdown options only, so a failure is never surfaced.
+   */
+  const refreshFits = useCallback(async () => {
+    try {
+      setFits(await listFits());
+    } catch {
+      // The picker keeps the list it had.
+    }
+  }, []);
+
   function setField(key, value) {
     setForm((current) => ({ ...current, [key]: value }));
     setErrors((current) => {
@@ -242,7 +254,9 @@ export default function NewProductPage() {
     !validateSalePrice(form.basePrice, form.discountPercentage);
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5 pb-24">
+    // The bottom bar is taller on a phone, where its checklist takes a line
+    // of its own above the buttons, so the page leaves more room under it.
+    <div className="mx-auto max-w-4xl space-y-5 pb-40 sm:pb-24">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-ink-900">Add product</h1>
@@ -263,7 +277,7 @@ export default function NewProductPage() {
           title="Product details"
           description="Identity, description and where the product sits in the catalogue."
         />
-        <div className="p-5">
+        <div className="p-4 sm:p-5">
           <DetailsFields form={form} setField={setField} errors={errors} reference={reference} />
         </div>
       </Card>
@@ -273,7 +287,7 @@ export default function NewProductPage() {
           title="Price & availability"
           description="What the product lists at, and whether shoppers can see it."
         />
-        <div className="p-5">
+        <div className="p-4 sm:p-5">
           <PricingFields form={form} setField={setField} errors={errors} />
         </div>
       </Card>
@@ -283,7 +297,7 @@ export default function NewProductPage() {
           title="Photographs"
           description="Uploaded once the product is created. The first image becomes the cover."
         />
-        <div className="p-5">
+        <div className="p-4 sm:p-5">
           <StagedGallery files={photos} onChange={setPhotos} disabled={busy} />
         </div>
       </Card>
@@ -293,7 +307,7 @@ export default function NewProductPage() {
           title="Sizes, colours & stock"
           description="The sellable rows. Each size in each colourway carries its own stock count."
         />
-        <div className="p-5">
+        <div className="p-4 sm:p-5">
           <SizeStockEditor
             rows={sizes}
             onChange={setSizes}
@@ -309,31 +323,33 @@ export default function NewProductPage() {
           title="Attributes"
           description="Fabric, work and sleeve come from the approved-values register — add a missing one inline. The fit comes from the published size charts and decides which chart the shopper is shown."
         />
-        <div className="p-5">
+        <div className="p-4 sm:p-5">
           <AttributeFields
             form={form}
             setField={setField}
             groups={attributeGroups}
             fits={fits}
+            onRefreshFits={refreshFits}
             onRegister={refreshAttributes}
           />
         </div>
       </Card>
 
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-ink-200 bg-white/95 backdrop-blur lg:left-64">
-        <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-3 px-4 py-3 sm:px-6">
-          <div className="text-xs text-ink-500">
+        <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6 sm:pb-3">
+          <div className="w-full text-xs text-ink-500 sm:w-auto">
             <Requirement met={readyDetails} label="Name & category" />
             <Requirement met={readyPricing} label="Base price" />
             <Requirement met={sizes.length > 0} label={describeMatrix(sizes)} />
           </div>
-          <div className="ml-auto flex items-center gap-2">
-            <LinkButton variant="ghost" href="/admin/products">
+          <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
+            <LinkButton variant="ghost" href="/admin/products" className="h-11 flex-1 sm:h-9 sm:flex-none">
               Cancel
             </LinkButton>
             <Button
               variant="primary"
               size="lg"
+              className="flex-1 sm:flex-none"
               busy={busy}
               disabled={!readyDetails || !readyPricing}
               onClick={submit}

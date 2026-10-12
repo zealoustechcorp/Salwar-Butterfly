@@ -145,8 +145,8 @@ function DiscountForm({ onClose, products = [], onDone }) {
               onClick={() => setPercent(value)}
               className={
                 Number(percent) === value
-                  ? "rounded-lg bg-brand-600 px-2.5 py-1 text-xs font-semibold text-white"
-                  : "rounded-lg bg-ink-100 px-2.5 py-1 text-xs font-medium text-ink-700 hover:bg-ink-200"
+                  ? "rounded-lg bg-brand-600 px-3 py-2 text-xs font-semibold text-white sm:px-2.5 sm:py-1"
+                  : "rounded-lg bg-ink-100 px-3 py-2 text-xs font-medium text-ink-700 hover:bg-ink-200 sm:px-2.5 sm:py-1"
               }
             >
               {value}%
@@ -180,10 +180,10 @@ function DiscountForm({ onClose, products = [], onDone }) {
 
         {preview ? (
           <div className="rounded-lg bg-ink-50 p-3 ring-1 ring-inset ring-ink-200">
-            <p className="text-[11px] font-semibold tracking-wide text-ink-500 uppercase">
+            <p className="text-[11px] font-semibold tracking-wide break-words text-ink-500 uppercase">
               Preview · {preview.label}
             </p>
-            <p className="tabular mt-1 flex items-baseline gap-2">
+            <p className="tabular mt-1 flex flex-wrap items-baseline gap-x-2">
               <span className="text-sm text-ink-400 line-through">{money(preview.base)}</span>
               <span className="text-lg font-semibold text-brand-700">{money(preview.next)}</span>
               <span className="text-xs text-ink-500">customer pays</span>
@@ -195,7 +195,7 @@ function DiscountForm({ onClose, products = [], onDone }) {
         ) : null}
 
         {error && !error.fields?.percent ? (
-          <p className="text-xs text-red-600">{error.message}</p>
+          <p className="text-xs break-words text-red-600">{error.message}</p>
         ) : null}
       </div>
     </Modal>

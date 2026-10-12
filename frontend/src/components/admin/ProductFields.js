@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { Plus } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 
 import { ATTRIBUTE_GROUPS, createAttributeValue, FIT_GROUP } from "@/lib/api/attributes";
 import { money } from "@/lib/format";
@@ -108,8 +110,10 @@ export function DetailsFields({ form, setField, errors = {}, reference, lockCate
         error={errors.slug}
         hint="Derived from the name. Must be unique across the catalogue."
       >
-        <div className="flex items-center gap-2">
-          <span className="shrink-0 font-mono text-xs text-ink-400">
+        {/* The prefix alone is most of a phone's width, so it sits above
+            the field there rather than squeezing it to a sliver. */}
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
+          <span className="font-mono text-xs break-all text-ink-400 sm:shrink-0">
             salwarbutterfly.com/product/
           </span>
           <Input
@@ -117,7 +121,7 @@ export function DetailsFields({ form, setField, errors = {}, reference, lockCate
             invalid={Boolean(errors.slug)}
             onChange={(e) => setField("slug", autoSlug(e.target.value))}
             placeholder={autoSlug(form.name) || "product-slug"}
-            className="font-mono text-xs"
+            className="min-w-0 font-mono text-xs"
           />
         </div>
       </Field>
@@ -163,7 +167,7 @@ export function DetailsFields({ form, setField, errors = {}, reference, lockCate
 
       <div className="md:col-span-2">
         <div className="flex items-center justify-between gap-3 rounded-lg bg-ink-50 px-3 py-2.5 ring-1 ring-inset ring-ink-200">
-          <div>
+          <div className="min-w-0">
             <p className="text-xs font-semibold text-ink-700">Feature on the home page</p>
             <p className="text-[11px] text-ink-500">Adds it to the featured rail on the storefront.</p>
           </div>
@@ -202,7 +206,14 @@ export function DetailsFields({ form, setField, errors = {}, reference, lockCate
  * `groups` is the register, keyed by attribute: { fabric: [...], ... }.
  * `fits` is the size charts' list: [{ fit, title }, ...].
  */
-export function AttributeFields({ form, setField, groups = {}, fits = [], onRegister }) {
+export function AttributeFields({
+  form,
+  setField,
+  groups = {},
+  fits = [],
+  onRefreshFits,
+  onRegister,
+}) {
   // A cleared field means "not recorded", not an empty string — the API
   // drops blanks anyway, so keep the form in step.
   const choose = (key, value) => {
@@ -215,11 +226,14 @@ export function AttributeFields({ form, setField, groups = {}, fits = [], onRegi
   };
 
   return (
-    <div className="grid gap-4 sm:grid-cols-3">
+    // Two across before three: each select can open an inline add row
+    // (field, Add, Cancel), which needs more than a third of a tablet.
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       <FitSelect
         fits={fits}
         selected={form.attributes?.[FIT_GROUP.key] ?? ""}
         onSelect={(value) => choose(FIT_GROUP.key, value)}
+        onRefresh={onRefreshFits}
       />
 
       {ATTRIBUTE_GROUPS.map((group) => (
@@ -248,8 +262,18 @@ export function AttributeFields({ form, setField, groups = {}, fits = [], onRegi
  * A fit already on the product is kept in the list even when it is no
  * longer offered — a chart withdrawn in April must not silently strip
  * the fit off every product the next time one of them is saved.
+ *
+ * The "new fit" link opens the chart editor in a new tab, so a half-filled
+ * product form is not thrown away to go and publish one. Coming back to
+ * this tab re-reads the list, so the new fit is there without a reload.
  */
-function FitSelect({ fits, selected, onSelect }) {
+function FitSelect({ fits, selected, onSelect, onRefresh }) {
+  useEffect(() => {
+    if (!onRefresh) return undefined;
+    window.addEventListener("focus", onRefresh);
+    return () => window.removeEventListener("focus", onRefresh);
+  }, [onRefresh]);
+
   const known = fits.some((entry) => entry.fit === selected);
   const options = known || !selected ? fits : [...fits, { fit: selected, title: "" }];
 
@@ -257,9 +281,20 @@ function FitSelect({ fits, selected, onSelect }) {
     <Field
       label={FIT_GROUP.label}
       hint={
-        fits.length
-          ? "Decides which size chart the shopper sees. Add a fit by publishing its chart."
-          : "No size charts published yet — publish one to offer a fit."
+        <>
+          {fits.length
+            ? "Decides which size chart the shopper sees. Add a fit by publishing its chart."
+            : "No size charts published yet — publish one to offer a fit."}{" "}
+          <Link
+            href="/admin/size-charts/new"
+            target="_blank"
+            rel="noopener"
+            className="inline-flex items-center gap-0.5 font-semibold text-brand-700 hover:underline"
+          >
+            <Plus className="size-3" aria-hidden="true" />
+            Add a new fit
+          </Link>
+        </>
       }
     >
       <Select value={selected} onChange={(e) => onSelect(e.target.value)}>
@@ -329,7 +364,7 @@ function AttributeSelect({ group, values, selected, onSelect, onRegister }) {
       </Select>
 
       {addingOpen ? (
-        <div className="mt-1.5 flex items-center gap-1.5">
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <Input
             value={draft}
             autoFocus
@@ -343,7 +378,7 @@ function AttributeSelect({ group, values, selected, onSelect, onRegister }) {
             }}
             placeholder={group.placeholder}
             maxLength={100}
-            className="h-8 text-xs"
+            className="h-8 min-w-0 flex-1 basis-32 text-xs"
             aria-label={`New ${group.label.toLowerCase()} value`}
           />
           <Button size="sm" variant="primary" busy={busy} disabled={!draft.trim()} onClick={add}>
@@ -452,7 +487,7 @@ export function PricingFields({ form, setField, errors = {} }) {
         >
           Customer pays
         </p>
-        <p className="tabular mt-1 flex items-baseline gap-2">
+        <p className="tabular mt-1 flex flex-wrap items-baseline gap-x-2">
           <span
             className={cx(
               "text-xl font-semibold",
@@ -485,14 +520,14 @@ export function PricingFields({ form, setField, errors = {} }) {
 
       <div className="md:col-span-3">
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-ink-50 px-3 py-2.5 ring-1 ring-inset ring-ink-200">
-          <div>
+          <div className="min-w-0">
             <p className="text-xs font-semibold text-ink-700">Publish to storefront</p>
             <p className="text-[11px] text-ink-500">
               Inactive products stay in the catalogue and on past orders but are invisible to
               shoppers.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <Badge tone={form.active ? "green" : "slate"}>{form.active ? "Active" : "Draft"}</Badge>
             <Toggle
               checked={form.active}

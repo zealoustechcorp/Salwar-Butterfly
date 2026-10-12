@@ -299,7 +299,9 @@ function GroupPanel({ group, values, withSwatch = false, onDone }) {
             // group writes into products.attributes, which is not capped
             // below the register’s own 100.
             maxLength={withSwatch ? 40 : 100}
-            className="w-64"
+            // Takes whatever the swatch and button leave on a phone; the
+            // fixed 16rem would push "Add value" onto a line of its own.
+            className="min-w-0 flex-1 sm:w-64 sm:flex-none"
             aria-label={`Add a ${group.label.toLowerCase()} value`}
           />
           <Button variant="primary" busy={adding} disabled={!draft.trim()} onClick={add}>
@@ -310,7 +312,7 @@ function GroupPanel({ group, values, withSwatch = false, onDone }) {
       </div>
 
       {values.length === 0 ? (
-        <p className="px-5 py-6 text-sm text-ink-500">
+        <p className="px-4 py-6 text-sm text-ink-500 sm:px-5">
           Nothing recorded yet. Add the first {group.label.toLowerCase()} above and it becomes
           selectable on every product.
         </p>
@@ -320,7 +322,7 @@ function GroupPanel({ group, values, withSwatch = false, onDone }) {
             <li
               key={value.id}
               className={cx(
-                "flex flex-wrap items-center gap-3 px-5 py-2.5",
+                "flex flex-wrap items-center gap-3 px-4 py-2.5 sm:px-5",
                 !value.active && "bg-ink-50/60",
               )}
             >
@@ -338,7 +340,7 @@ function GroupPanel({ group, values, withSwatch = false, onDone }) {
                       if (e.key === "Escape") setEditingId(null);
                     }}
                     maxLength={withSwatch ? 40 : 100}
-                    className="w-56"
+                    className="min-w-0 flex-1 sm:w-56 sm:flex-none"
                     aria-label={`Rename ${value.value}`}
                   />
                   <Button
@@ -350,7 +352,13 @@ function GroupPanel({ group, values, withSwatch = false, onDone }) {
                     <Check className="size-3.5" aria-hidden="true" />
                     Save
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="size-9 px-0 sm:size-8"
+                    aria-label="Cancel rename"
+                    onClick={() => setEditingId(null)}
+                  >
                     <X className="size-3.5" aria-hidden="true" />
                   </Button>
                   {value.usageCount > 0 ? (
@@ -380,7 +388,7 @@ function GroupPanel({ group, values, withSwatch = false, onDone }) {
 
                   <span
                     className={cx(
-                      "min-w-40 text-sm font-medium",
+                      "min-w-0 text-sm font-medium break-words sm:min-w-40",
                       value.active ? "text-ink-800" : "text-ink-400 line-through",
                     )}
                   >
@@ -407,6 +415,7 @@ function GroupPanel({ group, values, withSwatch = false, onDone }) {
                     <Button
                       size="sm"
                       variant="ghost"
+                      className="size-9 px-0 sm:size-8"
                       aria-label={`Rename ${value.value}`}
                       disabled={busyId === value.id}
                       onClick={() => {
@@ -419,6 +428,7 @@ function GroupPanel({ group, values, withSwatch = false, onDone }) {
                     <Button
                       size="sm"
                       variant="ghost"
+                      className="size-9 px-0 sm:size-8"
                       aria-label={`Delete ${value.value}`}
                       disabled={busyId === value.id || value.usageCount > 0}
                       title={
@@ -439,7 +449,7 @@ function GroupPanel({ group, values, withSwatch = false, onDone }) {
       )}
 
       {inUse ? (
-        <p className="border-t border-ink-100 px-5 py-2.5 text-[11px] text-ink-500">
+        <p className="border-t border-ink-100 px-4 py-2.5 text-[11px] text-ink-500 sm:px-5">
           A value in use cannot be deleted — retire it to take it out of circulation while the
           products already carrying it keep it.
         </p>

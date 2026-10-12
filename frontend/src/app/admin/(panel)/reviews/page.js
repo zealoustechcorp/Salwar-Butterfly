@@ -199,7 +199,7 @@ export default function ReviewsPage() {
   return (
     <div className="mx-auto max-w-[1400px] space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <h1 className="text-xl font-semibold tracking-tight text-ink-900">
             Reviews &amp; ratings
           </h1>
@@ -209,7 +209,7 @@ export default function ReviewsPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" variant="secondary" onClick={refresh}>
             <RefreshCw className="size-3.5" aria-hidden="true" />
             Refresh
@@ -288,10 +288,11 @@ export default function ReviewsPage() {
           }
           actions={
             <div className="flex w-full flex-wrap items-center gap-2">
-              {/* The search takes whatever the four filters leave, down to a
-                  floor of 12rem; past that the row wraps rather than
-                  spilling out of the card. */}
-              <div className="relative min-w-48 flex-1 sm:max-w-64">
+              {/* A full-width search on a phone with the four selects two
+                  to a row beneath it; from `sm` up the search takes what
+                  the filters leave, up to 16rem, and the row wraps rather
+                  than spilling out of the card. */}
+              <div className="relative w-full sm:w-auto sm:max-w-64 sm:min-w-48 sm:flex-1">
                 <Search
                   aria-hidden="true"
                   className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-ink-400"
@@ -308,7 +309,7 @@ export default function ReviewsPage() {
               <Select
                 value={query.productId}
                 aria-label="Filter by product"
-                className="w-44"
+                className="min-w-0 flex-1 basis-36 sm:flex-none sm:w-44"
                 onChange={(e) =>
                   setQuery((q) => ({ ...q, productId: e.target.value, page: 1 }))
                 }
@@ -324,7 +325,7 @@ export default function ReviewsPage() {
               <Select
                 value={query.rating}
                 aria-label="Filter by rating"
-                className="w-32"
+                className="min-w-0 flex-1 basis-36 sm:flex-none sm:w-32"
                 onChange={(e) =>
                   setQuery((q) => ({ ...q, rating: e.target.value, page: 1 }))
                 }
@@ -339,7 +340,7 @@ export default function ReviewsPage() {
               <Select
                 value={query.published}
                 aria-label="Filter by visibility"
-                className="w-40"
+                className="min-w-0 flex-1 basis-36 sm:flex-none sm:w-40"
                 onChange={(e) =>
                   setQuery((q) => ({ ...q, published: e.target.value, page: 1 }))
                 }
@@ -354,7 +355,7 @@ export default function ReviewsPage() {
               <Select
                 value={query.sort}
                 aria-label="Sort reviews"
-                className="w-36"
+                className="min-w-0 flex-1 basis-36 sm:flex-none sm:w-36"
                 onChange={(e) =>
                   setQuery((q) => ({ ...q, sort: e.target.value, page: 1 }))
                 }
@@ -424,7 +425,7 @@ export default function ReviewsPage() {
         )}
 
         {pagination && pagination.totalPages > 1 ? (
-          <div className="flex items-center justify-between gap-3 border-t border-ink-200/80 px-3 py-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-ink-200/80 px-3 py-2.5">
             <p className="text-xs text-ink-500">
               Page {pagination.page} of {pagination.totalPages} ·{" "}
               {number(pagination.total)} reviews
@@ -489,7 +490,7 @@ function ReviewRow({ review, busy, onDelete, onTogglePublished }) {
         <div className="flex flex-wrap items-center gap-2">
           <Stars rating={review.rating} />
 
-          <span className="text-sm font-medium text-ink-900">
+          <span className="min-w-0 text-sm font-medium break-words text-ink-900">
             {review.authorName}
           </span>
 
@@ -503,11 +504,11 @@ function ReviewRow({ review, busy, onDelete, onTogglePublished }) {
         </div>
 
         {review.title ? (
-          <p className="mt-1 text-sm font-medium text-ink-800">{review.title}</p>
+          <p className="mt-1 text-sm font-medium break-words text-ink-800">{review.title}</p>
         ) : null}
 
         {review.body ? (
-          <p className="mt-0.5 text-sm text-ink-600">{review.body}</p>
+          <p className="mt-0.5 text-sm break-words text-ink-600">{review.body}</p>
         ) : (
           <p className="mt-0.5 text-sm text-ink-400 italic">
             A rating with no words.
@@ -526,13 +527,17 @@ function ReviewRow({ review, busy, onDelete, onTogglePublished }) {
         </p>
       </div>
 
-      <div className="flex shrink-0 items-center gap-1.5">
+      {/* On a phone the actions drop to their own line, indented under the
+          text: beside it they would squeeze the review to a sliver, since
+          the text column is allowed to shrink to nothing. */}
+      <div className="flex w-full shrink-0 items-center gap-1.5 pl-13 sm:w-auto sm:pl-0">
         {/* Hiding first, deleting last, and a gap between them: the
             recoverable action should be the one within easy reach. */}
         <Button
           size="sm"
           variant="ghost"
           busy={busy}
+          className="h-9 sm:h-8"
           onClick={onTogglePublished}
           title={
             review.published
@@ -552,12 +557,19 @@ function ReviewRow({ review, busy, onDelete, onTogglePublished }) {
           size="sm"
           variant="secondary"
           href={`/admin/reviews/${review.id}/edit`}
+          className="h-9 sm:h-8"
         >
           <Pencil className="size-3.5" aria-hidden="true" />
           Edit
         </LinkButton>
 
-        <Button size="sm" variant="danger" onClick={onDelete} aria-label="Delete review">
+        <Button
+          size="sm"
+          variant="danger"
+          onClick={onDelete}
+          aria-label="Delete review"
+          className="size-9 px-0 sm:h-8 sm:w-auto sm:px-2.5"
+        >
           <Trash2 className="size-3.5" aria-hidden="true" />
         </Button>
       </div>
@@ -653,19 +665,19 @@ function DeleteReviewDialog({ review, onClose, onDone }) {
     >
       {review ? (
         <div className="space-y-2">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Stars rating={review.rating} />
-            <span className="text-sm font-medium text-ink-900">
+            <span className="min-w-0 text-sm font-medium break-words text-ink-900">
               {review.authorName}
             </span>
           </div>
 
           {review.title ? (
-            <p className="text-sm font-medium text-ink-800">{review.title}</p>
+            <p className="text-sm font-medium break-words text-ink-800">{review.title}</p>
           ) : null}
 
           {review.body ? (
-            <p className="text-sm text-ink-600">{review.body}</p>
+            <p className="text-sm break-words text-ink-600">{review.body}</p>
           ) : null}
 
           <p className="text-xs text-ink-500">

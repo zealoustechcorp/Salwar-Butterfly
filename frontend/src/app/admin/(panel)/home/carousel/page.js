@@ -265,7 +265,13 @@ export default function CarouselPage() {
           }
           actions={
             <>
-              <Button size="sm" variant="ghost" onClick={refresh} title="Reload">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="size-9 px-0 sm:size-8"
+                onClick={refresh}
+                title="Reload"
+              >
                 <RefreshCw className="size-3.5" />
               </Button>
               <ImageGuideButton onOpen={() => setGuideOpen(true)} />
@@ -317,7 +323,10 @@ export default function CarouselPage() {
 
         {state.status === "ready" && state.banners.length > 0 ? (
           <div className="p-4 pt-0">
-            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            {/* One tile a row on a phone: two 16:9 tiles side by side at
+                360px are each too short to judge the artwork by, and too
+                narrow for Earlier and Later to sit on one line. */}
+            <ul className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
               {state.banners.map((banner, index) => (
                 <BannerTile
                   key={banner.id}
@@ -464,7 +473,7 @@ function BannerTile({ banner, index, total, busy, disabled, onMove, onToggle }) 
           <Button
             size="sm"
             variant="ghost"
-            className="px-1.5"
+            className="h-9 px-1.5 sm:h-8"
             disabled={locked || index === 0}
             aria-label={`Move banner ${index + 1} earlier`}
             onClick={() => onMove(-1)}
@@ -475,7 +484,7 @@ function BannerTile({ banner, index, total, busy, disabled, onMove, onToggle }) 
           <Button
             size="sm"
             variant="ghost"
-            className="px-1.5"
+            className="h-9 px-1.5 sm:h-8"
             disabled={locked || index === total - 1}
             aria-label={`Move banner ${index + 1} later`}
             onClick={() => onMove(1)}

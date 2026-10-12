@@ -149,20 +149,20 @@ export function AdminLoginForm() {
   // an admin who is about to be redirected away from it.
   if (isLoading || isSignedIn) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex min-h-dvh items-center justify-center">
         <Spinner className="size-5 text-brand-600" />
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center px-4 py-12">
+    <div className="flex min-h-dvh flex-col items-center justify-center px-4 py-8 sm:py-12">
       <main className="w-full max-w-sm">
         {/* ---------------------------------------------- */}
         {/* BRAND                                          */}
         {/* ---------------------------------------------- */}
 
-        <div className="mb-8 flex flex-col items-center text-center">
+        <div className="mb-6 flex flex-col items-center text-center sm:mb-8">
           <Image
             src="/Salwar Butterfly.jpeg"
             alt=""
@@ -188,7 +188,7 @@ export function AdminLoginForm() {
         <form
           onSubmit={handleSubmit}
           noValidate
-          className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-ink-200"
+          className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-ink-200 sm:p-6"
         >
           {expiryNotice ? (
             <div
@@ -295,7 +295,7 @@ export function AdminLoginForm() {
         {/* FOOTER                                         */}
         {/* ---------------------------------------------- */}
 
-        <p className="mt-6 flex items-center justify-center gap-1.5 text-center text-[11px] text-ink-500">
+        <p className="mt-6 flex flex-wrap items-center justify-center gap-1.5 text-center text-[11px] text-ink-500">
           <Lock className="size-3" aria-hidden="true" />
           Staff access only.{" "}
           <Link

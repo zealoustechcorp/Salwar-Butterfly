@@ -269,7 +269,7 @@ export default function BannerDetailPage() {
   if (!banner) {
     return (
       <div className="mx-auto max-w-xl">
-        <Card className="p-8">
+        <Card className="p-4 sm:p-8">
           <EmptyState
             icon={<ImageOff aria-hidden="true" />}
             title="Banner not found"
@@ -308,7 +308,7 @@ export default function BannerDetailPage() {
           Carousel
         </LinkButton>
         <span aria-hidden="true">/</span>
-        <span className="font-medium text-ink-700">
+        <span className="min-w-0 truncate font-medium text-ink-700">
           {banner.active ? `Slide ${index + 1}` : "Hidden slide"}
         </span>
       </nav>
@@ -370,7 +370,7 @@ export default function BannerDetailPage() {
         <div className="space-y-4 p-4">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <p className="flex items-center gap-2 text-sm font-medium text-ink-800">
+              <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium text-ink-800">
                 {banner.active ? "Shown in the rotation" : "Hidden"}
                 <Badge tone={banner.active ? "brand" : "amber"}>
                   {banner.active ? `Slide ${index + 1} of ${total}` : "Not shown"}

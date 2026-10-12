@@ -75,7 +75,7 @@ export default function CategoryCard({ cat, onEdit, onDetail, onToggle }) {
       <div className="flex flex-1 flex-col p-4">
         {/* Category Name & URL Slug */}
         <div>
-          <div className="flex items-baseline justify-between gap-2">
+          <div className="flex min-w-0 items-baseline justify-between gap-2">
             <h3
               onClick={() => onDetail(cat)}
               className="cursor-pointer font-semibold text-ink-900 group-hover:text-brand-700 transition-colors line-clamp-1"
@@ -83,7 +83,7 @@ export default function CategoryCard({ cat, onEdit, onDetail, onToggle }) {
               {cat.name}
             </h3>
           </div>
-          <p className="font-mono text-[11px] text-ink-400">/{cat.slug}</p>
+          <p className="truncate font-mono text-[11px] text-ink-400">/{cat.slug}</p>
         </div>
 
         {/* Category Description */}

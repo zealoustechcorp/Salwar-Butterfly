@@ -156,7 +156,7 @@ export default function OrdersPage() {
   return (
     <div className="mx-auto max-w-[1400px] space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <h1 className="text-xl font-semibold tracking-tight text-ink-900">
             Orders
           </h1>
@@ -217,8 +217,10 @@ export default function OrdersPage() {
               : "Search by order number, name, email or phone."
           }
           actions={
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative">
+            // Full-width search and the selects two to a row on a phone;
+            // from `sm` up they sit inline at their fixed widths.
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+              <div className="relative w-full sm:w-64">
                 <Search
                   aria-hidden="true"
                   className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-ink-400"
@@ -228,14 +230,14 @@ export default function OrdersPage() {
                   onChange={(e) => setSearchInput(e.target.value)}
                   placeholder="SB-001042, name, email or phone"
                   aria-label="Search orders"
-                  className="w-64 pl-8"
+                  className="pl-8"
                 />
               </div>
 
               <Select
                 value={query.status}
                 aria-label="Filter by status"
-                className="w-44"
+                className="min-w-0 flex-1 basis-36 sm:flex-none sm:w-44"
                 onChange={(e) =>
                   setQuery((q) => ({ ...q, status: e.target.value, page: 1 }))
                 }
@@ -250,7 +252,7 @@ export default function OrdersPage() {
               <Select
                 value={query.paymentStatus}
                 aria-label="Filter by payment"
-                className="w-40"
+                className="min-w-0 flex-1 basis-36 sm:flex-none sm:w-40"
                 onChange={(e) =>
                   setQuery((q) => ({
                     ...q,
@@ -269,7 +271,7 @@ export default function OrdersPage() {
               <Select
                 value={query.sort}
                 aria-label="Sort orders"
-                className="w-44"
+                className="min-w-0 flex-1 basis-36 sm:flex-none sm:w-44"
                 onChange={(e) =>
                   setQuery((q) => ({ ...q, sort: e.target.value, page: 1 }))
                 }
@@ -320,30 +322,41 @@ export default function OrdersPage() {
             }
           />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-ink-200 bg-ink-50/60 text-left text-[11px] font-semibold tracking-wide text-ink-500 uppercase">
-                  <th className="px-3 py-2.5">Order</th>
-                  <th className="px-3 py-2.5">Customer</th>
-                  <th className="px-3 py-2.5">Pieces</th>
-                  <th className="px-3 py-2.5 text-right">Total</th>
-                  <th className="px-3 py-2.5">Payment</th>
-                  <th className="px-3 py-2.5">Status</th>
-                  <th className="w-20 px-3 py-2.5" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-ink-100">
-                {rows.map((order) => (
-                  <OrderRow key={order.id} order={order} />
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <>
+            {/* Below `md` the seven columns become one card per order. The
+                table would only fit by scrolling sideways, and with the
+                admin's scrollbars hidden nothing would say it scrolls. */}
+            <ul className="divide-y divide-ink-100 md:hidden">
+              {rows.map((order) => (
+                <OrderCard key={order.id} order={order} />
+              ))}
+            </ul>
+
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-ink-200 bg-ink-50/60 text-left text-[11px] font-semibold tracking-wide text-ink-500 uppercase">
+                    <th className="px-3 py-2.5">Order</th>
+                    <th className="px-3 py-2.5">Customer</th>
+                    <th className="px-3 py-2.5">Pieces</th>
+                    <th className="px-3 py-2.5 text-right">Total</th>
+                    <th className="px-3 py-2.5">Payment</th>
+                    <th className="px-3 py-2.5">Status</th>
+                    <th className="w-20 px-3 py-2.5" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-ink-100">
+                  {rows.map((order) => (
+                    <OrderRow key={order.id} order={order} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
 
         {pagination && pagination.totalPages > 1 ? (
-          <div className="flex items-center justify-between gap-3 border-t border-ink-200/80 px-3 py-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-ink-200/80 px-3 py-2.5">
             <p className="text-xs text-ink-500">
               Page {pagination.page} of {pagination.totalPages} ·{" "}
               {number(pagination.total)} orders
@@ -372,6 +385,49 @@ export default function OrdersPage() {
         ) : null}
       </Card>
     </div>
+  );
+}
+
+/** The phone layout of a row: the same fields, and the whole card is the link. */
+function OrderCard({ order }) {
+  const status = statusMeta(order.status);
+  const payment = paymentMeta(order.paymentStatus);
+
+  return (
+    <li>
+      <Link
+        href={`/admin/orders/${order.id}`}
+        className="block space-y-1.5 px-4 py-3 transition-colors hover:bg-ink-50/70 active:bg-ink-50"
+      >
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="min-w-0 font-mono text-[13px] font-medium break-all text-ink-900">
+            {order.orderNumber}
+          </span>
+          <span className="shrink-0 text-sm font-medium text-ink-900 tabular-nums">
+            {money(order.total)}
+          </span>
+        </div>
+
+        <div className="min-w-0 text-sm">
+          <p className="font-medium break-words text-ink-800">
+            {order.contact.name || "—"}
+          </p>
+          <p className="mt-0.5 text-xs break-all text-ink-500">
+            {order.contact.email}
+            {order.customerId ? null : " · guest"}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-ink-500">
+          <Badge tone={payment.tone}>{payment.label}</Badge>
+          <Badge tone={status.tone}>{status.label}</Badge>
+          <span className="tabular-nums">
+            {number(order.unitCount)} across {number(order.itemCount)} ·{" "}
+            {shortDate(order.timeline.placedAt)}
+          </span>
+        </div>
+      </Link>
+    </li>
   );
 }
 

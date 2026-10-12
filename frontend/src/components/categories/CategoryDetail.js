@@ -63,18 +63,18 @@ export default function CategoryDetail({
           Back to categories
         </Button>
 
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
+        <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+          <div className="min-w-0">
             <span className="font-mono text-xs font-semibold tracking-wider text-brand-600 uppercase">
               Category Detail
             </span>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink-900 sm:text-3xl">
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight break-words text-ink-900 sm:text-3xl">
               {category.name}
             </h1>
-            <p className="mt-0.5 font-mono text-xs text-ink-400">/{category.slug}</p>
+            <p className="mt-0.5 font-mono text-xs break-all text-ink-400">/{category.slug}</p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             {/* Quick visibility toggle container */}
             <div className="flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 ring-1 ring-ink-200/80 shadow-xs">
               <Toggle checked={category.active} onChange={onToggle} size="sm" />
@@ -82,7 +82,7 @@ export default function CategoryDetail({
             </div>
 
             {/* Primary edit action button */}
-            <Button variant="primary" onClick={onEdit}>
+            <Button variant="primary" onClick={onEdit} className="flex-1 sm:flex-none">
               <Pencil className="size-3.5" />
               Edit category
             </Button>
@@ -91,7 +91,7 @@ export default function CategoryDetail({
 
         {/* Optional Category Description text */}
         {category.description ? (
-          <p className="max-w-2xl text-sm leading-relaxed text-ink-600">
+          <p className="max-w-2xl text-sm leading-relaxed break-words text-ink-600">
             {category.description}
           </p>
         ) : null}
@@ -158,15 +158,15 @@ export default function CategoryDetail({
                 >
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-ink-900">{p.name}</p>
-                    <div className="mt-0.5 flex items-center gap-2 font-mono text-[11px] text-ink-500">
-                      <span className="truncate">/{p.slug}</span>
-                      <span>·</span>
-                      <span className="font-semibold text-ink-800">
+                    <div className="mt-0.5 flex min-w-0 items-center gap-2 font-mono text-[11px] text-ink-500">
+                      <span className="min-w-0 truncate">/{p.slug}</span>
+                      <span className="shrink-0">·</span>
+                      <span className="shrink-0 font-semibold text-ink-800">
                         {money(p.currentPrice)}
                       </span>
                     </div>
                   </div>
-                  <Badge tone={p.active ? "green" : "slate"}>
+                  <Badge tone={p.active ? "green" : "slate"} className="shrink-0">
                     {p.active ? "Live" : "Hidden"}
                   </Badge>
                 </div>
@@ -197,18 +197,18 @@ export default function CategoryDetail({
         }
       >
         {selectedProduct ? (
-          <div className="p-5 space-y-4">
+          <div className="p-4 space-y-4 sm:p-5">
             {/* Product stats: Price, Discount, Publication status */}
             <div className="grid grid-cols-3 gap-2.5 text-center">
               <div className="rounded-lg bg-ink-50 p-2.5 ring-1 ring-ink-200/60">
                 <p className="text-[11px] text-ink-500 font-medium">Price</p>
-                <p className="mt-0.5 font-mono text-base font-semibold text-ink-900">
+                <p className="mt-0.5 font-mono text-sm font-semibold break-words text-ink-900 sm:text-base">
                   {money(selectedProduct.currentPrice)}
                 </p>
               </div>
               <div className="rounded-lg bg-ink-50 p-2.5 ring-1 ring-ink-200/60">
                 <p className="text-[11px] text-ink-500 font-medium">Discount</p>
-                <p className="mt-0.5 font-mono text-base font-semibold text-ink-900">
+                <p className="mt-0.5 font-mono text-sm font-semibold break-words text-ink-900 sm:text-base">
                   {selectedProduct.discountPercentage}%
                 </p>
               </div>

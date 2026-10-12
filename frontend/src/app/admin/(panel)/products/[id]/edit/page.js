@@ -180,6 +180,18 @@ function EditProduct() {
       // Swatches only. The colour is already on the product either way.
     }
   }
+
+  /**
+   * Re-reads the published fits when the shop comes back from adding one
+   * in another tab. Dropdown options only, so a failure is never surfaced.
+   */
+  const refreshFits = useCallback(async () => {
+    try {
+      setFits(await listFits());
+    } catch {
+      // The picker keeps the list it had.
+    }
+  }, []);
   const { product, reference, error } = loaded;
 
   function setField(key, value) {
@@ -289,22 +301,31 @@ function EditProduct() {
   if (!product || !form) return <SkeletonRows rows={10} className="mx-auto max-w-5xl" />;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5 pb-24">
-      <nav className="flex items-center gap-1.5 text-xs text-ink-500">
+    // A little more than the bar's own height on a phone, where the home
+    // indicator's safe area is added beneath its buttons.
+    <div className="mx-auto max-w-5xl space-y-5 pb-28 sm:pb-24">
+      <nav className="flex min-w-0 items-center gap-1.5 text-xs text-ink-500">
         <LinkButton variant="ghost" size="sm" href="/admin/products">
           Products
         </LinkButton>
         <span aria-hidden="true">/</span>
-        <LinkButton variant="ghost" size="sm" href={`/admin/products/${product.id}`}>
-          {product.name}
+        {/* The one crumb of unbounded length — it gives way, with an
+            ellipsis, so "Edit" stays on the line on a phone. */}
+        <LinkButton
+          variant="ghost"
+          size="sm"
+          href={`/admin/products/${product.id}`}
+          className="min-w-0 shrink"
+        >
+          <span className="truncate">{product.name}</span>
         </LinkButton>
         <span aria-hidden="true">/</span>
-        <span className="font-medium text-ink-700">Edit</span>
+        <span className="shrink-0 font-medium text-ink-700">Edit</span>
       </nav>
 
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight text-ink-900">{product.name}</h1>
+        <div className="min-w-0">
+          <h1 className="text-xl font-semibold tracking-tight break-words text-ink-900">{product.name}</h1>
           <p className="mt-1 text-sm text-ink-500">
             Last updated {shortDate(product.updatedAt)} · created {shortDate(product.createdAt)}
           </p>
@@ -319,14 +340,18 @@ function EditProduct() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-1 border-b border-ink-200">
+      {/* Four equal columns on a phone, where the labels do not fit on one
+          line and wrapping a tab strip would strand the underline of the
+          top row in mid-air. Long labels break onto two lines instead. */}
+      <div className="grid grid-cols-4 border-b border-ink-200 sm:flex sm:flex-wrap sm:gap-1">
         {TABS.map((item) => (
           <button
             key={item.key}
             type="button"
             onClick={() => switchTab(item.key)}
             className={cx(
-              "-mb-px border-b-2 px-3.5 py-2 text-sm font-medium transition-colors",
+              "-mb-px border-b-2 px-1.5 py-2 text-[13px] leading-tight font-medium transition-colors",
+              "sm:px-3.5 sm:text-sm sm:leading-normal",
               tab === item.key
                 ? "border-brand-600 text-brand-700"
                 : "border-transparent text-ink-500 hover:border-ink-300 hover:text-ink-800",
@@ -341,7 +366,7 @@ function EditProduct() {
         <>
           <Card>
             <CardHeader title="Product details" />
-            <div className="p-5">
+            <div className="p-4 sm:p-5">
               <DetailsFields form={form} setField={setField} errors={errors} reference={reference} />
             </div>
           </Card>
@@ -351,12 +376,13 @@ function EditProduct() {
               title="Attributes"
               description="Fabric, work and sleeve come from the approved-values register — add a missing one inline. The fit comes from the published size charts and decides which chart the shopper is shown."
             />
-            <div className="p-5">
+            <div className="p-4 sm:p-5">
               <AttributeFields
                 form={form}
                 setField={setField}
                 groups={attributeGroups}
                 fits={fits}
+                onRefreshFits={refreshFits}
                 onRegister={refreshAttributes}
               />
             </div>
@@ -367,7 +393,7 @@ function EditProduct() {
               title="Danger zone"
               description="Deleting is permanent. A product an order references cannot be deleted — deactivate it instead."
             />
-            <div className="flex flex-wrap items-center justify-between gap-3 p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3 p-4 sm:p-5">
               <p className="text-sm text-ink-500">
                 Remove <strong className="text-ink-800">{product.name}</strong> from the catalogue.
               </p>
@@ -392,7 +418,7 @@ function EditProduct() {
               ) : null
             }
           />
-          <div className="p-5">
+          <div className="p-4 sm:p-5">
             <ProductGallery
               productId={product.id}
               images={images}
@@ -406,7 +432,7 @@ function EditProduct() {
       {tab === "pricing" ? (
         <Card>
           <CardHeader title="Price & offer" />
-          <div className="p-5">
+          <div className="p-4 sm:p-5">
             <PricingFields form={form} setField={setField} errors={errors} />
           </div>
         </Card>
@@ -419,7 +445,7 @@ function EditProduct() {
             description="Each size in each colourway is a row a shopper can buy. Removing one deletes its stock count."
             actions={sizesDirty ? <Badge tone="gold">Unsaved changes</Badge> : null}
           />
-          <div className="p-5">
+          <div className="p-4 sm:p-5">
             {sizes === null ? (
               <SkeletonRows rows={4} />
             ) : (
@@ -436,11 +462,21 @@ function EditProduct() {
       ) : null}
 
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-ink-200 bg-white/95 backdrop-blur lg:left-64">
-        <div className="mx-auto flex max-w-5xl items-center justify-end gap-2 px-4 py-3 sm:px-6">
-          <LinkButton variant="ghost" href={`/admin/products/${product.id}`}>
+        <div className="mx-auto flex max-w-5xl items-center justify-end gap-2 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6 sm:pb-3">
+          <LinkButton
+            variant="ghost"
+            href={`/admin/products/${product.id}`}
+            className="h-11 flex-1 sm:h-9 sm:flex-none"
+          >
             Cancel
           </LinkButton>
-          <Button variant="primary" size="lg" busy={saving} onClick={save}>
+          <Button
+            variant="primary"
+            size="lg"
+            className="flex-1 sm:flex-none"
+            busy={saving}
+            onClick={save}
+          >
             Save changes
           </Button>
         </div>

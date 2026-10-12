@@ -199,7 +199,14 @@ export default function SizeChartsPage() {
           }
           actions={
             <>
-              <Button size="sm" variant="ghost" onClick={refresh} title="Reload">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={refresh}
+                title="Reload"
+                aria-label="Reload"
+                className="size-9 px-0 sm:h-8 sm:w-auto sm:px-2.5"
+              >
                 <RefreshCw className="size-3.5" />
               </Button>
               <LinkButton size="sm" variant="primary" href="/admin/size-charts/new">
@@ -291,6 +298,8 @@ export default function SizeChartsPage() {
  * numbers, against the card in its hand.
  */
 function ChartCard({ chart, busy, first, last, onMove, onToggle, onDelete }) {
+  const measurements = chart.columns.filter((column) => column !== "size");
+
   return (
     <Card className={chart.active ? undefined : "opacity-75"}>
       <CardHeader
@@ -309,7 +318,7 @@ function ChartCard({ chart, busy, first, last, onMove, onToggle, onDelete }) {
               onClick={() => onMove(-1)}
               disabled={first || busy}
               title="Print earlier"
-              className="inline-flex size-8 items-center justify-center rounded-lg text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-700 disabled:opacity-30 disabled:hover:bg-transparent"
+              className="inline-flex size-9 items-center justify-center rounded-lg sm:size-8 text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-700 disabled:opacity-30 disabled:hover:bg-transparent"
             >
               <ArrowUp className="size-4" />
             </button>
@@ -318,7 +327,7 @@ function ChartCard({ chart, busy, first, last, onMove, onToggle, onDelete }) {
               onClick={() => onMove(1)}
               disabled={last || busy}
               title="Print later"
-              className="inline-flex size-8 items-center justify-center rounded-lg text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-700 disabled:opacity-30 disabled:hover:bg-transparent"
+              className="inline-flex size-9 items-center justify-center rounded-lg sm:size-8 text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-700 disabled:opacity-30 disabled:hover:bg-transparent"
             >
               <ArrowDown className="size-4" />
             </button>
@@ -349,14 +358,47 @@ function ChartCard({ chart, busy, first, last, onMove, onToggle, onDelete }) {
               <Pencil className="size-3.5" />
               Edit
             </LinkButton>
-            <Button size="sm" variant="danger" onClick={onDelete} disabled={busy}>
+            <Button
+              size="sm"
+              variant="danger"
+              onClick={onDelete}
+              disabled={busy}
+              aria-label={`Delete ${chart.fit}`}
+              className="size-9 px-0 sm:h-8 sm:w-auto sm:px-2.5"
+            >
               <Trash2 className="size-3.5" />
             </Button>
           </>
         }
       />
 
-      <div className="overflow-x-auto">
+      {/*
+        Phones get the chart as a list, one size per line with its
+        measurements labelled beside it. The printed table is as wide as
+        its columns, and sideways scroll on a phone shows no sign that
+        there is more — the hip column would simply not be there.
+      */}
+      <ul className="divide-y divide-ink-100 md:hidden">
+        {chart.rows.map((row) => (
+          <li key={row.size} className="flex items-start gap-3 px-4 py-2.5">
+            <span className="inline-flex min-w-10 shrink-0 justify-center rounded-md bg-ink-100 px-2 py-1 font-mono text-xs font-semibold text-ink-900">
+              {row.size}
+            </span>
+            <dl className="grid min-w-0 flex-1 grid-cols-2 gap-x-3 gap-y-1 min-[400px]:grid-cols-3">
+              {measurements.map((column) => (
+                <div key={column} className="min-w-0">
+                  <dt className="truncate font-mono text-[10px] font-semibold tracking-wider text-ink-500 uppercase">
+                    {COLUMN_LABEL[column] ?? column}
+                  </dt>
+                  <dd className="font-mono text-xs text-ink-700">{measurement(row[column])}</dd>
+                </div>
+              ))}
+            </dl>
+          </li>
+        ))}
+      </ul>
+
+      <div className="hidden overflow-x-auto md:block">
         <table className="w-full border-collapse text-left">
           <thead>
             <tr className="border-b border-ink-200 bg-ink-50/40">

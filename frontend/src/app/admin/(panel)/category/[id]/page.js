@@ -60,7 +60,7 @@ export default function CategoryDetailPage() {
   /* Render fallback empty state if category ID does not exist in catalog */
   if (!category) {
     return (
-      <div className="max-w-xl rounded-xl bg-white p-8 ring-1 ring-ink-200/80 shadow-xs">
+      <div className="max-w-xl rounded-xl bg-white p-4 ring-1 ring-ink-200/80 shadow-xs sm:p-8">
         <EmptyState
           title="Category not found"
           description="The requested category could not be located in the catalog."

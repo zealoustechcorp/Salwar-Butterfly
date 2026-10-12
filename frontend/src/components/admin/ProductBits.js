@@ -11,7 +11,7 @@ export function PriceCell({ basePrice, salePrice, discountPercent, align = "righ
   return (
     <div className={cx("tabular leading-tight", align === "right" ? "text-right" : "text-left")}>
       <div
-        className="flex items-center gap-1.5"
+        className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5"
         style={{ justifyContent: align === "right" ? "flex-end" : "flex-start" }}
       >
         <span className="text-sm font-semibold text-ink-900">{money(salePrice)}</span>
@@ -52,10 +52,16 @@ const STAT_VALUE_TONES = {
   green: "text-emerald-700",
 };
 
-/** `lg` is for the row that leads a screen — takings, not counts. */
+/**
+ * `lg` is for the row that leads a screen — takings, not counts.
+ *
+ * One step down below `sm`: two tiles to a 360px phone leaves each about
+ * 130px of text, and a lakh-sized figure (₹12,34,567.00) at full size is
+ * wider than that. Desktop sizes are untouched.
+ */
 const STAT_VALUE_SIZES = {
-  md: "text-[22px] @2xs:text-2xl",
-  lg: "text-2xl @2xs:text-[28px]",
+  md: "text-lg sm:text-[22px] @2xs:text-2xl",
+  lg: "text-xl sm:text-2xl @2xs:text-[28px]",
 };
 
 /**
@@ -92,7 +98,9 @@ export function StatTile({
     // figure ends up beside the label rather than under it.
     <div
       className={cx(
-        "grid flex-1 grid-rows-[1fr_auto_auto] gap-x-4",
+        // minmax(0,1fr) rather than the implicit auto track, which would
+        // grow to an unbreakable figure and push it out of the tile.
+        "grid flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[1fr_auto_auto] gap-x-4",
         "@2xs:grid-cols-[minmax(0,1fr)_auto] @2xs:grid-rows-[auto_auto] @2xs:content-center",
       )}
     >
