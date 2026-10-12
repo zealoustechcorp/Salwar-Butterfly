@@ -95,11 +95,18 @@ function DeleteConfirm({ onClose, products = [], onDone }) {
         <div className="max-h-48 overflow-y-auto rounded-lg ring-1 ring-ink-200">
           <ul className="divide-y divide-ink-100">
             {products.map((product) => (
-              <li key={product.id} className="flex items-center gap-3 px-3 py-2">
-                <span className="min-w-0 flex-1 truncate text-xs font-medium text-ink-800">
+              // Name over slug on a phone; side by side the slug, which
+              // never shrank, could push the row wider than the sheet.
+              <li
+                key={product.id}
+                className="flex flex-col gap-0.5 px-3 py-2 sm:flex-row sm:items-center sm:gap-3"
+              >
+                <span className="min-w-0 truncate text-xs font-medium text-ink-800 sm:flex-1">
                   {product.name}
                 </span>
-                <span className="shrink-0 font-mono text-[11px] text-ink-400">/{product.slug}</span>
+                <span className="min-w-0 truncate font-mono text-[11px] text-ink-400 sm:max-w-[45%] sm:shrink-0">
+                  /{product.slug}
+                </span>
               </li>
             ))}
           </ul>
@@ -112,7 +119,7 @@ function DeleteConfirm({ onClose, products = [], onDone }) {
             </p>
             <ul className="mt-1.5 space-y-1">
               {blocked.map((row) => (
-                <li key={row.id} className="text-xs text-amber-900">
+                <li key={row.id} className="text-xs break-words text-amber-900">
                   <strong className="font-medium">{row.label}</strong> — {row.reason}
                 </li>
               ))}

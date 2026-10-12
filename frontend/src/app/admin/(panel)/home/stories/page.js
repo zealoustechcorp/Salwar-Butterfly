@@ -237,7 +237,13 @@ export default function CustomerStoriesPage() {
           }
           actions={
             <>
-              <Button size="sm" variant="ghost" onClick={refresh} title="Reload">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="size-9 px-0 sm:size-8"
+                onClick={refresh}
+                title="Reload"
+              >
                 <RefreshCw className="size-3.5" />
               </Button>
               <ImageGuideButton onOpen={() => setGuideOpen(true)} />
@@ -430,7 +436,7 @@ function StoryTile({ story, index, total, busy, disabled, onMove, onToggle }) {
           <Button
             size="sm"
             variant="ghost"
-            className="px-1.5"
+            className="h-9 px-1.5 sm:h-8"
             disabled={locked || index === 0}
             aria-label={`Move story ${index + 1} earlier`}
             onClick={() => onMove(-1)}
@@ -441,7 +447,7 @@ function StoryTile({ story, index, total, busy, disabled, onMove, onToggle }) {
           <Button
             size="sm"
             variant="ghost"
-            className="px-1.5"
+            className="h-9 px-1.5 sm:h-8"
             disabled={locked || index === total - 1}
             aria-label={`Move story ${index + 1} later`}
             onClick={() => onMove(1)}

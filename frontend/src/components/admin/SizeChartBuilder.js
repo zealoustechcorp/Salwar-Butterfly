@@ -242,7 +242,7 @@ export default function SizeChartBuilder({ chart, onChange, errors = {} }) {
                 aria-pressed={on}
                 onClick={() => toggleColumn(key)}
                 className={cx(
-                  "rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-inset transition-colors",
+                  "rounded-full px-3 py-2 text-xs font-medium ring-1 ring-inset transition-colors sm:py-1.5",
                   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600",
                   on
                     ? "bg-brand-600 text-white ring-brand-600"
@@ -273,7 +273,7 @@ export default function SizeChartBuilder({ chart, onChange, errors = {} }) {
           form that gets a row out of order. */}
 
       <div className="overflow-hidden rounded-xl ring-1 ring-ink-200/80">
-        <div className="flex items-center justify-between border-b border-ink-200 bg-ink-50/70 px-4 py-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-ink-200 bg-ink-50/70 px-4 py-2.5">
           <span className="text-xs font-semibold text-ink-700">
             Size rows
             <span className="ml-1.5 font-normal text-ink-500">
@@ -285,6 +285,19 @@ export default function SizeChartBuilder({ chart, onChange, errors = {} }) {
           </span>
         </div>
 
+        {/*
+          A true matrix, so on a phone it is allowed to scroll sideways —
+          restacking it would stop it looking like the card being copied.
+          But scrollbars are hidden in the admin, so the scroll has to be
+          announced, and the size column stays pinned so a row of numbers
+          never loses the size it belongs to.
+        */}
+        {chart.columns.length > 2 ? (
+          <p className="border-b border-ink-100 px-4 py-1.5 text-[11px] text-ink-500 md:hidden">
+            Swipe the table sideways for every column →
+          </p>
+        ) : null}
+
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-left">
             <thead>
@@ -292,7 +305,11 @@ export default function SizeChartBuilder({ chart, onChange, errors = {} }) {
                 {chart.columns.map((column) => (
                   <th
                     key={column}
-                    className="px-3 py-2 font-mono text-[11px] font-semibold tracking-wider text-ink-600 uppercase"
+                    className={cx(
+                      "px-3 py-2 font-mono text-[11px] font-semibold tracking-wider text-ink-600 uppercase",
+                      column === "size" &&
+                        "sticky left-0 z-10 bg-ink-50 shadow-[inset_-1px_0_0_var(--color-ink-200)]",
+                    )}
                   >
                     {COLUMN_LABEL[column] ?? column}
                   </th>
@@ -310,7 +327,14 @@ export default function SizeChartBuilder({ chart, onChange, errors = {} }) {
                     const problem = cellProblem(row, column);
 
                     return (
-                      <td key={column} className="p-1.5">
+                      <td
+                        key={column}
+                        className={cx(
+                          "p-1.5",
+                          column === "size" &&
+                            "sticky left-0 z-10 bg-white shadow-[inset_-1px_0_0_var(--color-ink-200)]",
+                        )}
+                      >
                         <Input
                           value={row[column] ?? ""}
                           inputMode={column === "size" ? "text" : "decimal"}
@@ -331,8 +355,11 @@ export default function SizeChartBuilder({ chart, onChange, errors = {} }) {
                               ? `${COLUMN_LABEL[column] ?? column} ${problem}`
                               : undefined
                           }
+                          // Floors so a cell stays typeable on a phone, where
+                          // the table would otherwise squeeze them to slivers.
                           className={cx(
-                            "h-8 font-mono text-xs",
+                            "h-9 font-mono text-xs sm:h-8",
+                            column === "size" ? "min-w-16" : "min-w-[4.5rem]",
                             column === "size" && "bg-ink-50/40 font-semibold text-ink-900",
                           )}
                         />
@@ -347,7 +374,7 @@ export default function SizeChartBuilder({ chart, onChange, errors = {} }) {
                         onClick={() => moveRow(index, -1)}
                         disabled={index === 0}
                         title="Move up"
-                        className="inline-flex size-7 items-center justify-center rounded text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-700 disabled:opacity-30 disabled:hover:bg-transparent"
+                        className="inline-flex size-9 items-center justify-center rounded text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-700 disabled:opacity-30 disabled:hover:bg-transparent sm:size-7"
                       >
                         <ArrowUp className="size-3.5" />
                       </button>
@@ -356,7 +383,7 @@ export default function SizeChartBuilder({ chart, onChange, errors = {} }) {
                         onClick={() => moveRow(index, 1)}
                         disabled={index === chart.rows.length - 1}
                         title="Move down"
-                        className="inline-flex size-7 items-center justify-center rounded text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-700 disabled:opacity-30 disabled:hover:bg-transparent"
+                        className="inline-flex size-9 items-center justify-center rounded text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-700 disabled:opacity-30 disabled:hover:bg-transparent sm:size-7"
                       >
                         <ArrowDown className="size-3.5" />
                       </button>
@@ -364,7 +391,7 @@ export default function SizeChartBuilder({ chart, onChange, errors = {} }) {
                         type="button"
                         onClick={() => removeRow(index)}
                         title="Remove row"
-                        className="inline-flex size-7 items-center justify-center rounded text-ink-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                        className="inline-flex size-9 items-center justify-center rounded text-ink-400 transition-colors hover:bg-red-50 hover:text-red-600 sm:size-7"
                       >
                         <Trash2 className="size-3.5" />
                       </button>

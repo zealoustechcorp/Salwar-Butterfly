@@ -182,6 +182,27 @@ export default function BulkUploadPage() {
   const totalPhotos = filled.reduce((sum, row) => sum + row.photos.length, 0);
 
   /**
+   * What a row shows beside its inputs. Shared by the table and the phone
+   * cards, so the two layouts cannot disagree about a row.
+   *
+   * `sells` is the API's own arithmetic. A row that would sell for nothing
+   * shows its ₹0 in red rather than sitting in the column looking like
+   * every other figure.
+   */
+  const rowView = (row) => {
+    const filledRow = Boolean(row.name.trim());
+    const sells = calculateSalePrice(priceFor(row), percent);
+    return {
+      derivedSlug: row.slug.trim() || autoSlug(row.name),
+      filledRow,
+      sells,
+      sellsTone: filledRow && sells < MIN_PRICE ? "font-semibold text-red-600" : "text-ink-700",
+    };
+  };
+
+  const removeRow = (index) => setRows((c) => c.filter((_, i) => i !== index));
+
+  /**
    * What is wrong with the batch, as one sentence naming the row.
    *
    * Every rule the single-product screen applies, run over each row —
@@ -324,7 +345,9 @@ export default function BulkUploadPage() {
   if (!reference && !failure) return <SkeletonRows rows={10} className="mx-auto max-w-5xl" />;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5 pb-24">
+    // The bottom bar is taller on a phone, where its status line sits above
+    // the buttons, so the page leaves more room under it.
+    <div className="mx-auto max-w-5xl space-y-5 pb-40 sm:pb-24">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-ink-900">Bulk upload</h1>
@@ -343,7 +366,7 @@ export default function BulkUploadPage() {
 
       <Card>
         <CardHeader title="Shared details" description="Applies to every product in this upload." />
-        <div className="grid gap-4 p-5 md:grid-cols-2">
+        <div className="grid gap-4 p-4 sm:p-5 md:grid-cols-2">
           <Field label="Category" required hint="One category for the whole batch.">
             <Select
               value={shared.categoryId}
@@ -416,7 +439,7 @@ export default function BulkUploadPage() {
           </div>
 
           <div className="flex items-center justify-between gap-3 rounded-lg bg-ink-50 px-3 py-2.5 ring-1 ring-inset ring-ink-200">
-            <div>
+            <div className="min-w-0">
               <p className="text-xs font-semibold text-ink-700">Publish to storefront</p>
               <p className="text-[11px] text-ink-500">Turn off to upload the batch as drafts.</p>
             </div>
@@ -434,7 +457,7 @@ export default function BulkUploadPage() {
           title="Sizes, colours & stock"
           description="The same size run and colourways are given to every product in the batch. Stock can be corrected per product afterwards."
         />
-        <div className="p-5">
+        <div className="p-4 sm:p-5">
           <SizeStockEditor
             rows={sizes}
             onChange={setSizes}
@@ -450,7 +473,7 @@ export default function BulkUploadPage() {
           title="Attributes"
           description="Shared by the batch — fabric, work and sleeve."
         />
-        <div className="p-5">
+        <div className="p-4 sm:p-5">
           <AttributeFields
             form={shared}
             setField={setSharedField}
@@ -473,13 +496,100 @@ export default function BulkUploadPage() {
         />
 
         {duplicateSlug ? (
-          <p className="mx-5 mt-4 rounded-lg bg-red-50 p-2.5 text-xs text-red-700 ring-1 ring-inset ring-red-200">
+          <p className="mx-4 mt-4 rounded-lg bg-red-50 p-2.5 text-xs text-red-700 ring-1 ring-inset ring-red-200 sm:mx-5">
             Two rows resolve to the same URL slug. Slugs are unique across the whole catalogue, so
             the upload would be rejected.
           </p>
         ) : null}
 
-        <div className="overflow-x-auto p-5">
+        {/* Below `md` each row is a card holding the same inputs and
+            actions. The table needs 720px, and on a phone it would scroll
+            sideways with no scrollbar to say so — hiding the price, the
+            photos button and the remove button off the right edge. */}
+        <ul className="space-y-3 p-4 md:hidden">
+          {rows.map((row, index) => {
+            const { derivedSlug, filledRow, sells, sellsTone } = rowView(row);
+
+            return (
+              <li
+                key={row.key}
+                className={cx(
+                  "space-y-3 rounded-lg p-3 ring-1 ring-inset ring-ink-200",
+                  !filledRow && "opacity-60",
+                )}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold tracking-wide text-ink-500 uppercase">
+                    Row {index + 1}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="size-9 px-0"
+                    aria-label={`Remove row ${index + 1}`}
+                    disabled={rows.length === 1}
+                    onClick={() => removeRow(index)}
+                  >
+                    <Trash2 className="size-4 text-ink-400" aria-hidden="true" />
+                  </Button>
+                </div>
+
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-ink-600">Product name</span>
+                  <Input
+                    value={row.name}
+                    onChange={(e) => patchRow(index, { name: e.target.value })}
+                    placeholder="e.g. Rani Pink Chanderi Anarkali"
+                    maxLength={200}
+                    aria-label={`Name for row ${index + 1}`}
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-ink-600">URL slug</span>
+                  <Input
+                    value={row.slug}
+                    onChange={(e) => patchRow(index, { slug: autoSlug(e.target.value) })}
+                    placeholder={derivedSlug || "auto"}
+                    className="font-mono text-xs"
+                    aria-label={`Slug for row ${index + 1}`}
+                  />
+                </label>
+
+                <div className="grid grid-cols-2 items-end gap-3">
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-medium text-ink-600">Price override</span>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={row.basePrice}
+                      invalid={Boolean(validateBasePrice(row.basePrice, false))}
+                      onChange={(e) => patchRow(index, { basePrice: e.target.value })}
+                      placeholder={shared.basePrice === "" ? "—" : String(shared.basePrice)}
+                      className="tabular"
+                      aria-label={`Price for row ${index + 1}`}
+                    />
+                  </label>
+                  <div className="pb-2">
+                    <p className="text-xs font-medium text-ink-600">Sells at</p>
+                    <p className={cx("tabular text-sm", sellsTone)}>
+                      {filledRow ? money(sells) : "—"}
+                    </p>
+                  </div>
+                </div>
+
+                <RowPhotos
+                  files={row.photos}
+                  disabled={!filledRow}
+                  label={`row ${index + 1}`}
+                  onOpen={() => setPhotoRow(index)}
+                />
+              </li>
+            );
+          })}
+        </ul>
+
+        <div className="hidden overflow-x-auto p-5 md:block">
           <table className="w-full min-w-[720px] border-collapse text-sm">
             <thead>
               <tr className="text-left text-[11px] font-semibold tracking-wide text-ink-500 uppercase">
@@ -494,13 +604,7 @@ export default function BulkUploadPage() {
             </thead>
             <tbody>
               {rows.map((row, index) => {
-                const derivedSlug = row.slug.trim() || autoSlug(row.name);
-                const filledRow = Boolean(row.name.trim());
-
-                // The API's own arithmetic. A row that would sell for
-                // nothing shows its ₹0 in red rather than sitting in the
-                // column looking like every other figure.
-                const sells = calculateSalePrice(priceFor(row), percent);
+                const { derivedSlug, filledRow, sells, sellsTone } = rowView(row);
 
                 return (
                   <tr key={row.key} className={cx(!filledRow && "opacity-60")}>
@@ -538,14 +642,7 @@ export default function BulkUploadPage() {
                         aria-label={`Price for row ${index + 1}`}
                       />
                     </td>
-                    <td
-                      className={cx(
-                        "tabular py-1.5 pr-3 text-right",
-                        filledRow && sells < MIN_PRICE
-                          ? "font-semibold text-red-600"
-                          : "text-ink-700",
-                      )}
-                    >
+                    <td className={cx("tabular py-1.5 pr-3 text-right", sellsTone)}>
                       {filledRow ? money(sells) : "—"}
                     </td>
                     <td className="py-1.5 pr-3">
@@ -562,7 +659,7 @@ export default function BulkUploadPage() {
                         variant="ghost"
                         aria-label={`Remove row ${index + 1}`}
                         disabled={rows.length === 1}
-                        onClick={() => setRows((c) => c.filter((_, i) => i !== index))}
+                        onClick={() => removeRow(index)}
                       >
                         <Trash2 className="size-3.5 text-ink-400" aria-hidden="true" />
                       </Button>
@@ -576,7 +673,9 @@ export default function BulkUploadPage() {
       </Card>
 
       <Card className="bg-ink-900 text-white ring-ink-900">
-        <div className="flex flex-wrap items-center gap-x-8 gap-y-3 p-5">
+        {/* Three figures a row on a phone, with the total on a line of its
+            own; from `sm` they flow in one line as before. */}
+        <div className="grid grid-cols-3 gap-x-4 gap-y-3 p-4 sm:flex sm:flex-wrap sm:items-center sm:gap-x-8 sm:p-5">
           <Summary label="Products" value={number(filled.length)} highlight />
           <Summary label="Rows each" value={number(sizes.length)} />
           <Summary label="Photographs" value={number(totalPhotos)} />
@@ -585,7 +684,7 @@ export default function BulkUploadPage() {
             label="Status"
             value={<Badge tone={shared.active ? "green" : "slate"}>{shared.active ? "Live" : "Draft"}</Badge>}
           />
-          <div className="ml-auto text-right">
+          <div className="col-span-full sm:ml-auto sm:text-right">
             <p className="text-[11px] text-white/60">Combined shelf value</p>
             <p className="tabular text-lg font-semibold">{money(totalValue)}</p>
           </div>
@@ -593,20 +692,36 @@ export default function BulkUploadPage() {
       </Card>
 
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-ink-200 bg-white/95 backdrop-blur lg:left-64">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-3 px-4 py-3 sm:px-6">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6 sm:pb-3">
           {/* Why the button is off, rather than a disabled button and no
               explanation — the row at fault can be off-screen in a batch
               of forty. */}
-          <p className={cx("text-xs", batchProblem ? "text-red-600" : "text-ink-500")}>
+          <p
+            className={cx(
+              "w-full min-w-0 text-xs break-words sm:w-auto sm:flex-1",
+              batchProblem ? "text-red-600" : "text-ink-500",
+            )}
+          >
             {batchProblem
               ? batchProblem
               : `Will create ${filled.length} product${filled.length === 1 ? "" : "s"} in one request.`}
           </p>
-          <div className="ml-auto flex items-center gap-2">
-            <LinkButton variant="ghost" href="/admin/products">
+          <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
+            <LinkButton
+              variant="ghost"
+              href="/admin/products"
+              className="h-11 flex-1 sm:h-9 sm:flex-none"
+            >
               Cancel
             </LinkButton>
-            <Button variant="primary" size="lg" busy={busy} disabled={!ready} onClick={submit}>
+            <Button
+              variant="primary"
+              size="lg"
+              className="flex-1 sm:flex-none"
+              busy={busy}
+              disabled={!ready}
+              onClick={submit}
+            >
               Upload {filled.length || ""} product{filled.length === 1 ? "" : "s"}
             </Button>
           </div>

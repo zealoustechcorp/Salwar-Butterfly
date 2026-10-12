@@ -80,8 +80,8 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-[1400px] space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-xl font-semibold tracking-tight text-ink-900">
             Dashboard
           </h1>
@@ -229,7 +229,54 @@ export default function DashboardPage() {
                 description="Orders appear here the moment someone checks out on the storefront."
               />
             ) : (
-              <div className="overflow-x-auto">
+              <>
+              {/* Below `md` each order is one stacked block rather than a
+                  table row: the table needs 24rem and admin scrollbars are
+                  hidden, so on a phone the status column would sit off-screen
+                  with nothing to say it was there. */}
+              <ul className="divide-y divide-ink-100 md:hidden">
+                {data.recentOrders.map((order) => {
+                  const status = statusMeta(order.status);
+                  const payment = paymentMeta(order.paymentStatus);
+
+                  return (
+                    <li key={order.id} className="space-y-1.5 px-4 py-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <Link
+                            href={`/admin/orders/${order.id}`}
+                            className="font-mono text-[13px] font-medium break-all text-ink-900 hover:text-brand-700 hover:underline"
+                          >
+                            {order.orderNumber}
+                          </Link>
+                          <p className="mt-0.5 text-xs text-ink-500">
+                            {shortDate(order.timeline.placedAt)}
+                          </p>
+                        </div>
+                        <p className="shrink-0 text-sm font-medium text-ink-900 tabular-nums">
+                          {money(order.total)}
+                        </p>
+                      </div>
+
+                      <p className="truncate text-xs text-ink-500">
+                        <span className="font-medium text-ink-800">
+                          {order.contact.name || "—"}
+                        </span>
+                        {` · ${order.customerId ? "account" : "guest"} · ${number(
+                          order.unitCount,
+                        )} piece${order.unitCount === 1 ? "" : "s"}`}
+                      </p>
+
+                      <div className="flex flex-wrap items-center gap-1">
+                        <Badge tone={status.tone}>{status.label}</Badge>
+                        <Badge tone={payment.tone}>{payment.label}</Badge>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+
+              <div className="hidden overflow-x-auto md:block">
                 <table className="w-full min-w-[24rem] border-collapse text-sm">
                   <thead>
                     <tr className="border-b border-ink-200 bg-ink-50/60 text-left text-[11px] font-semibold tracking-wide text-ink-500 uppercase">
@@ -295,6 +342,7 @@ export default function DashboardPage() {
                   </tbody>
                 </table>
               </div>
+              </>
             )}
           </Card>
 
@@ -413,7 +461,7 @@ function StockGroup({ title, icon, tone, lines, total }) {
 
   return (
     <div className="px-4 py-3">
-      <div className="mb-2 flex items-center justify-between gap-2">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <p className="flex items-center gap-1.5 text-xs font-semibold text-ink-700">
           <Badge tone={tone}>
             {icon}
@@ -447,7 +495,7 @@ function StockGroup({ title, icon, tone, lines, total }) {
               </p>
             </div>
 
-            <Badge tone={STOCK_TONE[line.stockStatus]}>
+            <Badge tone={STOCK_TONE[line.stockStatus]} className="shrink-0">
               {line.stockQuantity === 0
                 ? STOCK_LABEL[line.stockStatus]
                 : `${number(line.stockQuantity)} left`}

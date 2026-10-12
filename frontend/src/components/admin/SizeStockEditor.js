@@ -219,7 +219,7 @@ export function SizeStockEditor({
               }
             }}
             placeholder="Other size — Free Size, 52…"
-            className="h-8 w-52 text-xs"
+            className="h-8 min-w-0 flex-1 text-xs sm:w-52 sm:flex-none"
             aria-label="Add a custom size"
             maxLength={20}
           />
@@ -298,7 +298,7 @@ function ColourwayTable({
         {colour ? (
           <>
             <Swatch hex={hex} />
-            <span className="text-sm font-semibold text-ink-800">{colour}</span>
+            <span className="min-w-0 text-sm font-semibold break-words text-ink-800">{colour}</span>
           </>
         ) : (
           <span className="text-sm font-semibold text-ink-600">No colour</span>
@@ -321,8 +321,44 @@ function ColourwayTable({
         ) : null}
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[30rem] border-collapse text-sm">
+      {/* Phones get a card per row instead of the table: scrollbars are
+          hidden in the admin, so a table wider than the screen would
+          scroll sideways with nothing to say it can. Both read their
+          controls from rowControls, so neither can drift from the other. */}
+      <ul className="divide-y divide-ink-100 md:hidden">
+        {rows.map((row) => {
+          const controls = rowControls({ row, colour, disabled, onPatchRow, onRemoveRow });
+
+          return (
+            <li
+              key={controls.key}
+              className={cx("space-y-2 px-3 py-2.5", !row.active && "bg-ink-50/60")}
+            >
+              <div className="flex items-center gap-2">
+                <span className="min-w-0 text-sm font-semibold break-words text-ink-800">
+                  {row.size}
+                </span>
+                {controls.status}
+                <span className="ml-auto shrink-0">{controls.remove}</span>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                <span className="flex items-center gap-2 text-xs text-ink-500">
+                  <span aria-hidden="true">Stock</span>
+                  {controls.stock}
+                </span>
+                <span className="flex items-center gap-2 text-xs text-ink-500">
+                  <span aria-hidden="true">On sale</span>
+                  {controls.toggle}
+                </span>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+
+      <div className="hidden overflow-x-auto md:block">
+        <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b border-ink-200 text-left text-[11px] font-semibold tracking-wide text-ink-500 uppercase">
               <th className="px-3 py-2">Size</th>
@@ -334,59 +370,22 @@ function ColourwayTable({
           </thead>
           <tbody className="divide-y divide-ink-100">
             {rows.map((row) => {
-              const key = variantKey(row);
-              const stock = Number(row.stockQuantity) || 0;
-              // What the control is called out loud. "Stock for M" is
-              // ambiguous the moment a product has two colourways.
-              const label = colour ? `${colour} ${row.size}` : row.size;
-
-              // `min={0}` is a browser hint and nothing more: this grid does
-              // not submit a form, so constraint validation never runs and a
-              // typed -5 or 2.5 goes to the API as-is. Marked as it is typed;
-              // the save refuses it and names the row.
-              const problem = validateStock(row.stockQuantity, "Stock");
+              const controls = rowControls({
+                row,
+                colour,
+                disabled,
+                onPatchRow,
+                onRemoveRow,
+                compact: true,
+              });
 
               return (
-                <tr key={key} className={cx(!row.active && "bg-ink-50/60")}>
+                <tr key={controls.key} className={cx(!row.active && "bg-ink-50/60")}>
                   <td className="px-3 py-2 font-semibold text-ink-800">{row.size}</td>
-                  <td className="px-3 py-2 text-right">
-                    <Input
-                      type="number"
-                      min={0}
-                      step={1}
-                      disabled={disabled}
-                      value={row.stockQuantity}
-                      invalid={Boolean(problem)}
-                      aria-invalid={Boolean(problem) || undefined}
-                      title={problem ?? undefined}
-                      onChange={(e) => onPatchRow(key, { stockQuantity: e.target.value })}
-                      className="tabular h-8 w-24 px-2 py-0 text-right"
-                      aria-label={`Stock for ${label}`}
-                    />
-                  </td>
-                  <td className="px-3 py-2">
-                    <StockBadge active={row.active} stock={stock} />
-                  </td>
-                  <td className="px-3 py-2">
-                    <Toggle
-                      checked={row.active}
-                      disabled={disabled}
-                      onChange={(value) => onPatchRow(key, { active: value })}
-                      label={`Sell ${label}`}
-                      size="sm"
-                    />
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={disabled}
-                      aria-label={`Remove ${label}`}
-                      onClick={() => onRemoveRow(key)}
-                    >
-                      <Trash2 className="size-3.5 text-ink-400" aria-hidden="true" />
-                    </Button>
-                  </td>
+                  <td className="px-3 py-2 text-right">{controls.stock}</td>
+                  <td className="px-3 py-2">{controls.status}</td>
+                  <td className="px-3 py-2">{controls.toggle}</td>
+                  <td className="px-3 py-2 text-right">{controls.remove}</td>
                 </tr>
               );
             })}
@@ -395,6 +394,68 @@ function ColourwayTable({
       </div>
     </div>
   );
+}
+
+/**
+ * One sellable row's controls, as elements for whichever layout places
+ * them — the phone card or the table. A plain function rather than a
+ * component because the two layouts arrange the pieces differently.
+ *
+ * `compact` is the table's smaller toggle; the card keeps the full-size
+ * one, which is the easier target for a thumb.
+ */
+function rowControls({ row, colour, disabled, onPatchRow, onRemoveRow, compact = false }) {
+  const key = variantKey(row);
+  const stock = Number(row.stockQuantity) || 0;
+  // What the control is called out loud. "Stock for M" is
+  // ambiguous the moment a product has two colourways.
+  const label = colour ? `${colour} ${row.size}` : row.size;
+
+  // `min={0}` is a browser hint and nothing more: this grid does
+  // not submit a form, so constraint validation never runs and a
+  // typed -5 or 2.5 goes to the API as-is. Marked as it is typed;
+  // the save refuses it and names the row.
+  const problem = validateStock(row.stockQuantity, "Stock");
+
+  return {
+    key,
+    stock: (
+      <Input
+        type="number"
+        min={0}
+        step={1}
+        disabled={disabled}
+        value={row.stockQuantity}
+        invalid={Boolean(problem)}
+        aria-invalid={Boolean(problem) || undefined}
+        title={problem ?? undefined}
+        onChange={(e) => onPatchRow(key, { stockQuantity: e.target.value })}
+        className="tabular h-8 w-24 px-2 py-0 text-right"
+        aria-label={`Stock for ${label}`}
+      />
+    ),
+    status: <StockBadge active={row.active} stock={stock} />,
+    toggle: (
+      <Toggle
+        checked={row.active}
+        disabled={disabled}
+        onChange={(value) => onPatchRow(key, { active: value })}
+        label={`Sell ${label}`}
+        size={compact ? "sm" : "md"}
+      />
+    ),
+    remove: (
+      <Button
+        size="sm"
+        variant="ghost"
+        disabled={disabled}
+        aria-label={`Remove ${label}`}
+        onClick={() => onRemoveRow(key)}
+      >
+        <Trash2 className="size-3.5 text-ink-400" aria-hidden="true" />
+      </Button>
+    ),
+  };
 }
 
 function ColourChip({ colour, selected, disabled, onClick }) {
@@ -485,7 +546,7 @@ function AddColour({ disabled, onAdded }) {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5 rounded-lg bg-ink-50 p-1.5 ring-1 ring-ink-200">
+    <div className="flex w-full flex-wrap items-center gap-1.5 rounded-lg bg-ink-50 p-1.5 ring-1 ring-ink-200 sm:w-auto">
       <input
         type="color"
         value={hex}
@@ -508,7 +569,7 @@ function AddColour({ disabled, onAdded }) {
         }}
         placeholder={COLOUR_GROUP.placeholder}
         maxLength={40}
-        className="h-8 w-40 text-xs"
+        className="h-8 min-w-0 flex-1 basis-28 text-xs sm:w-40 sm:flex-none"
         aria-label="New colour name"
       />
       <Button size="sm" variant="primary" busy={busy} disabled={!name.trim()} onClick={add}>

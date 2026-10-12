@@ -362,6 +362,22 @@ export function AdminShell({ children }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
+  // While the drawer covers the page on a phone, the page behind it must
+  // not scroll under the finger, and Escape closes it like any other sheet.
+  useEffect(() => {
+    if (!drawerOpen) return undefined;
+    const onKey = (e) => {
+      if (e.key === "Escape") setDrawerOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = previous;
+    };
+  }, [drawerOpen]);
+
   const currentFeature =
     CROSS_ROUTE_CHILDREN.find((c) => linkMatches(c, pathname)) ||
     FEATURES.find((f) => featureMatches(f, pathname)) ||
@@ -402,7 +418,7 @@ export function AdminShell({ children }) {
                 <motion.div
                   variants={{ closed: { x: "-100%" }, open: { x: 0 } }}
                   transition={{ type: "spring", stiffness: 380, damping: 36 }}
-                  className="absolute inset-y-0 left-0 w-72 bg-white shadow-xl"
+                  className="absolute inset-y-0 left-0 w-72 max-w-[85vw] bg-white shadow-xl"
                 >
                   <Sidebar
                     pathname={pathname}

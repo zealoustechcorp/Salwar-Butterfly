@@ -68,8 +68,8 @@ export default function CategoryList({ categories, onAdd, onEdit, onDetail, onTo
         Module title and primary action.
         ========================================================================
       */}
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
+      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+        <div className="min-w-0">
           <span className="font-mono text-xs font-semibold tracking-wider text-brand-600 uppercase">
             Catalogue
           </span>
@@ -82,7 +82,7 @@ export default function CategoryList({ categories, onAdd, onEdit, onDetail, onTo
         </div>
 
         {/* Primary CTA button to create a new category */}
-        <Button variant="primary" onClick={onAdd} className="shrink-0">
+        <Button variant="primary" onClick={onAdd} className="w-full shrink-0 sm:w-auto">
           <Plus className="size-4" />
           Add category
         </Button>
@@ -104,7 +104,7 @@ export default function CategoryList({ categories, onAdd, onEdit, onDetail, onTo
       */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         {/* Real-time search input with clear (X) button */}
-        <div className="relative flex-1 max-w-md">
+        <div className="relative flex-1 sm:max-w-md">
           <Search
             className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-400 pointer-events-none"
             aria-hidden="true"
@@ -113,13 +113,13 @@ export default function CategoryList({ categories, onAdd, onEdit, onDetail, onTo
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search categories by name, slug, or description…"
-            className="pl-9 pr-8"
+            className="pl-9 pr-10 sm:pr-8"
           />
           {search ? (
             <button
               type="button"
               onClick={() => setSearch("")}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-ink-400 hover:text-ink-600"
+              className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-2 text-ink-400 hover:text-ink-600 sm:right-2.5 sm:p-0.5"
               title="Clear search"
             >
               <X className="size-3.5" />
@@ -128,7 +128,8 @@ export default function CategoryList({ categories, onAdd, onEdit, onDetail, onTo
         </div>
 
         {/* Segmented Filter Pills: All | Active | Inactive */}
-        <div className="flex items-center gap-1.5 rounded-lg bg-white p-1 ring-1 ring-ink-200/80 shadow-xs">
+        {/* Full width on phones, each pill an equal share of it. */}
+        <div className="flex w-full items-center gap-1.5 rounded-lg bg-white p-1 ring-1 ring-ink-200/80 shadow-xs sm:w-auto">
           {[
             { id: "all", label: "All" },
             { id: "active", label: "Active" },
@@ -140,7 +141,7 @@ export default function CategoryList({ categories, onAdd, onEdit, onDetail, onTo
                 key={f.id}
                 type="button"
                 onClick={() => setFilter(f.id)}
-                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                className={`flex-1 rounded-md px-3 py-2 text-xs font-medium transition-colors sm:flex-none sm:py-1.5 ${
                   isSelected
                     ? "bg-brand-600 text-white shadow-xs"
                     : "text-ink-600 hover:bg-ink-100 hover:text-ink-900"

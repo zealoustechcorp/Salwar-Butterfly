@@ -24,10 +24,10 @@ export const metadata = {
  */
 export default function AdminLoginPage() {
   return (
-    <div className="admin-root min-h-screen">
+    <div className="admin-root min-h-dvh">
       <Suspense
         fallback={
-          <div className="flex min-h-screen items-center justify-center">
+          <div className="flex min-h-dvh items-center justify-center">
             <Spinner className="size-5 text-brand-600" />
           </div>
         }

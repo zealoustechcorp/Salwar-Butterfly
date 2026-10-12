@@ -64,7 +64,7 @@ export default function EditCategoryPage() {
   /* Render fallback empty state if category ID is invalid or not found */
   if (!category) {
     return (
-      <div className="max-w-xl rounded-xl bg-white p-8 ring-1 ring-ink-200/80 shadow-xs">
+      <div className="max-w-xl rounded-xl bg-white p-4 ring-1 ring-ink-200/80 shadow-xs sm:p-8">
         <EmptyState
           title="Category not found"
           description="The category you are trying to edit does not exist."

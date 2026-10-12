@@ -11,7 +11,7 @@ import {
   ShoppingBag,
 } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { StatGrid, StatTile } from "@/components/admin/ProductBits";
 import { ProductCover } from "@/components/admin/ProductThumb";
@@ -84,8 +84,8 @@ export default function ReportsPage() {
 
   return (
     <div className="mx-auto max-w-[1400px] space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-xl font-semibold tracking-tight text-ink-900">
             Reports
           </h1>
@@ -108,8 +108,8 @@ export default function ReportsPage() {
           twice and letting them disagree.
       ------------------------------------------------------------ */}
       <Card>
-        <div className="flex flex-wrap items-end gap-3 px-5 py-4">
-          <Field label="From" className="w-40">
+        <div className="flex flex-wrap items-end gap-3 px-4 py-4 sm:px-5">
+          <Field label="From" className="w-full sm:w-40">
             <Input
               type="date"
               value={range.from}
@@ -120,7 +120,7 @@ export default function ReportsPage() {
             />
           </Field>
 
-          <Field label="To" className="w-40">
+          <Field label="To" className="w-full sm:w-40">
             <Input
               type="date"
               value={range.to}
@@ -130,7 +130,7 @@ export default function ReportsPage() {
           </Field>
 
           {tab === "sales" ? (
-            <Field label="Group by" className="w-40">
+            <Field label="Group by" className="w-full sm:w-40">
               <Select
                 value={period}
                 aria-label="Group sales by"
@@ -347,7 +347,42 @@ function SalesReport({ range, period, reload, onRetry }) {
             description="Once orders come in, the pieces that sold most appear here."
           />
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Below `md` the three figures fold under the name: four columns
+              at 360px would leave the product name a few characters wide. */}
+          <ul className="divide-y divide-ink-100 md:hidden">
+            {topProducts.map((row) => (
+              <li
+                key={row.productId ?? row.name}
+                className="flex items-center gap-2.5 px-4 py-3"
+              >
+                <ProductCover
+                  product={{
+                    id: row.productId,
+                    name: row.name,
+                    primaryImage: row.imageUrl
+                      ? { url: row.imageUrl, altText: row.name }
+                      : null,
+                  }}
+                  size={32}
+                />
+
+                <div className="min-w-0 flex-1">
+                  <TopProductName row={row} className="block truncate text-sm" />
+                  <p className="mt-0.5 text-xs text-ink-500 tabular-nums">
+                    {number(row.units)} piece{row.units === 1 ? "" : "s"} ·{" "}
+                    {number(row.orders)} order{row.orders === 1 ? "" : "s"}
+                  </p>
+                </div>
+
+                <p className="shrink-0 text-sm text-ink-900 tabular-nums">
+                  {money(row.revenue)}
+                </p>
+              </li>
+            ))}
+          </ul>
+
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b border-ink-200 bg-ink-50/60 text-left text-[11px] font-semibold tracking-wide text-ink-500 uppercase">
@@ -376,23 +411,7 @@ function SalesReport({ range, period, reload, onRetry }) {
                           size={32}
                         />
 
-                        {/* A deleted product still sold, so the row
-                            stays — it just no longer links anywhere. */}
-                        {row.productId ? (
-                          <Link
-                            href={`/admin/products/${row.productId}`}
-                            className="font-medium text-ink-800 hover:text-brand-700 hover:underline"
-                          >
-                            {row.name}
-                          </Link>
-                        ) : (
-                          <span
-                            className="font-medium text-ink-800"
-                            title="This product has since been removed from the catalogue"
-                          >
-                            {row.name}
-                          </span>
-                        )}
+                        <TopProductName row={row} />
                       </div>
                     </td>
 
@@ -410,9 +429,37 @@ function SalesReport({ range, period, reload, onRetry }) {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </Card>
     </div>
+  );
+}
+
+/**
+ * A best seller's name — shared by the phone list and the table so the
+ * two cannot drift on which rows link.
+ */
+function TopProductName({ row, className }) {
+  // A deleted product still sold, so the row stays — it just no longer
+  // links anywhere.
+  return row.productId ? (
+    <Link
+      href={`/admin/products/${row.productId}`}
+      className={cx(
+        "font-medium text-ink-800 hover:text-brand-700 hover:underline",
+        className,
+      )}
+    >
+      {row.name}
+    </Link>
+  ) : (
+    <span
+      className={cx("font-medium text-ink-800", className)}
+      title="This product has since been removed from the catalogue"
+    >
+      {row.name}
+    </span>
   );
 }
 
@@ -436,15 +483,44 @@ function BarChart({ series, period, metric }) {
 
   const format = metric === "revenue" ? money : number;
 
+  // Admin scrollbars are hidden, so a range long enough to scroll would
+  // give no sign that more bars sit off to the right. Measured rather
+  // than guessed from the bucket count, because how many fit depends on
+  // the screen. The observer fires once on attach, so nothing is set
+  // synchronously here.
+  const scroller = useRef(null);
+  const [clipped, setClipped] = useState(false);
+
+  useEffect(() => {
+    const node = scroller.current;
+    if (!node) return undefined;
+
+    const measure = () =>
+      setClipped(node.scrollWidth - node.clientWidth - node.scrollLeft > 1);
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    node.addEventListener("scroll", measure, { passive: true });
+
+    return () => {
+      observer.disconnect();
+      node.removeEventListener("scroll", measure);
+    };
+  }, [series.length]);
+
   return (
     <div className="space-y-3 p-4">
-      <div className="flex items-baseline justify-between text-xs text-ink-500">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-xs text-ink-500">
         <span>{metric === "revenue" ? "Revenue received" : "Orders placed"}</span>
         <span className="tabular-nums">peak {format(peak)}</span>
       </div>
 
+      <div className="relative">
+      {/* Bars narrow to 4px with 2px gaps on phones, so thirty days fit in
+          a 360px screen without scrolling at all. */}
       <div
-        className="flex items-end gap-1 overflow-x-auto pb-1"
+        ref={scroller}
+        className="flex items-end gap-0.5 overflow-x-auto pb-1 sm:gap-1"
         style={{ height: 180 }}
         role="img"
         aria-label={`${
@@ -464,7 +540,7 @@ function BarChart({ series, period, metric }) {
           return (
             <div
               key={point.bucketStart}
-              className="flex min-w-[18px] flex-1 flex-col justify-end"
+              className="flex min-w-1 flex-1 flex-col justify-end sm:min-w-[18px]"
               title={`${bucketLabel(point.bucketStart, period)} · ${format(
                 value,
               )} · ${number(point.orders)} order${
@@ -483,10 +559,18 @@ function BarChart({ series, period, metric }) {
         })}
       </div>
 
+      {clipped ? (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-linear-to-l from-white to-transparent"
+        />
+      ) : null}
+      </div>
+
       {/* Only the ends and the middle are labelled. One label per bar
           is unreadable at thirty buckets and misleading at twelve,
           because the labels would have to be dropped silently. */}
-      <div className="flex justify-between text-[11px] text-ink-500">
+      <div className="flex justify-between gap-2 text-[11px] text-ink-500">
         <span>{bucketLabel(series[0]?.bucketStart, period)}</span>
         {series.length > 2 ? (
           <span>
@@ -669,7 +753,68 @@ function OrderReport({ range, reload, onRetry }) {
             }
           />
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Six columns cannot share a phone screen, so below `md` each
+              order is a block carrying the same fields, contact included. */}
+          <ul className="divide-y divide-ink-100 md:hidden">
+            {rows.map((order) => {
+              const status = statusMeta(order.status);
+              const payment = paymentMeta(order.paymentStatus);
+
+              return (
+                <li key={order.id} className="space-y-1.5 px-4 py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <Link
+                        href={`/admin/orders/${order.id}`}
+                        className="font-mono text-[13px] font-medium break-all text-ink-900 hover:text-brand-700 hover:underline"
+                      >
+                        {order.orderNumber}
+                      </Link>
+                      <p className="mt-0.5 text-xs text-ink-500">
+                        {shortDate(order.timeline.placedAt)}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right tabular-nums">
+                      <p className="text-sm font-medium text-ink-900">
+                        {money(order.total)}
+                      </p>
+                      <p className="mt-0.5 text-xs text-ink-600">
+                        {/* No column header here, so the pair is spelled
+                            out rather than left as a bare "3 / 2". */}
+                        {number(order.unitCount)} pcs
+                        <span className="text-ink-400">
+                          {" "}
+                          / {number(order.itemCount)} items
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-ink-800">
+                      {order.contact.name || "—"}
+                      <span className="font-normal text-ink-500">
+                        {" "}
+                        · {order.customerId ? "account" : "guest"}
+                      </span>
+                    </p>
+                    <p className="text-xs break-all text-ink-600">
+                      {order.contact.email}
+                    </p>
+                    <p className="text-xs text-ink-500">{order.contact.phone}</p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-1">
+                    <Badge tone={status.tone}>{status.label}</Badge>
+                    <Badge tone={payment.tone}>{payment.label}</Badge>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b border-ink-200 bg-ink-50/60 text-left text-[11px] font-semibold tracking-wide text-ink-500 uppercase">
@@ -745,10 +890,11 @@ function OrderReport({ range, reload, onRetry }) {
               </tbody>
             </table>
           </div>
+          </>
         )}
 
         {pagination && pagination.totalPages > 1 ? (
-          <div className="flex items-center justify-between gap-3 border-t border-ink-200/80 px-3 py-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-ink-200/80 px-3 py-2.5">
             <p className="text-xs text-ink-500">
               Page {pagination.page} of {pagination.totalPages} ·{" "}
               {number(pagination.total)} orders
@@ -868,7 +1014,60 @@ function InventoryReport({ reload, onRetry }) {
             description="Add a category before adding products to it."
           />
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Below `md` the four counts sit under the name as a labelled
+              strip — five columns would leave the name no room at 360px. */}
+          <ul className="divide-y divide-ink-100 md:hidden">
+            {data.categories.map((row) => (
+              <li key={row.id} className="space-y-2 px-4 py-3">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <Link
+                    href={`/admin/category/${row.id}`}
+                    className="min-w-0 text-sm font-medium break-words text-ink-800 hover:text-brand-700 hover:underline"
+                  >
+                    {row.name}
+                  </Link>
+                  {!row.active ? <Badge tone="slate">Off sale</Badge> : null}
+                </div>
+
+                <dl className="grid grid-cols-4 gap-2 text-[11px] text-ink-500">
+                  <div>
+                    <dt>Products</dt>
+                    <dd className="text-sm text-ink-600 tabular-nums">
+                      {number(row.products)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>On sale</dt>
+                    <dd className="text-sm text-ink-600 tabular-nums">
+                      {number(row.productsActive)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Buyable now</dt>
+                    <dd
+                      className={cx(
+                        "text-sm font-medium tabular-nums",
+                        row.productsActive > 0 && row.productsInStock === 0
+                          ? "text-red-700"
+                          : "text-ink-900",
+                      )}
+                    >
+                      {number(row.productsInStock)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Pieces held</dt>
+                    <dd className="text-sm text-ink-900 tabular-nums">
+                      {number(row.units)}
+                    </dd>
+                  </div>
+                </dl>
+              </li>
+            ))}
+          </ul>
+
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b border-ink-200 bg-ink-50/60 text-left text-[11px] font-semibold tracking-wide text-ink-500 uppercase">
@@ -922,6 +1121,7 @@ function InventoryReport({ reload, onRetry }) {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </Card>
 
@@ -1003,7 +1203,7 @@ function StockListCard({ title, tone, list, loading, empty }) {
                 </p>
               </div>
 
-              <Badge tone={STOCK_TONE[line.stockStatus]}>
+              <Badge tone={STOCK_TONE[line.stockStatus]} className="shrink-0">
                 {line.stockQuantity === 0
                   ? STOCK_LABEL[line.stockStatus]
                   : `${number(line.stockQuantity)} left`}

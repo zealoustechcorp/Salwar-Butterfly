@@ -108,8 +108,10 @@ export function DetailsFields({ form, setField, errors = {}, reference, lockCate
         error={errors.slug}
         hint="Derived from the name. Must be unique across the catalogue."
       >
-        <div className="flex items-center gap-2">
-          <span className="shrink-0 font-mono text-xs text-ink-400">
+        {/* The prefix alone is most of a phone's width, so it sits above
+            the field there rather than squeezing it to a sliver. */}
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
+          <span className="font-mono text-xs break-all text-ink-400 sm:shrink-0">
             salwarbutterfly.com/product/
           </span>
           <Input
@@ -117,7 +119,7 @@ export function DetailsFields({ form, setField, errors = {}, reference, lockCate
             invalid={Boolean(errors.slug)}
             onChange={(e) => setField("slug", autoSlug(e.target.value))}
             placeholder={autoSlug(form.name) || "product-slug"}
-            className="font-mono text-xs"
+            className="min-w-0 font-mono text-xs"
           />
         </div>
       </Field>
@@ -163,7 +165,7 @@ export function DetailsFields({ form, setField, errors = {}, reference, lockCate
 
       <div className="md:col-span-2">
         <div className="flex items-center justify-between gap-3 rounded-lg bg-ink-50 px-3 py-2.5 ring-1 ring-inset ring-ink-200">
-          <div>
+          <div className="min-w-0">
             <p className="text-xs font-semibold text-ink-700">Feature on the home page</p>
             <p className="text-[11px] text-ink-500">Adds it to the featured rail on the storefront.</p>
           </div>
@@ -215,7 +217,9 @@ export function AttributeFields({ form, setField, groups = {}, fits = [], onRegi
   };
 
   return (
-    <div className="grid gap-4 sm:grid-cols-3">
+    // Two across before three: each select can open an inline add row
+    // (field, Add, Cancel), which needs more than a third of a tablet.
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       <FitSelect
         fits={fits}
         selected={form.attributes?.[FIT_GROUP.key] ?? ""}
@@ -329,7 +333,7 @@ function AttributeSelect({ group, values, selected, onSelect, onRegister }) {
       </Select>
 
       {addingOpen ? (
-        <div className="mt-1.5 flex items-center gap-1.5">
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <Input
             value={draft}
             autoFocus
@@ -343,7 +347,7 @@ function AttributeSelect({ group, values, selected, onSelect, onRegister }) {
             }}
             placeholder={group.placeholder}
             maxLength={100}
-            className="h-8 text-xs"
+            className="h-8 min-w-0 flex-1 basis-32 text-xs"
             aria-label={`New ${group.label.toLowerCase()} value`}
           />
           <Button size="sm" variant="primary" busy={busy} disabled={!draft.trim()} onClick={add}>
@@ -452,7 +456,7 @@ export function PricingFields({ form, setField, errors = {} }) {
         >
           Customer pays
         </p>
-        <p className="tabular mt-1 flex items-baseline gap-2">
+        <p className="tabular mt-1 flex flex-wrap items-baseline gap-x-2">
           <span
             className={cx(
               "text-xl font-semibold",
@@ -485,14 +489,14 @@ export function PricingFields({ form, setField, errors = {} }) {
 
       <div className="md:col-span-3">
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-ink-50 px-3 py-2.5 ring-1 ring-inset ring-ink-200">
-          <div>
+          <div className="min-w-0">
             <p className="text-xs font-semibold text-ink-700">Publish to storefront</p>
             <p className="text-[11px] text-ink-500">
               Inactive products stay in the catalogue and on past orders but are invisible to
               shoppers.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <Badge tone={form.active ? "green" : "slate"}>{form.active ? "Active" : "Draft"}</Badge>
             <Toggle
               checked={form.active}

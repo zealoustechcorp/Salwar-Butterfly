@@ -112,7 +112,7 @@ export default function CustomersPage() {
   return (
     <div className="mx-auto max-w-[1400px] space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <h1 className="text-xl font-semibold tracking-tight text-ink-900">
             Customers
           </h1>
@@ -135,8 +135,8 @@ export default function CustomersPage() {
               : "Search by name, email or phone."
           }
           actions={
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative">
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+              <div className="relative w-full sm:w-56">
                 <Search
                   aria-hidden="true"
                   className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-ink-400"
@@ -146,14 +146,14 @@ export default function CustomersPage() {
                   onChange={(e) => setSearchInput(e.target.value)}
                   placeholder="Name, email or phone"
                   aria-label="Search customers"
-                  className="w-56 pl-8"
+                  className="pl-8"
                 />
               </div>
 
               <Select
                 value={query.sort}
                 aria-label="Sort customers"
-                className="w-44"
+                className="w-full sm:w-44"
                 onChange={(e) =>
                   setQuery((q) => ({ ...q, sort: e.target.value, page: 1 }))
                 }
@@ -204,28 +204,38 @@ export default function CustomersPage() {
             }
           />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-ink-200 bg-ink-50/60 text-left text-[11px] font-semibold tracking-wide text-ink-500 uppercase">
-                  <th className="px-3 py-2.5">Name</th>
-                  <th className="px-3 py-2.5">Email</th>
-                  <th className="px-3 py-2.5">Phone</th>
-                  <th className="px-3 py-2.5">Joined</th>
-                  <th className="w-20 px-3 py-2.5" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-ink-100">
-                {rows.map((customer) => (
-                  <CustomerRow key={customer.id} customer={customer} />
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <>
+            {/* Cards below `md` rather than a table that only fits by
+                scrolling sideways — with no visible scrollbar to say so. */}
+            <ul className="divide-y divide-ink-100 md:hidden">
+              {rows.map((customer) => (
+                <CustomerCard key={customer.id} customer={customer} />
+              ))}
+            </ul>
+
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-ink-200 bg-ink-50/60 text-left text-[11px] font-semibold tracking-wide text-ink-500 uppercase">
+                    <th className="px-3 py-2.5">Name</th>
+                    <th className="px-3 py-2.5">Email</th>
+                    <th className="px-3 py-2.5">Phone</th>
+                    <th className="px-3 py-2.5">Joined</th>
+                    <th className="w-20 px-3 py-2.5" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-ink-100">
+                  {rows.map((customer) => (
+                    <CustomerRow key={customer.id} customer={customer} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
 
         {pagination && pagination.totalPages > 1 ? (
-          <div className="flex items-center justify-between gap-3 border-t border-ink-200/80 px-3 py-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-ink-200/80 px-3 py-2.5">
             <p className="text-xs text-ink-500">
               Page {pagination.page} of {pagination.totalPages} ·{" "}
               {number(pagination.total)} customers
@@ -274,6 +284,54 @@ function initialsOf(name, email) {
   const last = words.length > 1 ? words[words.length - 1].charAt(0) : "";
 
   return (first + last).toUpperCase();
+}
+
+/**
+ * The phone layout of a row. The name link is stretched over the whole
+ * card so any tap opens the customer; the email and phone links sit
+ * above that overlay, because ringing or writing to someone from the list
+ * is half of why it is opened on a phone.
+ */
+function CustomerCard({ customer }) {
+  return (
+    <li className="relative flex items-start gap-3 px-4 py-3 transition-colors hover:bg-ink-50/70">
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gold-100 text-xs font-semibold text-gold-800">
+        {initialsOf(customer.name, customer.email)}
+      </span>
+
+      <div className="min-w-0 flex-1 text-sm">
+        <div className="flex items-baseline justify-between gap-3">
+          <Link
+            href={`/admin/customers/${customer.id}`}
+            className="min-w-0 font-medium break-words text-ink-900 after:absolute after:inset-0 hover:text-brand-700"
+          >
+            {customer.name || "—"}
+          </Link>
+          <span className="shrink-0 text-xs text-ink-500">
+            {shortDate(customer.createdAt)}
+          </span>
+        </div>
+
+        {customer.email ? (
+          <a
+            href={`mailto:${customer.email}`}
+            className="relative mt-0.5 block break-all text-ink-600 hover:text-brand-700 hover:underline"
+          >
+            {customer.email}
+          </a>
+        ) : null}
+
+        {customer.phone ? (
+          <a
+            href={`tel:${customer.phone}`}
+            className="relative mt-0.5 inline-block text-ink-600 tabular-nums hover:text-brand-700 hover:underline"
+          >
+            {customer.phone}
+          </a>
+        ) : null}
+      </div>
+    </li>
+  );
 }
 
 function CustomerRow({ customer }) {

@@ -207,7 +207,7 @@ export default function OrderDetailPage() {
         </Link>
 
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
-          <h1 className="font-mono text-xl font-semibold tracking-tight text-ink-900">
+          <h1 className="min-w-0 font-mono text-xl font-semibold tracking-tight break-all text-ink-900">
             {order.orderNumber}
           </h1>
           <Badge tone={orderStatus.tone}>{orderStatus.label}</Badge>
@@ -231,7 +231,40 @@ export default function OrderDetailPage() {
               description="Names, sizes and prices as they were at checkout — not as the catalogue reads today."
             />
 
-            <div className="overflow-x-auto">
+            {/* One stacked line per piece below `md`: five columns only fit
+                a phone by scrolling sideways, which nothing would signal. */}
+            <ul className="divide-y divide-ink-100 md:hidden">
+              {order.items.map((item) => (
+                <li key={item.id} className="flex items-start gap-3 px-4 py-3">
+                  <ProductCover product={item.product} size={40} />
+                  <div className="min-w-0 flex-1 text-sm">
+                    <div className="flex items-baseline justify-between gap-3">
+                      {item.productId ? (
+                        <Link
+                          href={`/admin/products/${item.productId}`}
+                          className="min-w-0 font-medium break-words text-ink-900 hover:text-brand-700 hover:underline"
+                        >
+                          {item.productName}
+                        </Link>
+                      ) : (
+                        <span className="min-w-0 font-medium break-words text-ink-900">
+                          {item.productName}
+                        </span>
+                      )}
+                      <span className="shrink-0 font-medium text-ink-900 tabular-nums">
+                        {money(item.lineTotal, { precise: true })}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-xs text-ink-500 tabular-nums">
+                      Size {item.size || "—"} · {number(item.quantity)} ×{" "}
+                      {money(item.unitPrice, { precise: true })}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full border-collapse text-sm">
                 <thead>
                   <tr className="border-b border-ink-200 bg-ink-50/60 text-left text-[11px] font-semibold tracking-wide text-ink-500 uppercase">
@@ -312,7 +345,7 @@ export default function OrderDetailPage() {
                 title="Note from the customer"
                 description="Left at checkout."
               />
-              <p className="px-5 py-4 text-sm whitespace-pre-line text-ink-700">
+              <p className="px-4 py-4 text-sm break-words whitespace-pre-line text-ink-700 sm:px-5">
                 {order.customerNote}
               </p>
             </Card>
@@ -324,7 +357,7 @@ export default function OrderDetailPage() {
                 title="Why this order was cancelled"
                 description="Recorded when the order was cancelled. Its pieces went back on the shelf."
               />
-              <p className="px-5 py-4 text-sm whitespace-pre-line text-ink-700">
+              <p className="px-4 py-4 text-sm break-words whitespace-pre-line text-ink-700 sm:px-5">
                 {order.cancellationReason}
               </p>
             </Card>
@@ -335,7 +368,7 @@ export default function OrderDetailPage() {
           <Card>
             <CardHeader title="Move this order along" />
 
-            <div className="space-y-3 px-5 py-4">
+            <div className="space-y-3 px-4 py-4 sm:px-5">
               <p className="text-xs text-ink-500">{orderStatus.blurb}</p>
 
               {moves.length === 0 ? null : (
@@ -378,7 +411,7 @@ export default function OrderDetailPage() {
                 description="Emailed to the customer when the order was packed."
               />
 
-              <div className="space-y-2 px-5 py-4 text-sm">
+              <div className="space-y-2 px-4 py-4 text-sm sm:px-5">
                 <div className="flex items-start gap-2">
                   <Truck className="mt-0.5 size-3.5 shrink-0 text-ink-400" aria-hidden="true" />
                   <div className="min-w-0">
@@ -409,8 +442,8 @@ export default function OrderDetailPage() {
           <Card>
             <CardHeader title="Who it goes to" />
 
-            <div className="space-y-2.5 px-5 py-4 text-sm">
-              <p className="flex items-center gap-2 font-medium text-ink-900">
+            <div className="space-y-2.5 px-4 py-4 text-sm sm:px-5">
+              <p className="flex items-center gap-2 font-medium break-words text-ink-900">
                 <User className="size-3.5 shrink-0 text-ink-400" aria-hidden="true" />
                 {order.contact.name || "—"}
               </p>
@@ -436,7 +469,7 @@ export default function OrderDetailPage() {
                   className="mt-0.5 size-3.5 shrink-0 text-ink-400"
                   aria-hidden="true"
                 />
-                <address className="not-italic">
+                <address className="min-w-0 break-words not-italic">
                   {address.map((line) => (
                     <span key={line} className="block">
                       {line}
@@ -469,7 +502,7 @@ export default function OrderDetailPage() {
           <Card>
             <CardHeader title="History" />
 
-            <ol className="space-y-2.5 px-5 py-4 text-sm">
+            <ol className="space-y-2.5 px-4 py-4 text-sm sm:px-5">
               {TIMELINE_STEPS.filter((step) => order.timeline[step.key]).map(
                 (step) => (
                   <li
@@ -575,7 +608,7 @@ function PaymentAttempts({ orderId, reload }) {
     return (
       <Card>
         <CardHeader title="Payments" />
-        <p className="px-5 py-4 text-xs text-ink-500">
+        <p className="px-4 py-4 text-xs text-ink-500 sm:px-5">
           Could not load the payment history. The order above is unaffected.
         </p>
       </Card>
@@ -597,7 +630,7 @@ function PaymentAttempts({ orderId, reload }) {
           const method = methodLabel(attempt.method);
 
           return (
-            <li key={attempt.id} className="space-y-1.5 px-5 py-3.5">
+            <li key={attempt.id} className="space-y-1.5 px-4 py-3.5 sm:px-5">
               <div className="flex items-baseline justify-between gap-3">
                 <span className="text-sm font-medium text-ink-900 tabular-nums">
                   {money(attempt.amount, { precise: true })}
@@ -623,7 +656,7 @@ function PaymentAttempts({ orderId, reload }) {
                   actually about — "declined by the issuing bank" is an
                   answer, "failed" is not. */}
               {attempt.error ? (
-                <p className="text-xs text-red-700">{attempt.error.description}</p>
+                <p className="text-xs break-words text-red-700">{attempt.error.description}</p>
               ) : null}
 
               {/* The id to quote to Razorpay, and the only thread from this

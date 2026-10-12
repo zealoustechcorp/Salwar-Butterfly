@@ -208,23 +208,23 @@ export default function CustomerDetailPage() {
           All customers
         </Link>
 
-        <h1 className="mt-2 text-xl font-semibold tracking-tight text-ink-900">
+        <h1 className="mt-2 text-xl font-semibold tracking-tight break-words text-ink-900">
           {customer.name}
         </h1>
 
         <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-500">
           <a
             href={`mailto:${customer.email}`}
-            className="inline-flex items-center gap-1.5 hover:text-brand-700 hover:underline"
+            className="inline-flex max-w-full min-w-0 items-center gap-1.5 break-all hover:text-brand-700 hover:underline"
           >
-            <Mail className="size-3.5" aria-hidden="true" />
+            <Mail className="size-3.5 shrink-0" aria-hidden="true" />
             {customer.email}
           </a>
           <a
             href={`tel:${customer.phone}`}
             className="inline-flex items-center gap-1.5 tabular-nums hover:text-brand-700 hover:underline"
           >
-            <Phone className="size-3.5" aria-hidden="true" />
+            <Phone className="size-3.5 shrink-0" aria-hidden="true" />
             {customer.phone}
           </a>
           <span>Joined {shortDate(customer.createdAt)}</span>
@@ -237,7 +237,7 @@ export default function CustomerDetailPage() {
           description="Correct a name, email or phone number. The customer can change these themselves from their account."
         />
 
-        <div className="grid gap-4 p-5 sm:grid-cols-2">
+        <div className="grid gap-4 p-4 sm:grid-cols-2 sm:p-5">
           <Field label="Name" error={fieldErrors.name} className="sm:col-span-2">
             <Input
               value={form.name}
@@ -274,7 +274,7 @@ export default function CustomerDetailPage() {
           </Field>
         </div>
 
-        <div className="flex items-center justify-between gap-3 border-t border-ink-200/80 px-5 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-ink-200/80 px-4 py-3 sm:px-5">
           <p className="text-xs text-ink-500">
             {changed.length === 0
               ? `Last updated ${shortDate(customer.updatedAt)}`
@@ -369,7 +369,7 @@ function CloseAccountDialog({ open, customer, onClose, onDone }) {
           has someone to point at.
         </p>
         <p>
-          <span className="font-medium text-ink-800">{customer.email}</span> and{" "}
+          <span className="font-medium break-all text-ink-800">{customer.email}</span> and{" "}
           <span className="font-medium text-ink-800">{customer.phone}</span>{" "}
           become available again, so this person can register a fresh account
           with the same details later.

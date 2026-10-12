@@ -86,10 +86,12 @@ export default function SizeChartForm({ chart, editing = false, onSave, onCancel
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5 pb-24">
+    // The bottom padding clears the fixed save bar, which is two lines
+    // tall on a phone (summary above, buttons below) and one from `sm`.
+    <div className="mx-auto max-w-5xl space-y-5 pb-40 sm:pb-24">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight text-ink-900">
+        <div className="min-w-0">
+          <h1 className="break-words text-xl font-semibold tracking-tight text-ink-900">
             {editing ? `Edit ${chart.fit || "size chart"}` : "Add a fit"}
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-ink-500">
@@ -109,24 +111,35 @@ export default function SizeChartForm({ chart, editing = false, onSave, onCancel
           title="The chart"
           description="The fit names the tab on the storefront; the grid is the table printed beneath it."
         />
-        <div className="p-5">
+        <div className="p-4 sm:p-5">
           <SizeChartBuilder chart={draft} onChange={setDraft} errors={fieldErrors} />
         </div>
       </Card>
 
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-ink-200 bg-white/95 backdrop-blur lg:left-64">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-3 px-4 py-3 sm:px-6">
-          <p className="text-xs text-ink-500">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-2 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6">
+          <p className="w-full text-xs text-ink-500 sm:w-auto">
             {draft.rows.length} size{draft.rows.length === 1 ? "" : "s"} ·{" "}
             {draft.columns.length - 1} measurement
             {draft.columns.length - 1 === 1 ? "" : "s"} · {draft.unit}
           </p>
 
-          <div className="ml-auto flex items-center gap-2">
-            <Button variant="ghost" onClick={onCancel} disabled={saving}>
+          <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
+            <Button
+              variant="ghost"
+              onClick={onCancel}
+              disabled={saving}
+              className="h-11 flex-1 sm:h-9 sm:flex-none"
+            >
               Cancel
             </Button>
-            <Button variant="primary" size="lg" busy={saving} onClick={submit}>
+            <Button
+              variant="primary"
+              size="lg"
+              busy={saving}
+              onClick={submit}
+              className="flex-1 sm:flex-none"
+            >
               {editing ? "Save chart" : "Publish chart"}
             </Button>
           </div>
