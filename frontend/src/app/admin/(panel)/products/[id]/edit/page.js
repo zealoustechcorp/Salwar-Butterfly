@@ -180,6 +180,18 @@ function EditProduct() {
       // Swatches only. The colour is already on the product either way.
     }
   }
+
+  /**
+   * Re-reads the published fits when the shop comes back from adding one
+   * in another tab. Dropdown options only, so a failure is never surfaced.
+   */
+  const refreshFits = useCallback(async () => {
+    try {
+      setFits(await listFits());
+    } catch {
+      // The picker keeps the list it had.
+    }
+  }, []);
   const { product, reference, error } = loaded;
 
   function setField(key, value) {
@@ -370,6 +382,7 @@ function EditProduct() {
                 setField={setField}
                 groups={attributeGroups}
                 fits={fits}
+                onRefreshFits={refreshFits}
                 onRegister={refreshAttributes}
               />
             </div>

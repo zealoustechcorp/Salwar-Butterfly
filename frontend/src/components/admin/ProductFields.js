@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { Plus } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 
 import { ATTRIBUTE_GROUPS, createAttributeValue, FIT_GROUP } from "@/lib/api/attributes";
 import { money } from "@/lib/format";
@@ -204,7 +206,14 @@ export function DetailsFields({ form, setField, errors = {}, reference, lockCate
  * `groups` is the register, keyed by attribute: { fabric: [...], ... }.
  * `fits` is the size charts' list: [{ fit, title }, ...].
  */
-export function AttributeFields({ form, setField, groups = {}, fits = [], onRegister }) {
+export function AttributeFields({
+  form,
+  setField,
+  groups = {},
+  fits = [],
+  onRefreshFits,
+  onRegister,
+}) {
   // A cleared field means "not recorded", not an empty string — the API
   // drops blanks anyway, so keep the form in step.
   const choose = (key, value) => {
@@ -224,6 +233,7 @@ export function AttributeFields({ form, setField, groups = {}, fits = [], onRegi
         fits={fits}
         selected={form.attributes?.[FIT_GROUP.key] ?? ""}
         onSelect={(value) => choose(FIT_GROUP.key, value)}
+        onRefresh={onRefreshFits}
       />
 
       {ATTRIBUTE_GROUPS.map((group) => (
@@ -252,8 +262,18 @@ export function AttributeFields({ form, setField, groups = {}, fits = [], onRegi
  * A fit already on the product is kept in the list even when it is no
  * longer offered — a chart withdrawn in April must not silently strip
  * the fit off every product the next time one of them is saved.
+ *
+ * The "new fit" link opens the chart editor in a new tab, so a half-filled
+ * product form is not thrown away to go and publish one. Coming back to
+ * this tab re-reads the list, so the new fit is there without a reload.
  */
-function FitSelect({ fits, selected, onSelect }) {
+function FitSelect({ fits, selected, onSelect, onRefresh }) {
+  useEffect(() => {
+    if (!onRefresh) return undefined;
+    window.addEventListener("focus", onRefresh);
+    return () => window.removeEventListener("focus", onRefresh);
+  }, [onRefresh]);
+
   const known = fits.some((entry) => entry.fit === selected);
   const options = known || !selected ? fits : [...fits, { fit: selected, title: "" }];
 
@@ -261,9 +281,20 @@ function FitSelect({ fits, selected, onSelect }) {
     <Field
       label={FIT_GROUP.label}
       hint={
-        fits.length
-          ? "Decides which size chart the shopper sees. Add a fit by publishing its chart."
-          : "No size charts published yet — publish one to offer a fit."
+        <>
+          {fits.length
+            ? "Decides which size chart the shopper sees. Add a fit by publishing its chart."
+            : "No size charts published yet — publish one to offer a fit."}{" "}
+          <Link
+            href="/admin/size-charts/new"
+            target="_blank"
+            rel="noopener"
+            className="inline-flex items-center gap-0.5 font-semibold text-brand-700 hover:underline"
+          >
+            <Plus className="size-3" aria-hidden="true" />
+            Add a new fit
+          </Link>
+        </>
       }
     >
       <Select value={selected} onChange={(e) => onSelect(e.target.value)}>

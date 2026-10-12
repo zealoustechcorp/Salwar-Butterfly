@@ -2,7 +2,7 @@
 
 import { ArrowLeft, Check, Circle } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import {
   AttributeFields,
@@ -134,6 +134,18 @@ export default function NewProductPage() {
       // Swatches only. The colour is already on the product either way.
     }
   }
+
+  /**
+   * Re-reads the published fits when the shop comes back from adding one
+   * in another tab. Dropdown options only, so a failure is never surfaced.
+   */
+  const refreshFits = useCallback(async () => {
+    try {
+      setFits(await listFits());
+    } catch {
+      // The picker keeps the list it had.
+    }
+  }, []);
 
   function setField(key, value) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -317,6 +329,7 @@ export default function NewProductPage() {
             setField={setField}
             groups={attributeGroups}
             fits={fits}
+            onRefreshFits={refreshFits}
             onRegister={refreshAttributes}
           />
         </div>

@@ -2,7 +2,7 @@
 
 import { ArrowLeft, ImagePlus, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   Badge,
@@ -27,6 +27,7 @@ import { SizeStockEditor } from "@/components/admin/SizeStockEditor";
 import { listAttributeValues, listColours } from "@/lib/api/attributes";
 import { uploadImages } from "@/lib/api/images";
 import { bulkCreateProducts, getReference } from "@/lib/api/products";
+import { listFits } from "@/lib/api/sizeCharts";
 import { replaceVariants } from "@/lib/api/variants";
 import { money, number } from "@/lib/format";
 import { autoSlug } from "@/lib/slug";
@@ -97,6 +98,7 @@ export default function BulkUploadPage() {
   const [reference, setReference] = useState(null);
   const [attributeGroups, setAttributeGroups] = useState({});
   const [colours, setColours] = useState([]);
+  const [fits, setFits] = useState([]);
   const [shared, setShared] = useState(BLANK_SHARED);
   const [sizes, setSizes] = useState(DEFAULT_SIZES);
   const [rows, setRows] = useState(() => [makeRow(), makeRow(), makeRow()]);
@@ -120,6 +122,13 @@ export default function BulkUploadPage() {
     // lets the form save, and a value can be added inline.
     listAttributeValues({ activeOnly: true, signal: controller.signal })
       .then(setAttributeGroups)
+      .catch(() => {});
+
+    // The Fit picker, from the published size charts — as on the single
+    // create screen. Shared like the other attributes, so the fit chosen
+    // here is recorded on every product in the batch.
+    listFits({ signal: controller.signal })
+      .then(setFits)
       .catch(() => {});
 
     // The colour chips on the size matrix. The whole batch shares one
@@ -154,6 +163,18 @@ export default function BulkUploadPage() {
       // Swatches only. The colour is already on the batch either way.
     }
   }
+
+  /**
+   * Re-reads the published fits when the shop comes back from adding one
+   * in another tab. Dropdown options only, so a failure is never surfaced.
+   */
+  const refreshFits = useCallback(async () => {
+    try {
+      setFits(await listFits());
+    } catch {
+      // The picker keeps the list it had.
+    }
+  }, []);
 
   function setSharedField(key, value) {
     setShared((current) => ({ ...current, [key]: value }));
@@ -478,6 +499,8 @@ export default function BulkUploadPage() {
             form={shared}
             setField={setSharedField}
             groups={attributeGroups}
+            fits={fits}
+            onRefreshFits={refreshFits}
             onRegister={refreshAttributes}
           />
         </div>
