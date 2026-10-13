@@ -25,6 +25,9 @@ const toItemDTO = (item) => ({
 
   productName: item.product_name,
   size: item.size ?? null,
+  // Null for a line not bought by colour — '' in the column, as on the
+  // variant row, but a client should not have to know that sentinel.
+  colour: item.colour || null,
   imageUrl: item.image_url ?? null,
   unitPrice: toMoney(item.unit_price),
   quantity: Number(item.quantity),

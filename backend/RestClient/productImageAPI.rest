@@ -10,7 +10,7 @@
 ### PRODUCT IMAGE ENDPOINTS  (F-03.06)
 ###
 ### A product's photographs — front, back, drape, fabric — one row
-### per image, ordered. At most 8 per product, 5 MB each, JPEG /
+### per image, ordered. At most 20 per product, 5 MB each, JPEG /
 ### PNG / WebP only (checked by magic bytes, not by MIME type).
 ###
 ### The cover is position 0. There is no primary flag anywhere:
@@ -22,7 +22,7 @@
 ### Upload one or more images  (the gallery editor's upload)
 ###
 ### multipart/form-data:
-###   images   repeat the field for each file, up to 8
+###   images   repeat the field for each file, up to 20
 ###   altText  optional, repeated positionally against the files
 ###
 ### Appended after whatever the product already has. Uploads are

@@ -22,7 +22,7 @@
 import { api } from "./client";
 
 /** Matches MAX_IMAGES_PER_PRODUCT in the API. */
-export const MAX_IMAGES = 8;
+export const MAX_IMAGES = 20;
 
 /** Matches the multer limit — 5 MB per file. */
 export const MAX_FILE_BYTES = 5 * 1024 * 1024;

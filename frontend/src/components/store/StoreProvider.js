@@ -64,6 +64,7 @@ import { createContext, useContext, useEffect, useMemo, useSyncExternalStore } f
 
 import { MAX_BAG_LINES, MAX_LINE_QTY, orderableQty } from "@/lib/stock";
 import { readSession, readToken } from "@/lib/store/session";
+import { describeChoice, lineKey, soldByColour, variantFor } from "@/lib/store/variants";
 import {
   fetchWishlist,
   mergeWishlist,
@@ -260,9 +261,9 @@ export function StoreProvider({ children }) {
   }, []);
 
   const value = useMemo(() => {
-    /** "Kalamkari salwar · size 40", for a toast. */
-    const describe = (name, size) =>
-      [name, size ? `size ${size}` : null].filter(Boolean).join(" · ");
+    /** "Kalamkari salwar · Maroon · size 40", for a toast. */
+    const describe = (name, size, colour) =>
+      [name, describeChoice(size, colour) || null].filter(Boolean).join(" · ");
 
     /**
      * Why a line cannot grow — the shelf, or the per-order ceiling.
@@ -288,20 +289,33 @@ export function StoreProvider({ children }) {
      * time cannot walk past the cap either, which is the whole point — the
      * ceiling is applied to the resulting total, not to each tap.
      *
-     * The line records `variant_id`, looked up from the chosen size. That is
-     * the only field checkout actually orders against — the API prices and
+     * The line records `variant_id`, looked up from the chosen size — and,
+     * on a product sold by colour, the chosen colour with it. That is the
+     * only field checkout actually orders against — the API prices and
      * reserves against a product_variants row, and a size label identifies
      * nothing it can sell. The rest is display: enough to render the bag
      * without re-reading the catalogue, and re-priced by the server anyway.
      *
-     * `stock` is the count that size held in the catalogue this add came
-     * from. Kept on the line so the bag's stepper and checkout have a ceiling
-     * without re-reading the catalogue, and refreshed by `syncStock`.
+     * `stock` is the count that size (in that colour) held in the catalogue
+     * this add came from. Kept on the line so the bag's stepper and checkout
+     * have a ceiling without re-reading the catalogue, and refreshed by
+     * `syncStock`.
      */
-    const addToBag = (product, { size, qty = 1 } = {}) => {
+    const addToBag = (product, { size, colour = null, qty = 1 } = {}) => {
       const pickedSize = size || product.available_sizes[0] || null;
-      const variant = product.sizes?.find((row) => row.size === pickedSize) ?? null;
-      const key = `${product.id}:${pickedSize ?? "-"}`;
+      const pickedColour = soldByColour(product) ? colour : null;
+
+      // A product sold by colour cannot be added without one. The detail
+      // page never offers the button in that state; this is the guard for
+      // any caller that does, so nothing is booked against a colour the
+      // shopper did not choose.
+      if (soldByColour(product) && !pickedColour) {
+        toast.info("Pick a colour", `${product.name} comes in more than one colour.`);
+        return;
+      }
+
+      const variant = variantFor(product, pickedSize, pickedColour);
+      const key = lineKey(product.id, pickedSize, pickedColour);
       const existing = bag.find((line) => line.key === key);
 
       // The bag is full (F-07.01). Checked before stock because it applies
@@ -318,7 +332,7 @@ export function StoreProvider({ children }) {
           // badge counts quantity, so a bag of 15 lines can show 30 there and
           // "15 items" would read as a contradiction.
           `A bag holds up to ${MAX_BAG_LINES} pieces, counting each size separately. ` +
-            `Remove one to add ${describe(product.name, pickedSize)}, ` +
+            `Remove one to add ${describe(product.name, pickedSize, pickedColour)}, ` +
             `or order what is in the bag first.`,
           { action: { href: "/bag", label: "View bag" } },
         );
@@ -334,7 +348,7 @@ export function StoreProvider({ children }) {
       if (ceiling === 0) {
         toast.info(
           "Sold out",
-          `${describe(product.name, pickedSize)} — there are none left to add.`,
+          `${describe(product.name, pickedSize, pickedColour)} — there are none left to add.`,
         );
         return;
       }
@@ -378,6 +392,7 @@ export function StoreProvider({ children }) {
                 name: product.name,
                 price: product.price,
                 size: pickedSize,
+                colour: pickedColour,
                 image: product.image,
                 qty: added,
                 stock: shelf,
@@ -388,8 +403,8 @@ export function StoreProvider({ children }) {
       toast.success(
         added < wanted ? "Added what was left" : "Added to bag",
         added < wanted
-          ? `${describe(product.name, pickedSize)} — ${ceilingReason(shelf)}`
-          : [describe(product.name, pickedSize), added > 1 ? `× ${added}` : null]
+          ? `${describe(product.name, pickedSize, pickedColour)} — ${ceilingReason(shelf)}`
+          : [describe(product.name, pickedSize, pickedColour), added > 1 ? `× ${added}` : null]
               .filter(Boolean)
               .join(" · "),
         { action: { href: "/bag", label: "View bag" } },
@@ -466,7 +481,10 @@ export function StoreProvider({ children }) {
         // will say for certain.
         if (!product) return line;
 
-        const variant = product.sizes?.find((row) => row.size === line.size);
+        // The line's own (size, colour). A line saved before colours were
+        // offered has none and resolves to nothing on a product now sold
+        // by colour — left as it is, and checkout says for certain.
+        const variant = variantFor(product, line.size, line.colour);
         if (!variant) return line;
 
         const shelf = Math.max(0, Math.trunc(Number(variant.stock) || 0));

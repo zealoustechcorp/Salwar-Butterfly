@@ -59,6 +59,13 @@ const CANCELLABLE_FROM = Object.entries(ORDER_TRANSITIONS)
  * and what happened rather than "checkout failed".
  */
 const explainCheckoutFailure = (error) => {
+  // " (Maroon, size 40)" — the colour first, as the bag line prints it,
+  // and only what the line actually has.
+  const which = [error?.colour, error?.size ? `size ${error.size}` : null]
+    .filter(Boolean)
+    .join(", ");
+  const choice = which ? ` (${which})` : "";
+
   if (error?.code === "VARIANT_NOT_FOUND") {
     return new ApiError(
       404,
@@ -69,7 +76,7 @@ const explainCheckoutFailure = (error) => {
   if (error?.code === "VARIANT_UNAVAILABLE") {
     return new ApiError(
       409,
-      `${error.productName}${error.size ? ` (size ${error.size})` : ""} is no longer on sale. Remove it from your bag to continue.`,
+      `${error.productName}${choice} is no longer on sale. Remove it from your bag to continue.`,
     );
   }
 
@@ -77,8 +84,8 @@ const explainCheckoutFailure = (error) => {
     return new ApiError(
       409,
       error.available === 0
-        ? `${error.productName}${error.size ? ` (size ${error.size})` : ""} sold out while you were checking out. Remove it from your bag to continue.`
-        : `Only ${error.available} left of ${error.productName}${error.size ? ` (size ${error.size})` : ""}. Reduce the quantity to continue.`,
+        ? `${error.productName}${choice} sold out while you were checking out. Remove it from your bag to continue.`
+        : `Only ${error.available} left of ${error.productName}${choice}. Reduce the quantity to continue.`,
     );
   }
 

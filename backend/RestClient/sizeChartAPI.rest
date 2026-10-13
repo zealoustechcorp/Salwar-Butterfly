@@ -68,10 +68,10 @@ Content-Type: application/json
   "unit": "in",
   "columns": ["size", "bust", "waist", "hip", "length"],
   "rows": [
-    { "size": "S",  "bust": 36, "waist": 30, "hip": 39, "length": 54 },
-    { "size": "M",  "bust": 38, "waist": 32, "hip": 41, "length": 55 },
-    { "size": "L",  "bust": 40, "waist": 34, "hip": 43, "length": 56 },
-    { "size": "XL", "bust": 42, "waist": 36, "hip": 45, "length": null }
+    { "size": "36", "bust": 36, "waist": 30, "hip": 39, "length": 54 },
+    { "size": "38", "bust": 38, "waist": 32, "hip": 41, "length": 55 },
+    { "size": "40", "bust": 40, "waist": 34, "hip": 43, "length": 56 },
+    { "size": "42", "bust": 42, "waist": 36, "hip": 45, "length": null }
   ]
 }
 
@@ -98,10 +98,10 @@ Content-Type: application/json
   "unit": "in",
   "columns": ["size", "bust", "waist", "hip", "length"],
   "rows": [
-    { "size": "S",  "bust": 36, "waist": 30, "hip": 39, "length": 54 },
-    { "size": "M",  "bust": 38, "waist": 32, "hip": 41, "length": 55 },
-    { "size": "L",  "bust": 40, "waist": 34, "hip": 43, "length": 56 },
-    { "size": "XL", "bust": 42, "waist": 36, "hip": 45, "length": 57 }
+    { "size": "36", "bust": 36, "waist": 30, "hip": 39, "length": 54 },
+    { "size": "38", "bust": 38, "waist": 32, "hip": 41, "length": 55 },
+    { "size": "40", "bust": 40, "waist": 34, "hip": 43, "length": 56 },
+    { "size": "42", "bust": 42, "waist": 36, "hip": 45, "length": 57 }
   ]
 }
 
@@ -163,7 +163,7 @@ Content-Type: application/json
   "fit": "Broken",
   "title": "Columns out of order",
   "columns": ["bust", "size"],
-  "rows": [{ "size": "M", "bust": 38 }]
+  "rows": [{ "size": "38", "bust": 38 }]
 }
 
 
@@ -176,7 +176,7 @@ Content-Type: application/json
   "fit": "Broken",
   "title": "Row carries a column the chart has not got",
   "columns": ["size", "bust"],
-  "rows": [{ "size": "M", "bust": 38, "hip": 40 }]
+  "rows": [{ "size": "38", "bust": 38, "hip": 40 }]
 }
 
 
@@ -189,5 +189,5 @@ Content-Type: application/json
   "fit": "slim fit",
   "title": "Case does not make it a different fit",
   "columns": ["size", "bust"],
-  "rows": [{ "size": "M", "bust": 38 }]
+  "rows": [{ "size": "38", "bust": 38 }]
 }

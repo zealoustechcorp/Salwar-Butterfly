@@ -90,12 +90,13 @@ const SELECT_ORDER = `
           'product_name', i.product_name,
           'product_slug', i.product_slug,
           'size',         i.size,
+          'colour',       i.colour,
           'image_url',    i.image_url,
           'unit_price',   i.unit_price,
           'quantity',     i.quantity,
           'line_total',   i.line_total
         )
-        ORDER BY i.product_name ASC, i.size ASC
+        ORDER BY i.product_name ASC, i.size ASC, i.colour ASC
       ),
       '[]'::json
     ) AS items
@@ -235,6 +236,7 @@ export const OrderRepository = {
              v.id,
              v.product_id,
              v.size,
+             v.colour,
              v.stock_quantity,
              v.active          AS variant_active,
              p.name            AS product_name,
@@ -281,6 +283,7 @@ export const OrderRepository = {
               variantId: line.variantId,
               productName: variant.product_name,
               size: variant.size,
+              colour: variant.colour || null,
             });
           }
 
@@ -294,6 +297,7 @@ export const OrderRepository = {
               variantId: line.variantId,
               productName: variant.product_name,
               size: variant.size,
+              colour: variant.colour || null,
               available,
               requested: line.quantity,
             });
@@ -317,6 +321,7 @@ export const OrderRepository = {
               variantId: line.variantId,
               productName: variant.product_name,
               size: variant.size,
+              colour: variant.colour || null,
               available,
               requested: line.quantity,
             });
@@ -331,6 +336,8 @@ export const OrderRepository = {
             productName: variant.product_name,
             productSlug: variant.product_slug,
             size: variant.size,
+            // '' for a piece not sold by colour, as on the variant row.
+            colour: variant.colour ?? "",
             imageUrl: variant.image_url,
             unitPrice,
             quantity: line.quantity,
@@ -411,21 +418,21 @@ export const OrderRepository = {
         await client.query(
           `INSERT INTO order_items (
              order_id, product_id, variant_id,
-             product_name, product_slug, size, image_url,
+             product_name, product_slug, size, colour, image_url,
              unit_price, quantity
            )
            SELECT
              $1::uuid,
              p.product_id, p.variant_id,
-             p.product_name, p.product_slug, p.size, p.image_url,
+             p.product_name, p.product_slug, p.size, p.colour, p.image_url,
              p.unit_price, p.quantity
            FROM UNNEST(
              $2::uuid[], $3::uuid[],
-             $4::text[], $5::text[], $6::text[], $7::text[],
-             $8::numeric[], $9::int[]
+             $4::text[], $5::text[], $6::text[], $7::text[], $8::text[],
+             $9::numeric[], $10::int[]
            ) AS p(
              product_id, variant_id,
-             product_name, product_slug, size, image_url,
+             product_name, product_slug, size, colour, image_url,
              unit_price, quantity
            )`,
           [
@@ -435,6 +442,7 @@ export const OrderRepository = {
             items.map((item) => item.productName),
             items.map((item) => item.productSlug),
             items.map((item) => item.size),
+            items.map((item) => item.colour),
             items.map((item) => item.imageUrl),
             items.map((item) => item.unitPrice),
             items.map((item) => item.quantity),

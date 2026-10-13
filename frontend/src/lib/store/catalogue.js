@@ -35,6 +35,7 @@ import { cache } from "react";
 import { STOCK_STATUS, stockStatusFor } from "@/lib/stock";
 
 import { SHOP } from "./shop";
+import { colourStock } from "./variants";
 
 // --- the read -----------------------------------------------------------
 
@@ -170,10 +171,22 @@ function decorate(product, categoryName) {
     // unusable for that; the first block is short, stable and distinct enough
     // across a catalogue this size.
     piece_code: `SB-${String(product.id).slice(0, 8).toUpperCase()}`,
-    // Every size, each carrying the variant_id a bag line is ordered against.
+    // Every size, each carrying the variant_id a bag line is ordered against
+    // — for a product with no colours. See lib/store/variants.js.
     sizes: product.sizes,
     // Only sizes actually on the shelf are selectable.
     available_sizes: sizes.map((s) => s.size),
+    // Colour is optional per product: empty here means the admin sells it
+    // by size alone and no picker is drawn. Each colourway carries what is
+    // left of it across its sizes, so a swatch can say "sold out" before
+    // it is tapped.
+    colours: (product.colours ?? []).map((colour) => ({
+      ...colour,
+      stock: colourStock(product, colour.name),
+    })),
+    // Every (size, colour) with its own count and id. Empty whenever
+    // `colours` is.
+    variants: product.variants ?? [],
     // F-06.08. Defaulted rather than assumed: an API that predates the
     // reviews table returns no `rating`, and a card reaching into
     // `undefined.count` would take the whole grid down over a section

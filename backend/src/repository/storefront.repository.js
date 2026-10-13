@@ -82,6 +82,7 @@ const PRODUCTS_SQL = `
     COALESCE(sizes.rows, '[]'::json) AS sizes,
     COALESCE(sizes.total_stock, 0)   AS stock,
     COALESCE(colourways.rows, '[]'::json) AS colours,
+    COALESCE(by_colour.rows, '[]'::json)  AS variants,
     photos.image_url                 AS image,
     photos.image_url_2               AS image2,
     COALESCE(rating.count, 0)        AS rating_count,
@@ -96,15 +97,13 @@ const PRODUCTS_SQL = `
   -- rows are folded by size first: stock is summed across the colourways,
   -- and the variant_id carried is the first by position.
   --
-  -- That variant_id is a stand-in, and it is only sound because the
-  -- storefront offers no colour choice yet: a shopper who cannot express
-  -- a preference cannot have one ignored. When the swatch picker lands,
-  -- this fold is what it replaces — the bag line must then be ordered
-  -- against the (size, colour) the shopper actually chose, and the
-  -- colourways selected below are the list it will draw.
-  --
-  -- A product with no colours has exactly one row per size, so the fold
-  -- is a no-op and the output is byte-for-byte what it was before.
+  -- The folded rows are what a card, the size filter and "4 of 6 sizes
+  -- in stock" read. Their variant_id is only orderable for a product
+  -- with no colours, where there is exactly one row per size and the
+  -- fold is a no-op. A product sold by colour is ordered from "variants"
+  -- below instead, against the (size, colour) the shopper picked — the
+  -- first-by-position id here would book every colour against one
+  -- arbitrary colourway's shelf.
   LEFT JOIN LATERAL (
     SELECT
       json_agg(
@@ -129,10 +128,10 @@ const PRODUCTS_SQL = `
     ) by_size
   ) sizes ON TRUE
 
-  -- The colourways on sale, so a product card can say "in 3 colours"
-  -- and the detail page has what it needs when the picker is built.
-  -- Empty for a product not sold by colour: '' is the "no colour"
-  -- sentinel and is filtered out rather than surfacing as a blank chip.
+  -- The colourways on sale: the swatches on the detail page and the dots
+  -- on a card. Empty for a product not sold by colour: '' is the "no
+  -- colour" sentinel and is filtered out rather than surfacing as a
+  -- blank chip.
   LEFT JOIN LATERAL (
     SELECT
       COALESCE(
@@ -153,6 +152,27 @@ const PRODUCTS_SQL = `
       GROUP BY v.colour
     ) colours
   ) colourways ON TRUE
+
+  -- Every sellable (size, colour) with its own shelf count, for the
+  -- colour picker. Only filled for a product that has colours: one with
+  -- none is fully described by \`sizes\` above, and repeating its rows
+  -- here would double what every card in the grid downloads for nothing.
+  LEFT JOIN LATERAL (
+    SELECT
+      json_agg(
+        json_build_object(
+          'variant_id', v.id,
+          'size',       v.size,
+          'colour',     v.colour,
+          'stock',      v.stock_quantity
+        )
+        ORDER BY v.position ASC, v.colour ASC
+      ) AS rows
+    FROM product_variants v
+    WHERE v.product_id = p.id
+      AND v.active = TRUE
+      AND v.colour <> ''
+  ) by_colour ON TRUE
   LEFT JOIN LATERAL (
     SELECT
       MAX(i.image_url) FILTER (WHERE i.rn = 1) AS image_url,

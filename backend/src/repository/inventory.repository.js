@@ -51,7 +51,7 @@ const handleDatabaseError = (error, operation, context = {}) => {
  *
  * The cover photo comes from a LATERAL taking the first image rather
  * than the whole gallery — a stock table shows one thumbnail per row,
- * and aggregating eight images per line to display one is wasted work
+ * and aggregating up to twenty images per line to display one is wasted work
  * on every request.
  */
 const SELECT_ROW = `

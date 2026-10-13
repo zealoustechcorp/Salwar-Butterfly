@@ -6,6 +6,7 @@ import { useEffect } from "react";
 
 import { money } from "@/lib/format";
 import { MAX_BAG_LINES, MAX_LINE_QTY, orderableQty } from "@/lib/stock";
+import { describeChoice, variantFor } from "@/lib/store/variants";
 import { useAuth } from "./AuthProvider";
 import { WhatsAppGlyph } from "./Ornaments";
 import { Photo } from "./Photo";
@@ -55,7 +56,7 @@ export function BagView({ products, shop }) {
    * gives the real answer.
    */
   const shelfFor = (line) => {
-    const variant = byId.get(line.product_id)?.sizes?.find((row) => row.size === line.size);
+    const variant = variantFor(byId.get(line.product_id), line.size, line.colour);
 
     if (variant) return Math.max(0, Math.trunc(Number(variant.stock) || 0));
 
@@ -91,7 +92,11 @@ export function BagView({ products, shop }) {
         `and this one has ${bag.length}. Remove ${bag.length - MAX_BAG_LINES} to check out, ` +
         `and order the rest separately.`
       : soldOut.length === 1
-        ? `${soldOut[0].name}${soldOut[0].size ? ` in size ${soldOut[0].size}` : ""} sold out while it was in your bag. Remove it to check out.`
+        ? `${soldOut[0].name}${
+            soldOut[0].size || soldOut[0].colour
+              ? ` in ${describeChoice(soldOut[0].size, soldOut[0].colour)}`
+              : ""
+          } sold out while it was in your bag. Remove it to check out.`
         : soldOut.length
           ? `${soldOut.length} pieces above sold out while they were in your bag. Remove them to check out.`
           : null;
@@ -177,12 +182,18 @@ export function BagView({ products, shop }) {
                         </Link>
                       </h2>
                       <p className="mt-0.5 text-xs text-sb-text-muted">
+                        {line.colour ? `${line.colour} · ` : ""}
                         {line.size ? `Size ${line.size}` : "One size"}
                         {product?.fabric ? ` · ${product.fabric}` : ""}
                       </p>
                       {gone ? (
                         <p className="mt-1 text-xs font-semibold text-sb-link">
-                          {line.size ? `Size ${line.size} sold out` : "Sold out"} since you added
+                          {line.colour
+                            ? `${line.colour}${line.size ? ` in size ${line.size}` : ""} sold out`
+                            : line.size
+                              ? `Size ${line.size} sold out`
+                              : "Sold out"}{" "}
+                          since you added
                           it — remove it before you check out.
                         </p>
                       ) : atCeiling && shelf !== null && shelf <= MAX_LINE_QTY ? (

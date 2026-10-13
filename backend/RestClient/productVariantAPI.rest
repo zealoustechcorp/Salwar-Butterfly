@@ -25,10 +25,10 @@ Content-Type: application/json
 
 {
   "variants": [
-    { "size": "S",   "stockQuantity": 4,  "active": true },
-    { "size": "M",   "stockQuantity": 30, "active": true },
-    { "size": "L",   "stockQuantity": 0,  "active": true },
-    { "size": "XL",  "stockQuantity": 7,  "active": false }
+    { "size": "36", "stockQuantity": 4,  "active": true },
+    { "size": "38", "stockQuantity": 30, "active": true },
+    { "size": "40", "stockQuantity": 0,  "active": true },
+    { "size": "42", "stockQuantity": 7,  "active": false }
   ]
 }
 
@@ -76,7 +76,7 @@ Content-Type: application/json
 
 {
   "productId": "{{productId}}",
-  "size": "XXL",
+  "size": "44",
   "stockQuantity": 12,
   "active": true
 }
@@ -89,7 +89,7 @@ PUT {{baseUrl}}/productVariants/updateVariant/{{variantId}}
 Content-Type: application/json
 
 {
-  "size": "XL",
+  "size": "42",
   "stockQuantity": 20,
   "active": true
 }
@@ -131,7 +131,7 @@ Content-Type: application/json
 
 {
   "variants": [
-    { "size": "M", "stockQuantity": 5 },
+    { "size": "38", "stockQuantity": 5 },
     { "size": "m", "stockQuantity": 8 }
   ]
 }
@@ -145,7 +145,7 @@ Content-Type: application/json
 
 {
   "variants": [
-    { "size": "M", "stockQuantity": -5 }
+    { "size": "38", "stockQuantity": -5 }
   ]
 }
 
