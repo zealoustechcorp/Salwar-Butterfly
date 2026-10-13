@@ -16,7 +16,7 @@ const UUID_REGEX =
  * little room. Past that, a gallery is a slideshow nobody scrolls and a
  * page nobody waits for.
  */
-export const MAX_IMAGES_PER_PRODUCT = 8;
+export const MAX_IMAGES_PER_PRODUCT = 20;
 
 /** Everything a product's photographs are filed under in R2. */
 const IMAGE_FOLDER = "products";

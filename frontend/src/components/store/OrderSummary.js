@@ -83,6 +83,7 @@ export function OrderLines({ order, compact = false }) {
                   {item.productName}
                 </p>
                 <p className="mt-0.5 text-xs text-sb-text-muted">
+                  {item.colour ? `${item.colour} · ` : ""}
                   {item.size ? `Size ${item.size}` : "One size"} · {item.quantity} ×{" "}
                   {money(item.unitPrice)}
                 </p>

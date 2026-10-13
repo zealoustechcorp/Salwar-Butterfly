@@ -50,6 +50,7 @@ import {
   isSameAddress,
 } from "@/lib/store/addresses";
 import { placeOrder } from "@/lib/store/orders";
+import { describeChoice } from "@/lib/store/variants";
 import {
   collect,
   hasErrors,
@@ -556,7 +557,11 @@ export function CheckoutView() {
                   {oversold
                     .map(
                       (line) =>
-                        `${line.name}${line.size ? ` (size ${line.size})` : ""} — ${
+                        `${line.name}${
+                          line.size || line.colour
+                            ? ` (${describeChoice(line.size, line.colour)})`
+                            : ""
+                        } — ${
                           line.stock > 0 ? `only ${line.stock} left` : "sold out"
                         }`,
                     )
@@ -903,6 +908,7 @@ export function CheckoutView() {
                         {line.name}
                       </p>
                       <p className="mt-0.5 text-xs text-sb-text-muted">
+                        {line.colour ? `${line.colour} · ` : ""}
                         {line.size ? `Size ${line.size}` : "One size"} · × {line.qty}
                       </p>
                     </div>

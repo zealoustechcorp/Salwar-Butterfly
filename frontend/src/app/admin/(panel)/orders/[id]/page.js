@@ -256,7 +256,8 @@ export default function OrderDetailPage() {
                       </span>
                     </div>
                     <p className="mt-0.5 text-xs text-ink-500 tabular-nums">
-                      Size {item.size || "—"} · {number(item.quantity)} ×{" "}
+                      {item.colour ? `${item.colour} · ` : ""}Size {item.size || "—"} ·{" "}
+                      {number(item.quantity)} ×{" "}
                       {money(item.unitPrice, { precise: true })}
                     </p>
                   </div>
@@ -299,6 +300,9 @@ export default function OrderDetailPage() {
                       </td>
                       <td className="px-3 py-2.5 text-ink-600">
                         {item.size || "—"}
+                        {item.colour ? (
+                          <span className="block text-xs text-ink-500">{item.colour}</span>
+                        ) : null}
                       </td>
                       <td className="px-3 py-2.5 text-right text-ink-600 tabular-nums">
                         {money(item.unitPrice, { precise: true })}

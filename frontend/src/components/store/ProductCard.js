@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { money } from "@/lib/format";
+import { soldByColour } from "@/lib/store/variants";
 import { cn } from "@/lib/utils";
 import { Photo } from "./Photo";
 import { SizeChartButton } from "./SizeChart";
@@ -35,6 +36,10 @@ export function ProductCard({ product, priority = false }) {
   const wished = wishlist.includes(product.id);
   const needsSize = product.available_sizes.length > 0;
   const canAdd = product.in_stock && (!needsSize || Boolean(size));
+  // A piece sold by colour is not quick-added from the tile. Its size chips
+  // would be the sizes of every colour folded together, and a tap could not
+  // say which colour the shopper meant — the product page asks properly.
+  const byColour = soldByColour(product);
 
   return (
     <article className="group flex flex-col">
@@ -111,7 +116,14 @@ export function ProductCard({ product, priority = false }) {
           honest test — a 1024px tablet has a desktop's width and no pointer.
         */}
         <div className="border-t border-sb-gold/30 bg-sb-bg/95 p-3 transition-transform duration-300 group-hover:translate-y-0 group-focus-within:translate-y-0 [@media(hover:hover)]:absolute [@media(hover:hover)]:inset-x-0 [@media(hover:hover)]:bottom-0 [@media(hover:hover)]:translate-y-full">
-          {product.available_sizes.length ? (
+          {byColour ? (
+            <Link
+              href={`/product/${product.id}`}
+              className="flex w-full items-center justify-center gap-2 rounded-full bg-sb-btn-primary px-3 py-2.5 text-[13px] font-semibold text-sb-bg transition-colors hover:bg-sb-btn-rose sm:px-4 sm:text-sm"
+            >
+              {product.in_stock ? "Choose a colour" : "Sold out — see colours"}
+            </Link>
+          ) : product.available_sizes.length ? (
             <>
               {/* The tile lets a shopper add to the bag without ever opening
                   the piece, so the chart has to be reachable from here too —
@@ -147,15 +159,17 @@ export function ProductCard({ product, priority = false }) {
             <p className="mb-2 text-[11px] text-sb-text-muted">No sizes in stock</p>
           )}
 
-          <button
-            type="button"
-            disabled={!canAdd}
-            onClick={() => addToBag(product, { size })}
-            className="flex w-full items-center justify-center gap-2 rounded-full bg-sb-btn-primary px-3 py-2.5 text-[13px] font-semibold text-sb-bg transition-colors hover:bg-sb-btn-rose disabled:cursor-not-allowed disabled:bg-sb-text-muted/40 sm:px-4 sm:text-sm"
-          >
-            <ShoppingBag className="size-4 shrink-0" aria-hidden="true" />
-            {!product.in_stock ? "Sold out" : canAdd ? "Add to bag" : "Select a size"}
-          </button>
+          {byColour ? null : (
+            <button
+              type="button"
+              disabled={!canAdd}
+              onClick={() => addToBag(product, { size })}
+              className="flex w-full items-center justify-center gap-2 rounded-full bg-sb-btn-primary px-3 py-2.5 text-[13px] font-semibold text-sb-bg transition-colors hover:bg-sb-btn-rose disabled:cursor-not-allowed disabled:bg-sb-text-muted/40 sm:px-4 sm:text-sm"
+            >
+              <ShoppingBag className="size-4 shrink-0" aria-hidden="true" />
+              {!product.in_stock ? "Sold out" : canAdd ? "Add to bag" : "Select a size"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -172,6 +186,35 @@ export function ProductCard({ product, priority = false }) {
 
         {product.fabric ? (
           <p className="mt-0.5 text-[11px] text-sb-text-muted sm:text-xs">{product.fabric}</p>
+        ) : null}
+
+        {/* The colourways, as dots — a sold-out one is faded rather than
+            hidden, so the tile does not claim fewer colours than the page. */}
+        {byColour ? (
+          <div className="mt-1.5 flex items-center gap-1.5">
+            <ul className="flex items-center gap-1" aria-label="Colours">
+              {product.colours.slice(0, 6).map((swatch) => (
+                <li
+                  key={swatch.name}
+                  title={swatch.stock > 0 ? swatch.name : `${swatch.name} — sold out`}
+                  className={cn(
+                    "size-3.5 rounded-full ring-1 ring-sb-text/20",
+                    !swatch.hex && "bg-sb-surface",
+                    swatch.stock <= 0 && "opacity-35",
+                  )}
+                  style={swatch.hex ? { backgroundColor: swatch.hex } : undefined}
+                >
+                  <span className="sr-only">
+                    {swatch.name}
+                    {swatch.stock <= 0 ? " (sold out)" : ""}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <span className="text-[11px] text-sb-text-muted">
+              {product.colours.length} {product.colours.length === 1 ? "colour" : "colours"}
+            </span>
+          </div>
         ) : null}
 
         {product.rating?.count ? (

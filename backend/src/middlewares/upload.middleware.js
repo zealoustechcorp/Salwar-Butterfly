@@ -20,7 +20,7 @@ const MAX_FILES = 1;
 // cover image does not. Matches MAX_IMAGES_PER_PRODUCT in the service,
 // which is what actually enforces the per-product ceiling; this only
 // bounds one request.
-const MAX_PRODUCT_IMAGES = 8;
+const MAX_PRODUCT_IMAGES = 20;
 
 // The batch instance below is shared by the product gallery, the home
 // page carousel and the customer stories, so its ceiling is whichever of
@@ -206,7 +206,7 @@ export const uploadCategoryImage = upload.single("image");
 //
 // Expected multipart/form-data:
 //
-// images   = File (repeat the field for each image, up to 8)
+// images   = File (repeat the field for each image, up to 20)
 // altText  = String (optional, repeated positionally against the files)
 //
 // Example:

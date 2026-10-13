@@ -183,7 +183,7 @@ function itemsTable(order) {
       (item) => `<tr>
 <td style="padding:12px 0;border-bottom:1px solid ${C.surfaceSoft};">
 <div style="font-family:${FONT_DISPLAY};font-size:18px;font-weight:600;line-height:1.3;color:${C.heading};">${esc(item.product_name)}</div>
-<div style="padding-top:3px;font-size:13px;color:${C.muted};">${item.size ? `Size ${esc(item.size)} &nbsp;·&nbsp; ` : ""}Qty ${esc(item.quantity)} &nbsp;·&nbsp; ${esc(money(item.unit_price, order.currency))} each</div>
+<div style="padding-top:3px;font-size:13px;color:${C.muted};">${item.colour ? `${esc(item.colour)} &nbsp;·&nbsp; ` : ""}${item.size ? `Size ${esc(item.size)} &nbsp;·&nbsp; ` : ""}Qty ${esc(item.quantity)} &nbsp;·&nbsp; ${esc(money(item.unit_price, order.currency))} each</div>
 </td>
 <td align="right" style="padding:12px 0 12px 12px;border-bottom:1px solid ${C.surfaceSoft};white-space:nowrap;vertical-align:top;font-weight:700;color:${C.text};">${esc(money(item.line_total, order.currency))}</td>
 </tr>`,
@@ -209,7 +209,11 @@ const itemsText = (order) =>
   items(order)
     .map(
       (item) =>
-        `- ${item.product_name}${item.size ? ` (size ${item.size})` : ""} x${item.quantity} — ${money(item.line_total, order.currency)}`,
+        `- ${item.product_name}${
+          item.size || item.colour
+            ? ` (${[item.colour, item.size ? `size ${item.size}` : null].filter(Boolean).join(", ")})`
+            : ""
+        } x${item.quantity} — ${money(item.line_total, order.currency)}`,
     )
     .join("\n");
 

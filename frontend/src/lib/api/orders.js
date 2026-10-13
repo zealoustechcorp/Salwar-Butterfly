@@ -233,6 +233,8 @@ export function toOrderItem(dto) {
 
     productName: dto.productName ?? "",
     size: dto.size ?? null,
+    // Null for a line not bought by colour.
+    colour: dto.colour ?? null,
     unitPrice: dto.unitPrice == null ? null : Number(dto.unitPrice),
     quantity: Number(dto.quantity ?? 0),
     lineTotal: dto.lineTotal == null ? null : Number(dto.lineTotal),

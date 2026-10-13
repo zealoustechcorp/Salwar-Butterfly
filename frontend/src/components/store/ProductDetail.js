@@ -6,6 +6,7 @@ import { useState } from "react";
 
 import { money, shortDate } from "@/lib/format";
 import { MAX_LINE_QTY, availabilityNotice, orderableQty } from "@/lib/stock";
+import { lineKey, sizesInColour, soldByColour } from "@/lib/store/variants";
 import { cn } from "@/lib/utils";
 import { CarouselArrow, useCarousel } from "./Carousel";
 import { WhatsAppGlyph } from "./Ornaments";
@@ -27,9 +28,15 @@ import { useStore } from "./StoreProvider";
  *     only one 40 is left before they pick, not after.
  *   - a quantity that cannot exceed what the chosen size actually holds.
  *
- * There is no description, care label or colourway, because the shop publishes
- * none of those — a detail page padded with invented copy about a real garment
- * would be worse than a short one.
+ * Colour is the admin's choice per product. A piece entered with colourways
+ * gets a swatch row above the sizes, and every count below it — sizes in stock,
+ * "2 left", the quantity ceiling — is then that colour's own shelf, because
+ * that is the row checkout will take the piece from. A piece entered without
+ * colours shows no picker at all and behaves exactly as it always has.
+ *
+ * There is no description or care label, because the shop publishes neither —
+ * a detail page padded with invented copy about a real garment would be worse
+ * than a short one.
  *
  * Reviews (F-06.08) are the one thing that rule used to exclude and no longer
  * does, now that the shop has an admin page to publish them from. They live in
@@ -38,11 +45,23 @@ import { useStore } from "./StoreProvider";
  */
 export function ProductDetail({ product, shop }) {
   const { addToBag, bag, toggleWish, wishlist } = useStore();
+  const byColour = soldByColour(product);
+  // Opens on the first colourway that still has something on the shelf, so
+  // the size row below it is never a row of struck-through chips on arrival.
+  const [colour, setColour] = useState(() =>
+    byColour ? (product.colours.find((c) => c.stock > 0) ?? product.colours[0]).name : null,
+  );
   const [size, setSize] = useState(null);
   const [qty, setQty] = useState(1);
 
   const shots = [product.image, product.image2].filter(Boolean);
   const wished = wishlist.includes(product.id);
+
+  // The size chips: per colour when the piece is sold by colour, otherwise
+  // the per-size rows as before. Same shape either way — size and stock.
+  const sizeRows = byColour ? sizesInColour(product, colour) : product.sizes;
+  const inStockSizes = sizeRows.filter((row) => row.stock > 0).length;
+  const colourLeft = byColour ? (product.colours.find((c) => c.name === colour)?.stock ?? 0) : null;
 
   /**
    * How many more of one size may still be added.
@@ -57,12 +76,12 @@ export function ProductDetail({ product, shop }) {
   const remainingFor = (row) => {
     if (!row) return 0;
 
-    const held = bag.find((line) => line.key === `${product.id}:${row.size}`)?.qty ?? 0;
+    const held = bag.find((line) => line.key === lineKey(product.id, row.size, colour))?.qty ?? 0;
 
     return Math.max(0, orderableQty(row.stock) - held);
   };
 
-  const chosen = product.sizes.find((row) => row.size === size) ?? null;
+  const chosen = sizeRows.find((row) => row.size === size) ?? null;
   const remaining = remainingFor(chosen);
   const canAdd = product.in_stock && remaining > 0;
 
@@ -73,11 +92,26 @@ export function ProductDetail({ product, shop }) {
 
   /** Picking a size re-clamps a quantity the previous size allowed. */
   const chooseSize = (value) => {
-    const row = product.sizes.find((entry) => entry.size === value);
+    const row = sizeRows.find((entry) => entry.size === value);
     if (!row?.stock) return;
     setSize(value);
     setQty((current) => Math.min(current, Math.max(1, remainingFor(row))));
   };
+
+  /**
+   * Switching colour keeps the size where that colour still has it — a
+   * shopper comparing Maroon and Teal in a 40 should not have to pick 40
+   * twice — and clears it where it does not, rather than leaving a chip
+   * selected that the new colour has sold out of.
+   */
+  const chooseColour = (name) => {
+    setColour(name);
+    const row = sizesInColour(product, name).find((entry) => entry.size === size);
+    if (!row?.stock) setSize(null);
+  };
+
+  /** "in Maroon, size 40" / "in size 40" for the stock line under the chips. */
+  const inWhat = (row) => (colour ? `in ${colour}, size ${row.size}` : `in size ${row.size}`);
 
   const notice = product.in_stock ? availabilityNotice(product.stock) : null;
 
@@ -154,13 +188,77 @@ export function ProductDetail({ product, shop }) {
           </p>
         ) : null}
 
+        {/* Colourways — only on a piece the shop sells by colour */}
+        {byColour ? (
+          <div className="mt-6">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+              <p className="text-sm font-bold text-sb-text">
+                Colour: <span className="font-semibold text-sb-heading">{colour}</span>
+              </p>
+              <p className="text-xs text-sb-text-muted">
+                {colourLeft > 0
+                  ? `${colourLeft} ${colourLeft === 1 ? "piece" : "pieces"} left in ${colour}`
+                  : `${colour} is sold out`}
+              </p>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              {product.colours.map((swatch) => {
+                const sold = swatch.stock <= 0;
+                const picked = colour === swatch.name;
+                return (
+                  // Still selectable when sold out: a shopper may want to see
+                  // which sizes that colour came in, and the size chips below
+                  // will all say "sold out" for them.
+                  <button
+                    key={swatch.name}
+                    type="button"
+                    onClick={() => chooseColour(swatch.name)}
+                    aria-pressed={picked}
+                    aria-label={
+                      sold
+                        ? `${swatch.name} — sold out`
+                        : `${swatch.name} — ${swatch.stock} in stock`
+                    }
+                    className={cn(
+                      "flex items-center gap-2 rounded-full border py-1.5 pr-3.5 pl-1.5 text-sm font-semibold transition-colors",
+                      picked
+                        ? "border-sb-heading bg-sb-surface/60 text-sb-heading"
+                        : "border-sb-gold/45 bg-sb-bg text-sb-text hover:border-sb-heading",
+                      sold && "text-sb-text-muted/60",
+                    )}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        "relative size-6 shrink-0 overflow-hidden rounded-full ring-1 ring-sb-text/15",
+                        !swatch.hex && "bg-sb-surface",
+                        sold && "opacity-45",
+                      )}
+                      style={swatch.hex ? { backgroundColor: swatch.hex } : undefined}
+                    >
+                      {/* A strike across the dot, so "sold out" reads on the
+                          swatch itself and not only from the label. */}
+                      {sold ? (
+                        <span className="absolute top-1/2 left-1/2 h-px w-8 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-sb-text" />
+                      ) : null}
+                    </span>
+                    <span className={cn(sold && "line-through")}>{swatch.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+
         {/* Per-size stock: the reason this page exists */}
         <div className="mt-6">
           <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
             <p className="text-sm font-bold text-sb-text">Select a size</p>
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
               <p className="text-xs text-sb-text-muted">
-                {product.available_sizes.length} of {product.sizes.length} sizes in stock
+                {inStockSizes} of {sizeRows.length} sizes in stock
+                {colour ? ` in ${colour}` : ""}
               </p>
               {/* Next to the picker, because this is where the question is
                   actually asked — and a size a shopper chose themselves is
@@ -172,7 +270,7 @@ export function ProductDetail({ product, shop }) {
           </div>
 
           <div className="mt-3 flex flex-wrap gap-2">
-            {product.sizes.map((row) => {
+            {sizeRows.map((row) => {
               const sold = row.stock <= 0;
               return (
                 <button
@@ -183,8 +281,8 @@ export function ProductDetail({ product, shop }) {
                   aria-pressed={size === row.size}
                   aria-label={
                     sold
-                      ? `Size ${row.size} — sold out`
-                      : `Size ${row.size} — ${row.stock} in stock`
+                      ? `Size ${row.size}${colour ? ` in ${colour}` : ""} — sold out`
+                      : `Size ${row.size}${colour ? ` in ${colour}` : ""} — ${row.stock} in stock`
                   }
                   className={cn(
                     "min-w-12 rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors",
@@ -204,16 +302,16 @@ export function ProductDetail({ product, shop }) {
           <p className="mt-2.5 min-h-5 text-xs text-sb-text-muted" aria-live="polite">
             {chosen ? (
               chosen.stock === 1 ? (
-                <span className="font-semibold text-sb-link">
-                  Last one left in size {chosen.size}.
-                </span>
+                <span className="font-semibold text-sb-link">Last one left {inWhat(chosen)}.</span>
               ) : (
-                `${chosen.stock} left in size ${chosen.size}.`
+                `${chosen.stock} left ${inWhat(chosen)}.`
               )
-            ) : product.in_stock ? (
-              "Pick a size to see how many are left."
-            ) : (
+            ) : !product.in_stock ? (
               "Every size in this run is gone."
+            ) : byColour && colourLeft === 0 ? (
+              `Every size in ${colour} is gone — try another colour.`
+            ) : (
+              "Pick a size to see how many are left."
             )}
           </p>
 
@@ -257,8 +355,8 @@ export function ProductDetail({ product, shop }) {
               {chosen.stock > MAX_LINE_QTY
                 ? `${MAX_LINE_QTY} of one size is the most a single order may carry.`
                 : remaining < orderableQty(chosen.stock)
-                  ? `That is every size ${chosen.size} the shop has, counting what is in your bag.`
-                  : `That is every size ${chosen.size} on the shelf.`}
+                  ? `That is every one ${inWhat(chosen)} the shop has, counting what is in your bag.`
+                  : `That is every one ${inWhat(chosen)} on the shelf.`}
             </p>
           ) : null}
         </div>
@@ -268,7 +366,7 @@ export function ProductDetail({ product, shop }) {
           <button
             type="button"
             disabled={!canAdd}
-            onClick={() => addToBag(product, { size, qty: wanted })}
+            onClick={() => addToBag(product, { size, colour, qty: wanted })}
             className="flex flex-1 items-center justify-center gap-2 rounded-full bg-sb-btn-primary px-6 py-3.5 text-sm font-semibold text-sb-bg transition-colors hover:bg-sb-btn-rose disabled:cursor-not-allowed disabled:bg-sb-text-muted/40"
           >
             <ShoppingBag className="size-4 shrink-0" aria-hidden="true" />
@@ -461,6 +559,14 @@ function Spec({ product }) {
   const rows = [
     { term: "Collection", value: product.category_name },
     product.fabric ? { term: "Fabric", value: product.fabric } : null,
+    product.colours?.length
+      ? {
+          term: "Colours",
+          value: product.colours
+            .map((c) => (c.stock > 0 ? `${c.name} (${c.stock})` : `${c.name} (sold out)`))
+            .join(", "),
+        }
+      : null,
     {
       term: "Sizes in stock",
       value: product.available_sizes.length ? product.available_sizes.join(", ") : "None left",
