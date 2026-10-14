@@ -11,6 +11,7 @@
 // error every time.
 
 import { query, withTransaction } from "../config/db.js";
+import { FIT_GROUP } from "../config/attribute.groups.js";
 import { logger } from "../utils/logger.js";
 
 const handleDatabaseError = (error, operation, context = {}) => {
@@ -261,18 +262,52 @@ export const SizeChartRepository = {
   },
 
   /**
-   * Removes a chart outright.
+   * How many products are cut to a fit — what a chart's delete has to
+   * answer for.
    *
-   * A hard delete, and nothing points at these rows — a chart is chosen
-   * by fit on the storefront and by id only inside the admin screen, so
-   * there is no order or product left dangling. Hiding without
+   * There is no foreign key: a product names its chart by the string in
+   * `attributes.fit`, matched case-insensitively the way findByFit does.
+   */
+  async countProductsWithFit(fit) {
+    try {
+      const result = await query(
+        `SELECT COUNT(*)::INTEGER AS count
+         FROM products
+         WHERE lower(attributes->>'${FIT_GROUP}') = lower($1)`,
+        [fit],
+      );
+
+      return result.rows[0]?.count ?? 0;
+    } catch (error) {
+      throw handleDatabaseError(error, "countProductsWithFit", { fit });
+    }
+  },
+
+  /**
+   * Removes a chart outright — but only one no product is cut to.
+   *
+   * Nothing points at these rows by id, but products point at them by
+   * fit: deleting the chart a product's `attributes.fit` names leaves
+   * that product's size guide falling back to every chart, and (before
+   * resolveFit learned to accept an unchanged fit) made the product
+   * unsaveable. The emptiness is part of the DELETE, so a product given
+   * this fit after the service counted still stops it. Hiding without
    * destroying is what `setActive` is for, and it is the gesture the
    * admin table offers first.
+   *
+   * @returns {Promise<boolean>} false when nothing was deleted — the
+   *          chart is gone, or is in use; the service tells which
    */
   async remove(id) {
     try {
       const result = await query(
-        "DELETE FROM size_charts WHERE id = $1::uuid RETURNING id",
+        `DELETE FROM size_charts sc
+         WHERE sc.id = $1::uuid
+           AND NOT EXISTS (
+             SELECT 1 FROM products p
+             WHERE lower(p.attributes->>'${FIT_GROUP}') = lower(sc.fit)
+           )
+         RETURNING sc.id`,
         [id],
       );
 

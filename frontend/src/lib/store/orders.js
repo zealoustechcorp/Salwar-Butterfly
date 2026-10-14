@@ -57,16 +57,26 @@ function toFailure(error, fallbackField = null) {
  * @param {object} input.shippingAddress
  * @param {Array<{variantId: string, quantity: number}>} input.items
  * @param {string} [input.customerNote]
+ * @param {boolean} [input.whatsappOptIn]  the "WhatsApp me updates" tick. The
+ *        API refuses anything but a real boolean, and the notification service
+ *        sends nothing for an order without it — so dropping it here silently
+ *        unsubscribed every shopper who left it ticked.
  * @param {string|null} [token]
  */
 export async function placeOrder(
-  { contact, shippingAddress, items, customerNote },
+  { contact, shippingAddress, items, customerNote, whatsappOptIn },
   token = null,
 ) {
   try {
     const order = await api.post(
       "/orders/placeOrder",
-      { contact, shippingAddress, items, customerNote: customerNote || undefined },
+      {
+        contact,
+        shippingAddress,
+        items,
+        customerNote: customerNote || undefined,
+        whatsappOptIn: typeof whatsappOptIn === "boolean" ? whatsappOptIn : undefined,
+      },
       { token },
     );
 
@@ -81,17 +91,23 @@ export async function placeOrder(
 // ============================================================
 
 /**
- * The shopper's own orders (F-07.02), newest first.
+ * One page of the shopper's own orders (F-07.02), newest first.
+ *
+ * `pagination` is the API's `{ page, limit, total, totalPages, hasNextPage }`
+ * — what the order list reads to decide whether to offer "Show more".
  *
  * Throws rather than returning `{ ok }` — the caller is a screen loading its
  * own data, not a form, and it needs to tell "signed out" from "the API is
  * unreachable" to decide between redirecting and offering a retry.
  */
-export async function fetchMyOrders(token, { signal, limit = 20 } = {}) {
-  const { data, meta } = await api.get(
-    `/orders/getMyOrders?limit=${encodeURIComponent(limit)}`,
-    { token, signal, envelope: true },
-  );
+export async function fetchMyOrders(token, { signal, limit = 20, page = 1 } = {}) {
+  const query = new URLSearchParams({ limit: String(limit), page: String(page) });
+
+  const { data, meta } = await api.get(`/orders/getMyOrders?${query}`, {
+    token,
+    signal,
+    envelope: true,
+  });
 
   return { orders: data ?? [], pagination: meta?.pagination ?? null };
 }

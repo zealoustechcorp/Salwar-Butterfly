@@ -21,8 +21,8 @@ import {
   requireCustomer,
 } from "../middlewares/authorize.middleware.js";
 import {
-  authRateLimiter,
   checkoutRateLimiter,
+  trackOrderRateLimiter,
 } from "../middlewares/rateLimiter.js";
 
 import {
@@ -70,12 +70,14 @@ router.post(
  * query string ends up in access logs, browser history and every proxy
  * in between.
  *
- * Behind the auth limiter because it is a guessing surface — order
- * numbers run in sequence, so knowing one is knowing where the others
- * are, and the email is the only thing standing between a guess and
- * somebody's address.
+ * Rate limited because it is a guessing surface — order numbers run in
+ * sequence, so knowing one is knowing where the others are, and the
+ * email is the only thing standing between a guess and somebody's
+ * address. Its own bucket rather than the sign-in one: a guest
+ * refreshing for a parcel should not lock themselves out of signing in,
+ * nor a few failed sign-ins stop them tracking (see rateLimiter.js).
  */
-router.post("/trackOrder", authRateLimiter, OrderController.track);
+router.post("/trackOrder", trackOrderRateLimiter, OrderController.track);
 
 /**
  * The shopper's own orders (F-07.02).

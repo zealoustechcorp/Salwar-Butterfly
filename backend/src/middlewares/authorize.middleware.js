@@ -2,6 +2,7 @@
 
 import { ApiError } from "../utils/ApiError.js";
 import { ADMIN_ROLES } from "../models/admin.entity.js";
+import { AdminRepository } from "../repository/admin.repository.js";
 import { ADMIN_TOKEN_TYPE } from "../services/admin.auth.service.js";
 import { CUSTOMER_TOKEN_TYPE } from "../services/customer.auth.service.js";
 import { logger } from "../utils/logger.js";
@@ -26,7 +27,7 @@ import { logger } from "../utils/logger.js";
  * customer token would verify perfectly well against an admin
  * route — the signature is valid, only the audience is wrong.
  */
-export const requireAdmin = (req, res, next) => {
+export const requireAdmin = async (req, res, next) => {
   const user = req.user;
 
   if (!user) {
@@ -61,6 +62,45 @@ export const requireAdmin = (req, res, next) => {
       "ADMIN_ROLE_INVALID",
     );
   }
+
+  // ----------------------------------------------------------
+  // IS THE ACCOUNT STILL ALLOWED IN?
+  // ----------------------------------------------------------
+  //
+  // An access token is a fifteen-minute assertion nothing can withdraw,
+  // so without this a deactivated or deleted admin kept full write
+  // access to the panel until it lapsed — /me already refused them, the
+  // routes that matter did not (BUG-7's admin twin). One primary-key
+  // read per admin request: admin traffic is a handful of people, and
+  // these are the routes that can change prices, stock and orders.
+  //
+  // The role is taken from the row as well, so a demotion bites on the
+  // next request rather than the next renewal; requireRole reads
+  // req.user.role after this.
+  //
+  // The storefront's equivalent is *not* here. Shopper traffic is most
+  // of the API, and the customer-only writes (addresses, wishlist) take
+  // a lock on the customer row anyway, which checks deleted_at at no
+  // extra cost — see lockOwner in those repositories.
+  //
+  // ----------------------------------------------------------
+
+  const admin = await AdminRepository.findById(user.id);
+
+  if (!admin || !admin.active) {
+    logger.warn("Admin token for an account that may no longer sign in", {
+      userId: user.id,
+      method: req.method,
+      path: req.originalUrl,
+    });
+
+    throw ApiError.unauthorized(
+      "Your session is no longer valid",
+      "SESSION_INVALID",
+    );
+  }
+
+  req.user.role = admin.role;
 
   next();
 };

@@ -121,6 +121,35 @@ const normalizeIdList = (value) => {
   ];
 };
 
+/**
+ * The 409 a size-matrix save gets when stock moved under it.
+ *
+ * Code STOCK_CHANGED, so the form can tell it from a duplicate-size 409
+ * and offer to reload; `errors` names each size the way the admin reads
+ * it, and `details` carries the numbers for a client that wants to merge
+ * rather than reload.
+ */
+export const stockChangedError = (conflicts) => {
+  const errors = {};
+
+  for (const conflict of conflicts) {
+    errors[describe(conflict.size, conflict.colour)] =
+      `Stock changed from ${conflict.expected} to ${conflict.current} since this page was loaded`;
+  }
+
+  const names = Object.keys(errors);
+
+  return new ApiError({
+    statusCode: 409,
+    code: "STOCK_CHANGED",
+    message:
+      `Stock changed for ${names.join(", ")} since this page was loaded. ` +
+      "Reload the sizes and save again — nothing was saved.",
+    errors,
+    details: { conflicts },
+  });
+};
+
 const normalizeBoolean = (value, fallback) => {
   if (value === undefined || value === null || value === "") return fallback;
   if (typeof value === "boolean") return value;
@@ -175,8 +204,13 @@ export const ProductVariantService = {
         limit: safeLimit,
       });
 
+      // Summaries over every row of each product on the page, not just
+      // the rows the page happens to hold — see findForSummaries.
+      const productIds = [...new Set(result.rows.map((row) => row.product_id))];
+      const allRows = await ProductVariantRepository.findForSummaries(productIds);
+
       const byProduct = {};
-      for (const row of result.rows) {
+      for (const row of allRows) {
         (byProduct[row.product_id] ||= []).push(row);
       }
 
@@ -335,12 +369,28 @@ export const ProductVariantService = {
         }
         seen.add(key);
 
-        return {
+        const row = {
           size,
           colour,
           stockQuantity: normalizeStock(variant?.stockQuantity, context),
           active: normalizeBoolean(variant?.active, true),
         };
+
+        // The count the form was loaded with — see
+        // ProductVariantRepository.replaceForProduct. Only carried when
+        // sent, because absent means "no check", not "expect 0".
+        if (
+          variant?.expectedStock !== undefined &&
+          variant?.expectedStock !== null &&
+          variant?.expectedStock !== ""
+        ) {
+          row.expectedStock = normalizeStock(
+            variant.expectedStock,
+            `${context} (expectedStock)`,
+          );
+        }
+
+        return row;
       });
 
       logger.info("Replacing product variants", {
@@ -362,6 +412,10 @@ export const ProductVariantService = {
 
       if (error?.code === "VARIANT_STOCK_NEGATIVE") {
         throw new ApiError(400, "Stock cannot be negative");
+      }
+
+      if (error?.code === "VARIANT_STOCK_CHANGED") {
+        throw stockChangedError(error.conflicts ?? []);
       }
 
       logger.error("ProductVariantService.replaceForProduct failed", {
@@ -499,40 +553,30 @@ export const ProductVariantService = {
       const ids = normalizeIdList(variantIds);
       const override = normalizeBoolean(force, false);
 
-      const found = await ProductVariantRepository.findByIds(ids);
+      // The stock check runs inside the repository's transaction, on
+      // locked rows — see ProductVariantRepository.bulkDelete.
+      const result = await ProductVariantRepository.bulkDelete(ids, {
+        force: override,
+      });
 
-      if (found.length === 0) {
+      if (result.found.length === 0) {
         throw new ApiError(404, "None of those sizes exist");
       }
 
       const label = (row) =>
         `${row.product_name} (${describe(row.size, row.colour)})`;
 
-      const blocked = override
-        ? []
-        : found
-            .filter((row) => Number(row.stock_quantity) > 0)
-            .map((row) => ({
-              id: row.id,
-              label: label(row),
-              reason: `still holds ${row.stock_quantity} in stock`,
-            }));
-
-      const blockedIds = new Set(blocked.map((row) => row.id));
-      const deletable = found.filter((row) => !blockedIds.has(row.id));
-
-      if (deletable.length === 0) {
-        return {
-          deleted: 0,
-          blocked,
-          emptiedProducts: [],
-          missing: ids.length - found.length,
-        };
-      }
-
-      const result = await ProductVariantRepository.bulkDelete(
-        deletable.map((row) => row.id),
-      );
+      const blocked = [...result.blocked]
+        .sort(
+          (a, b) =>
+            String(a.product_name).localeCompare(String(b.product_name)) ||
+            Number(a.position) - Number(b.position),
+        )
+        .map((row) => ({
+          id: row.id,
+          label: label(row),
+          reason: `still holds ${row.stock_quantity} in stock`,
+        }));
 
       logger.info("Product variants bulk deleted", {
         count: result.deleted.length,
@@ -547,7 +591,7 @@ export const ProductVariantService = {
           name: product.name,
           slug: product.slug,
         })),
-        missing: ids.length - found.length,
+        missing: ids.length - result.found.length,
       };
     } catch (error) {
       if (error instanceof ApiError) throw error;
@@ -560,15 +604,43 @@ export const ProductVariantService = {
     }
   },
 
-  async delete(id) {
+  /**
+   * Deletes one size, held to the same rule as bulkDelete: a size still
+   * holding stock is refused with a 409 unless `force` is set. The two
+   * used to disagree — the multi-select refused what the row's own
+   * delete button quietly destroyed.
+   */
+  async delete(id, { force = false } = {}) {
     try {
       const variantId = assertUuid(id, "variant ID");
+      const override = normalizeBoolean(force, false);
 
-      const deleted = await ProductVariantRepository.delete(variantId);
-      if (!deleted) throw new ApiError(404, "Product variant not found");
+      const result = await ProductVariantRepository.delete(variantId, {
+        force: override,
+      });
 
-      logger.info("Product variant deleted", { variantId });
-      return { id: deleted.id };
+      if (result.status === "missing") {
+        throw new ApiError(404, "Product variant not found");
+      }
+
+      if (result.status === "blocked") {
+        const { row } = result;
+        const message =
+          `${row.product_name} (${describe(row.size, row.colour)}) still holds ` +
+          `${row.stock_quantity} in stock. Set its stock to 0 or deactivate it, ` +
+          "or delete with force=true to discard the stock.";
+
+        throw new ApiError({
+          statusCode: 409,
+          code: "VARIANT_HAS_STOCK",
+          message,
+          errors: { stockQuantity: message },
+          details: { stockQuantity: Number(row.stock_quantity) },
+        });
+      }
+
+      logger.info("Product variant deleted", { variantId, force: override });
+      return { id: result.row.id };
     } catch (error) {
       if (error instanceof ApiError) throw error;
 

@@ -4,6 +4,7 @@ import * as Sentry from "@sentry/node";
 
 import { logger } from "../utils/logger.js";
 import { ApiError } from "../utils/ApiError.js";
+import { redactUrl } from "../utils/redactUrl.js";
 import { env } from "../config/env.js";
 
 export const globalErrorHandler = (err, req, res, next) => {
@@ -29,7 +30,7 @@ export const globalErrorHandler = (err, req, res, next) => {
 
   log("Request failed", {
     method: req.method,
-    url: req.originalUrl,
+    url: redactUrl(req.originalUrl),
     statusCode,
     message: err.message,
     stack: err.stack,
@@ -74,7 +75,7 @@ export const globalErrorHandler = (err, req, res, next) => {
 
       scope.setContext("request", {
         method: req.method,
-        url: req.originalUrl,
+        url: redactUrl(req.originalUrl),
         statusCode,
       });
 

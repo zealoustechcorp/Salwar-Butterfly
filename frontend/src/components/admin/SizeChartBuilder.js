@@ -140,14 +140,23 @@ export default function SizeChartBuilder({ chart, onChange, errors = {} }) {
     });
   };
 
-  const updateCell = (index, column, value) =>
+  /**
+   * A measurement cell holds what was typed, as text, with a decimal comma
+   * read as a point. These used to be `type="number"` inputs, and a number
+   * input that cannot parse its contents — "12,5" in a browser running an
+   * English locale — reports its value as "" with no error at all, so the
+   * cell was saved as null (a printed dash) while the screen still showed
+   * 12,5. As text, anything that is still not a number stays in the cell
+   * and `validateMeasurement` marks it, which blocks the save.
+   */
+  const updateCell = (index, column, value) => {
+    const next =
+      column === "size" ? value : value.trim() === "" ? null : value.replace(",", ".");
+
     patch({
-      rows: chart.rows.map((row, i) =>
-        i === index
-          ? { ...row, [column]: column === "size" ? value : value === "" ? null : value }
-          : row,
-      ),
+      rows: chart.rows.map((row, i) => (i === index ? { ...row, [column]: next } : row)),
     });
+  };
 
   const addRow = () => {
     const blank = { size: "" };
@@ -338,10 +347,7 @@ export default function SizeChartBuilder({ chart, onChange, errors = {} }) {
                         <Input
                           value={row[column] ?? ""}
                           inputMode={column === "size" ? "text" : "decimal"}
-                          type={column === "size" ? "text" : "number"}
-                          step={column === "size" ? undefined : "0.5"}
-                          min={column === "size" ? undefined : LIMITS.measurement.min}
-                          max={column === "size" ? undefined : LIMITS.measurement.max}
+                          type="text"
                           maxLength={column === "size" ? LIMITS.sizeLabel : undefined}
                           onChange={(e) => updateCell(index, column, e.target.value)}
                           placeholder={column === "size" ? "40" : "—"}

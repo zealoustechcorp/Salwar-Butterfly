@@ -236,6 +236,18 @@ export default function CarouselPage() {
   const shown = state.banners.filter((banner) => banner.active).length;
   const locked = busy || Boolean(busyId);
 
+  /**
+   * Each live slide's place in what visitors see. Hidden slides keep their
+   * place in the order but the storefront skips them, so numbering the
+   * tiles by list index made the third slide a visitor sees read "Slide 4"
+   * whenever one before it was hidden. null for a hidden slide.
+   */
+  const liveNumbers = new Map(
+    state.banners
+      .filter((banner) => banner.active)
+      .map((banner, n) => [banner.id, n + 1]),
+  );
+
   return (
     <div className="space-y-4">
       {/* Off-screen and driven by the button; a visible file input cannot
@@ -332,6 +344,8 @@ export default function CarouselPage() {
                   key={banner.id}
                   banner={banner}
                   index={index}
+                  liveNumber={liveNumbers.get(banner.id) ?? null}
+                  liveTotal={shown}
                   total={state.banners.length}
                   busy={busyId === banner.id}
                   disabled={locked}
@@ -375,7 +389,17 @@ export default function CarouselPage() {
  * words — a tile this size can carry the two gestures that are about the
  * *set* (is it running, where in the order) and nothing more.
  */
-function BannerTile({ banner, index, total, busy, disabled, onMove, onToggle }) {
+function BannerTile({
+  banner,
+  index,
+  liveNumber,
+  liveTotal,
+  total,
+  busy,
+  disabled,
+  onMove,
+  onToggle,
+}) {
   const locked = disabled || busy;
   const href = `/admin/home/carousel/${banner.id}`;
 
@@ -412,8 +436,8 @@ function BannerTile({ banner, index, total, busy, disabled, onMove, onToggle }) 
         </span>
 
         <span className="absolute top-1.5 left-1.5">
-          <Badge tone={banner.active ? "brand" : "amber"}>
-            {banner.active ? `Slide ${index + 1}` : "Hidden"}
+          <Badge tone={liveNumber ? "brand" : "amber"}>
+            {liveNumber ? `Live slide ${liveNumber} of ${liveTotal}` : "Hidden"}
           </Badge>
         </span>
       </Link>
@@ -433,7 +457,7 @@ function BannerTile({ banner, index, total, busy, disabled, onMove, onToggle }) 
             checked={banner.active}
             disabled={locked}
             onChange={onToggle}
-            label={`Show banner ${index + 1} on the home page`}
+            label={`Show banner at position ${index + 1} on the home page`}
           />
           <span className="truncate">
             {banner.active ? "On the home page" : "Hidden"}
@@ -475,7 +499,7 @@ function BannerTile({ banner, index, total, busy, disabled, onMove, onToggle }) 
             variant="ghost"
             className="h-9 px-1.5 sm:h-8"
             disabled={locked || index === 0}
-            aria-label={`Move banner ${index + 1} earlier`}
+            aria-label={`Move banner at position ${index + 1} earlier`}
             onClick={() => onMove(-1)}
           >
             <ArrowLeft className="size-3.5" aria-hidden="true" />
@@ -486,7 +510,7 @@ function BannerTile({ banner, index, total, busy, disabled, onMove, onToggle }) 
             variant="ghost"
             className="h-9 px-1.5 sm:h-8"
             disabled={locked || index === total - 1}
-            aria-label={`Move banner ${index + 1} later`}
+            aria-label={`Move banner at position ${index + 1} later`}
             onClick={() => onMove(1)}
           >
             Later

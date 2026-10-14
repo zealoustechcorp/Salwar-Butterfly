@@ -99,7 +99,7 @@ export const validateCustomerQuery = (req, res, next) => {
 // ============================================================
 
 export const validateCreateCustomer = (req, res, next) => {
-  const { name, email, phone, password } = req.body;
+  const { name, email, phone, password } = req.body ?? {};
 
   const errors = {};
 
@@ -248,7 +248,7 @@ export const validateResetPassword = (req, res, next) => {
 // ============================================================
 
 export const validateUpdateCustomer = (req, res, next) => {
-  const { name, email, phone } = req.body;
+  const { name, email, phone } = req.body ?? {};
 
   const errors = {};
 
@@ -261,10 +261,32 @@ export const validateUpdateCustomer = (req, res, next) => {
   }
 
   // ----------------------------------------------------------
+  // NULL IS NOT "LEAVE IT ALONE"
+  // ----------------------------------------------------------
+  //
+  // The shared rules treat null like undefined when a field is
+  // optional — right for a create form, wrong here. On an update an
+  // absent key means "unchanged", but `{"phone": null}` is a request to
+  // clear a column that cannot be empty, and passing it through used to
+  // reach `.trim()` below and answer with a 500 (BUG-4, 2026-10-09).
+  //
+  // ----------------------------------------------------------
+
+  const NULL_MESSAGES = {
+    name: "Name cannot be empty",
+    email: "Email cannot be empty",
+    phone: "Phone number cannot be empty",
+  };
+
+  for (const [field, value] of Object.entries({ name, email, phone })) {
+    if (value === null) errors[field] = NULL_MESSAGES[field];
+  }
+
+  // ----------------------------------------------------------
   // NAME
   // ----------------------------------------------------------
 
-  if (name !== undefined) {
+  if (name !== undefined && name !== null) {
     const nameError = validateName(name, false);
 
     if (nameError) {
@@ -276,7 +298,7 @@ export const validateUpdateCustomer = (req, res, next) => {
   // EMAIL
   // ----------------------------------------------------------
 
-  if (email !== undefined) {
+  if (email !== undefined && email !== null) {
     const emailError = validateEmail(email, false);
 
     if (emailError) {
@@ -288,7 +310,7 @@ export const validateUpdateCustomer = (req, res, next) => {
   // PHONE
   // ----------------------------------------------------------
 
-  if (phone !== undefined) {
+  if (phone !== undefined && phone !== null) {
     const phoneError = validatePhone(phone, false);
 
     if (phoneError) {
@@ -328,7 +350,7 @@ export const validateUpdateCustomer = (req, res, next) => {
 // ============================================================
 
 export const validateChangePassword = (req, res, next) => {
-  const { oldPassword, newPassword } = req.body;
+  const { oldPassword, newPassword } = req.body ?? {};
 
   const errors = {};
 

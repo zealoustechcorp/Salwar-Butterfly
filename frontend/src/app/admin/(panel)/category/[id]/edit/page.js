@@ -12,7 +12,9 @@
  * 3. Redirects the user back to the category detail view (`/admin/category/[id]`).
  *
  * A rejected save propagates to the form, which keeps the edits on screen
- * alongside the API's field errors.
+ * alongside the API's field errors. A save whose product move alone failed
+ * (`ProductMoveError`) has already updated the category in context, so the
+ * form stays here showing the saved values and a retry only re-sends the move.
  */
 
 import { FolderX } from "lucide-react";
@@ -24,7 +26,7 @@ import {
   SkeletonRows,
   useToast,
 } from "@/components/admin/ui";
-import { useCategories } from "@/lib/categories/context";
+import { useCategories, useCategory } from "@/lib/categories/context";
 import CategoryForm from "@/components/categories/CategoryForm";
 
 /**
@@ -41,8 +43,8 @@ export default function EditCategoryPage() {
   const { id } = useParams();
   const router = useRouter();
   const toast = useToast();
-  const { categories, products, status, error, refresh, saveCategory } =
-    useCategories();
+  const { products, productsError, saveCategory } = useCategories();
+  const { category, status, error, retry } = useCategory(id);
 
   if (status === "loading") {
     return (
@@ -53,16 +55,11 @@ export default function EditCategoryPage() {
   }
 
   if (status === "error") {
-    return <ErrorNotice error={error} onRetry={refresh} />;
+    return <ErrorNotice error={error} onRetry={retry} />;
   }
 
-  /**
-   * Resolves existing category record by ID
-   */
-  const category = categories.find((c) => c.id === id);
-
   /* Render fallback empty state if category ID is invalid or not found */
-  if (!category) {
+  if (status === "missing" || !category) {
     return (
       <div className="max-w-xl rounded-xl bg-white p-4 ring-1 ring-ink-200/80 shadow-xs sm:p-8">
         <EmptyState
@@ -84,6 +81,7 @@ export default function EditCategoryPage() {
     <CategoryForm
       initial={category}
       products={products}
+      productsError={productsError}
       /* Callback executed when the administrator saves changes */
       onSave={async (data) => {
         const saved = await saveCategory(data);

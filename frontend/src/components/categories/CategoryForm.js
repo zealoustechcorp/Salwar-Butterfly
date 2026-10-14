@@ -60,11 +60,19 @@ import CategoryBadge from "./Badge";
  * @param {Object} props - Component properties
  * @param {Object} [props.initial] - Existing category data if in edit mode (omitted if creating new)
  * @param {Array<Object>} [props.products] - The catalogue, for the product picker
+ * @param {Error|null} [props.productsError] - Why `products` is empty, when it failed to load
  * @param {Function} props.onSave - Async callback receiving the payload; may reject with an ApiError
+ *                                  (or a ProductMoveError: saved, but the product move failed)
  * @param {Function} props.onCancel - Callback to exit or navigate back without saving
  * @returns {JSX.Element} The rendered multi-tab category form
  */
-export default function CategoryForm({ initial, products = [], onSave, onCancel }) {
+export default function CategoryForm({
+  initial,
+  products = [],
+  productsError = null,
+  onSave,
+  onCancel,
+}) {
   const toast = useToast();
 
   /**
@@ -125,6 +133,25 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
   const [fieldErrors, setFieldErrors] = useState({});
 
   /**
+   * `{ field: message }` the API sent back with the last failed save. Held
+   * apart from `saveError` so each message can be dropped as soon as the
+   * admin edits its field — a 409 on the slug used to stay pinned under
+   * the slug input after it had been changed to a free one.
+   */
+  const [apiFields, setApiFields] = useState({});
+
+  /** Drops one field's messages, both the form's own and the API's. */
+  const clearFieldError = (field) => {
+    setFieldErrors(({ [field]: _dropped, ...rest }) => rest);
+    setApiFields((current) => {
+      if (!(field in current)) return current;
+
+      const { [field]: _gone, ...rest } = current;
+      return rest;
+    });
+  };
+
+  /**
    * Whether the admin has engaged with the slug yet — gates when its
    * validation message is allowed to appear. Editing starts touched,
    * because an existing category already has a slug to be wrong about.
@@ -168,12 +195,14 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
    */
   const handleNameChange = (v) => {
     setName(v);
-    setFieldErrors(({ name: _dropped, ...rest }) => rest);
+    clearFieldError("name");
 
     if (initial) return;
 
     const derived = autoSlug(v);
     setSlug(derived);
+    // The slug just changed under any message the API had about it.
+    clearFieldError("slug");
 
     // A name that yields nothing usable ("!!!", say) is a slug problem the
     // admin has to see, even though they never opened the slug field. A
@@ -189,6 +218,13 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
    */
   const handleImageFile = (e) => {
     const file = e.target.files?.[0];
+
+    // Cleared on every pick, accepted or not: an <input type="file"> whose
+    // value has not changed fires no second change event, so a file that
+    // was picked, discarded with the X, and picked again did nothing. The
+    // File itself is already held in state.
+    e.target.value = "";
+
     if (!file) return;
 
     // Refused before it is staged rather than after it has been uploaded.
@@ -201,16 +237,12 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
     const problem = rejectionReason(file);
 
     if (problem) {
-      // Cleared so the same file can be picked again after it has been
-      // resized: an <input type="file"> whose value has not changed fires
-      // no second change event.
-      e.target.value = "";
       setFieldErrors((current) => ({ ...current, image: problem }));
       toast.error("That image was not attached", problem);
       return;
     }
 
-    setFieldErrors(({ image: _dropped, ...rest }) => rest);
+    clearFieldError("image");
     setImageFile(file);
   };
 
@@ -234,9 +266,12 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
    */
   const slugError = !slug.trim()
     ? "A URL slug is required."
-    : SLUG_PATTERN.test(slug.trim().toLowerCase())
-      ? null
-      : "Use lowercase letters, numbers and single hyphens only.";
+    : // validateCategorySlug (category.rules.js) refuses one character.
+      slug.trim().length < 2
+      ? "A URL slug needs at least 2 characters."
+      : SLUG_PATTERN.test(slug.trim().toLowerCase())
+        ? null
+        : "Use lowercase letters, numbers and single hyphens only.";
 
   /**
    * An untouched field has not failed yet, it is simply blank — so a fresh
@@ -278,6 +313,7 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
     setSaving(true);
     setSaveError(null);
     setFieldErrors({});
+    setApiFields({});
 
     try {
       await onSave({
@@ -291,7 +327,18 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
       });
     } catch (error) {
       setSaveError(error);
+      setApiFields(error?.fields ?? {});
       setSaving(false);
+
+      // The category was written; only the product move after it failed
+      // (ProductMoveError carries the saved record). The banner is stored
+      // now, so it is not re-sent with the retry, and the parent has
+      // switched this form to editing what was saved.
+      if (error?.category) {
+        setImageFile(null);
+        toast.error("Category saved, products not moved", error.message);
+        return;
+      }
 
       // The <ErrorNotice> above the tabs carries the same message, and
       // stays. The toast is for the admin whose eyes were on the button
@@ -302,12 +349,6 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
       );
     }
   };
-
-  /**
-   * Field-level messages the API sent back, keyed the same way the form
-   * names its fields.
-   */
-  const apiFields = saveError?.fields ?? {};
 
   /**
    * Tab definitions showing a live count badge for associated products.
@@ -420,7 +461,7 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
                       onChange={(e) => {
                         setSlug(e.target.value);
                         setSlugTouched(true);
-                        setFieldErrors(({ slug: _dropped, ...rest }) => rest);
+                        clearFieldError("slug");
                       }}
                       onBlur={() => setSlugTouched(true)}
                       placeholder="e.g. silk-sarees"
@@ -442,7 +483,7 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
                   value={description}
                   onChange={(e) => {
                     setDescription(e.target.value);
-                    setFieldErrors(({ description: _dropped, ...rest }) => rest);
+                    clearFieldError("description");
                   }}
                   placeholder="Describe this category..."
                   rows={3}
@@ -459,13 +500,19 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
                   <div className="relative h-28 w-44 shrink-0 overflow-hidden rounded-lg bg-ink-100 ring-1 ring-ink-200">
                     {preview ? (
                       <>
+                        {/* A plain `img`: a freshly picked banner is a `blob:` URL the
+                            image optimizer cannot fetch. */}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={preview} alt="Preview" className="h-full w-full object-cover" />
                         {/* Only a staged file can be discarded — clearing a
                             stored image is not something the API exposes. */}
                         {imageFile ? (
                           <button
                             type="button"
-                            onClick={() => setImageFile(null)}
+                            onClick={() => {
+                              setImageFile(null);
+                              clearFieldError("image");
+                            }}
                             className="absolute right-1.5 top-1.5 rounded-full bg-ink-900/60 p-2 text-white hover:bg-ink-900 transition-colors sm:p-1"
                             title="Discard selected image"
                           >
@@ -492,9 +539,9 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
                         className="hidden"
                       />
                     </label>
-                    {fieldErrors.image ? (
+                    {fieldErrors.image || apiFields.image ? (
                       <p role="alert" className="text-xs text-red-600">
-                        {fieldErrors.image}
+                        {fieldErrors.image || apiFields.image}
                       </p>
                     ) : (
                       <p className="text-[11px] leading-relaxed text-ink-400">
@@ -589,7 +636,14 @@ export default function CategoryForm({ initial, products = [], onSave, onCancel 
                 );
               })}
 
-              {products.length === 0 ? (
+              {productsError ? (
+                <ErrorNotice
+                  error={{
+                    message: `Products could not be loaded, so none can be moved here right now (${productsError.message || "request failed"}).`,
+                    code: productsError.code,
+                  }}
+                />
+              ) : products.length === 0 ? (
                 <div className="p-8 text-center text-xs text-ink-400">
                   No products in the catalogue yet.
                 </div>

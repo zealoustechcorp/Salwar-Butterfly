@@ -4,7 +4,8 @@ import { AdminLoginForm } from "@/components/admin/AdminLoginForm";
 import { Spinner } from "@/components/admin/ui";
 
 export const metadata = {
-  title: "Sign in — Salwar Butterfly Admin",
+  // Wrapped by the admin layout's template → "Sign in — Salwar Butterfly Admin".
+  title: "Sign in",
   description: "Sign in to the Salwar Butterfly admin console.",
   robots: { index: false, follow: false },
 };

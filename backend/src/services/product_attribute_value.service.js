@@ -99,6 +99,19 @@ const normalizeHex = (value) => {
   return `#${full.toUpperCase()}`;
 };
 
+/**
+ * The 409 for a value that already exists in the group in another case.
+ * Names the stored spelling, which is the one the admin should pick.
+ */
+const caseClash = (wanted, stored) => {
+  const message =
+    wanted === stored
+      ? `"${stored}" is already in this group`
+      : `"${stored}" is already in this group — values differing only by case are the same value`;
+
+  return new ApiError(409, message, { value: message });
+};
+
 const normalizeBoolean = (value, fallback) => {
   if (value === undefined || value === null || value === "") return fallback;
   if (typeof value === "boolean") return value;
@@ -191,6 +204,15 @@ export const AttributeValueService = {
             : Number(position),
       });
 
+      const clash = await AttributeValueRepository.findCaseInsensitiveMatch(
+        dto.groupName,
+        dto.value,
+      );
+
+      if (clash) {
+        throw caseClash(dto.value, clash.value);
+      }
+
       logger.info("Creating attribute value", {
         groupName: dto.groupName,
         value: dto.value,
@@ -249,6 +271,16 @@ export const AttributeValueService = {
         const nextValue = normalizeValue(updateData.value);
 
         if (nextValue !== existing.value) {
+          // Excluding this row, so re-casing a value in place ("silk" ->
+          // "Silk") is allowed while renaming onto another row is not.
+          const clash = await AttributeValueRepository.findCaseInsensitiveMatch(
+            existing.group_name,
+            nextValue,
+            valueId,
+          );
+
+          if (clash) throw caseClash(nextValue, clash.value);
+
           const result = await AttributeValueRepository.renameWithProducts(
             valueId,
             nextValue,

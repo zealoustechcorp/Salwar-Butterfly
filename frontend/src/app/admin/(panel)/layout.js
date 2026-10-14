@@ -1,10 +1,13 @@
 import { AdminShell } from "@/components/admin/AdminShell";
 import { RequireAdmin } from "@/components/admin/RequireAdmin";
 
+/**
+ * The dashboard's title, and the fallback for any screen without a
+ * section layout of its own. Each section (products, inventory, …) sets
+ * its name in its own layout; the admin layout's template wraps it.
+ */
 export const metadata = {
-  title: "Product Management — Salwar Butterfly Admin",
-  description:
-    "Product Management console for the Salwar Butterfly storefront.",
+  title: "Dashboard",
 };
 
 /**

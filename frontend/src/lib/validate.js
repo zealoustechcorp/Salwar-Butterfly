@@ -373,6 +373,22 @@ export function validateChoice(value, label) {
 // ============================================================
 
 /**
+ * The most units one row may hold. Mirrors MAX_STOCK in
+ * backend/src/config/stock.policy.js, which the variant service and the
+ * inventory endpoints both enforce — a count above it is refused there,
+ * so it is refused here first rather than after a bulk upload has
+ * already created the products it belongs to.
+ */
+export const MAX_STOCK = 1_000_000;
+
+/**
+ * The most (size, colour) rows one product may have. Mirrors
+ * MAX_VARIANTS_PER_PRODUCT in
+ * backend/src/validators/product_variant.validator.js.
+ */
+export const MAX_VARIANTS_PER_PRODUCT = 200;
+
+/**
  * A stock count on one sellable row.
  *
  * A blank box means "leave it alone" rather than zero, matching the API —
@@ -387,6 +403,9 @@ export function validateStock(value, label = "Stock") {
   if (Number.isNaN(stock)) return `${label} must be a number`;
   if (!Number.isInteger(stock)) return `${label} must be a whole number`;
   if (stock < 0) return `${label} cannot be negative`;
+  if (stock > MAX_STOCK) {
+    return `${label} must not exceed ${MAX_STOCK.toLocaleString("en-IN")}`;
+  }
 
   return null;
 }
@@ -421,6 +440,10 @@ export function validateColour(value, label = "Colour") {
  * @returns {string|null} the first problem, or null when every row is fine
  */
 export function validateVariantRows(rows) {
+  if ((rows?.length ?? 0) > MAX_VARIANTS_PER_PRODUCT) {
+    return `A product may not have more than ${MAX_VARIANTS_PER_PRODUCT} size and colour combinations (this one has ${rows.length})`;
+  }
+
   for (const row of rows ?? []) {
     const label = [row.colour, row.size].filter(Boolean).join(" ") || "A row";
 

@@ -34,6 +34,10 @@ export default function ProductDetailPage() {
     reference: null,
     variants: [],
     summary: EMPTY_SUMMARY,
+    // A failed sizes read, kept apart from `variants: []` — "no sizes
+    // recorded" is a statement about the product, and saying it because
+    // a request failed would be wrong.
+    variantsError: null,
     error: null,
   });
   const [busy, setBusy] = useState(false);
@@ -50,9 +54,10 @@ export default function ProductDetailPage() {
       // The names behind category_id / sub_category_id. Not worth failing
       // the whole screen for.
       getReference({ signal: controller.signal }).catch(() => null),
-      getVariantsForProduct(id, { signal: controller.signal }).catch(() => ({
+      getVariantsForProduct(id, { signal: controller.signal }).catch((variantsError) => ({
         variants: [],
         summary: EMPTY_SUMMARY,
+        variantsError,
       })),
     ])
       .then(([product, reference, variantResult]) => {
@@ -62,6 +67,7 @@ export default function ProductDetailPage() {
             reference,
             variants: variantResult.variants,
             summary: variantResult.summary,
+            variantsError: variantResult.variantsError ?? null,
             error: null,
           });
       })
@@ -77,7 +83,7 @@ export default function ProductDetailPage() {
   }, [id, reload]);
 
   const load = useCallback(() => setReload((n) => n + 1), []);
-  const { product, reference, variants, summary, error } = result;
+  const { product, reference, variants, summary, variantsError, error } = result;
 
   const names = useMemo(() => {
     if (!product) return { category: "—" };
@@ -115,6 +121,10 @@ export default function ProductDetailPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
+      {/* A failed refresh (after a toggle, say) keeps the last good copy
+          on screen, but says it is stale instead of failing silently. */}
+      {error ? <ErrorNotice error={error} onRetry={load} /> : null}
+
       <nav className="flex min-w-0 items-center gap-1.5 text-xs text-ink-500">
         <LinkButton variant="ghost" size="sm" href="/admin/products">
           Products
@@ -276,7 +286,11 @@ export default function ProductDetailPage() {
                 </LinkButton>
               }
             />
-            {variants.length === 0 ? (
+            {variantsError ? (
+              <div className="p-4 sm:p-5">
+                <ErrorNotice error={variantsError} onRetry={load} />
+              </div>
+            ) : variants.length === 0 ? (
               <p className="px-4 py-6 text-sm text-ink-500 sm:px-5">
                 No sizes recorded, so there is nothing a shopper can add to a bag. Add them from
                 the edit screen.

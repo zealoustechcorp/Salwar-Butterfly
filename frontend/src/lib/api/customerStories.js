@@ -35,6 +35,13 @@ import { api } from "./client";
 /** Mirrors MAX_STORIES in backend/src/config/customer_story.policy.js. */
 export const MAX_STORIES = 60;
 
+/**
+ * Mirrors MAX_STORIES_ON_HOME: the home page is served the first this
+ * many *published* stories, in the shop's order. A published story past
+ * it is live in name only, which the wall says on its badge.
+ */
+export const MAX_STORIES_ON_HOME = 24;
+
 /** Mirrors MAX_STORIES_PER_UPLOAD. What one multipart request may carry. */
 export const MAX_PER_UPLOAD = 8;
 

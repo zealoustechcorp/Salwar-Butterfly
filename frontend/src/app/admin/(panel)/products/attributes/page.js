@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowLeft, Check, Pencil, Plus, Trash2, X } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   Badge,
@@ -153,6 +153,68 @@ export default function AttributesPage() {
  *        each value. Only colour uses it; every other group leaves the
  *        column null and would show an empty picker for no reason.
  */
+/**
+ * A colour's swatch picker, committed once per pick rather than once per
+ * pixel of drag.
+ *
+ * Committed as soon as the picker closes. A swatch is a single field
+ * with no other half to coordinate, so a Save button beside it would
+ * only be a step that can be forgotten. But React's `onChange` on a
+ * colour input is the DOM `input` event — it fires continuously while
+ * the admin drags across the palette — and saving there sent a PATCH
+ * per frame and then disabled the input under the cursor mid-drag. So
+ * the drag only moves a local draft, and the save rides the native
+ * `change` event, which the browser fires once when the pick is
+ * finished (with blur as a fallback for browsers that skip it).
+ */
+function SwatchInput({ value, busy, onCommit }) {
+  const stored = value.hex || COLOUR_FALLBACK_HEX;
+  const [draft, setDraft] = useState(stored);
+  const inputRef = useRef(null);
+
+  // The last hex handed to onCommit. The browser fires `change` and
+  // then `blur` for the same pick; this keeps that to one save.
+  const sent = useRef(null);
+
+  // Read through a ref, so the listener below is attached once and still
+  // calls the latest callback. The hex comes off the element itself, not
+  // the draft state, which may not have re-rendered yet when `change`
+  // fires straight after the last `input`.
+  const latest = useRef(null);
+  useEffect(() => {
+    latest.current = (hex) => {
+      if (hex.toLowerCase() === stored.toLowerCase() || hex === sent.current) return;
+      sent.current = hex;
+      onCommit(hex);
+    };
+  });
+
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input) return undefined;
+
+    const commit = (event) => latest.current?.(event.target.value);
+
+    input.addEventListener("change", commit);
+    return () => input.removeEventListener("change", commit);
+  }, []);
+
+  return (
+    <input
+      ref={inputRef}
+      type="color"
+      value={draft}
+      // Only once the pick has been sent — never while the picker is open.
+      disabled={busy}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={(e) => latest.current?.(e.target.value)}
+      aria-label={`Swatch for ${value.value}`}
+      title={value.hex || "No swatch recorded"}
+      className="size-7 shrink-0 cursor-pointer rounded border border-ink-300 bg-white p-0.5"
+    />
+  );
+}
+
 function GroupPanel({ group, values, withSwatch = false, onDone }) {
   const toast = useToast();
 
@@ -371,18 +433,13 @@ function GroupPanel({ group, values, withSwatch = false, onDone }) {
               ) : (
                 <>
                   {withSwatch ? (
-                    // Committed as soon as the picker closes. A swatch is
-                    // a single field with no other half to coordinate,
-                    // so a Save button beside it would only be a step
-                    // that can be forgotten.
-                    <input
-                      type="color"
-                      value={value.hex || COLOUR_FALLBACK_HEX}
-                      disabled={busyId === value.id}
-                      onChange={(e) => saveHex(value, e.target.value)}
-                      aria-label={`Swatch for ${value.value}`}
-                      title={value.hex || "No swatch recorded"}
-                      className="size-7 shrink-0 cursor-pointer rounded border border-ink-300 bg-white p-0.5"
+                    // Keyed on the stored hex, so the draft inside resets
+                    // to whatever the server holds after each save.
+                    <SwatchInput
+                      key={`${value.id}:${value.hex ?? ""}`}
+                      value={value}
+                      busy={busyId === value.id}
+                      onCommit={(hex) => saveHex(value, hex)}
                     />
                   ) : null}
 

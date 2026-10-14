@@ -14,7 +14,7 @@
 
 import { FolderPlus, Plus, Search, X } from "lucide-react";
 import { useState } from "react";
-import { Button, EmptyState, Input } from "@/components/admin/ui";
+import { Button, EmptyState, ErrorNotice, Input } from "@/components/admin/ui";
 import CategoryCard from "./CategoryCard";
 import StatBar from "./StatBar";
 
@@ -27,9 +27,21 @@ import StatBar from "./StatBar";
  * @param {Function} props.onEdit - Handler to navigate to category edit page
  * @param {Function} props.onDetail - Handler to navigate to category detail page
  * @param {Function} props.onToggle - Handler to flip category active/inactive status
+ * @param {Error|null} [props.productsError] - Why product counts are unknown, if they are
+ * @param {Function} [props.onRetryProducts] - Reloads categories and products
+ * @param {Function} [props.isToggling] - `(id) => boolean`, a flip is in flight
  * @returns {JSX.Element} The rendered category list and management dashboard
  */
-export default function CategoryList({ categories, onAdd, onEdit, onDetail, onToggle }) {
+export default function CategoryList({
+  categories,
+  onAdd,
+  onEdit,
+  onDetail,
+  onToggle,
+  productsError = null,
+  onRetryProducts,
+  isToggling = () => false,
+}) {
   /**
    * Search query state for real-time text matching across name, slug, and description.
    */
@@ -94,7 +106,18 @@ export default function CategoryList({ categories, onAdd, onEdit, onDetail, onTo
         Displays high-level KPIs (Total, Active, Products, Stock).
         ========================================================================
       */}
-      <StatBar categories={categories} />
+      <StatBar categories={categories} productsUnknown={Boolean(productsError)} />
+
+      {/* Product counts below are unknown, not zero, until this clears. */}
+      {productsError ? (
+        <ErrorNotice
+          error={{
+            message: `Product counts are unavailable — the products could not be loaded (${productsError.message || "request failed"}).`,
+            code: productsError.code,
+          }}
+          onRetry={onRetryProducts}
+        />
+      ) : null}
 
       {/* 
         ========================================================================
@@ -202,6 +225,7 @@ export default function CategoryList({ categories, onAdd, onEdit, onDetail, onTo
               onEdit={onEdit}
               onDetail={onDetail}
               onToggle={onToggle}
+              toggling={isToggling(cat.id)}
             />
           ))}
         </div>

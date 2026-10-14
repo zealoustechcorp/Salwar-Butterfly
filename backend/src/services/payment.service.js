@@ -171,9 +171,17 @@ const payableAmount = (order) => {
 const isReusable = (attempt, { amount, currency }) => {
   if (!attempt) return false;
 
-  const age = Date.now() - new Date(attempt.created_at).getTime();
+  // `age_ms` is measured by the database (see
+  // PaymentRepository.findLatestOpenAttemptWithAge). Never compute it
+  // here from `created_at`: that stamp is the database's clock, which
+  // runs ahead of this host's, and the difference came out negative for
+  // every attempt under ~2 s old — exactly the double-clicks this window
+  // exists to absorb.
+  const age = Number(attempt.age_ms);
 
-  if (!(age >= 0 && age < SESSION_REUSE_WINDOW_MS)) return false;
+  if (!(Number.isFinite(age) && age >= 0 && age < SESSION_REUSE_WINDOW_MS)) {
+    return false;
+  }
 
   return Number(attempt.amount) === amount && attempt.currency === currency;
 };
@@ -278,16 +286,17 @@ export const PaymentService = {
         const amount = payableAmount(current);
         const currency = current.currency ?? CURRENCY;
 
-        const open = await PaymentRepository.findLatestOpenAttempt(order.id, {
-          client,
-        });
+        const open = await PaymentRepository.findLatestOpenAttemptWithAge(
+          order.id,
+          { client },
+        );
 
         if (isReusable(open, { amount, currency })) {
           logger.info("Payment session reused", {
             orderId: current.id,
             orderNumber: current.order_number,
             providerOrderId: open.provider_order_id,
-            ageMs: Date.now() - new Date(open.created_at).getTime(),
+            ageMs: open.age_ms,
           });
 
           // No gateway call at all — the fastest path and, once a
@@ -535,6 +544,16 @@ export const PaymentService = {
         "Webhooks are not configured.",
         "WEBHOOK_NOT_CONFIGURED",
       );
+    }
+
+    // app.js hands this route a Buffer whatever the Content-Type, empty
+    // for a POST with no body. An empty or missing one is a bad
+    // delivery, and createHmac on `null` would otherwise throw a
+    // TypeError that the error handler reports as a 500.
+    if (!Buffer.isBuffer(rawBody) || rawBody.length === 0) {
+      logger.warn("Webhook arrived with an empty body");
+
+      throw ApiError.badRequest("Malformed webhook body", "WEBHOOK_BODY_INVALID");
     }
 
     const expected = expectedWebhookSignature({ rawBody, secret });

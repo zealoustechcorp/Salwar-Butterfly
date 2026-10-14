@@ -17,9 +17,11 @@ const handleDatabaseError = (error, operation, context = {}) => {
     message: error.message,
   });
 
+  // The second name is migration 027's case-insensitive index.
   if (
     error.code === PG_ERROR_CODES.UNIQUE_VIOLATION &&
-    error.constraint === "uq_product_attribute_values_group_value"
+    (error.constraint === "uq_product_attribute_values_group_value" ||
+      error.constraint === "uq_product_attribute_values_group_lower_value")
   ) {
     const err = new Error("ATTRIBUTE_VALUE_EXISTS");
     err.code = "ATTRIBUTE_VALUE_EXISTS";
@@ -237,6 +239,33 @@ export const AttributeValueRepository = {
    *          products for everything else — the caller only reports it,
    *          and "12 rows updated" is the honest number in both cases.
    */
+  /**
+   * A value in the group that differs from `value` only by case.
+   *
+   * The unique key is (group_name, value), which is case-sensitive, so
+   * "Silk" and "silk" were both accepted — two dropdown entries for one
+   * fabric, and products split between them. The service refuses the
+   * second with this; `exceptId` lets a row be re-cased in place.
+   */
+  async findCaseInsensitiveMatch(groupName, value, exceptId = null) {
+    const text = `
+      SELECT id, value FROM product_attribute_values
+      WHERE group_name = $1
+        AND lower(value) = lower($2)
+        AND ($3::uuid IS NULL OR id <> $3::uuid)
+      LIMIT 1
+    `;
+
+    try {
+      const result = await query(text, [groupName, value, exceptId]);
+      return result.rows[0] ?? null;
+    } catch (error) {
+      throw handleDatabaseError(error, "findCaseInsensitiveMatch", {
+        groupName,
+      });
+    }
+  },
+
   async renameWithProducts(id, nextValue) {
     try {
       return await withTransaction(async (client) => {

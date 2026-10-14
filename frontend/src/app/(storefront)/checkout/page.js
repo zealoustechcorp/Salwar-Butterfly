@@ -1,4 +1,5 @@
 import { CheckoutView } from "@/components/store/CheckoutView";
+import { getStorefrontProducts } from "@/lib/store/catalogue";
 
 export const metadata = {
   title: "Checkout",
@@ -9,6 +10,11 @@ export const metadata = {
   robots: { index: false, follow: true },
 };
 
-export default function CheckoutPage() {
-  return <CheckoutView />;
+export default async function CheckoutPage() {
+  // The live catalogue, so the bag's prices and stock are reconciled here as
+  // they are on /bag. A catalogue that cannot be read is not a reason to
+  // refuse checkout: the API prices and reserves the order regardless.
+  const products = await getStorefrontProducts().catch(() => null);
+
+  return <CheckoutView products={products} />;
 }

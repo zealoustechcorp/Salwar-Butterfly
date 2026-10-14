@@ -41,7 +41,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { money } from "@/lib/format";
+import { compactPhone, money } from "@/lib/format";
 import { orderableQty } from "@/lib/stock";
 import {
   MAX_ADDRESSES,
@@ -173,8 +173,8 @@ function validateCheckout(values) {
   };
 }
 
-export function CheckoutView() {
-  const { bag, bagTotal, bagCount, clearBag } = useStore();
+export function CheckoutView({ products = null }) {
+  const { bag, bagTotal, bagCount, clearBag, syncStock } = useStore();
   const { user, isSignedIn, token, openAuth } = useAuth();
   const toast = useStoreToast();
   const router = useRouter();
@@ -197,6 +197,43 @@ export function CheckoutView() {
     // there is no way for a checkbox to be filled in wrongly.
     whatsappOptIn: true,
   });
+
+  /**
+   * The account's contact details, filled in when the account arrives.
+   *
+   * The initialiser above only sees a user on a client navigation. On a hard
+   * load of /checkout it runs during hydration, when the session store has
+   * not been read yet and `user` is null — so the fields started empty and
+   * stayed that way. This catches the user landing afterwards, the
+   * "adjusting state while rendering" way rather than in an effect, and
+   * fills only the fields that are still blank: whatever the shopper typed
+   * in the meantime is theirs and is never overwritten.
+   *
+   * Keyed by account id, so it runs once per account and a sign-in from the
+   * offer on this page fills the form too.
+   */
+  const [prefilledFor, setPrefilledFor] = useState(user?.id ?? null);
+
+  if (user?.id && user.id !== prefilledFor) {
+    setPrefilledFor(user.id);
+    setValues((current) => ({
+      ...current,
+      name: current.name || user.name || "",
+      email: current.email || user.email || "",
+      phone: current.phone || user.phone || "",
+    }));
+  }
+
+  /**
+   * Fold the live catalogue's prices and stock into the stored bag before
+   * the totals on the right are read, the same reconciliation the bag page
+   * does. A shopper who comes straight here — a bookmark, a link from the
+   * header — would otherwise see the prices the pieces had when they were
+   * added, and be charged today's.
+   */
+  useEffect(() => {
+    if (products) syncStock(products);
+  }, [products, syncStock]);
 
   /**
    * `{ field: message }` — filled by the checks above, or by the API when
@@ -365,7 +402,9 @@ export function CheckoutView() {
         contact: {
           name: values.name.trim(),
           email: values.email.trim(),
-          phone: values.phone.trim(),
+          // Spaces and hyphens out: the page's check ignores them, the
+          // API's does not. See compactPhone.
+          phone: compactPhone(values.phone),
         },
         shippingAddress: {
           line1: values.line1.trim(),
@@ -443,7 +482,7 @@ export function CheckoutView() {
     clearBag({ silent: true });
     toast.success(
       `Order ${result.order.orderNumber} placed`,
-      "Your sizes are held for you. The shop sends a payment link next.",
+      "Your sizes are held for you. Pay on the next screen to confirm it.",
     );
     router.replace("/checkout/done");
   }

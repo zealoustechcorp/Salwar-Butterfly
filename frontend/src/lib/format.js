@@ -15,6 +15,19 @@ export function money(value, { precise = false } = {}) {
   return precise ? inrPrecise.format(Number(value)) : inr.format(Number(value));
 }
 
+/**
+ * A phone number the way the API accepts it: trimmed, with the spaces and
+ * hyphens people type for readability removed.
+ *
+ * The client's validatePhone (lib/validate.js) ignores those when it checks
+ * the number, but the API's rule tests the raw string — so "98765 43210"
+ * passed on the page and came back a 400. Every storefront form that sends a
+ * phone sends it through this.
+ */
+export function compactPhone(value) {
+  return String(value ?? "").trim().replace(/[\s-]/g, "");
+}
+
 export function number(value) {
   return new Intl.NumberFormat("en-IN").format(Number(value) || 0);
 }

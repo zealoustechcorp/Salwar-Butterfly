@@ -135,6 +135,21 @@ export const validateReplaceVariants = (req, res, next) => {
 
       const activeError = validateActive(variant?.active, path);
       if (activeError) errors[`variants.${index}.active`] = activeError;
+
+      // Optional optimistic-concurrency guard: the stock count this row
+      // had when the form loaded it. When present on a row that already
+      // exists and it no longer matches the stored count, the whole save
+      // is refused with 409 STOCK_CHANGED (errors keyed by size, e.g.
+      // "M" or "Maroon M"; details.conflicts carries the numbers) and
+      // nothing is written. Absent keeps last-write-wins; ignored on a
+      // new row. See ProductVariantRepository.replaceForProduct.
+      const expectedError = validateStock(
+        variant?.expectedStock,
+        `${path} (expectedStock)`,
+      );
+      if (expectedError) {
+        errors[`variants.${index}.expectedStock`] = expectedError;
+      }
     });
 
     if (Object.keys(errors).length > 0) {

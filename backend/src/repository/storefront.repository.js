@@ -51,6 +51,31 @@ const CATEGORIES_SQL = `
 `;
 
 // ============================================================
+// CATEGORY VISIBILITY
+// ============================================================
+//
+// A product is only on sale while its category is. `p.active` alone is
+// not enough: the admin takes a whole collection down by switching the
+// category off, or deletes it (a soft delete — the row and its
+// products stay), and before this every product inside it stayed on
+// the grid, reachable by URL and counted in the hero's rating, under a
+// category tile that had already disappeared.
+//
+// One fragment, used by every public read that names a product — the
+// catalogue, the review endpoints, and the product link on a banner or
+// story — so "is this piece public" has one answer everywhere.
+// EXISTS rather than a JOIN so it cannot multiply rows.
+
+const PRODUCT_CATEGORY_VISIBLE = `
+  EXISTS (
+    SELECT 1 FROM categories pc
+    WHERE pc.id = p.category_id
+      AND pc.deleted_at IS NULL
+      AND pc.active = TRUE
+  )
+`;
+
+// ============================================================
 // PRODUCTS
 // ============================================================
 //
@@ -217,6 +242,7 @@ const PRODUCTS_SQL = `
   ) rating ON TRUE
 
   WHERE p.active = TRUE
+    AND ${PRODUCT_CATEGORY_VISIBLE}
   ORDER BY p.created_at DESC, p.id DESC
 `;
 
@@ -247,6 +273,7 @@ const REVIEWS_SQL = `
   WHERE r.product_id = $1::uuid
     AND r.published
     AND p.active = TRUE
+    AND ${PRODUCT_CATEGORY_VISIBLE}
   ORDER BY r.created_at DESC, r.id DESC
   LIMIT $2
 `;
@@ -271,6 +298,7 @@ const RATING_SQL = `
   WHERE r.product_id = $1::uuid
     AND r.published
     AND p.active = TRUE
+    AND ${PRODUCT_CATEGORY_VISIBLE}
 `;
 
 /**
@@ -287,6 +315,7 @@ const PRODUCT_VISIBLE_SQL = `
     SELECT 1 FROM products p
     WHERE p.id = $1::uuid
       AND p.active = TRUE
+      AND ${PRODUCT_CATEGORY_VISIBLE}
   ) AS found
 `;
 
@@ -359,6 +388,7 @@ const BANNERS_SQL = `
   LEFT JOIN products p
     ON p.id = b.product_id
    AND p.active = TRUE
+   AND ${PRODUCT_CATEGORY_VISIBLE}
   WHERE b.active
   ORDER BY b.position ASC, b.created_at ASC, b.id ASC
 `;
@@ -398,6 +428,7 @@ const CUSTOMER_STORIES_SQL = `
   LEFT JOIN products p
     ON p.id = cs.product_id
    AND p.active = TRUE
+   AND ${PRODUCT_CATEGORY_VISIBLE}
   WHERE cs.published
   ORDER BY cs.position ASC, cs.created_at DESC, cs.id ASC
   LIMIT $1

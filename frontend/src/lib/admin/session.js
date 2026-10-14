@@ -165,6 +165,13 @@ export function renew() {
 export async function endSession() {
   clearToken();
   await requestLogout(SCOPE);
+
+  // The first bump (in clearToken) makes every other tab renew — and
+  // that renewal can reach the server before the logout above has
+  // revoked the cookie's family, in which case it succeeds and the
+  // other tab stays signed in. Bumping again once the revocation is
+  // done makes them ask a second time, and that answer is "no".
+  bumpEpoch();
 }
 
 // ============================================================

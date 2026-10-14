@@ -11,10 +11,74 @@ import { logger } from "../utils/logger.js";
 // POSTGRESQL CONSTRAINTS
 // ============================================================
 
+/**
+ * Every name the email and phone uniqueness rules go by.
+ *
+ * Two schemas are in circulation. The migrations name partial,
+ * case-folded indexes `customers_email_unique` / `customers_phone_unique`
+ * (001, and 026 which installs them on the live database); the table that
+ * was created by hand before the migrations existed has plain UNIQUE
+ * constraints Postgres named `customers_email_key` / `customers_phone_key`.
+ * Recognising only the first pair meant every race the repository was
+ * supposed to translate into a 409 — two registrations of one address,
+ * re-registering a closed account's address, an edit onto somebody's
+ * number — surfaced on the live database as a 500.
+ */
 const CUSTOMER_CONSTRAINTS = Object.freeze({
-  EMAIL_UNIQUE: "customers_email_unique",
-  PHONE_UNIQUE: "customers_phone_unique",
+  EMAIL_UNIQUE: new Set(["customers_email_unique", "customers_email_key"]),
+  PHONE_UNIQUE: new Set(["customers_phone_unique", "customers_phone_key"]),
 });
+
+/**
+ * Which field a unique violation is about: "email", "phone" or null.
+ *
+ * By constraint name first, then by the column Postgres names in
+ * `detail` ("Key (email)=…" or "Key (lower((email)::text))=…"), so a
+ * third spelling of the same rule is still recognised rather than
+ * falling through to a 500.
+ */
+export const uniqueFieldOf = (error) => {
+  const constraint = error?.constraint;
+
+  if (CUSTOMER_CONSTRAINTS.EMAIL_UNIQUE.has(constraint)) return "email";
+  if (CUSTOMER_CONSTRAINTS.PHONE_UNIQUE.has(constraint)) return "phone";
+
+  const key = /^Key \((.+?)\)=/.exec(String(error?.detail ?? ""))?.[1] ?? "";
+
+  if (/\bemail\b/.test(key)) return "email";
+  if (/\bphone\b/.test(key)) return "phone";
+
+  return null;
+};
+
+// ============================================================
+// TIMESTAMPS
+// ============================================================
+
+/**
+ * The timestamp columns, read as instants.
+ *
+ * On the live database `created_at`, `updated_at` and `deleted_at` are
+ * `timestamp WITHOUT time zone`, filled by NOW() under the connection's
+ * TimeZone (GMT on Aiven — checked 2026-10-14). node-pg parses a naive
+ * timestamp as *host-local* time, and the API host runs in IST, so every
+ * date the API returned was 5h30m early.
+ *
+ * `::timestamptz` reinterprets the naive value in the session TimeZone —
+ * the zone it was written in — and hands node-pg an unambiguous instant.
+ * On a timestamptz column (001's intent, and what
+ * 026_customers_timestamptz.sql converts the live table to) the cast is
+ * a no-op, so this is correct on either schema and can stay after the
+ * migration has run.
+ */
+const TS = Object.freeze({
+  created: "created_at::timestamptz AS created_at",
+  updated: "updated_at::timestamptz AS updated_at",
+  deleted: "deleted_at::timestamptz AS deleted_at",
+});
+
+/** Runs on a transaction's client when given one, on the pool otherwise. */
+const runner = (client) => (client ? client.query.bind(client) : query);
 
 // ============================================================
 // POSTGRESQL ERROR CODES
@@ -71,7 +135,9 @@ const handleDatabaseError = (error, operation, context = {}) => {
   // ----------------------------------------------------------
 
   if (error?.code === PG_ERROR_CODES.UNIQUE_VIOLATION) {
-    if (error.constraint === CUSTOMER_CONSTRAINTS.EMAIL_UNIQUE) {
+    const field = uniqueFieldOf(error);
+
+    if (field === "email") {
       return new RepositoryError(
         "CUSTOMER_EMAIL_EXISTS",
         "Customer email already exists",
@@ -82,7 +148,7 @@ const handleDatabaseError = (error, operation, context = {}) => {
       );
     }
 
-    if (error.constraint === CUSTOMER_CONSTRAINTS.PHONE_UNIQUE) {
+    if (field === "phone") {
       return new RepositoryError(
         "CUSTOMER_PHONE_EXISTS",
         "Customer phone number already exists",
@@ -229,7 +295,10 @@ const buildListFilters = (search) => {
 // REPOSITORY
 // ============================================================
 
-export const CustomerRepository = Object.freeze({
+// Not frozen, matching RefreshTokenRepository and PaymentRepository: the
+// repository layer is where tests substitute a stand-in, and
+// `mock.method` cannot redefine a property on a frozen object.
+export const CustomerRepository = {
   // ==========================================================
   // CREATE CUSTOMER
   // ==========================================================
@@ -248,8 +317,8 @@ export const CustomerRepository = Object.freeze({
         name,
         email,
         phone,
-        created_at,
-        updated_at
+        ${TS.created},
+        ${TS.updated}
     `;
 
     try {
@@ -265,15 +334,23 @@ export const CustomerRepository = Object.freeze({
   // FIND CUSTOMER BY ID
   // ==========================================================
 
-  async findById(id) {
+  /**
+   * @param {object} [options]
+   * @param {import('pg').PoolClient} [options.client] run on this
+   *        transaction's connection. SessionService.renew passes its own:
+   *        a second pool connection taken while the renewal holds a row
+   *        lock is what deadlocked the pool at ten concurrent refreshes
+   *        (stress test HIGH-1).
+   */
+  async findById(id, { client } = {}) {
     const text = `
       SELECT
         id,
         name,
         email,
         phone,
-        created_at,
-        updated_at
+        ${TS.created},
+        ${TS.updated}
       FROM customers
       WHERE id = $1
         AND deleted_at IS NULL
@@ -281,7 +358,7 @@ export const CustomerRepository = Object.freeze({
     `;
 
     try {
-      const result = await query(text, [id]);
+      const result = await runner(client)(text, [id]);
 
       return result.rows[0] ?? null;
     } catch (error) {
@@ -303,8 +380,8 @@ export const CustomerRepository = Object.freeze({
         email,
         phone,
         password,
-        created_at,
-        updated_at
+        ${TS.created},
+        ${TS.updated}
       FROM customers
       WHERE id = $1
         AND deleted_at IS NULL
@@ -341,8 +418,8 @@ export const CustomerRepository = Object.freeze({
         email,
         phone,
         password,
-        created_at,
-        updated_at
+        ${TS.created},
+        ${TS.updated}
       FROM customers
       WHERE email = $1
         AND deleted_at IS NULL
@@ -369,8 +446,8 @@ export const CustomerRepository = Object.freeze({
         name,
         email,
         phone,
-        created_at,
-        updated_at
+        ${TS.created},
+        ${TS.updated}
       FROM customers
       WHERE email = $1
         AND deleted_at IS NULL
@@ -399,8 +476,8 @@ export const CustomerRepository = Object.freeze({
         name,
         email,
         phone,
-        created_at,
-        updated_at
+        ${TS.created},
+        ${TS.updated}
       FROM customers
       WHERE phone = $1
         AND deleted_at IS NULL
@@ -443,8 +520,8 @@ export const CustomerRepository = Object.freeze({
         name,
         email,
         phone,
-        created_at,
-        updated_at
+        ${TS.created},
+        ${TS.updated}
       FROM customers
       ${where}
       ORDER BY ${customerSortSql(sort, "customers")}
@@ -514,8 +591,8 @@ export const CustomerRepository = Object.freeze({
         name,
         email,
         phone,
-        created_at,
-        updated_at
+        ${TS.created},
+        ${TS.updated}
     `;
 
     try {
@@ -543,7 +620,7 @@ export const CustomerRepository = Object.freeze({
         AND deleted_at IS NULL
       RETURNING
         id,
-        deleted_at
+        ${TS.deleted}
     `;
 
     try {
@@ -574,7 +651,7 @@ export const CustomerRepository = Object.freeze({
         name,
         email,
         phone,
-        updated_at
+        ${TS.updated}
     `;
 
     try {
@@ -587,4 +664,40 @@ export const CustomerRepository = Object.freeze({
       });
     }
   },
-});
+
+  // ==========================================================
+  // CLOSED ACCOUNT HOLDING A VALUE
+  // ==========================================================
+
+  /**
+   * Whether a *closed* account still holds this email or phone.
+   *
+   * Only asked after the database has refused a value that no live
+   * account holds — which, on the live schema's plain UNIQUE, means a
+   * soft-deleted row is sitting on it. The caller uses the answer to say
+   * so plainly instead of the misleading "already registered".
+   * Unnecessary once 026_customers_partial_unique.sql has run, harmless
+   * after it.
+   *
+   * @param {"email"|"phone"} field
+   * @returns {Promise<boolean>}
+   */
+  async isHeldByClosedAccount(field, value) {
+    const column = field === "phone" ? "phone" : "email";
+
+    try {
+      const result = await query(
+        `SELECT 1
+         FROM customers
+         WHERE ${column} = $1
+           AND deleted_at IS NOT NULL
+         LIMIT 1`,
+        [value],
+      );
+
+      return result.rowCount > 0;
+    } catch (error) {
+      throw handleDatabaseError(error, "isHeldByClosedAccount", { field });
+    }
+  },
+};

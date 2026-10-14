@@ -27,10 +27,21 @@ import {
   useToast,
 } from "@/components/admin/ui";
 import { listAttributeValues, listColours } from "@/lib/api/attributes";
-import { getProduct, getReference, updateProduct } from "@/lib/api/products";
+import {
+  CATEGORY_NOT_MOVED,
+  getProduct,
+  getReference,
+  updateProduct,
+} from "@/lib/api/products";
 import { listFits } from "@/lib/api/sizeCharts";
-import { getVariantsForProduct, replaceVariants } from "@/lib/api/variants";
+import {
+  getVariantsForProduct,
+  replaceVariants,
+  variantKey,
+  variantLabel,
+} from "@/lib/api/variants";
 import { shortDate } from "@/lib/format";
+import { autoSlug } from "@/lib/slug";
 import { hasErrors, summarizeErrors, validateVariantRows } from "@/lib/validate";
 
 const TABS = [
@@ -47,6 +58,26 @@ const toEditableRow = (variant) => ({
   stockQuantity: variant.stockQuantity,
   active: variant.active,
 });
+
+/**
+ * The stock each existing row held when the admin last saw it, keyed by
+ * (size, colour) — sent with the matrix as `expectedStock` so the API
+ * can refuse to overwrite a count that has moved since (a sale, a
+ * stock-take in another tab) instead of silently undoing it. New rows
+ * have no entry and are written as typed.
+ */
+const expectedStockByKey = (rows) =>
+  new Map(rows.map((row) => [variantKey(row), row.stockQuantity]));
+
+/** Attribute documents compared by content, not key order. */
+const sameAttributes = (a, b) => {
+  const entries = (doc) =>
+    Object.entries(doc ?? {})
+      .filter(([, value]) => value !== undefined && value !== null && value !== "")
+      .sort(([x], [y]) => x.localeCompare(y));
+
+  return JSON.stringify(entries(a)) === JSON.stringify(entries(b));
+};
 
 export default function EditProductPage() {
   return (
@@ -74,6 +105,11 @@ function EditProduct() {
   // state and their own save — `null` until the first load lands.
   const [sizes, setSizes] = useState(null);
   const [savedSizes, setSavedSizes] = useState([]);
+  // A failed read of the matrix. Not folded into an empty list: saving
+  // an "empty" matrix that was really a failed GET would delete every
+  // real size the product has, so the Sizes tab shows the failure and
+  // the matrix is not written until a read succeeds.
+  const [sizesError, setSizesError] = useState(null);
   // Photographs are their own table too, but unlike sizes every change
   // is written the moment it is made — an upload has already happened by
   // the time the admin could press Save, so pretending otherwise would
@@ -83,7 +119,7 @@ function EditProduct() {
   const [saving, setSaving] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const formSeededFor = useRef(null);
-
+  const sizesSeededFor = useRef(null);
   useEffect(() => {
     const controller = new AbortController();
     let active = true;
@@ -91,11 +127,14 @@ function EditProduct() {
     Promise.all([
       getProduct(id, { signal: controller.signal }),
       getReference({ signal: controller.signal }),
-      getVariantsForProduct(id, { signal: controller.signal }).catch(() => ({
-        variants: [],
-      })),
+      // Settled separately: a failed matrix read must not hide the rest
+      // of the product, but it must not pass for "no sizes" either.
+      getVariantsForProduct(id, { signal: controller.signal }).then(
+        (result) => ({ result, error: null }),
+        (failure) => ({ result: null, error: failure }),
+      ),
     ])
-      .then(([product, reference, variantResult]) => {
+      .then(([product, reference, variantRead]) => {
         if (!active) return;
         setLoaded({ product, reference, error: null });
 
@@ -103,14 +142,27 @@ function EditProduct() {
         // request of its own.
         setImages(product.images ?? []);
 
-        const rows = variantResult.variants.map(toEditableRow);
-        setSavedSizes(rows);
+        if (variantRead.error) {
+          if (variantRead.error?.name !== "AbortError") {
+            setSizesError(variantRead.error);
+          }
+        } else {
+          const rows = variantRead.result.variants.map(toEditableRow);
+          setSizesError(null);
+          setSavedSizes(rows);
+
+          // Seeded once per product, like the form below — but only from
+          // a read that worked, so a retry after a failure still fills it.
+          if (sizesSeededFor.current !== product.id) {
+            sizesSeededFor.current = product.id;
+            setSizes(rows);
+          }
+        }
 
         // Seed the form once per product. A later reload must not discard
         // edits the admin has typed but not saved.
         if (formSeededFor.current !== product.id) {
           formSeededFor.current = product.id;
-          setSizes(rows);
           setForm({
             name: product.name,
             slug: product.slug,
@@ -224,6 +276,42 @@ function EditProduct() {
     if (owner && owner !== tab) switchTab(owner);
   }
 
+  /**
+   * After the API refused the matrix because stock moved underneath it
+   * (409 STOCK_CHANGED): re-read the live counts and fold them in.
+   *
+   * Only the rows whose count actually moved take the new number; every
+   * other edit in the matrix — added sizes, toggles, counts on rows
+   * nobody sold from — is kept, so the admin re-checks the named rows
+   * and saves again rather than starting over.
+   *
+   * @returns {Promise<string[]>} "Maroon 40: 6 → 4" for each row that moved
+   */
+  async function reloadLiveStock() {
+    const { variants } = await getVariantsForProduct(product.id);
+    const fresh = variants.map(toEditableRow);
+    const seen = expectedStockByKey(savedSizes);
+    const live = expectedStockByKey(fresh);
+
+    const moved = fresh.filter(
+      (row) => seen.has(variantKey(row)) && seen.get(variantKey(row)) !== row.stockQuantity,
+    );
+    const movedKeys = new Set(moved.map(variantKey));
+
+    setSavedSizes(fresh);
+    setSizes((current) =>
+      (current ?? fresh).map((row) =>
+        movedKeys.has(variantKey(row))
+          ? { ...row, stockQuantity: live.get(variantKey(row)) }
+          : row,
+      ),
+    );
+
+    return moved.map(
+      (row) => `${variantLabel(row)}: ${seen.get(variantKey(row))} → ${row.stockQuantity}`,
+    );
+  }
+
   async function save() {
     // Checked before the request, and before the sizes request behind it.
     const invalid = validateProductForm(form);
@@ -249,34 +337,109 @@ function EditProduct() {
 
     setSaving(true);
     setErrors({});
+
+    // As it will be stored. A cleared slug means "derive it from the
+    // name" — validateProductForm already checks it that way, and
+    // sending the blank itself is a 400.
+    const payload = { ...form, slug: form.slug?.trim() || autoSlug(form.name) };
+
+    // The attributes document is only sent when the admin changed it.
+    // A product whose fit's chart has since been withdrawn still carries
+    // that fit; re-sending it untouched would have the API re-validate
+    // it and refuse the whole save over a field nobody edited.
+    if (sameAttributes(form.attributes, product.attributes)) {
+      delete payload.attributes;
+    }
+
+    let detailsSaved = false;
+    // Set when the fields saved but the category move behind them did
+    // not — said as exactly that, and the size matrix still goes ahead.
+    let categoryWarning = null;
+
     try {
       // A changed category is a separate request against a separate
       // endpoint; updateProduct handles the split.
-      const updated = await updateProduct(product.id, form, {
-        currentCategoryId: product.categoryId,
-      });
+      let updated;
+      try {
+        updated = await updateProduct(product.id, payload, {
+          currentCategoryId: product.categoryId,
+        });
+      } catch (err) {
+        if (err?.code !== CATEGORY_NOT_MOVED) throw err;
+        categoryWarning = err.message;
+        // Keep the old category on the saved record, so the form still
+        // shows the unmoved choice as an unsaved change to retry.
+        updated = err.product ?? product;
+      }
+      detailsSaved = true;
       setLoaded((current) => ({ ...current, product: updated }));
+      if (payload.slug !== form.slug) setField("slug", updated.slug || payload.slug);
 
       // The size set is a separate table and a separate request. Only
       // sent when it actually changed, so saving the details tab does
       // not rewrite every variant row.
       if (sizesDirty) {
-        const result = await replaceVariants(product.id, sizes);
+        const expected = expectedStockByKey(savedSizes);
+        const result = await replaceVariants(
+          product.id,
+          sizes.map((row) =>
+            expected.has(variantKey(row))
+              ? { ...row, expectedStock: expected.get(variantKey(row)) }
+              : row,
+          ),
+        );
         const rows = result.variants.map(toEditableRow);
         setSizes(rows);
         setSavedSizes(rows);
       }
 
-      toast.success(
-        "Product saved.",
-        sizesDirty ? "Details and the size matrix were both written." : undefined,
-      );
+      if (categoryWarning) {
+        toast.error(
+          categoryWarning,
+          sizesDirty ? "The size matrix was saved." : "Choose the category again and save to retry.",
+        );
+      } else {
+        toast.success(
+          "Product saved.",
+          sizesDirty ? "Details and the size matrix were both written." : undefined,
+        );
+      }
     } catch (err) {
+      if (err?.code === "STOCK_CHANGED") {
+        // Stock moved since this page loaded (most likely a sale). The
+        // matrix was not written; the details above it were.
+        switchTab("sizes");
+
+        let moved = [];
+        try {
+          moved = await reloadLiveStock();
+        } catch {
+          // The re-read failed too — the message below still stands,
+          // and the admin can reload the page.
+        }
+
+        toast.error(
+          detailsSaved
+            ? "Details saved — sizes not saved: stock changed since you opened this page."
+            : "Sizes not saved: stock changed since you opened this page.",
+          moved.length
+            ? `Now showing the current count for ${moved.join(", ")}. Check those rows and save again.`
+            : (summarizeErrors(err.fields) ??
+                "Reload the page to see the current counts, then save again."),
+        );
+        return;
+      }
+
       if (hasErrors(err.fields)) {
         setErrors(err.fields);
         revealFirstError(err.fields);
       }
-      toast.error(err.message || "Save failed.", summarizeErrors(err.fields) ?? undefined);
+      toast.error(
+        detailsSaved
+          ? `Details saved, but the size matrix was not: ${err.message || "save failed."}`
+          : err.message || "Save failed.",
+        summarizeErrors(err.fields) ?? undefined,
+      );
     } finally {
       setSaving(false);
     }
@@ -380,6 +543,7 @@ function EditProduct() {
               <AttributeFields
                 form={form}
                 setField={setField}
+                errors={errors}
                 groups={attributeGroups}
                 fits={fits}
                 onRefreshFits={refreshFits}
@@ -446,7 +610,9 @@ function EditProduct() {
             actions={sizesDirty ? <Badge tone="gold">Unsaved changes</Badge> : null}
           />
           <div className="p-4 sm:p-5">
-            {sizes === null ? (
+            {sizesError && sizes === null ? (
+              <ErrorNotice error={sizesError} onRetry={load} />
+            ) : sizes === null ? (
               <SkeletonRows rows={4} />
             ) : (
               <SizeStockEditor
@@ -489,7 +655,19 @@ function EditProduct() {
         // A refused delete keeps the dialog open on its reason, so only a
         // real removal navigates away.
         onDone={(result) => {
-          if (result.deleted) router.push("/admin/products");
+          if (result.deleted) {
+            router.push("/admin/products");
+            return;
+          }
+          // Deactivated instead: reflect it in the form, or the next Save
+          // would quietly put the product back on the storefront.
+          if (result.deactivated) {
+            setField("active", false);
+            setLoaded((current) => ({
+              ...current,
+              product: current.product && { ...current.product, active: false },
+            }));
+          }
         }}
       />
     </div>

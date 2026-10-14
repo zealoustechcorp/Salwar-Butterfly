@@ -28,7 +28,8 @@ import CategoryList from "@/components/categories/CategoryList";
 export default function CategoriesPage() {
   const router = useRouter();
   const toast = useToast();
-  const { categories, status, error, refresh, toggleActive } = useCategories();
+  const { categories, productsError, status, error, refresh, toggleActive, isToggling } =
+    useCategories();
 
   /**
    * Toggles the active status of a category and shows a feedback toast notification
@@ -44,7 +45,9 @@ export default function CategoriesPage() {
     if (!target) return;
 
     try {
-      await toggleActive(id);
+      // null: a flip for this category was already in flight.
+      const saved = await toggleActive(id);
+      if (!saved) return;
 
       toast.info(
         target.active ? "Category hidden" : "Category activated",
@@ -73,6 +76,9 @@ export default function CategoriesPage() {
   return (
     <CategoryList
       categories={categories}
+      productsError={productsError}
+      onRetryProducts={refresh}
+      isToggling={isToggling}
       /* Navigate to category creation screen */
       onAdd={() => router.push("/admin/category/new")}
       /* Navigate to category edit screen */

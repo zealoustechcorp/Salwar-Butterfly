@@ -7,7 +7,10 @@
 // this feature, which is what makes it impossible to read or edit
 // somebody else's by asking nicely.
 
-import { WishlistRepository } from "../repository/wishlist.repository.js";
+import {
+  WISHLIST_RULE,
+  WishlistRepository,
+} from "../repository/wishlist.repository.js";
 import { ApiError } from "../utils/ApiError.js";
 import { logger } from "../utils/logger.js";
 
@@ -34,6 +37,36 @@ const assertUuid = (value, label) => {
  * per-shopper table into a copy of the catalogue.
  */
 const MAX_WISHLIST_SIZE = 200;
+
+/** The answer for a save the repository refused, or null. */
+const knownSaveError = (error) => {
+  switch (error?.wishlistRule) {
+    case WISHLIST_RULE.LIMIT_REACHED:
+      return ApiError.conflict(
+        `A wishlist holds up to ${MAX_WISHLIST_SIZE} pieces. ` +
+          `Remove one to save another.`,
+        "WISHLIST_LIMIT_REACHED",
+      );
+
+    // Not found and deactivated are one answer to the shopper: the piece
+    // is not for sale. 404 rather than 409, matching what the catalogue
+    // says about the same id.
+    case WISHLIST_RULE.PRODUCT_NOT_FOUND:
+    case WISHLIST_RULE.PRODUCT_UNAVAILABLE:
+      return ApiError.notFound("Product not found", "PRODUCT_NOT_FOUND");
+
+    // A closed account's access token, still inside its fifteen minutes
+    // (BUG-7). The answer /me gives, so the storefront signs them out.
+    case WISHLIST_RULE.ACCOUNT_CLOSED:
+      return ApiError.unauthorized(
+        "Your session is no longer valid",
+        "SESSION_INVALID",
+      );
+
+    default:
+      return null;
+  }
+};
 
 export const WishlistService = {
   /**
@@ -75,17 +108,12 @@ export const WishlistService = {
     const id = assertUuid(productId, "product ID");
 
     try {
-      const count = await WishlistRepository.countByCustomer(customerId);
-
-      if (count >= MAX_WISHLIST_SIZE) {
-        throw new ApiError(
-          409,
-          `A wishlist holds up to ${MAX_WISHLIST_SIZE} pieces. ` +
-            `Remove one to save another.`,
-        );
-      }
-
-      const inserted = await WishlistRepository.add(customerId, id);
+      // Cap, active-product and closed-account checks all happen inside
+      // the repository's transaction, under a lock on the customer row —
+      // a count taken out here is stale by the time the insert lands.
+      const inserted = await WishlistRepository.add(customerId, id, {
+        maxItems: MAX_WISHLIST_SIZE,
+      });
 
       logger.info("Wishlist item saved", {
         customerId,
@@ -96,6 +124,9 @@ export const WishlistService = {
       return WishlistService.getMine(customerId);
     } catch (error) {
       if (error instanceof ApiError) throw error;
+
+      const known = knownSaveError(error);
+      if (known) throw known;
 
       // 23503: the product id is well-formed but nothing answers to it.
       // A 404 rather than a 500 — it is the caller's id that is wrong.
@@ -157,12 +188,17 @@ export const WishlistService = {
 
     try {
       if (ids.length) {
-        await WishlistRepository.addMany(customerId, ids);
+        await WishlistRepository.addMany(customerId, ids, {
+          maxItems: MAX_WISHLIST_SIZE,
+        });
       }
 
       return WishlistService.getMine(customerId);
     } catch (error) {
       if (error instanceof ApiError) throw error;
+
+      const known = knownSaveError(error);
+      if (known) throw known;
 
       logger.error("WishlistService.merge failed", {
         customerId,

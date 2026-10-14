@@ -178,7 +178,10 @@ const handleDatabaseError = (error, operation, context = {}) => {
 // REPOSITORY
 // ============================================================
 
-export const AdminRepository = Object.freeze({
+// Not frozen, matching RefreshTokenRepository and PaymentRepository: the
+// repository layer is where tests substitute a stand-in, and
+// `mock.method` cannot redefine a property on a frozen object.
+export const AdminRepository = {
   // ==========================================================
   // CREATE ADMIN
   // ==========================================================
@@ -216,7 +219,13 @@ export const AdminRepository = Object.freeze({
   // FIND ADMIN BY ID
   // ==========================================================
 
-  async findById(id) {
+  /**
+   * @param {object} [options]
+   * @param {import('pg').PoolClient} [options.client] run on this
+   *        transaction's connection — SessionService.renew passes its own
+   *        so the lookup does not take a second pool connection (HIGH-1).
+   */
+  async findById(id, { client } = {}) {
     const text = `
       SELECT
         id,
@@ -234,7 +243,9 @@ export const AdminRepository = Object.freeze({
     `;
 
     try {
-      const result = await query(text, [id]);
+      const result = client
+        ? await client.query(text, [id])
+        : await query(text, [id]);
 
       return result.rows[0] ?? null;
     } catch (error) {
@@ -305,4 +316,4 @@ export const AdminRepository = Object.freeze({
       throw handleDatabaseError(error, "touchLastLogin", { adminId: id });
     }
   },
-});
+};

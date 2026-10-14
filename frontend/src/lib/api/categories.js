@@ -72,21 +72,94 @@ function toFormData(fields, { partial = false } = {}) {
 // CATEGORIES
 // ============================================================
 
+/** The API's own ceiling on `limit` (CategoryService.getAll clamps to it). */
+const PAGE_SIZE = 100;
+
+/** A runaway guard, not a real limit: 50 pages is 5,000 categories. */
+const MAX_PAGES = 50;
+
 /**
- * The API caps `limit` at 100 and treats its `page` query param as an
- * offset (see CategoryController.getAll), so paging is done by offset.
+ * One page of `GET /categories/getAllCategories`.
  *
- * @returns {Promise<{categories: Array, pagination: object|null}>}
+ * The meaning of `page` on that route has changed under us: it used to be
+ * read as a raw offset (`page=100` meant "skip 100"); CategoryController
+ * now reads it as a 1-based page number and takes an explicit `offset`,
+ * which wins when both are sent. Both are sent here, computed so they
+ * agree under either reading, so this walks the table correctly against
+ * an API from before that change as well as after it. Which `page`
+ * reading applies is decided from the first response (see
+ * `pageParamFor`), never assumed.
  */
-export async function listCategories({ limit = 100, offset = 0, token, signal } = {}) {
+async function fetchCategoryPage({ query = "", token, signal }) {
   const { data, meta } = await api.get(
-    `/categories/getAllCategories?limit=${limit}&page=${offset}`,
+    `/categories/getAllCategories?limit=${PAGE_SIZE}${query}`,
     { token, signal, envelope: true },
   );
 
   return {
     categories: (data ?? []).map(toCategory),
     pagination: meta?.pagination ?? null,
+  };
+}
+
+/**
+ * The `page` value that asks for the `n`th page (1-based), given the
+ * pagination block the first page came back with. A response that
+ * reports a `page` number speaks 1-based pages; one that only echoes an
+ * `offset` is the older offset-as-page reading.
+ */
+function pageParamFor(pagination, n, stride) {
+  if (pagination && pagination.page !== undefined) return n;
+
+  return (n - 1) * stride;
+}
+
+/**
+ * Every category, newest first, paged through until the API's `total` is
+ * reached. The admin category screens and the product form's category
+ * picker both need the whole table — the first 100 rows used to be all
+ * either of them ever saw, so category 101 could not be opened, edited or
+ * picked.
+ *
+ * Rows are de-duplicated by id: a category created between two page
+ * requests shifts every later row down by one, and the overlap would
+ * otherwise show one category twice. A page that adds nothing new ends
+ * the walk, which also stops a backend that ignores paging from looping.
+ *
+ * @returns {Promise<{categories: Array, pagination: object|null}>}
+ */
+export async function listCategories({ token, signal } = {}) {
+  const first = await fetchCategoryPage({ token, signal });
+
+  const byId = new Map(first.categories.map((category) => [category.id, category]));
+  const total = Number(first.pagination?.total) || byId.size;
+  const stride = Number(first.pagination?.limit) || PAGE_SIZE;
+
+  for (let n = 2; byId.size < total && n <= MAX_PAGES; n++) {
+    const offset = (n - 1) * stride;
+    const page = pageParamFor(first.pagination, n, stride);
+
+    const next = await fetchCategoryPage({
+      query: `&page=${page}&offset=${offset}`,
+      token,
+      signal,
+    });
+
+    let added = 0;
+
+    for (const category of next.categories) {
+      if (byId.has(category.id)) continue;
+
+      byId.set(category.id, category);
+      added += 1;
+    }
+
+    if (added === 0) break;
+  }
+
+  return {
+    categories: [...byId.values()],
+    pagination: first.pagination,
   };
 }
 
@@ -99,22 +172,54 @@ export async function getCategory(id, { token, signal } = {}) {
   return toCategory(data);
 }
 
-export async function createCategory(fields, { token } = {}) {
-  const data = await api.post("/categories/createCategory", toFormData(fields), {
-    token,
-  });
+/**
+ * Rewrites the older conflict shape into the field map the form reads.
+ *
+ * The category service's 409s used to send `errors: { field: "slug" }` —
+ * the *name* of the field rather than a message for it — so the form
+ * surfaced the bare word "slug" in its toast and never highlighted the
+ * slug input. The service now sends `{ slug: "Category with this slug
+ * already exists" }`; this keeps a backend that has not caught up
+ * readable too, by pinning the error's own message on the named field.
+ */
+function withFieldMap(error) {
+  const fields = error?.fields;
 
-  return toCategory(data);
+  if (
+    fields &&
+    typeof fields.field === "string" &&
+    Object.keys(fields).length === 1
+  ) {
+    error.fields = { [fields.field]: error.message };
+  }
+
+  return error;
+}
+
+export async function createCategory(fields, { token } = {}) {
+  try {
+    const data = await api.post("/categories/createCategory", toFormData(fields), {
+      token,
+    });
+
+    return toCategory(data);
+  } catch (error) {
+    throw withFieldMap(error);
+  }
 }
 
 export async function updateCategory(id, patch, { token } = {}) {
-  const data = await api.put(
-    `/categories/updateCategory/${encodeURIComponent(id)}`,
-    toFormData(patch, { partial: true }),
-    { token },
-  );
+  try {
+    const data = await api.put(
+      `/categories/updateCategory/${encodeURIComponent(id)}`,
+      toFormData(patch, { partial: true }),
+      { token },
+    );
 
-  return toCategory(data);
+    return toCategory(data);
+  } catch (error) {
+    throw withFieldMap(error);
+  }
 }
 
 // ============================================================

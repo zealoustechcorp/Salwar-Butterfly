@@ -28,6 +28,7 @@
 // one JavaScript cannot reach.
 
 import { createHash, randomUUID } from "node:crypto";
+import { isIP } from "node:net";
 
 import { env } from "./env.js";
 
@@ -207,4 +208,46 @@ export const REVOKE_REASON = Object.freeze({
   ROTATED_OUT: "rotated_out",
   /** Every session ended because the password was reset by email. */
   PASSWORD_RESET: "password_reset",
+  /**
+   * Every *other* session ended because the shopper changed their
+   * password while signed in. Needs 026_refresh_tokens_password_change_reason.sql;
+   * until that has run, RefreshTokenRepository.revokeAllForSubject falls
+   * back to PASSWORD_RESET so the revocation itself never fails.
+   */
+  PASSWORD_CHANGE: "password_change",
 });
+
+// ============================================================
+// CLIENT ADDRESS
+// ============================================================
+
+/**
+ * The client address as `refresh_tokens.ip` (INET) will accept it, or
+ * null.
+ *
+ * `req.ip` is whatever the last proxy hop put in X-Forwarded-For, and
+ * that header is attacker-controlled: "10.77.1.300" or "not-an-ip" both
+ * arrive here verbatim. Postgres refuses either with 22P02, and inside
+ * the refresh transaction that refusal aborts the transaction, so the
+ * old "catch 22P02 and retry with null" ran into 25P02 and the shopper
+ * got a 500 on every renewal (stress test MED-2, 2026-10-09).
+ *
+ * So the value is checked before it is sent, not after it fails. The
+ * address is provenance, never authorisation — dropping a bad one costs
+ * a support conversation a detail, while keeping it cost the session.
+ *
+ * An IPv6 zone id ("fe80::1%eth0") is valid to Node and not to INET, so
+ * it is stripped first.
+ *
+ * @param {unknown} ip
+ * @returns {string | null}
+ */
+export const normaliseClientIp = (ip) => {
+  if (typeof ip !== "string") return null;
+
+  const value = ip.trim().split("%")[0];
+
+  if (!value || value.length > 64) return null;
+
+  return isIP(value) === 0 ? null : value;
+};

@@ -50,6 +50,19 @@ const ORDER_ID = "3f1a7c2e-9b84-4d61-8a05-6c7e2f9d4b13";
 let orders;
 let payments;
 
+/**
+ * How far the stand-in database's clock runs ahead of this process's.
+ *
+ * The live database is about two seconds ahead of the API host, and the
+ * service once compared `created_at` (database clock) with Date.now()
+ * (host clock) — a fresh attempt then looked negative-aged and was never
+ * reused. The stand-in stamps rows and measures `age_ms` on its own
+ * clock, as Postgres does, so a test can set this and see whether the
+ * service still trusts the host clock anywhere.
+ */
+let dbSkewMs;
+const dbNow = () => Date.now() + dbSkewMs;
+
 /** Rows are read back the way Postgres returns them: newest first. */
 const openAttempts = (orderId) =>
   payments
@@ -115,7 +128,7 @@ const anAttempt = ({ ageMs = 0, amount = "1850.00", currency = "INR" } = {}) => 
     status: PAYMENT_ATTEMPT_STATUS.CREATED,
     amount,
     currency,
-    created_at: new Date(Date.now() - ageMs),
+    created_at: new Date(dbNow() - ageMs),
   };
 
   payments.push(row);
@@ -154,6 +167,7 @@ beforeEach(() => {
   orders = new Map([[ORDER_ID, anOrder()]]);
   payments = [];
   minted = 0;
+  dbSkewMs = 0;
 
   resetGatewayBreaker();
 
@@ -161,11 +175,13 @@ beforeEach(() => {
 
   mock.method(PaymentRepository, "withSessionLock", makeLock());
 
-  mock.method(
-    PaymentRepository,
-    "findLatestOpenAttempt",
-    async (orderId) => openAttempts(orderId)[0] ?? null,
-  );
+  mock.method(PaymentRepository, "findLatestOpenAttemptWithAge", async (orderId) => {
+    const row = openAttempts(orderId)[0];
+
+    return row
+      ? { ...row, age_ms: Math.max(0, dbNow() - row.created_at.getTime()) }
+      : null;
+  });
 
   mock.method(
     PaymentRepository,
@@ -180,7 +196,7 @@ beforeEach(() => {
         status: PAYMENT_ATTEMPT_STATUS.CREATED,
         amount: String(amount),
         currency,
-        created_at: new Date(),
+        created_at: new Date(dbNow()),
       };
 
       payments.push(row);
@@ -236,6 +252,47 @@ describe("PaymentService.createSession", () => {
       assert.equal(fetched.mock.callCount(), 1);
       assert.equal(new Set(sessions.map((s) => s.providerOrderId)).size, 1);
       assert.equal(payments.length, 1);
+    });
+  });
+
+  describe("clock skew between the API host and the database", () => {
+    it("reuses a moments-old attempt when the database clock runs ahead", async () => {
+      // Stamped "now" on a database clock two seconds ahead: by this
+      // host's clock the row was created in the future.
+      dbSkewMs = 2_000;
+      const existing = anAttempt({ ageMs: 0 });
+
+      const fetched = mintingFetch();
+
+      const session = await PaymentService.createSession(ORDER_ID);
+
+      assert.equal(fetched.mock.callCount(), 0, "a skewed clock minted a new order");
+      assert.equal(session.providerOrderId, existing.provider_order_id);
+    });
+
+    it("mints one Razorpay order for a burst of clicks under skew", async () => {
+      dbSkewMs = 2_000;
+
+      const fetched = mintingFetch();
+
+      const sessions = await Promise.all(
+        Array.from({ length: 5 }, () => PaymentService.createSession(ORDER_ID)),
+      );
+
+      assert.equal(fetched.mock.callCount(), 1);
+      assert.equal(new Set(sessions.map((s) => s.providerOrderId)).size, 1);
+      assert.equal(payments.length, 1);
+    });
+
+    it("still opens a new attempt past the window when the database runs behind", async () => {
+      dbSkewMs = -5_000;
+      anAttempt({ ageMs: SESSION_REUSE_WINDOW_MS + 1_000 });
+
+      const fetched = mintingFetch();
+
+      await PaymentService.createSession(ORDER_ID);
+
+      assert.equal(fetched.mock.callCount(), 1);
     });
   });
 

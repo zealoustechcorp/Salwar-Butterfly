@@ -3,6 +3,21 @@ import Link from "next/link";
 import { Butterfly } from "@/components/store/Ornaments";
 
 /**
+ * The tab title for a missing piece.
+ *
+ * Exported here rather than relied on from the page's generateMetadata: once
+ * the page calls notFound(), Next resolves metadata for the not-found
+ * boundary (layouts, then this file) and the page's own "Piece not found"
+ * never reaches the head, so the tab showed the site's default title. Next
+ * adds the noindex itself for a 404.
+ */
+export const metadata = {
+  title: "Piece not found",
+  description:
+    "That piece is no longer on the Salwar Butterfly shelf. Browse the rest of the shop.",
+};
+
+/**
  * An id that is not in the catalogue — an old link, a run that has since been
  * removed, or a hand-typed URL. It renders inside the storefront shell, so the
  * header and footer are still there to browse from.

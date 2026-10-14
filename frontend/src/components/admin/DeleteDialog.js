@@ -14,16 +14,35 @@ import { Button, Modal, useToast } from "./ui";
  * the delete is attempted and whatever it refuses comes back listed with
  * its reason — those rows can still be deactivated, which is what
  * retiring a sold product actually means.
+ *
+ * The dialog owns its subject. It snapshots the products it was opened
+ * with, and after a partial delete narrows that to the blocked ones, so
+ * "Deactivate instead" acts on exactly the rows listed as refused. It
+ * used to read the caller's live selection instead — and the caller's
+ * onDone refreshed the list and cleared that selection while the dialog
+ * was still open, so the button deactivated nothing and announced
+ * success. For the same reason onDone now runs once, when the dialog
+ * closes, carrying the last delete result.
  */
 export function DeleteDialog({ open, onClose, products, onDone }) {
   if (!open) return null;
   return <DeleteConfirm onClose={onClose} products={products} onDone={onDone} />;
 }
 
-function DeleteConfirm({ onClose, products = [], onDone }) {
+function DeleteConfirm({ onClose, products: initialProducts = [], onDone }) {
+  // Fixed at open (see the note above): the caller's list may change
+  // underneath an open dialog.
+  const [products, setProducts] = useState(initialProducts);
   const [busy, setBusy] = useState(false);
   const [blocked, setBlocked] = useState([]);
+  // What to hand onDone at close — null until something was written.
+  const [outcome, setOutcome] = useState(null);
   const toast = useToast();
+
+  function close(finalOutcome = outcome) {
+    onClose();
+    if (finalOutcome) onDone?.(finalOutcome);
+  }
 
   async function runDelete() {
     setBusy(true);
@@ -41,12 +60,19 @@ function DeleteConfirm({ onClose, products = [], onDone }) {
         toast.error("Nothing was deleted.");
       }
 
-      // Anything the API refused stays on screen with its reason, so the
-      // admin can deactivate instead without re-selecting.
-      if (result.blocked.length) setBlocked(result.blocked);
-      else onClose();
+      const next = result.deleted ? result : outcome;
+      setOutcome(next);
 
-      await onDone?.(result);
+      // Anything the API refused stays on screen with its reason, and
+      // becomes the dialog's whole subject, so "Deactivate instead"
+      // acts on those rows without re-selecting.
+      if (result.blocked.length) {
+        const refused = new Set(result.blocked.map((row) => row.id));
+        setBlocked(result.blocked);
+        setProducts((current) => current.filter((product) => refused.has(product.id)));
+      } else {
+        close(next);
+      }
     } catch (err) {
       toast.error(err.message || "Delete failed.");
     } finally {
@@ -61,9 +87,17 @@ function DeleteConfirm({ onClose, products = [], onDone }) {
         productIds: products.map((product) => product.id),
         active: false,
       });
-      toast.success(result.message);
-      await onDone?.();
-      onClose();
+
+      // Never "Deactivated 0 products." as a success.
+      if (!result.count) {
+        toast.error("Nothing was deactivated.");
+        return;
+      }
+
+      if (result.failed.length) toast.error(result.message);
+      else toast.success(result.message);
+
+      close({ ...(outcome ?? { deleted: 0, blocked: [] }), deactivated: result.count });
     } catch (err) {
       toast.error(err.message || "Deactivation failed.");
     } finally {
@@ -74,20 +108,29 @@ function DeleteConfirm({ onClose, products = [], onDone }) {
   return (
     <Modal
       open
-      onClose={onClose}
+      onClose={() => close()}
       title="Delete or deactivate"
-      description={`${products.length} product${products.length === 1 ? "" : "s"} selected.`}
+      description={
+        blocked.length
+          ? `${products.length} product${products.length === 1 ? "" : "s"} could not be deleted.`
+          : `${products.length} product${products.length === 1 ? "" : "s"} selected.`
+      }
       footer={
         <>
-          <Button variant="ghost" onClick={onClose} disabled={busy}>
-            Cancel
+          <Button variant="ghost" onClick={() => close()} disabled={busy}>
+            {outcome ? "Close" : "Cancel"}
           </Button>
           <Button variant="secondary" busy={busy} onClick={runDeactivate}>
-            Deactivate instead
+            {blocked.length ? `Deactivate ${products.length} instead` : "Deactivate instead"}
           </Button>
-          <Button variant="danger" busy={busy} onClick={runDelete}>
-            Delete {products.length}
-          </Button>
+          {/* Re-trying a delete the database just refused would only be
+              refused again, so after a partial delete the only offer is
+              the one that works. */}
+          {blocked.length ? null : (
+            <Button variant="danger" busy={busy} onClick={runDelete}>
+              Delete {products.length}
+            </Button>
+          )}
         </>
       }
     >

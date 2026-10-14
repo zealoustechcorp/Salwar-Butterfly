@@ -26,7 +26,7 @@ import { StagedGallery } from "@/components/admin/ProductGallery";
 import { SizeStockEditor } from "@/components/admin/SizeStockEditor";
 import { listAttributeValues, listColours } from "@/lib/api/attributes";
 import { uploadImages } from "@/lib/api/images";
-import { bulkCreateProducts, getReference } from "@/lib/api/products";
+import { bulkCreateProducts, getReference, listAllProducts } from "@/lib/api/products";
 import { listFits } from "@/lib/api/sizeCharts";
 import { replaceVariants } from "@/lib/api/variants";
 import { money, number } from "@/lib/format";
@@ -109,6 +109,10 @@ export default function BulkUploadPage() {
   // the cell: eight thumbnails do not belong in a table row, and the
   // create screen's StagedGallery already does the job properly.
   const [photoRow, setPhotoRow] = useState(null);
+  // Slugs already in the catalogue, so a clash is named against its row
+  // before anything is sent. A courtesy: null (not loaded, or the walk
+  // failed) skips the check, and the API's own 409 still names the row.
+  const [takenSlugs, setTakenSlugs] = useState(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -117,6 +121,10 @@ export default function BulkUploadPage() {
       .catch((err) => {
         if (err?.name !== "AbortError") setFailure(err);
       });
+
+    listAllProducts({ signal: controller.signal })
+      .then((products) => setTakenSlugs(new Set(products.map((p) => p.slug))))
+      .catch(() => {});
 
     // Fills the attribute dropdowns. An empty or failed register still
     // lets the form save, and a value can be added inline.
@@ -256,6 +264,11 @@ export default function BulkUploadPage() {
         validateSalePrice(priceFor(row), shared.discountPercentage);
 
       if (problem) return `${where} (${name}): ${problem}`;
+
+      const slug = row.slug.trim() || autoSlug(name);
+      if (takenSlugs?.has(slug)) {
+        return `${where} (${name}): the URL slug "${slug}" is already used by another product`;
+      }
     }
 
     return validateVariantRows(sizes);
@@ -358,9 +371,25 @@ export default function BulkUploadPage() {
       router.push("/admin/products");
     } catch (err) {
       setFailure(err);
-      toast.error(err.message || "Bulk upload failed.");
+      toast.error(err.message || "Bulk upload failed.", rowProblems(err.fields) ?? undefined);
       setBusy(false);
     }
+  }
+
+  /**
+   * The API names a refused row by its index in the batch it was sent —
+   * `products[3].slug` — which is the index into `filled`, not a key the
+   * admin can see. Turned back into "Row 4 (Rani Pink Anarkali): …".
+   */
+  function rowProblems(fields) {
+    const lines = Object.entries(fields ?? {}).map(([key, message]) => {
+      const match = /^products\[(\d+)\]/.exec(key);
+      const row = match ? filled[Number(match[1])] : null;
+
+      return row ? `Row ${Number(match[1]) + 1} (${row.name.trim()}): ${message}` : message;
+    });
+
+    return lines.length ? lines.join(" · ") : null;
   }
 
   if (!reference && !failure) return <SkeletonRows rows={10} className="mx-auto max-w-5xl" />;
@@ -569,7 +598,8 @@ export default function BulkUploadPage() {
                   <span className="mb-1 block text-xs font-medium text-ink-600">URL slug</span>
                   <Input
                     value={row.slug}
-                    onChange={(e) => patchRow(index, { slug: autoSlug(e.target.value) })}
+                    onChange={(e) => patchRow(index, { slug: e.target.value.toLowerCase() })}
+                    onBlur={(e) => patchRow(index, { slug: autoSlug(e.target.value) })}
                     placeholder={derivedSlug || "auto"}
                     className="font-mono text-xs"
                     aria-label={`Slug for row ${index + 1}`}
@@ -640,7 +670,8 @@ export default function BulkUploadPage() {
                     <td className="py-1.5 pr-3">
                       <Input
                         value={row.slug}
-                        onChange={(e) => patchRow(index, { slug: autoSlug(e.target.value) })}
+                        onChange={(e) => patchRow(index, { slug: e.target.value.toLowerCase() })}
+                        onBlur={(e) => patchRow(index, { slug: autoSlug(e.target.value) })}
                         placeholder={derivedSlug || "auto"}
                         className="font-mono text-xs"
                         aria-label={`Slug for row ${index + 1}`}

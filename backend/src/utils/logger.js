@@ -126,6 +126,9 @@ const SENSITIVE_FIELDS = new Set([
   "appsecret",
   "whatsappappsecret",
   "verifytoken",
+  // The handshake's own spelling, should req.query ever be logged whole.
+  // URLs are scrubbed separately — see utils/redactUrl.js.
+  "hub.verify_token",
 ]);
 
 const safeStringify = (value) => {

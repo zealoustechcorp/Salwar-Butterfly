@@ -327,6 +327,7 @@ export default function NewProductPage() {
           <AttributeFields
             form={form}
             setField={setField}
+            errors={errors}
             groups={attributeGroups}
             fits={fits}
             onRefreshFits={refreshFits}

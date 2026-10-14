@@ -24,11 +24,15 @@ import CategoryBadge from "./Badge";
  * @param {Function} props.onEdit - Callback function invoked to navigate to category edit screen
  * @param {Function} props.onDetail - Callback function invoked to navigate to category detail screen
  * @param {Function} props.onToggle - Callback function invoked when the active/inactive toggle is flipped
+ * @param {boolean} [props.toggling] - A flip is in flight; the switch waits for it
  * @returns {JSX.Element} The rendered category card component
  */
-export default function CategoryCard({ cat, onEdit, onDetail, onToggle }) {
-  /** Derived on the provider from `products.category_id`. */
-  const productCount = cat.productIds?.length ?? 0;
+export default function CategoryCard({ cat, onEdit, onDetail, onToggle, toggling = false }) {
+  /**
+   * Derived on the provider from `products.category_id`; `null` when the
+   * products could not be loaded, which is shown as unknown rather than 0.
+   */
+  const productCount = cat.productIds ? cat.productIds.length : "—";
 
   return (
     <div className="group relative flex flex-col rounded-xl bg-white ring-1 ring-ink-200/80 shadow-xs hover:ring-brand-300 hover:shadow-md transition-all duration-150 overflow-hidden">
@@ -41,7 +45,12 @@ export default function CategoryCard({ cat, onEdit, onDetail, onToggle }) {
       */}
       <div className="relative h-44 w-full overflow-hidden bg-ink-100">
         {cat.image ? (
+          // A plain `img`, as in GalleryThumbnail: an admin-only card whose
+          // banner may still point at the disabled Cloudinary account, and
+          // whose loading="lazy" already keeps an off-screen grid cheap.
+          // eslint-disable-next-line @next/next/no-img-element
           <img
+            loading="lazy"
             src={cat.image}
             alt={cat.name}
             className="h-full w-full object-cover transition-transform duration-300 ease-out group-hover:scale-105"
@@ -61,7 +70,12 @@ export default function CategoryCard({ cat, onEdit, onDetail, onToggle }) {
           Allows admin to flip category visibility immediately without opening edit mode.
         */}
         <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 rounded-full bg-white/95 px-2.5 py-1 shadow-sm backdrop-blur-xs ring-1 ring-black/5">
-          <Toggle checked={cat.active} onChange={() => onToggle(cat.id)} size="sm" />
+          <Toggle
+            checked={cat.active}
+            onChange={() => onToggle(cat.id)}
+            disabled={toggling}
+            size="sm"
+          />
           <CategoryBadge active={cat.active} />
         </div>
       </div>

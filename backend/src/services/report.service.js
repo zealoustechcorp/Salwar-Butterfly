@@ -24,6 +24,7 @@ import { ReportMapper } from "../mapper/report.mapper.js";
 import { STOCK_STATUS } from "../config/stock.policy.js";
 import {
   ORDER_SORT,
+  ORDER_SORTS,
   ORDER_STATUSES,
   PAYMENT_STATUSES,
 } from "../config/order.policy.js";
@@ -36,7 +37,9 @@ import {
   DEFAULT_TOP_PRODUCTS_SORT,
   MAX_BUCKETS,
   MAX_PAGE_SIZE,
+  MAX_REPORT_YEAR,
   MAX_TOP_PRODUCTS,
+  MIN_REPORT_YEAR,
   REPORT_PERIODS,
   REPORT_TIMEZONE,
   TOP_PRODUCTS_SORTS,
@@ -86,6 +89,16 @@ const normalizeDate = (value, label) => {
   const parsed = new Date(`${text}T00:00:00Z`);
   if (Number.isNaN(parsed.getTime()) || !parsed.toISOString().startsWith(text)) {
     throw new ApiError(400, `${label} is not a real date`);
+  }
+
+  // Shape and calendar are not enough: 0000-01-01 passes both and then
+  // fails the `::date` cast in Postgres as a 500. See MIN_REPORT_YEAR.
+  const year = Number(text.slice(0, 4));
+  if (year < MIN_REPORT_YEAR || year > MAX_REPORT_YEAR) {
+    throw new ApiError(
+      400,
+      `${label} must fall between ${MIN_REPORT_YEAR} and ${MAX_REPORT_YEAR}`,
+    );
   }
 
   return text;
@@ -350,6 +363,16 @@ export const ReportService = {
         throw new ApiError(
           400,
           `Unknown payment status "${paymentStatus}". Expected one of: ${PAYMENT_STATUSES.join(", ")}.`,
+        );
+      }
+
+      // An unknown sort used to fall through to the repository's
+      // default and come back 200, so a typo in the admin's URL looked
+      // like a working sort that simply ordered nothing differently.
+      if (sort && !ORDER_SORTS.includes(sort)) {
+        throw new ApiError(
+          400,
+          `Unknown sort "${sort}". Expected one of: ${ORDER_SORTS.join(", ")}.`,
         );
       }
 

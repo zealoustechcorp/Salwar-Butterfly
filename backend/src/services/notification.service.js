@@ -445,17 +445,15 @@ export const NotificationService = {
       );
     }
 
-    if (!Buffer.isBuffer(rawBody)) {
-      // app.js keeps this route's body unparsed. Its absence is a
-      // configuration mistake here, not a bad request from Meta, and
-      // saying so is the difference between fixing a mount and spending
-      // an afternoon on a signature that was never wrong.
-      logger.error("WhatsApp receipt reached the handler without a raw body");
+    if (!Buffer.isBuffer(rawBody) || rawBody.length === 0) {
+      // app.js keeps this route's body unparsed whatever its
+      // Content-Type, and hands an empty Buffer to a POST with none, so
+      // the only way here is a delivery with nothing to verify. That is
+      // the caller's fault, not ours: this was once a 500, and a forged
+      // or empty POST with an odd Content-Type is not an incident.
+      logger.warn("WhatsApp receipt arrived with an empty body");
 
-      throw ApiError.internal(
-        "Webhook body was parsed before it could be verified",
-        "WHATSAPP_RAW_BODY_MISSING",
-      );
+      throw ApiError.badRequest("Webhook body is empty", "WHATSAPP_BODY_INVALID");
     }
 
     if (!receiptSignatureMatches({ rawBody, appSecret, signature })) {

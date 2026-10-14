@@ -83,6 +83,16 @@ export default function CustomersPage() {
     listCustomers({ ...query, limit: PAGE_SIZE }, { signal: controller.signal })
       .then((data) => {
         if (!active) return;
+
+        // Past the end — rows on the last page left the result set since
+        // it was opened. Step back to the real last page rather than
+        // showing an empty one.
+        const lastPage = Math.max(1, data.pagination?.totalPages ?? 1);
+        if (query.page > lastPage) {
+          setQuery((q) => (q.page > lastPage ? { ...q, page: lastPage } : q));
+          return;
+        }
+
         setResult({ status: "ready", query, ...data, error: null });
       })
       .catch((error) => {

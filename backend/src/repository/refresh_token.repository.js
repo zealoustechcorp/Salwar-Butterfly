@@ -18,7 +18,12 @@
 
 import { query } from "../config/db.js";
 import { logger } from "../utils/logger.js";
-import { hashToken, REVOKE_REASON } from "../config/auth.policy.js";
+import {
+  hashToken,
+  normaliseClientIp,
+  REFRESH_REUSE_GRACE_MS,
+  REVOKE_REASON,
+} from "../config/auth.policy.js";
 
 const handleDatabaseError = (error, operation, context = {}) => {
   logger.error(`Refresh token repository error: ${operation}`, {
@@ -68,6 +73,19 @@ export const RefreshTokenRepository = {
     { token, familyId, subjectId, typ, expiresAt, userAgent, ip },
     client,
   ) {
+    // Checked before the INSERT rather than caught after it. Inside the
+    // refresh transaction a 22P02 from INET aborts the transaction, so
+    // the old catch-and-retry could only ever fail again with 25P02 —
+    // see normaliseClientIp.
+    const safeIp = normaliseClientIp(ip);
+
+    if (ip && !safeIp) {
+      logger.warn("Unparseable client address on refresh token, storing null", {
+        subjectId,
+        typ,
+      });
+    }
+
     try {
       const { rows } = await runner(client)(
         `
@@ -88,27 +106,12 @@ export const RefreshTokenRepository = {
           userAgent ? String(userAgent).slice(0, 512) : null,
           // An unparseable address must not cost somebody their login —
           // INET would reject it and take the whole INSERT down with it.
-          ip ?? null,
+          safeIp,
         ],
       );
 
       return rows[0];
     } catch (error) {
-      // Postgres refuses an INET it cannot parse (22P02). The address is
-      // provenance, not authorization, so it is dropped and the session
-      // is still created.
-      if (error?.code === "22P02") {
-        logger.warn("Unparseable client address on refresh token, storing null", {
-          subjectId,
-          typ,
-        });
-
-        return RefreshTokenRepository.insert(
-          { token, familyId, subjectId, typ, expiresAt, userAgent, ip: null },
-          client,
-        );
-      }
-
       throw handleDatabaseError(error, "insert", { subjectId, typ });
     }
   },
@@ -129,19 +132,36 @@ export const RefreshTokenRepository = {
    * innocent double-refresh case, and is why `rotate` below tolerates a
    * brief grace window rather than revoking on sight.
    *
+   * The clock questions — has it expired, how long since it was burned,
+   * is that inside the grace window — are answered here, in SQL, against
+   * the database's own clock. `used_at` and `expires_at` were stamped by
+   * Postgres, and the Aiven clock runs ~2 s ahead of the API host, so
+   * comparing them with Date.now() shrank or stretched the grace window
+   * by whatever the skew happened to be that day. clock_timestamp()
+   * rather than NOW() because NOW() is frozen at BEGIN, and this SELECT
+   * may have queued behind another tab's lock for a while first.
+   *
    * @param {import('pg').PoolClient} client  required — FOR UPDATE needs a transaction
+   * @returns row plus `expired` (bool), `ms_since_use` (number|null) and
+   *          `within_grace` (bool)
    */
-  async findForUpdate(token, client) {
+  async findForUpdate(token, client, { graceMs = REFRESH_REUSE_GRACE_MS } = {}) {
     try {
       const { rows } = await client.query(
         `
         SELECT id, family_id, subject_id, typ,
-               expires_at, used_at, revoked_at, revoked_reason, created_at
+               expires_at, used_at, revoked_at, revoked_reason, created_at,
+               expires_at <= clock_timestamp() AS expired,
+               (EXTRACT(EPOCH FROM (clock_timestamp() - used_at)) * 1000)::float8
+                 AS ms_since_use,
+               (used_at IS NOT NULL
+                 AND clock_timestamp() - used_at <= make_interval(secs => $2::float8 / 1000))
+                 AS within_grace
         FROM refresh_tokens
         WHERE token_hash = $1
         FOR UPDATE
         `,
-        [hashToken(token)],
+        [hashToken(token), graceMs],
       );
 
       return rows[0] ?? null;
@@ -214,25 +234,60 @@ export const RefreshTokenRepository = {
   /**
    * End every session an account has.
    *
-   * The lever for a compromised password, and the basis for a "sign out
-   * everywhere" button. Nothing calls it yet; it is here because the
-   * index that makes it cheap is already in the migration and a
-   * revocation story with no way to say "all of them" is half a story.
+   * The lever for a compromised password: a reset by email ends all of
+   * them, and a change of password while signed in ends all but the
+   * caller's own (`exceptFamilyId`).
    *
+   * `password_change` only exists in the reason CHECK once
+   * 026_refresh_tokens_password_change_reason.sql has run. Until then
+   * the UPDATE is refused with 23514 and is retried as `password_reset`
+   * — the reason is a support note, the revocation is the security
+   * property, and the second must not depend on a migration for the
+   * first. It is a single statement on the pool, so the retry is safe.
+   *
+   * @param {object} [options]
+   * @param {string} [options.exceptFamilyId] leave this one session alive
    * @returns {Promise<number>} rows revoked
    */
-  async revokeAllForSubject(subjectId, typ, reason = REVOKE_REASON.LOGOUT) {
-    try {
-      const { rowCount } = await query(
+  async revokeAllForSubject(
+    subjectId,
+    typ,
+    reason = REVOKE_REASON.LOGOUT,
+    { exceptFamilyId = null } = {},
+  ) {
+    const run = (why) =>
+      query(
         `
         UPDATE refresh_tokens
         SET revoked_at = NOW(), revoked_reason = $3
         WHERE subject_id = $1::uuid AND typ = $2 AND revoked_at IS NULL
+          AND ($4::uuid IS NULL OR family_id <> $4::uuid)
         `,
-        [subjectId, typ, reason],
+        [subjectId, typ, why, exceptFamilyId],
       );
 
-      return rowCount;
+    try {
+      let result;
+
+      try {
+        result = await run(reason);
+      } catch (error) {
+        if (
+          error?.code !== "23514" ||
+          reason !== REVOKE_REASON.PASSWORD_CHANGE
+        ) {
+          throw error;
+        }
+
+        logger.warn(
+          "revoked_reason 'password_change' not allowed yet (migration 026 pending); using 'password_reset'",
+          { subjectId, typ },
+        );
+
+        result = await run(REVOKE_REASON.PASSWORD_RESET);
+      }
+
+      return result.rowCount;
     } catch (error) {
       throw handleDatabaseError(error, "revokeAllForSubject", {
         subjectId,

@@ -62,13 +62,42 @@ const FILLER = new Set([
 ]);
 
 /**
+ * Next hands route params over already decoded, so `/products/100%25-cotton`
+ * arrives as "100%-cotton". Decoding that a second time throws a URIError on
+ * the bare "%" — which used to escape as a 500 on a link from Google. A
+ * handle that still carries escapes (a doubly-encoded old link) is decoded
+ * once more; one that cannot be decoded is used as it is, since slugify()
+ * drops the "%" either way.
+ */
+function safeDecode(handle) {
+  const text = String(handle ?? "");
+
+  try {
+    return decodeURIComponent(text);
+  } catch {
+    return text;
+  }
+}
+
+/**
+ * Never throws: an old address that cannot be matched, for whatever reason,
+ * still lands on the shelf (step 5) rather than an error page.
+ *
  * @param {string} handle  the last path segment of the old URL
  * @param {{ products?: boolean }} [options] true when the old URL was a
  *        product page, so a product of the same name is tried first
  * @returns {Promise<string>} a path on this site
  */
-export async function resolveLegacyHandle(handle, { products: tryProducts = false } = {}) {
-  const slug = slugify(decodeURIComponent(handle ?? ""));
+export async function resolveLegacyHandle(handle, options = {}) {
+  try {
+    return await resolveHandle(handle, options);
+  } catch {
+    return "/shop";
+  }
+}
+
+async function resolveHandle(handle, { products: tryProducts = false } = {}) {
+  const slug = slugify(safeDecode(handle));
   if (!slug || slug === "all" || slug === "frontpage") return "/shop";
 
   let products;

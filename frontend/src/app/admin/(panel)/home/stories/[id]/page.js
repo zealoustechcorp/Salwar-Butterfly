@@ -53,6 +53,7 @@ import {
   ACCEPT_ATTRIBUTE,
   MAX_BODY_LENGTH,
   MAX_NAME_LENGTH,
+  MAX_STORIES_ON_HOME,
   deleteStory,
   listStories,
   rejectionReason,
@@ -128,6 +129,15 @@ export default function StoryDetailPage() {
   const index = state.stories.findIndex((row) => row.id === id);
   const story = index === -1 ? null : state.stories[index];
 
+  /**
+   * Where this card sits in the rail a visitor sees: hidden cards keep
+   * their place in the order but are skipped, and only the first
+   * MAX_STORIES_ON_HOME published ones are served at all. -1 while hidden.
+   */
+  const live = state.stories.filter((row) => row.published);
+  const liveIndex = story ? live.findIndex((row) => row.id === story.id) : -1;
+  const pastCut = liveIndex >= MAX_STORIES_ON_HOME;
+
   // --- writes ---------------------------------------------------------------
 
   function patch(saved) {
@@ -170,7 +180,16 @@ export default function StoryDetailPage() {
       const saved = await reorderStories(next.map((row) => row.id));
 
       setState({ status: "ready", stories: saved, error: null });
-      toast.success(`Now card ${target + 1} of ${saved.length}`);
+
+      const at = saved.filter((row) => row.published).findIndex((row) => row.id === story.id);
+
+      toast.success(
+        at === -1
+          ? `Now position ${target + 1} of ${saved.length}`
+          : at >= MAX_STORIES_ON_HOME
+            ? `Now position ${target + 1} — past the first ${MAX_STORIES_ON_HOME} the home page shows`
+            : `Now live card ${at + 1} on the home page`,
+      );
     } catch (error) {
       toast.error("Could not reorder the stories", error?.message);
       refresh();
@@ -206,19 +225,28 @@ export default function StoryDetailPage() {
   /**
    * Saves the three typed fields.
    *
-   * Answers with the field errors the API named, so the section below can
-   * put each one under the box it belongs to rather than in a toast that
-   * says something went wrong somewhere.
+   * Answers with the saved row, so the section below can re-seed its boxes
+   * from what the API actually stored (it trims), or with the field errors
+   * the API named, so each one lands under the box it belongs to rather
+   * than in a toast that says something went wrong somewhere.
+   *
+   * Holds `busy` like every other action here: a save racing a delete or a
+   * photo swap could otherwise patch a row that no longer exists.
    */
   async function save(form) {
+    setBusy(true);
+
     try {
-      patch(await updateStory(story.id, form));
+      const saved = await updateStory(story.id, form);
+      patch(saved);
 
       toast.success("Story updated");
-      return {};
+      return { saved, errors: {} };
     } catch (error) {
       toast.error("Could not save the story", error?.message);
-      return error?.fields ?? {};
+      return { saved: null, errors: error?.fields ?? {} };
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -307,7 +335,8 @@ export default function StoryDetailPage() {
         {/* A customer's name is free text; it truncates rather than pushing
             the breadcrumb past the edge of a phone. */}
         <span className="min-w-0 truncate font-medium text-ink-700">
-          {story.customerName || `Card ${index + 1}`}
+          {story.customerName ||
+            (liveIndex === -1 ? "Hidden card" : `Live card ${liveIndex + 1}`)}
         </span>
       </nav>
 
@@ -369,8 +398,12 @@ export default function StoryDetailPage() {
             <div className="min-w-0">
               <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium text-ink-800">
                 {story.published ? "Published" : "Hidden"}
-                <Badge tone={story.published ? "brand" : "amber"}>
-                  {story.published ? `Card ${index + 1} of ${total}` : "Not shown"}
+                <Badge tone={liveIndex === -1 || pastCut ? "amber" : "brand"}>
+                  {liveIndex === -1
+                    ? "Not shown"
+                    : pastCut
+                      ? `Past the first ${MAX_STORIES_ON_HOME} — not shown`
+                      : `Live card ${liveIndex + 1} of ${Math.min(live.length, MAX_STORIES_ON_HOME)}`}
                 </Badge>
               </p>
               <p className="mt-1 text-xs text-ink-500">
@@ -393,7 +426,8 @@ export default function StoryDetailPage() {
               Position {index + 1} of {total}
             </p>
             <p className="mt-1 text-xs text-ink-500">
-              The home page shows the first 24 cards in this order.
+              The home page shows the first {MAX_STORIES_ON_HOME} published cards in
+              this order; hidden cards hold their place and are skipped.
             </p>
 
             <div className="mt-2 flex flex-wrap gap-2">
@@ -425,6 +459,7 @@ export default function StoryDetailPage() {
         key={story.id}
         story={story}
         products={products}
+        busy={busy}
         onSave={save}
       />
 
@@ -484,7 +519,7 @@ export default function StoryDetailPage() {
  * is still a card, which is why nothing here is required and why the
  * save button is dark until something has actually changed.
  */
-function PrintedOnTheCard({ story, products, onSave }) {
+function PrintedOnTheCard({ story, products, busy, onSave }) {
   const [form, setForm] = useState({
     customerName: story.customerName ?? "",
     body: story.body ?? "",
@@ -516,9 +551,23 @@ function PrintedOnTheCard({ story, products, onSave }) {
   const stranded =
     form.productId && !options.some((product) => product.id === form.productId);
 
+  /**
+   * The extra option names what is *selected*, which after a pick is not
+   * necessarily what is saved — it used to carry the saved piece's name
+   * while its value was the newly chosen one.
+   */
+  const chosen = products.find((product) => product.id === form.productId);
+  const strandedLabel = chosen
+    ? `${chosen.name}${chosen.active === false ? " (off sale)" : ""}`
+    : form.productId === story.productId
+      ? `${story.productName || "The piece this card names"}${story.productActive === false ? " (off sale)" : ""}`
+      : "The piece you chose";
+
+  // Compared trimmed, because the API stores them trimmed: "Meera " saved
+  // as "Meera" otherwise left the form claiming unsaved changes forever.
   const dirty =
-    form.customerName !== (story.customerName ?? "") ||
-    form.body !== (story.body ?? "") ||
+    form.customerName.trim() !== (story.customerName ?? "").trim() ||
+    form.body.trim() !== (story.body ?? "").trim() ||
     form.productId !== (story.productId ?? "");
 
   async function submit() {
@@ -541,7 +590,19 @@ function PrintedOnTheCard({ story, products, onSave }) {
     setFieldErrors({});
 
     try {
-      setFieldErrors(await onSave(form));
+      const { saved, errors: refused } = await onSave(form);
+
+      setFieldErrors(refused);
+
+      // Re-seeded from what was stored, not what was typed, so the boxes
+      // show the trimmed values the home page will print.
+      if (saved) {
+        setForm({
+          customerName: saved.customerName ?? "",
+          body: saved.body ?? "",
+          productId: saved.productId ?? "",
+        });
+      }
     } finally {
       setSaving(false);
     }
@@ -606,10 +667,7 @@ function PrintedOnTheCard({ story, products, onSave }) {
             >
               <option value="">No piece</option>
               {stranded ? (
-                <option value={form.productId}>
-                  {story.productName || "The piece this card names"}
-                  {story.productActive === false ? " (off sale)" : ""}
-                </option>
+                <option value={form.productId}>{strandedLabel}</option>
               ) : null}
               {options.map((product) => (
                 <option key={product.id} value={product.id}>
@@ -632,13 +690,18 @@ function PrintedOnTheCard({ story, products, onSave }) {
         ) : null}
 
         <div className="flex flex-wrap gap-2">
-          <Button variant="primary" busy={saving} disabled={!dirty} onClick={submit}>
+          <Button
+            variant="primary"
+            busy={saving}
+            disabled={!dirty || busy}
+            onClick={submit}
+          >
             Save what is printed
           </Button>
           {dirty ? (
             <Button
               variant="ghost"
-              disabled={saving}
+              disabled={saving || busy}
               onClick={() =>
                 setForm({
                   customerName: story.customerName ?? "",

@@ -79,6 +79,11 @@ export const FIELD_TAB = {
   categoryId: "details",
   basePrice: "pricing",
   discountPercentage: "pricing",
+  // The fit (and the register-backed attributes beside it) sit on the
+  // Details tab. Without this entry a refused fit — a product whose
+  // chart has since been withdrawn — surfaced only as a toast while the
+  // admin looked at whichever tab they were on.
+  attributes: "details",
 };
 
 /** Identity, description and where the product sits in the catalogue. */
@@ -116,10 +121,18 @@ export function DetailsFields({ form, setField, errors = {}, reference, lockCate
           <span className="font-mono text-xs break-all text-ink-400 sm:shrink-0">
             salwarbutterfly.com/product/
           </span>
+          {/* Slugified on blur, not per keystroke: autoSlug trims a
+              trailing hyphen, so running it on every change made the
+              hyphen between two words impossible to type. Lower-casing
+              as they type is harmless and keeps the preview honest. */}
           <Input
             value={form.slug}
             invalid={Boolean(errors.slug)}
-            onChange={(e) => setField("slug", autoSlug(e.target.value))}
+            onChange={(e) => setField("slug", e.target.value.toLowerCase())}
+            onBlur={(e) => {
+              const cleaned = autoSlug(e.target.value);
+              if (cleaned !== form.slug) setField("slug", cleaned);
+            }}
             placeholder={autoSlug(form.name) || "product-slug"}
             className="min-w-0 font-mono text-xs"
           />
@@ -209,6 +222,7 @@ export function DetailsFields({ form, setField, errors = {}, reference, lockCate
 export function AttributeFields({
   form,
   setField,
+  errors = {},
   groups = {},
   fits = [],
   onRefreshFits,
@@ -234,6 +248,10 @@ export function AttributeFields({
         selected={form.attributes?.[FIT_GROUP.key] ?? ""}
         onSelect={(value) => choose(FIT_GROUP.key, value)}
         onRefresh={onRefreshFits}
+        // The API reports every attribute refusal under one `attributes`
+        // key, and in practice the one it refuses is the fit (no chart
+        // published for it), so that is where the message is shown.
+        error={errors.attributes}
       />
 
       {ATTRIBUTE_GROUPS.map((group) => (
@@ -267,7 +285,7 @@ export function AttributeFields({
  * product form is not thrown away to go and publish one. Coming back to
  * this tab re-reads the list, so the new fit is there without a reload.
  */
-function FitSelect({ fits, selected, onSelect, onRefresh }) {
+function FitSelect({ fits, selected, onSelect, onRefresh, error }) {
   useEffect(() => {
     if (!onRefresh) return undefined;
     window.addEventListener("focus", onRefresh);
@@ -280,6 +298,7 @@ function FitSelect({ fits, selected, onSelect, onRefresh }) {
   return (
     <Field
       label={FIT_GROUP.label}
+      error={error}
       hint={
         <>
           {fits.length
@@ -297,7 +316,11 @@ function FitSelect({ fits, selected, onSelect, onRefresh }) {
         </>
       }
     >
-      <Select value={selected} onChange={(e) => onSelect(e.target.value)}>
+      <Select
+        value={selected}
+        invalid={Boolean(error)}
+        onChange={(e) => onSelect(e.target.value)}
+      >
         <option value="">Not specified — shows every chart</option>
         {options.map((entry) => (
           <option key={entry.fit} value={entry.fit}>

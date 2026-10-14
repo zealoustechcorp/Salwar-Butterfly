@@ -1,4 +1,5 @@
 import { TrackOrder } from "@/components/store/TrackOrder";
+import { getShop } from "@/lib/store/catalogue";
 
 export const metadata = {
   title: "Track your order",
@@ -7,5 +8,6 @@ export const metadata = {
 };
 
 export default function TrackPage() {
-  return <TrackOrder />;
+  // The shop's name and logo, for the payment sheet an unpaid order can open.
+  return <TrackOrder shop={getShop()} />;
 }

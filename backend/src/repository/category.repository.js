@@ -208,11 +208,49 @@ export class CategoryRepository {
     }
   }
 
+  /**
+   * What still hangs off a category: its products and its sub-categories.
+   *
+   * Products carry no deleted_at, so every row counts. Read before a
+   * delete so the refusal can say how many, and what to do about them.
+   */
+  static async countDependents(id) {
+    const sql = `
+      SELECT
+        (SELECT COUNT(*)::INTEGER FROM products WHERE category_id = $1::uuid) AS products,
+        (SELECT COUNT(*)::INTEGER FROM sub_categories WHERE category_id = $1::uuid) AS sub_categories
+    `;
+
+    try {
+      const result = await query(sql, [id]);
+      return {
+        products: result.rows[0]?.products ?? 0,
+        subCategories: result.rows[0]?.sub_categories ?? 0,
+      };
+    } catch (error) {
+      logger.error("Category countDependents error", {
+        categoryId: id,
+        error: error.message,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Soft-deletes a category, but only an empty one.
+   *
+   * The emptiness is part of the UPDATE rather than trusted from the
+   * count the service read a moment earlier, so a product filed into the
+   * category in between still stops the delete. Zero rows back means the
+   * category is gone or is no longer empty; the service tells which.
+   */
   static async softDelete(id) {
     const sql = `
       UPDATE categories
       SET deleted_at = NOW(), updated_at = NOW()
       WHERE id = $1 AND deleted_at IS NULL
+        AND NOT EXISTS (SELECT 1 FROM products WHERE category_id = $1::uuid)
+        AND NOT EXISTS (SELECT 1 FROM sub_categories WHERE category_id = $1::uuid)
       RETURNING id, deleted_at
     `;
 
@@ -234,6 +272,36 @@ export class CategoryRepository {
     } catch (error) {
       logger.error("Category softDelete error", {
         categoryId: id,
+        error: error.message,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Who holds a slug, deleted rows included.
+   *
+   * `checkSlugExists` ignores deleted categories, which matches the live
+   * index (unique only WHERE deleted_at IS NULL) but not the migration's
+   * plain UNIQUE. On a database built from the migration a deleted
+   * category still owns its slug, and the insert fails on it after the
+   * check said the slug was free — this is what lets that be reported as
+   * what it is.
+   */
+  static async findSlugHolder(slug, excludeId = null) {
+    const sql = `
+      SELECT id, name, deleted_at FROM categories
+      WHERE slug = $1 AND ($2::uuid IS NULL OR id <> $2::uuid)
+      ORDER BY deleted_at NULLS FIRST
+      LIMIT 1
+    `;
+
+    try {
+      const result = await query(sql, [slug, excludeId]);
+      return result.rows[0] || null;
+    } catch (error) {
+      logger.error("Category findSlugHolder error", {
+        slug,
         error: error.message,
       });
       throw error;

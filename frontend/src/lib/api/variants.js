@@ -125,10 +125,17 @@ export async function getVariantsForProduct(productId, { token, signal } = {}) {
  * product list shows a stock column per row and must not fire one
  * request per product.
  *
+ * Capped at `maxPages` × 500 variants so a runaway catalogue degrades
+ * rather than stalls. Hitting the cap is not silent: the result carries
+ * a non-enumerable `truncated` flag (so it never shows up as a product
+ * id) and a console warning, and the list screen says the stock figures
+ * are partial.
+ *
  * @returns {Promise<Record<string, object>>}
  */
 export async function getVariantSummaries({ maxPages = 20, token, signal } = {}) {
   const summaries = {};
+  let truncated = false;
 
   for (let page = 1; page <= maxPages; page++) {
     const { meta } = await api.get(
@@ -136,11 +143,25 @@ export async function getVariantSummaries({ maxPages = 20, token, signal } = {})
       { token, signal, envelope: true },
     );
 
+    // The API pages *variants*, but each page's summaries roll up every
+    // variant of the products on it — a product whose rows straddle a
+    // page boundary arrives whole on both pages. The later copy is the
+    // fresher one, so it simply replaces the earlier.
     Object.assign(summaries, meta?.summaries ?? {});
 
     const pagination = meta?.pagination;
-    if (!pagination || page >= (pagination.totalPages ?? 1)) break;
+    const totalPages = pagination?.totalPages ?? 1;
+    if (!pagination || page >= totalPages) break;
+
+    if (page === maxPages) {
+      truncated = true;
+      console.warn(
+        `getVariantSummaries: stopped after ${maxPages} of ${totalPages} pages; stock roll-ups are partial.`,
+      );
+    }
   }
+
+  Object.defineProperty(summaries, "truncated", { value: truncated, enumerable: false });
 
   return summaries;
 }
@@ -166,6 +187,13 @@ export async function replaceVariants(productId, variants, { token } = {}) {
         colour: variant.colour ?? "",
         stockQuantity: Number(variant.stockQuantity) || 0,
         active: variant.active ?? true,
+        // The count this row held when the admin last saw it. With it the
+        // API refuses (409 STOCK_CHANGED) instead of overwriting stock
+        // that sold while the form was open; without it — a new row, or a
+        // caller that does not track it — the row is written as given.
+        ...(variant.expectedStock === undefined || variant.expectedStock === null
+          ? {}
+          : { expectedStock: Number(variant.expectedStock) }),
       })),
     },
     { token, envelope: true },

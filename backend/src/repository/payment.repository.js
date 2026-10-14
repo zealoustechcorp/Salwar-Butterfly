@@ -182,6 +182,61 @@ export const PaymentRepository = {
   },
 
   /**
+   * `findLatestOpenAttempt`, plus how old the attempt is — measured by
+   * the database.
+   *
+   * The age exists for the reuse window in PaymentService.createSession,
+   * and it is computed here rather than there because `created_at` is
+   * stamped by the database clock and the API host's clock is a
+   * different one. The live database runs about two seconds ahead, so
+   * `Date.now() - created_at` came out *negative* for a row written a
+   * moment ago; the service read a negative age as "not a recent
+   * attempt" and minted a fresh Razorpay order for every click in the
+   * first two seconds — five sessions in one second in the stress test,
+   * lock and all. Subtracting inside Postgres compares one clock with
+   * itself.
+   *
+   * `clock_timestamp()` and not `NOW()`: NOW() is frozen at the start of
+   * the transaction, and this runs inside `withSessionLock` after
+   * waiting for the lock — a transaction that began before the one it
+   * queued behind would see that one's row as younger than zero.
+   * GREATEST clamps whatever is left of that to zero.
+   */
+  async findLatestOpenAttemptWithAge(
+    orderId,
+    { client = null, provider = DEFAULT_PROVIDER } = {},
+  ) {
+    const text = `
+      SELECT ${COLUMNS},
+        GREATEST(
+          0,
+          FLOOR(EXTRACT(EPOCH FROM (clock_timestamp() - created_at)) * 1000)
+        )::bigint AS age_ms
+      FROM payments
+      WHERE order_id = $1::uuid
+        AND provider = $2
+        AND status = $3
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
+
+    try {
+      const result = await runner(client)(text, [
+        orderId,
+        provider,
+        PAYMENT_ATTEMPT_STATUS.CREATED,
+      ]);
+
+      const row = result.rows[0] ?? null;
+
+      // pg hands bigint back as a string.
+      return row ? { ...row, age_ms: Number(row.age_ms) } : null;
+    } catch (error) {
+      throw handleDatabaseError(error, "findLatestOpenAttemptWithAge", { orderId });
+    }
+  },
+
+  /**
    * Records that a payment sheet was opened.
    *
    * Written *before* the shopper sees the sheet, not after they pay. An

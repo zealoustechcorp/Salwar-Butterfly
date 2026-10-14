@@ -71,11 +71,25 @@ app.use("/api", globalRateLimiter);
  * marks a request it has handled, so the JSON parser below sees this one
  * is done and leaves it alone; `req.body` stays the Buffer, and the
  * handler reads it as `req.rawBody`.
+ *
+ * Whatever the Content-Type says. This used to accept only
+ * `application/json`, and a delivery labelled anything else — a
+ * charset variant some proxy rewrote, `text/plain`, nothing at all —
+ * fell through to the parsers below, arrived without its raw bytes, and
+ * was answered 500 "Webhook body was parsed before it could be
+ * verified". The signature is over bytes, not over a media type; the
+ * HMAC decides whether the body is genuine and JSON.parse decides
+ * whether it is readable, and both answer 400 when it is not. The
+ * header is not evidence of either.
+ *
+ * A POST with no body at all gets an empty Buffer rather than null, so
+ * it too reaches the signature check and is refused there as a 400
+ * instead of tripping over a missing buffer.
  */
 const keepRawBody = [
-  express.raw({ type: "application/json", limit: "1mb" }),
+  express.raw({ type: () => true, limit: "1mb" }),
   (req, res, next) => {
-    req.rawBody = Buffer.isBuffer(req.body) ? req.body : null;
+    req.rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
     next();
   },
 ];

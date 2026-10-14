@@ -43,7 +43,7 @@ import {
 import { getReference } from "@/lib/api/products";
 import { bulkDeleteVariants, bulkSetVariantActive } from "@/lib/api/variants";
 import { number, relativeDate } from "@/lib/format";
-import { STOCK_LABEL, STOCK_TONE } from "@/lib/stock";
+import { LOW_STOCK_BELOW, STOCK_LABEL, STOCK_TONE } from "@/lib/stock";
 import { validateStock } from "@/lib/validate";
 
 /**
@@ -109,7 +109,10 @@ export default function InventoryPage() {
   const [restockOpen, setRestockOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectionBusy, setSelectionBusy] = useState(false);
-  const [rowBusy, setRowBusy] = useState(null);
+  // Every row with a write in flight. A set, not one id: stepping a
+  // second row before the first answered used to re-enable the first
+  // while its request was still out.
+  const [rowBusy, setRowBusy] = useState(() => new Set());
 
   // Request and outcome in one object: comparing the stored query with
   // the current one says a refetch is in flight without a second flag.
@@ -153,6 +156,16 @@ export default function InventoryPage() {
     listInventory({ ...query, limit: PAGE_SIZE }, { signal: controller.signal })
       .then((data) => {
         if (!active) return;
+
+        // Past the end — the last rows of the last page were deleted or
+        // taken out of the filter. Step back to the real last page
+        // instead of sitting on an empty one with no way to page back.
+        const lastPage = Math.max(1, data.pagination?.totalPages ?? 1);
+        if (query.page > lastPage) {
+          setQuery((q) => (q.page > lastPage ? { ...q, page: lastPage } : q));
+          return;
+        }
+
         setResult({ status: "ready", query, ...data, error: null });
         // A row that scrolled out of the result set can no longer be
         // acted on, so it must not stay selected and counted.
@@ -206,8 +219,16 @@ export default function InventoryPage() {
     }));
   }, []);
 
+  const markBusy = (id, busy) =>
+    setRowBusy((current) => {
+      const next = new Set(current);
+      if (busy) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+
   async function move(row, delta) {
-    setRowBusy(row.id);
+    markBusy(row.id, true);
     try {
       const updated = await adjustStock(row.id, delta);
       patchRow(updated);
@@ -216,14 +237,14 @@ export default function InventoryPage() {
       // The message says what the true count is, so show it.
       refresh();
     } finally {
-      setRowBusy(null);
+      markBusy(row.id, false);
     }
   }
 
   async function count(row, next) {
     if (next === row.stockQuantity) return;
 
-    setRowBusy(row.id);
+    markBusy(row.id, true);
     try {
       const updated = await setStock(row.id, next, row.stockQuantity);
       patchRow(updated);
@@ -234,7 +255,7 @@ export default function InventoryPage() {
       toast.error(err.message || "Could not save that count.");
       refresh();
     } finally {
-      setRowBusy(null);
+      markBusy(row.id, false);
     }
   }
 
@@ -265,14 +286,16 @@ export default function InventoryPage() {
    * sale becomes `unavailable`, which may well move it out of the
    * current filter, and leaving it sitting there under a stale badge
    * would be worse than the row moving.
+   *
+   * `ids` defaults to the selection; the delete dialog passes its own,
+   * narrowed to the sizes that survived a partial delete.
    */
-  async function setSaleStatus(active) {
+  async function setSaleStatus(active, ids = selection.map((row) => row.id)) {
+    if (!ids.length) return;
+
     setSelectionBusy(true);
     try {
-      const result = await bulkSetVariantActive(
-        selection.map((row) => row.id),
-        active,
-      );
+      const result = await bulkSetVariantActive(ids, active);
       toast.success(
         `${result.count} size${result.count === 1 ? "" : "s"} ${active ? "put back on sale" : "taken off sale"}.`,
         result.missing ? `${result.missing} were no longer there.` : undefined,
@@ -308,7 +331,7 @@ export default function InventoryPage() {
           <h1 className="text-xl font-semibold tracking-tight text-ink-900">Inventory</h1>
           <p className="mt-1 text-sm text-ink-600">
             Every size in the catalogue, emptiest first. A size is low below{" "}
-            {summary.thresholds?.lowStockBelow ?? 10} and out of stock at zero.
+            {summary.thresholds?.lowStockBelow ?? LOW_STOCK_BELOW} and out of stock at zero.
           </p>
         </div>
       </header>
@@ -517,7 +540,7 @@ export default function InventoryPage() {
                   <InventoryCard
                     key={row.id}
                     row={row}
-                    busy={rowBusy === row.id}
+                    busy={rowBusy.has(row.id)}
                     selected={selectedIds.has(row.id)}
                     onSelect={(checked) => selectRow(row.id, checked)}
                     onMove={(delta) => move(row, delta)}
@@ -554,7 +577,7 @@ export default function InventoryPage() {
                     <InventoryRow
                       key={row.id}
                       row={row}
-                      busy={rowBusy === row.id}
+                      busy={rowBusy.has(row.id)}
                       selected={selectedIds.has(row.id)}
                       onSelect={(checked) => selectRow(row.id, checked)}
                       onMove={(delta) => move(row, delta)}
@@ -614,7 +637,14 @@ export default function InventoryPage() {
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
         rows={selection}
-        onDeactivate={() => setSaleStatus(false)}
+        onDeactivate={(ids) => setSaleStatus(false, ids)}
+        // Some deleted, some held back: the deleted rows must leave the
+        // table and the selection now, not when the dialog closes — the
+        // dialog stays open on the held-back ones.
+        onPartial={(keptIds) => {
+          setSelectedIds(new Set(keptIds));
+          refresh();
+        }}
         onDone={() => {
           setSelectedIds(new Set());
           refresh();
@@ -863,11 +893,17 @@ function InventoryCard({ row, busy, selected, onSelect, onMove, onCount }) {
  * Taking sizes off sale is offered alongside, and is almost always the
  * right answer: it retires a size without discarding its stock count.
  */
-function DeleteSizesDialog({ open, onClose, rows, onDeactivate, onDone }) {
+function DeleteSizesDialog({ open, onClose, rows: openedWith, onDeactivate, onPartial, onDone }) {
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   const [blocked, setBlocked] = useState([]);
   const [emptied, setEmptied] = useState([]);
+  // The dialog's own subject, fixed when it opens (it is keyed on the
+  // open state, so each opening starts fresh) and narrowed to the
+  // held-back sizes after a partial delete. The page's selection is
+  // refreshed underneath it, and "Take off sale instead" must only ever
+  // name sizes that still exist.
+  const [rows, setRows] = useState(openedWith);
 
   const holdingStock = rows.filter((row) => row.stockQuantity > 0);
   const units = holdingStock.reduce((sum, row) => sum + row.stockQuantity, 0);
@@ -908,7 +944,10 @@ function DeleteSizesDialog({ open, onClose, rows, onDeactivate, onDone }) {
       // Anything held back stays on screen with its reason, so the
       // override can be taken without re-selecting the rows.
       if (result.blocked.length) {
+        const kept = new Set(result.blocked.map((row) => row.id));
         setBlocked(result.blocked);
+        setRows((current) => current.filter((row) => kept.has(row.id)));
+        if (result.deleted) onPartial?.([...kept]);
         setBusy(false);
         return;
       }
@@ -936,7 +975,7 @@ function DeleteSizesDialog({ open, onClose, rows, onDeactivate, onDone }) {
             variant="secondary"
             busy={busy}
             onClick={async () => {
-              await onDeactivate?.();
+              await onDeactivate?.(rows.map((row) => row.id));
               onClose();
             }}
           >

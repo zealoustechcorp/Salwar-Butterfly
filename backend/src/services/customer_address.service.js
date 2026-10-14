@@ -7,7 +7,10 @@
 // address book" parameter anywhere in this feature, which is what makes
 // it impossible to read or edit somebody else's by asking nicely.
 
-import { CustomerAddressRepository } from "../repository/customer_address.repository.js";
+import {
+  ADDRESS_RULE,
+  CustomerAddressRepository,
+} from "../repository/customer_address.repository.js";
 import { CustomerAddressMapper } from "../mapper/customer_address.mapper.js";
 import { ApiError } from "../utils/ApiError.js";
 import { logger } from "../utils/logger.js";
@@ -65,6 +68,43 @@ const toRow = (body, { isDefault }) => ({
   isDefault,
 });
 
+/**
+ * The answer for a write the repository's transaction refused, or null
+ * when the error is not one of the known outcomes.
+ *
+ * 23505 on uq_customer_addresses_one_default should be unreachable now
+ * that every write holds the customer row (see lockOwner in the
+ * repository), but if two writes ever do collide on it the truthful
+ * answer is "try again", not a 500.
+ */
+const knownWriteError = (error) => {
+  if (error?.addressRule === ADDRESS_RULE.LIMIT_REACHED) {
+    return ApiError.conflict(
+      `You can save up to ${MAX_ADDRESSES} addresses. ` +
+        `Remove one to add another.`,
+      "ADDRESS_LIMIT_REACHED",
+    );
+  }
+
+  // A closed account whose access token has not lapsed yet (BUG-7). The
+  // same answer /me gives, so the storefront signs the shopper out.
+  if (error?.addressRule === ADDRESS_RULE.ACCOUNT_CLOSED) {
+    return ApiError.unauthorized(
+      "Your session is no longer valid",
+      "SESSION_INVALID",
+    );
+  }
+
+  if (error?.code === "23505") {
+    return ApiError.conflict(
+      "Your address book was changed at the same moment. Please try again.",
+      "ADDRESS_CONFLICT",
+    );
+  }
+
+  return null;
+};
+
 export const CustomerAddressService = {
   /** The shopper's saved addresses, default first. */
   async getMine(customerId) {
@@ -94,32 +134,28 @@ export const CustomerAddressService = {
    */
   async create(customerId, body) {
     try {
-      const count = await CustomerAddressRepository.countByCustomer(customerId);
-
-      if (count >= MAX_ADDRESSES) {
-        throw ApiError.conflict(
-          `You can save up to ${MAX_ADDRESSES} addresses. ` +
-            `Remove one to add another.`,
-          "ADDRESS_LIMIT_REACHED",
-        );
-      }
-
-      const isDefault = count === 0 ? true : Boolean(body.isDefault);
-
+      // The limit and the "first one is the default" rule are both
+      // decided inside the repository's transaction, under a lock on the
+      // customer row — a count taken here would be stale by the time the
+      // insert landed (BUG-5).
       const row = await CustomerAddressRepository.create(
         customerId,
-        toRow(body, { isDefault }),
+        toRow(body, { isDefault: Boolean(body.isDefault) }),
+        { maxAddresses: MAX_ADDRESSES },
       );
 
       logger.info("Address saved", {
         customerId,
         addressId: row.id,
-        isDefault,
+        isDefault: row.is_default,
       });
 
       return CustomerAddressMapper.toDTO(row);
     } catch (error) {
       if (error instanceof ApiError) throw error;
+
+      const known = knownWriteError(error);
+      if (known) throw known;
 
       // 23514: the pincode CHECK in 013. The validator already refused
       // this shape, so reaching here means the two disagree — worth a
@@ -178,6 +214,9 @@ export const CustomerAddressService = {
     } catch (error) {
       if (error instanceof ApiError) throw error;
 
+      const known = knownWriteError(error);
+      if (known) throw known;
+
       if (error?.code === "23514") {
         throw ApiError.badRequest("That address could not be saved");
       }
@@ -206,6 +245,9 @@ export const CustomerAddressService = {
       return CustomerAddressMapper.toDTO(row);
     } catch (error) {
       if (error instanceof ApiError) throw error;
+
+      const known = knownWriteError(error);
+      if (known) throw known;
 
       logger.error("CustomerAddressService.setDefault failed", {
         customerId,
@@ -240,6 +282,9 @@ export const CustomerAddressService = {
       return CustomerAddressService.getMine(customerId);
     } catch (error) {
       if (error instanceof ApiError) throw error;
+
+      const known = knownWriteError(error);
+      if (known) throw known;
 
       logger.error("CustomerAddressService.remove failed", {
         customerId,

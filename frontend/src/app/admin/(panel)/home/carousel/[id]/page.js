@@ -132,6 +132,14 @@ export default function BannerDetailPage() {
   const index = state.banners.findIndex((row) => row.id === id);
   const banner = index === -1 ? null : state.banners[index];
 
+  /**
+   * Where this slide sits in what a visitor actually sees: hidden slides
+   * keep their place in the order but are skipped by the storefront, so
+   * "Slide 3" has to count live slides only. -1 while hidden.
+   */
+  const live = state.banners.filter((row) => row.active);
+  const liveIndex = banner ? live.findIndex((row) => row.id === banner.id) : -1;
+
   // --- writes ---------------------------------------------------------------
 
   function patch(saved) {
@@ -174,7 +182,16 @@ export default function BannerDetailPage() {
       const saved = await reorderBanners(next.map((row) => row.id));
 
       setState({ status: "ready", banners: saved, error: null });
-      toast.success(`Now slide ${target + 1} of ${saved.length}`);
+
+      const shown = saved.filter((row) => row.active);
+      const at = shown.findIndex((row) => row.id === banner.id);
+
+      toast.success(
+        at === -1
+          ? `Now position ${target + 1} of ${saved.length}`
+          : `Now live slide ${at + 1} of ${shown.length}`,
+        at === -1 ? "Hidden — it takes this place if it is shown again." : undefined,
+      );
     } catch (error) {
       toast.error("Could not reorder the carousel", error?.message);
       refresh();
@@ -309,7 +326,7 @@ export default function BannerDetailPage() {
         </LinkButton>
         <span aria-hidden="true">/</span>
         <span className="min-w-0 truncate font-medium text-ink-700">
-          {banner.active ? `Slide ${index + 1}` : "Hidden slide"}
+          {liveIndex === -1 ? "Hidden slide" : `Live slide ${liveIndex + 1}`}
         </span>
       </nav>
 
@@ -372,8 +389,10 @@ export default function BannerDetailPage() {
             <div className="min-w-0">
               <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium text-ink-800">
                 {banner.active ? "Shown in the rotation" : "Hidden"}
-                <Badge tone={banner.active ? "brand" : "amber"}>
-                  {banner.active ? `Slide ${index + 1} of ${total}` : "Not shown"}
+                <Badge tone={liveIndex === -1 ? "amber" : "brand"}>
+                  {liveIndex === -1
+                    ? "Not shown"
+                    : `Live slide ${liveIndex + 1} of ${live.length}`}
                 </Badge>
               </p>
               <p className="mt-1 text-xs text-ink-500">
@@ -396,7 +415,8 @@ export default function BannerDetailPage() {
               Position {index + 1} of {total}
             </p>
             <p className="mt-1 text-xs text-ink-500">
-              The order the slides rotate in on the home page.
+              The order the slides rotate in on the home page. Hidden slides hold
+              their place in it, and are skipped until they are shown again.
             </p>
 
             <div className="mt-2 flex flex-wrap gap-2">
@@ -515,6 +535,19 @@ function LinkSection({ banner, products, busy, stale, onSave }) {
   // link nobody touched.
   const stranded = productId && !options.some((product) => product.id === productId);
 
+  /**
+   * The label for that extra option. It names what is *selected*, which
+   * after a pick is not necessarily what is saved: choosing a piece and
+   * then searching it out of the list used to relabel the option with
+   * the saved piece's name while its value was the new one.
+   */
+  const chosen = products.find((product) => product.id === productId);
+  const strandedLabel = chosen
+    ? `${chosen.name}${chosen.active === false ? " (off sale)" : ""}`
+    : productId === banner.productId
+      ? `${banner.productName || "The piece this slide names"}${banner.productActive === false ? " (off sale)" : ""}`
+      : "The piece you chose";
+
   return (
     <Card>
       <CardHeader
@@ -562,10 +595,7 @@ function LinkSection({ banner, products, busy, stale, onSave }) {
             >
               <option value="">No piece</option>
               {stranded ? (
-                <option value={productId}>
-                  {banner.productName || "The piece this slide names"}
-                  {banner.productActive === false ? " (off sale)" : ""}
-                </option>
+                <option value={productId}>{strandedLabel}</option>
               ) : null}
               {options.map((product) => (
                 <option key={product.id} value={product.id}>
