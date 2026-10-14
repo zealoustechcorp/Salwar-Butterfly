@@ -19,9 +19,10 @@ import { StatGrid, StatTile } from "@/components/admin/ProductBits";
  *
  * @param {Object} props - Component properties
  * @param {Array<Object>} props.categories - List of all category objects
+ * @param {boolean} [props.productsUnknown] - Products failed to load; show no count
  * @returns {JSX.Element} 3-column responsive KPI stats grid
  */
-export default function StatBar({ categories }) {
+export default function StatBar({ categories, productsUnknown = false }) {
   /**
    * Total number of category records in the catalog.
    */
@@ -65,8 +66,8 @@ export default function StatBar({ categories }) {
       {/* Linked Products Count Metric Card */}
       <StatTile
         label="Linked products"
-        value={totalProducts}
-        sub="across all categories"
+        value={productsUnknown ? "—" : totalProducts}
+        sub={productsUnknown ? "products could not be loaded" : "across all categories"}
       />
     </StatGrid>
   );

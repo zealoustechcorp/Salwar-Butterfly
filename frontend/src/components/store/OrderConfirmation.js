@@ -9,9 +9,12 @@
  * been emptied, so re-rendering the checkout form here would strand somebody
  * whose order went through perfectly well.
  *
- * sessionStorage rather than localStorage, and cleared as soon as it is read.
- * A confirmation is for the shopper who just paid, not for the next person to
- * open this browser.
+ * sessionStorage rather than localStorage: it belongs to this tab and dies
+ * with it, so a confirmation is for the shopper who just checked out, not for
+ * the next person to open this browser. It is *not* cleared when it is read —
+ * that used to strand a guest who reloaded before paying, with no way back to
+ * the "Pay now" button but the tracking page. It is cleared once the order is
+ * paid, when there is nothing left on this page to act on.
  *
  * If it is not there — a direct visit, a new tab, a browser that blocks
  * storage — this does not pretend. It says so and points at the tracking
@@ -20,65 +23,74 @@
 
 import { CheckCircle2, Clock, Mail, Package } from "lucide-react";
 import Link from "next/link";
-import { useState, useSyncExternalStore } from "react";
+import { useCallback, useState, useSyncExternalStore } from "react";
 
 import { LAST_ORDER_KEY } from "./CheckoutView";
 import { OrderAddress, OrderLines, OrderStatusBadge } from "./OrderSummary";
 import { PayNow } from "./PayNow";
 
 /**
- * The order, read out of sessionStorage exactly once.
+ * The order, read out of sessionStorage.
  *
  * Read through `useSyncExternalStore` rather than an effect, the same way
  * <StoreProvider> reads the bag: the server snapshot is empty, so the server
  * render and its hydration always agree, and React swaps in the real value
  * immediately afterwards with no flash of the wrong screen.
  *
- * `read` has to be stable to be a legal snapshot function, and the cache is
- * what makes it so — the second call returns the same object rather than
- * re-parsing, which matters because the first call also *clears* the entry.
+ * `read` has to be stable to be a legal snapshot function — two calls with
+ * nothing changed must return the same object. The memo below is keyed by
+ * the raw stored string rather than being a plain "last order" variable:
+ * storage is the only source of truth, so a new order written by checkout
+ * (a client navigation, the module not reloaded) is a new string and is
+ * parsed afresh, and an emptied entry reads as nothing — never as whichever
+ * order this tab happened to show last.
  *
  * `undefined` means "not looked yet", `null` means "looked, nothing there".
  * The two are distinct because the empty case is a real screen rather than a
  * spinner that never resolves.
- *
- * Storage is checked on every call, not only the first. The cache is module
- * state, so it outlives the page: checkout reaches this screen with a client
- * navigation, the module is not reloaded, and a cache that answered without
- * looking would show the *previous* order to a shopper who just placed a new
- * one — the new entry sitting unread in storage. An entry present means a
- * fresh order and replaces the cache; an empty storage returns the cache
- * untouched, which is what keeps repeated calls stable.
  */
-let cached;
+let memo = { raw: null, order: null };
 
 function read() {
+  let raw = null;
+
   try {
-    const raw = window.sessionStorage.getItem(LAST_ORDER_KEY);
-
-    if (raw !== null) {
-      // Cleared as it is read. A confirmation belongs to the shopper who
-      // just checked out, not to the next person to open this browser.
-      window.sessionStorage.removeItem(LAST_ORDER_KEY);
-
-      try {
-        cached = JSON.parse(raw);
-      } catch {
-        // A new order whose entry is corrupt: show nothing rather than the
-        // previous order.
-        cached = null;
-      }
-    }
+    raw = window.sessionStorage.getItem(LAST_ORDER_KEY);
   } catch {
-    // Storage blocked: nothing new could have been written either.
+    // Storage blocked: nothing could have been written either.
+    return null;
   }
 
-  if (cached === undefined) cached = null;
+  if (raw === null) return null;
+  if (raw === memo.raw) return memo.order;
 
-  return cached;
+  let order = null;
+
+  try {
+    order = JSON.parse(raw);
+  } catch {
+    // A corrupt entry: show nothing rather than guess.
+  }
+
+  memo = { raw, order: order && typeof order === "object" ? order : null };
+  return memo.order;
 }
 
-/** Nothing ever changes it after the first read, so there is nothing to notify. */
+/** Clears the stored order. Called once it is paid for. */
+function forget() {
+  try {
+    window.sessionStorage.removeItem(LAST_ORDER_KEY);
+  } catch {
+    /* blocked storage held nothing to clear */
+  }
+
+  memo = { raw: null, order: null };
+}
+
+/**
+ * Nothing on this page writes the entry while it is mounted, and another tab
+ * cannot (sessionStorage is per tab), so there is nothing to notify.
+ */
 const subscribe = () => () => {};
 
 export function OrderConfirmation({ shop }) {
@@ -87,13 +99,17 @@ export function OrderConfirmation({ shop }) {
   /**
    * The order as it stands after paying, if they did.
    *
-   * Kept beside the stored copy rather than written back into
-   * sessionStorage: the entry is cleared as it is read, and re-stashing it
-   * would put a confirmation back for the next person to open this tab. The
-   * page is already mounted, so state is enough — and a refresh lands on the
-   * "nothing to show here" screen either way, which points at /track.
+   * Kept in state, and the stored copy is cleared at the same moment: once
+   * it is paid there is nothing left to come back to this page for, and a
+   * refresh lands on the "nothing to show here" screen, which points at
+   * /track and the account page.
    */
   const [paid, setPaid] = useState(null);
+
+  const onPaid = useCallback((order) => {
+    forget();
+    setPaid(order);
+  }, []);
 
   const order = paid ?? stored;
 
@@ -113,9 +129,10 @@ export function OrderConfirmation({ shop }) {
           Nothing to show here
         </h1>
         <p className="mt-4 max-w-lg text-sm leading-relaxed text-sb-text-muted">
-          This page shows a confirmation once, right after you place an order.
-          If you have already seen it, your order is safe — look it up with the
-          number from your confirmation and the email you used.
+          This page shows the confirmation for an order placed in this tab. If
+          you have closed it, or already paid, your order is safe — look it up
+          with the number from your confirmation and the email you used. An
+          order still awaiting payment can be paid for from there.
         </p>
         <div className="mt-6 flex flex-wrap gap-3">
           <Link
@@ -240,7 +257,7 @@ export function OrderConfirmation({ shop }) {
           {/* Renders nothing at all when the shop has no gateway configured,
               which is why the fallback line below is a sibling rather than an
               else — both have to be true at once in that case. */}
-          <PayNow order={order} shop={shop} onPaid={setPaid} className="mt-4" />
+          <PayNow order={order} shop={shop} onPaid={onPaid} className="mt-4" />
 
           <p className="mt-4 flex items-start gap-2.5 border-t border-sb-gold/25 pt-3.5 text-xs leading-relaxed text-sb-text-muted">
             <Package className="mt-0.5 size-4 shrink-0 text-sb-gold-text" aria-hidden="true" />

@@ -15,7 +15,7 @@
 
 import { ArrowLeft, Check, Package, Pencil } from "lucide-react";
 import { useState } from "react";
-import { Badge, Button, Card, CardHeader, Modal } from "@/components/admin/ui";
+import { Badge, Button, Card, CardHeader, ErrorNotice, Modal } from "@/components/admin/ui";
 import { StatGrid, StatTile } from "@/components/admin/ProductBits";
 import { money, shortDate } from "@/lib/format";
 import Toggle from "./Toggle";
@@ -30,6 +30,9 @@ import CategoryBadge from "./Badge";
  * @param {Function} props.onEdit - Handler to navigate to category edit screen
  * @param {Function} props.onBack - Handler to navigate back to categories list
  * @param {Function} props.onToggle - Handler to flip category active/inactive status
+ * @param {Error|null} [props.productsError] - Products could not be loaded, so
+ *                                             `products` is unknown rather than empty
+ * @param {boolean} [props.toggling] - A visibility flip is in flight
  * @returns {JSX.Element} The rendered category detail screen
  */
 export default function CategoryDetail({
@@ -38,6 +41,8 @@ export default function CategoryDetail({
   onEdit,
   onBack,
   onToggle,
+  productsError = null,
+  toggling = false,
 }) {
   /**
    * Product object selected for modal dialog preview, or null if modal is closed.
@@ -48,6 +53,9 @@ export default function CategoryDetail({
    * Products in this category that are published to the storefront.
    */
   const liveProducts = products.filter((p) => p.active).length;
+
+  /** Counts read "—" rather than a fake 0 when products did not load. */
+  const unknown = Boolean(productsError);
 
   return (
     <div className="max-w-5xl space-y-6">
@@ -77,7 +85,12 @@ export default function CategoryDetail({
           <div className="flex flex-wrap items-center gap-3">
             {/* Quick visibility toggle container */}
             <div className="flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 ring-1 ring-ink-200/80 shadow-xs">
-              <Toggle checked={category.active} onChange={onToggle} size="sm" />
+              <Toggle
+                checked={category.active}
+                onChange={onToggle}
+                disabled={toggling}
+                size="sm"
+              />
               <CategoryBadge active={category.active} />
             </div>
 
@@ -111,12 +124,12 @@ export default function CategoryDetail({
         />
         <StatTile
           label="Linked Products"
-          value={products.length}
-          sub="items categorized"
+          value={unknown ? "—" : products.length}
+          sub={unknown ? "products could not be loaded" : "items categorized"}
         />
         <StatTile
           label="Live Products"
-          value={liveProducts}
+          value={unknown ? "—" : liveProducts}
           sub="published to storefront"
           tone="brand"
         />
@@ -133,14 +146,25 @@ export default function CategoryDetail({
             title="Associated Products"
             description="Products linked to this category in the catalog."
             actions={
-              <Badge tone="brand">
-                {products.length} {products.length === 1 ? "product" : "products"}
-              </Badge>
+              unknown ? null : (
+                <Badge tone="brand">
+                  {products.length} {products.length === 1 ? "product" : "products"}
+                </Badge>
+              )
             }
           />
 
           <div className="flex-1 overflow-y-auto max-h-[420px] divide-y divide-ink-100">
-            {products.length === 0 ? (
+            {unknown ? (
+              <div className="p-4">
+                <ErrorNotice
+                  error={{
+                    message: `The products in this category could not be loaded (${productsError.message || "request failed"}).`,
+                    code: productsError.code,
+                  }}
+                />
+              </div>
+            ) : products.length === 0 ? (
               <div className="flex flex-col items-center justify-center p-8 text-center text-ink-400">
                 <Package className="size-8 stroke-[1.5] text-ink-300" />
                 <p className="mt-2 text-xs font-medium text-ink-600">No products linked yet</p>

@@ -8,11 +8,17 @@
 import { ApiError } from "../utils/ApiError.js";
 import {
   MAX_PAGE_SIZE,
+  MAX_REPORT_YEAR,
   MAX_TOP_PRODUCTS,
+  MIN_REPORT_YEAR,
   REPORT_PERIODS,
   TOP_PRODUCTS_SORTS,
 } from "../config/report.policy.js";
-import { ORDER_STATUSES, PAYMENT_STATUSES } from "../config/order.policy.js";
+import {
+  ORDER_SORTS,
+  ORDER_STATUSES,
+  PAYMENT_STATUSES,
+} from "../config/order.policy.js";
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -20,6 +26,16 @@ const UUID_REGEX =
 const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 const isUuid = (value) => UUID_REGEX.test(String(value ?? "").trim());
+
+/**
+ * Whether a YYYY-MM-DD string names a year Postgres and the report can
+ * both handle — `0000-01-01` has the right shape and no year zero to
+ * cast to. See MIN_REPORT_YEAR.
+ */
+const inYearRange = (value) => {
+  const year = Number(String(value).slice(0, 4));
+  return year >= MIN_REPORT_YEAR && year <= MAX_REPORT_YEAR;
+};
 
 /**
  * Both ends of a range, checked together.
@@ -34,10 +50,14 @@ const checkRange = (query, errors) => {
 
   if (from !== undefined && !ISO_DATE_REGEX.test(String(from))) {
     errors.from = "From must be a date in YYYY-MM-DD form";
+  } else if (from !== undefined && !inYearRange(from)) {
+    errors.from = `From must fall between ${MIN_REPORT_YEAR} and ${MAX_REPORT_YEAR}`;
   }
 
   if (to !== undefined && !ISO_DATE_REGEX.test(String(to))) {
     errors.to = "To must be a date in YYYY-MM-DD form";
+  } else if (to !== undefined && !inYearRange(to)) {
+    errors.to = `To must fall between ${MIN_REPORT_YEAR} and ${MAX_REPORT_YEAR}`;
   }
 
   if (!errors.from && !errors.to && from && to && String(to) < String(from)) {
@@ -103,9 +123,13 @@ export const validateSalesReportQuery = (req, res, next) => {
 
 export const validateOrderReportQuery = (req, res, next) => {
   try {
-    const { status, paymentStatus } = req.query ?? {};
+    const { status, paymentStatus, sort } = req.query ?? {};
 
     const errors = {};
+
+    if (sort !== undefined && !ORDER_SORTS.includes(sort)) {
+      errors.sort = `Unknown sort. Expected one of: ${ORDER_SORTS.join(", ")}.`;
+    }
 
     if (status !== undefined && !ORDER_STATUSES.includes(status)) {
       errors.status = `Unknown status. Expected one of: ${ORDER_STATUSES.join(", ")}.`;

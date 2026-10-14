@@ -23,6 +23,7 @@
 import * as Sentry from "@sentry/node";
 
 import { env } from "./config/env.js";
+import { redactUrl } from "./utils/redactUrl.js";
 
 // ============================================================
 // SENSITIVE FIELDS
@@ -78,6 +79,17 @@ if (env.sentry.enabled) {
     beforeSend(event) {
       if (event.request?.headers) {
         event.request.headers = scrubHeaders(event.request.headers);
+      }
+
+      // A credential can arrive in a query string too — Meta's webhook
+      // handshake sends hub.verify_token that way. Same rule as the
+      // request log (utils/redactUrl.js).
+      if (event.request?.url) {
+        event.request.url = redactUrl(event.request.url);
+      }
+
+      if (typeof event.request?.query_string === "string") {
+        event.request.query_string = redactUrl(`?${event.request.query_string}`).slice(1);
       }
 
       // The Razorpay webhook body is a raw Buffer (see app.js) and a

@@ -65,6 +65,7 @@ import {
   ACCEPT_ATTRIBUTE,
   MAX_PER_UPLOAD,
   MAX_STORIES,
+  MAX_STORIES_ON_HOME,
   createStoriesFromImages,
   listStories,
   rejectionReason,
@@ -213,6 +214,17 @@ export default function CustomerStoriesPage() {
 
   const published = state.stories.filter((story) => story.published).length;
 
+  /**
+   * Each published card's place in the rail a visitor sees. Hidden cards
+   * keep their place in the order but are skipped, so numbering tiles by
+   * list index printed "#5" on what is the fourth card on the home page.
+   */
+  const liveNumbers = new Map(
+    state.stories
+      .filter((story) => story.published)
+      .map((story, n) => [story.id, n + 1]),
+  );
+
   return (
     <div className="space-y-4">
       <input
@@ -300,6 +312,8 @@ export default function CustomerStoriesPage() {
                   key={story.id}
                   story={story}
                   index={index}
+                  liveNumber={liveNumbers.get(story.id) ?? null}
+                  liveTotal={Math.min(published, MAX_STORIES_ON_HOME)}
                   total={state.stories.length}
                   busy={busyId === story.id}
                   disabled={locked}
@@ -335,7 +349,21 @@ export default function CustomerStoriesPage() {
 // ONE CARD
 // ============================================================
 
-function StoryTile({ story, index, total, busy, disabled, onMove, onToggle }) {
+function StoryTile({
+  story,
+  index,
+  liveNumber,
+  liveTotal,
+  total,
+  busy,
+  disabled,
+  onMove,
+  onToggle,
+}) {
+  // Published but past the cut the home page is served — kept in order,
+  // shown to nobody until an earlier card is hidden or moved behind it.
+  const pastCut = liveNumber !== null && liveNumber > MAX_STORIES_ON_HOME;
+
   const locked = disabled || busy;
   const href = `/admin/home/stories/${story.id}`;
 
@@ -365,8 +393,12 @@ function StoryTile({ story, index, total, busy, disabled, onMove, onToggle }) {
         </span>
 
         <span className="absolute top-1.5 left-1.5">
-          <Badge tone={story.published ? "brand" : "amber"}>
-            {story.published ? `#${index + 1}` : "Hidden"}
+          <Badge tone={liveNumber && !pastCut ? "brand" : "amber"}>
+            {liveNumber === null
+              ? "Hidden"
+              : pastCut
+                ? `Past the first ${MAX_STORIES_ON_HOME}`
+                : `Live ${liveNumber} of ${liveTotal}`}
           </Badge>
         </span>
       </Link>
@@ -425,7 +457,7 @@ function StoryTile({ story, index, total, busy, disabled, onMove, onToggle }) {
             checked={story.published}
             disabled={locked}
             onChange={onToggle}
-            label={`Publish story ${index + 1} on the home page`}
+            label={`Publish story at position ${index + 1} on the home page`}
           />
           <span className="truncate">
             {story.published ? "On the home page" : "Hidden"}
@@ -438,7 +470,7 @@ function StoryTile({ story, index, total, busy, disabled, onMove, onToggle }) {
             variant="ghost"
             className="h-9 px-1.5 sm:h-8"
             disabled={locked || index === 0}
-            aria-label={`Move story ${index + 1} earlier`}
+            aria-label={`Move story at position ${index + 1} earlier`}
             onClick={() => onMove(-1)}
           >
             <ArrowLeft className="size-3.5" aria-hidden="true" />
@@ -449,7 +481,7 @@ function StoryTile({ story, index, total, busy, disabled, onMove, onToggle }) {
             variant="ghost"
             className="h-9 px-1.5 sm:h-8"
             disabled={locked || index === total - 1}
-            aria-label={`Move story ${index + 1} later`}
+            aria-label={`Move story at position ${index + 1} later`}
             onClick={() => onMove(1)}
           >
             Later

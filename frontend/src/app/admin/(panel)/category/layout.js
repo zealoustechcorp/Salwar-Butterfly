@@ -1,5 +1,3 @@
-"use client";
-
 /**
  * @file layout.js
  * @description Layout boundary wrapper for the `/admin/category` route segment.
@@ -10,9 +8,17 @@
  *   during client-side Next.js navigation between `/admin/category` (list),
  *   `/admin/category/new` (creation), `/admin/category/[id]` (detail),
  *   and `/admin/category/[id]/edit` (editor).
+ *
+ * A server component on purpose: the provider is the client boundary, and
+ * keeping this file on the server is what lets it export `metadata` — the
+ * section title the admin layout's title template wraps.
  */
 
 import { CategoryProvider } from "@/lib/categories/context";
+
+export const metadata = {
+  title: "Categories",
+};
 
 /**
  * CategoriesLayout Component

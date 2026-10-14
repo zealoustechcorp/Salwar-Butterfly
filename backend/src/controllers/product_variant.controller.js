@@ -293,9 +293,13 @@ export const ProductVariantController = {
     try {
       const { id } = req.params;
 
-      logger.info("Delete variant endpoint called", { variantId: id });
+      // ?force=true discards a size that still holds stock, as `force`
+      // does on bulkDeleteVariants. A DELETE has no body to carry it.
+      const force = req.query?.force;
 
-      await ProductVariantService.delete(id);
+      logger.info("Delete variant endpoint called", { variantId: id, force });
+
+      await ProductVariantService.delete(id, { force });
 
       return noContentResponse(res);
     } catch (error) {

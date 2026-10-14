@@ -42,12 +42,23 @@ export const CategoryController = {
 
   getAll: asyncHandler(async (req, res) => {
     try {
-      const page = parseInt(req.query.page) || 0;
+      // `page` is a 1-based page number. It used to be passed straight
+      // through as the row offset, so ?page=2&limit=20 skipped two rows
+      // rather than twenty. A caller that wants a row offset sends
+      // `offset`, which wins when both are present. page=0 (what the
+      // admin client sent while it treated page as an offset) is read as
+      // the first page, which is the same rows either way.
       const limit = parseInt(req.query.limit) || 20;
+      const safeLimit = Math.min(Math.max(1, limit), 100);
+      const rawOffset = parseInt(req.query.offset);
+      const page = Math.max(1, parseInt(req.query.page) || 1);
+      const offset = Number.isFinite(rawOffset)
+        ? Math.max(0, rawOffset)
+        : (page - 1) * safeLimit;
 
-      logger.info("Get all categories request", { page, limit });
+      logger.info("Get all categories request", { page, limit, offset });
 
-      const result = await CategoryService.getAll(limit, page);
+      const result = await CategoryService.getAll(safeLimit, offset);
 
       return res.status(200).json({
         success: true,

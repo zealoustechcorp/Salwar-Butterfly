@@ -76,6 +76,18 @@ export const DEFAULT_SPAN = Object.freeze({
  */
 export const MAX_BUCKETS = 400;
 
+/**
+ * The years a report range may name.
+ *
+ * Not a business rule — the shop has no data before it opened — but a
+ * guard on what reaches Postgres. `0000-01-01` matches YYYY-MM-DD and
+ * is a date JavaScript will happily parse, but Postgres has no year
+ * zero and refuses the cast, which surfaced as a 500. Anything outside
+ * this window is a typo, and is answered as one.
+ */
+export const MIN_REPORT_YEAR = 2000;
+export const MAX_REPORT_YEAR = 2100;
+
 // ============================================================
 // WHAT COUNTS AS MONEY
 // ============================================================

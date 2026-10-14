@@ -63,7 +63,13 @@
 import { createContext, useContext, useEffect, useMemo, useSyncExternalStore } from "react";
 
 import { MAX_BAG_LINES, MAX_LINE_QTY, orderableQty } from "@/lib/stock";
-import { readSession, readToken } from "@/lib/store/session";
+import {
+  getServerSnapshot as getSessionServerSnapshot,
+  getSnapshot as getSessionSnapshot,
+  readSession,
+  readToken,
+  subscribe as subscribeToSession,
+} from "@/lib/store/session";
 import { describeChoice, lineKey, soldByColour, variantFor } from "@/lib/store/variants";
 import {
   fetchWishlist,
@@ -156,27 +162,76 @@ function commitServerWishlist(userId, ids) {
 
 // --- the server-backed half -------------------------------------------------
 
+// The API refuses a merge of more than this many ids (wishlist.validator.js).
+const MAX_MERGE_IDS = 500;
+
+/** One request per token, however many callers ask at once. */
+const inFlight = new Map();
+
 /**
- * Pulls the account's list on load.
+ * Brings the account's list onto the screen, folding in anything this device
+ * saved as a guest on the way.
  *
- * Called once <StoreProvider> mounts with a session already in storage — the
- * returning shopper who never went through a sign-in this page load, and so
- * never triggered `adoptGuestWishlist`. Without this, their saves from another
- * device would not appear until they signed in again.
+ * Runs whenever a customer token becomes available — the moment of a sign-in,
+ * and, for the returning shopper, the moment lib/store/session.js finishes
+ * renewing the session from its refresh cookie. That second case is why this
+ * takes its token as an argument and is driven by a subscription rather than
+ * a mount effect: the token lives in memory only, so on a fresh page load it
+ * does not exist yet when <StoreProvider> mounts, and a mount-time read
+ * always came back null and fetched nothing.
  *
- * A failure is left alone deliberately. The cached list is already on screen
- * and is very probably right; replacing it with an empty one because the API
- * was briefly unreachable would look exactly like the shop having lost it.
+ * The guest list is cleared only once the API has confirmed the merge. If the
+ * call fails, the guest ids stay where they are and the next run (the next
+ * page load, at the latest) offers them again; clearing them first meant a
+ * single failed request lost them for good, because the server's answer to the
+ * next write replaces the local list wholesale.
+ *
+ * A failure is otherwise left alone deliberately. The cached list is already
+ * on screen and is very probably right; replacing it with an empty one because
+ * the API was briefly unreachable would look exactly like the shop having lost
+ * it.
+ *
+ * @param {string|null} [token]  the customer's token; defaults to the session's
+ * @param {string|null} [userId] whose list it is; defaults to the session's
  */
-export async function syncWishlistFromServer() {
-  const token = readToken();
-  const userId = readSession()?.id ?? null;
+export function syncWishlistFromServer(token = readToken(), userId = readSession()?.id ?? null) {
+  if (!token || !userId) return Promise.resolve();
 
-  if (!token || !userId) return;
+  const key = `${userId}:${token}`;
+  if (inFlight.has(key)) return inFlight.get(key);
 
-  const result = await fetchWishlist(token);
+  const guestIds = read(GUEST_WISH_KEY).slice(0, MAX_MERGE_IDS);
 
-  if (result.ok) commitServerWishlist(userId, result.ids);
+  // An empty merge is just a read, but the dedicated read is cheaper to
+  // reason about in the API's logs.
+  const request = guestIds.length ? mergeWishlist(guestIds, token) : fetchWishlist(token);
+
+  const run = request
+    .then((result) => {
+      if (!result.ok) return;
+
+      if (guestIds.length) {
+        // Only the ids that were actually sent: a heart tapped as a guest
+        // while this was in flight (impossible today, cheap to respect)
+        // stays for the next run.
+        const sent = new Set(guestIds);
+        persist(
+          GUEST_WISH_KEY,
+          read(GUEST_WISH_KEY).filter((id) => !sent.has(id)),
+        );
+      }
+
+      commitServerWishlist(userId, result.ids);
+    })
+    .catch(() => {
+      /* an aborted or failed read leaves the cached list on screen */
+    })
+    .finally(() => {
+      inFlight.delete(key);
+    });
+
+  inFlight.set(key, run);
+  return run;
 }
 
 // --- account hand-off -------------------------------------------------------
@@ -190,39 +245,36 @@ export async function syncWishlistFromServer() {
  * Signing in: fold whatever this device saved as a guest into the account's own
  * list, then show that list.
  *
- * The guest key is cleared once its contents have been adopted. That is what
- * makes sign-out safe — on a shared phone the next visitor gets an empty list
- * rather than the previous shopper's saves.
- *
  * Two merges happen, and both are needed. The local one runs synchronously so
  * the header's count is right in the same frame the dialog closes. The server
- * one follows, sending the guest ids up and taking the account's real list —
- * which may hold pieces saved on another device that this browser has never
- * heard of — back as the answer.
+ * one follows (syncWishlistFromServer), sending the guest ids up and taking
+ * the account's real list — which may hold pieces saved on another device that
+ * this browser has never heard of — back as the answer.
+ *
+ * The token is passed in by the caller rather than read from the session:
+ * <AuthProvider> adopts *before* it writes the session (so nothing re-renders
+ * against the new user with the guest list), and reading it here used to find
+ * no token at all, skip the server merge, and then lose the guest saves.
+ *
+ * The guest key is cleared by the server merge once it succeeds, not here.
+ * That still keeps sign-out safe on a shared phone — a successful sign-in
+ * empties it — while a failed merge keeps the pieces for the next attempt.
  *
  * Not awaited by its caller. Signing in must not wait on the wishlist.
  */
-export function adoptGuestWishlist(userId) {
+export function adoptGuestWishlist(userId, token) {
   if (!userId) return;
   const { bag } = getSnapshot(); // also guarantees the bag has been read in
   const guestIds = read(GUEST_WISH_KEY);
   const merged = [...new Set([...read(wishKeyFor(userId)), ...guestIds])];
 
   persist(wishKeyFor(userId), merged);
-  persist(GUEST_WISH_KEY, []);
 
   activeUserId = userId;
   snapshot = { bag, wishlist: merged };
   notify();
 
-  // The token is written before this is called, so it is there to read.
-  const token = readToken();
-
-  if (!token) return;
-
-  mergeWishlist(guestIds, token).then((result) => {
-    if (result.ok) commitServerWishlist(userId, result.ids);
-  });
+  syncWishlistFromServer(token, userId);
 }
 
 /** Signing out: point back at the (now empty) guest list. The bag is untouched. */
@@ -247,18 +299,40 @@ export function StoreProvider({ children }) {
   // because the bag is no longer the only thing with something to say.
   const toast = useStoreToast();
 
+  // The customer session, so the wishlist can follow it. Subscribing here
+  // rather than reading once matters: on a page load the token is not known
+  // until lib/store/session.js has renewed it from the refresh cookie, which
+  // is well after this provider mounts.
+  const session = useSyncExternalStore(
+    subscribeToSession,
+    getSessionSnapshot,
+    getSessionServerSnapshot,
+  );
+  const sessionToken = session.token;
+  const sessionUserId = session.user?.id ?? null;
+  const sessionReady = session.ready;
+
   /**
    * The returning shopper: already signed in when the page loaded, so no
    * sign-in happened to fold their list in. Their cached list is on screen
    * already; this replaces it with the account's, which may have gained
    * pieces on another device since this browser last looked.
    *
-   * Once, on mount. Sign-in and sign-out are handled by the hand-off
-   * functions above, which the auth provider calls.
+   * Re-runs whenever the token changes — the renewal landing, a sign-in
+   * (deduplicated against the one adoptGuestWishlist started), or another
+   * tab signing in. A session that turns out to be over points the list
+   * back at the guest one, so a stale cached name does not keep showing the
+   * previous shopper's saves to whoever is holding the device now.
    */
   useEffect(() => {
-    syncWishlistFromServer();
-  }, []);
+    if (sessionToken && sessionUserId) {
+      if (activeUserId !== sessionUserId) repointWishlist(sessionUserId);
+      syncWishlistFromServer(sessionToken, sessionUserId);
+      return;
+    }
+
+    if (sessionReady && !sessionToken && !sessionUserId) repointWishlist(null);
+  }, [sessionToken, sessionUserId, sessionReady]);
 
   const value = useMemo(() => {
     /** "Kalamkari salwar · Maroon · size 40", for a toast. */
@@ -453,8 +527,8 @@ export function StoreProvider({ children }) {
     };
 
     /**
-     * Re-reads every line's shelf count from a freshly rendered catalogue,
-     * and brings down any line the shop can no longer fill.
+     * Re-reads every line's shelf count and price from a freshly rendered
+     * catalogue, and brings down any line the shop can no longer fill.
      *
      * Called by the bag, which is a server component route and so holds a
      * catalogue at most a minute old. The bag itself lives in localStorage and
@@ -491,12 +565,26 @@ export function StoreProvider({ children }) {
         const qty = shelf > 0 ? Math.min(line.qty, orderableQty(shelf)) : line.qty;
         const variantId = line.variant_id ?? variant.variant_id ?? null;
 
-        if (shelf === line.stock && qty === line.qty && variantId === line.variant_id) {
+        // The price, too. A line remembers what the piece cost when it was
+        // added, but the order is charged at the product's current price
+        // (order.repository.js reads p.current_price inside the transaction),
+        // so a line left over a price change showed one total on the bag and
+        // checkout and charged another. A catalogue with no usable price for
+        // the piece leaves the stored one alone.
+        const fresh = Number(product.price);
+        const price = Number.isFinite(fresh) && fresh > 0 ? fresh : line.price;
+
+        if (
+          shelf === line.stock &&
+          qty === line.qty &&
+          variantId === line.variant_id &&
+          price === line.price
+        ) {
           return line;
         }
 
         changed = true;
-        return { ...line, stock: shelf, qty, variant_id: variantId };
+        return { ...line, stock: shelf, qty, variant_id: variantId, price };
       });
 
       if (changed) commit({ wishlist, bag: next });

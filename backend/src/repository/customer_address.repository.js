@@ -30,6 +30,53 @@ const handleDatabaseError = (error, operation, context = {}) => {
   return error;
 };
 
+/**
+ * A rule the transaction refused on, carried out of it as a tagged error
+ * so withTransaction rolls back and the service can name the outcome.
+ *
+ *   LIMIT_REACHED   the shopper already has the maximum number saved
+ *   ACCOUNT_CLOSED  the customer row is gone or soft-deleted
+ */
+export const ADDRESS_RULE = Object.freeze({
+  LIMIT_REACHED: "LIMIT_REACHED",
+  ACCOUNT_CLOSED: "ACCOUNT_CLOSED",
+});
+
+const ruleError = (rule) =>
+  Object.assign(new Error(`ADDRESS_${rule}`), { addressRule: rule });
+
+/**
+ * Serialise every write to one shopper's address book, and refuse a
+ * closed account.
+ *
+ * Takes the customer row with FOR NO KEY UPDATE for the rest of the
+ * transaction. Without it the three-address limit was check-then-insert
+ * across two connections — five concurrent saves all counted 0, 1 or 2
+ * and all inserted — and two concurrent "make this the default" writes
+ * both cleared the old flag and both set theirs, the second failing on
+ * uq_customer_addresses_one_default with a 500 (BUG-5, 2026-10-09).
+ * Holding the parent row turns both into a queue.
+ *
+ * NO KEY UPDATE rather than UPDATE because it does not conflict with the
+ * KEY SHARE lock a foreign-key check takes, so an order being placed for
+ * the same customer meanwhile is not held up by it.
+ *
+ * The same read is what makes a closed account's still-valid access
+ * token unable to write here (BUG-7): `deleted_at IS NULL` is checked
+ * on a query the write needed anyway, so it costs no extra round trip.
+ */
+const lockOwner = async (client, customerId) => {
+  const { rowCount } = await client.query(
+    `SELECT 1
+     FROM customers
+     WHERE id = $1::uuid AND deleted_at IS NULL
+     FOR NO KEY UPDATE`,
+    [customerId],
+  );
+
+  if (rowCount === 0) throw ruleError(ADDRESS_RULE.ACCOUNT_CLOSED);
+};
+
 /** Every column the API ever returns. Named, never `SELECT *`. */
 const COLUMNS = `
   id,
@@ -103,15 +150,39 @@ export const CustomerAddressRepository = {
   },
 
   /**
-   * Writes a new address.
+   * Writes a new address, enforcing the per-shopper limit.
    *
    * In a transaction because making this one the default means unmaking
    * whichever one held that flag, and the partial unique index in 013
    * refuses the pair in the wrong order. Two statements that must both
    * land or neither.
+   *
+   * The limit is counted here, after lockOwner, rather than by the
+   * service beforehand — a count taken outside the lock is a count
+   * somebody else's insert can invalidate before this one lands. For
+   * the same reason the "first address is always the default" rule is
+   * decided here, from the same count.
+   *
+   * @param {number} maxAddresses
+   * @throws tagged ADDRESS_RULE errors (see ruleError)
    */
-  async create(customerId, address) {
+  async create(customerId, address, { maxAddresses }) {
     return withTransaction(async (client) => {
+      await lockOwner(client, customerId);
+
+      const counted = await client.query(
+        `SELECT COUNT(*)::int AS total
+         FROM customer_addresses
+         WHERE customer_id = $1::uuid`,
+        [customerId],
+      );
+
+      const count = counted.rows[0]?.total ?? 0;
+
+      if (count >= maxAddresses) throw ruleError(ADDRESS_RULE.LIMIT_REACHED);
+
+      address = { ...address, isDefault: count === 0 || address.isDefault };
+
       if (address.isDefault) {
         await client.query(
           `UPDATE customer_addresses
@@ -148,6 +219,8 @@ export const CustomerAddressRepository = {
 
       return result.rows[0];
     }).catch((error) => {
+      if (error?.addressRule) throw error;
+
       throw handleDatabaseError(error, "create", { customerId });
     });
   },
@@ -164,6 +237,8 @@ export const CustomerAddressRepository = {
    */
   async update(customerId, id, address) {
     return withTransaction(async (client) => {
+      await lockOwner(client, customerId);
+
       if (address.isDefault) {
         await client.query(
           `UPDATE customer_addresses
@@ -205,6 +280,8 @@ export const CustomerAddressRepository = {
 
       return result.rows[0] ?? null;
     }).catch((error) => {
+      if (error?.addressRule) throw error;
+
       throw handleDatabaseError(error, "update", { customerId, id });
     });
   },
@@ -220,6 +297,8 @@ export const CustomerAddressRepository = {
    */
   async setDefault(customerId, id) {
     return withTransaction(async (client) => {
+      await lockOwner(client, customerId);
+
       const cleared = await client.query(
         `UPDATE customer_addresses
          SET is_default = FALSE, updated_at = NOW()
@@ -249,6 +328,7 @@ export const CustomerAddressRepository = {
       return row;
     }).catch((error) => {
       if (error?.notFound) return null;
+      if (error?.addressRule) throw error;
 
       throw handleDatabaseError(error, "setDefault", { customerId, id });
     });
@@ -269,6 +349,8 @@ export const CustomerAddressRepository = {
    */
   async remove(customerId, id) {
     return withTransaction(async (client) => {
+      await lockOwner(client, customerId);
+
       const deleted = await client.query(
         `DELETE FROM customer_addresses
          WHERE id = $1::uuid AND customer_id = $2::uuid
@@ -295,6 +377,8 @@ export const CustomerAddressRepository = {
 
       return true;
     }).catch((error) => {
+      if (error?.addressRule) throw error;
+
       throw handleDatabaseError(error, "remove", { customerId, id });
     });
   },

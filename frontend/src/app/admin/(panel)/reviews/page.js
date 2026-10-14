@@ -125,7 +125,20 @@ export default function ReviewsPage() {
 
     listReviews({ ...query, limit: PAGE_SIZE }, { signal: controller.signal })
       .then((data) => {
-        if (active) setResult({ status: "ready", query, ...data, error: null });
+        if (!active) return;
+
+        // Past the end — the last row of the last page was deleted, or
+        // hidden under a "published only" filter. Showing this empty page
+        // read as "No reviews yet" with the pager gone, so step back to
+        // the page that now is the last one instead.
+        const lastPage = Math.max(1, data.pagination?.totalPages ?? 1);
+
+        if (query.page > lastPage) {
+          setQuery((q) => (q === query ? { ...q, page: lastPage } : q));
+          return;
+        }
+
+        setResult({ status: "ready", query, ...data, error: null });
       })
       .catch((error) => {
         if (active && error?.name !== "AbortError") {
@@ -434,7 +447,7 @@ export default function ReviewsPage() {
               <Button
                 size="sm"
                 variant="secondary"
-                disabled={!pagination.hasPreviousPage}
+                disabled={loading || !pagination.hasPreviousPage}
                 onClick={() => setQuery((q) => ({ ...q, page: q.page - 1 }))}
               >
                 <ChevronLeft className="size-3.5" aria-hidden="true" />
@@ -443,7 +456,7 @@ export default function ReviewsPage() {
               <Button
                 size="sm"
                 variant="secondary"
-                disabled={!pagination.hasNextPage}
+                disabled={loading || !pagination.hasNextPage}
                 onClick={() => setQuery((q) => ({ ...q, page: q.page + 1 }))}
               >
                 Next

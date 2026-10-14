@@ -346,9 +346,42 @@ export const SizeChartService = {
     const id = assertUuid(chartId);
 
     try {
+      const chart = await SizeChartRepository.findById(id);
+
+      if (!chart) {
+        throw ApiError.notFound("Size chart not found", "SIZE_CHART_NOT_FOUND");
+      }
+
+      // Products name their chart by fit. Deleting one they still name
+      // leaves their size guide showing every chart instead of theirs,
+      // so it is refused with the count; hiding the chart (setActive) is
+      // the reversible alternative and keeps those products resolving.
+      const refuseIfInUse = async () => {
+        const inUse = await SizeChartRepository.countProductsWithFit(chart.fit);
+
+        if (inUse > 0) {
+          const message =
+            `${inUse} product${inUse === 1 ? " is" : "s are"} cut to "${chart.fit}". ` +
+            "Change their fit, or hide this chart instead of deleting it.";
+
+          throw new ApiError({
+            statusCode: 409,
+            code: "SIZE_CHART_IN_USE",
+            message,
+            errors: { fit: message },
+            details: { products: inUse },
+          });
+        }
+      };
+
+      await refuseIfInUse();
+
       const removed = await SizeChartRepository.remove(id);
 
       if (!removed) {
+        // A product took this fit between the count and the delete, or
+        // the chart went. Count again to say which.
+        await refuseIfInUse();
         throw ApiError.notFound("Size chart not found", "SIZE_CHART_NOT_FOUND");
       }
 

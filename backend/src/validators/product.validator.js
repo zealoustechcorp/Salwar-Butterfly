@@ -28,78 +28,278 @@ const normalizeBoolean = (value) => {
   return value;
 };
 
-export const validateCreateProduct = (req, res, next) => {
-  try {
-    const {
-      name,
-      slug,
-      description,
-      categoryId,
-      subCategoryId,
-      basePrice,
-      discountPercentage,
-      attributes,
-      isFeatured,
-      active,
-    } = req.body;
+/**
+ * The fields each write accepts. Anything else is a 400 naming the field,
+ * the way the category validators already treat it.
+ *
+ * Refused rather than dropped, because a dropped field is a silent no-op
+ * the caller believes worked: `sizeChartId` was accepted on create for a
+ * long time and never stored (the chart a product prints is chosen by
+ * `attributes.fit`), and `categoryId` on an update was ignored while the
+ * response reported success. A product changes category through
+ * bulkUpdateCategory, and the message says so.
+ */
+const CREATE_ALLOWED_FIELDS = new Set([
+  "name",
+  "slug",
+  "description",
+  "categoryId",
+  "subCategoryId",
+  "basePrice",
+  "discountPercentage",
+  "attributes",
+  "isFeatured",
+  "active",
+]);
 
-    const errors = {};
+const UPDATE_ALLOWED_FIELDS = new Set([
+  "name",
+  "slug",
+  "description",
+  "subCategoryId",
+  "basePrice",
+  "discountPercentage",
+  "attributes",
+  "isFeatured",
+  "active",
+]);
 
-    const nameError = validateProductName(name, true);
-    if (nameError) errors.name = nameError;
+/** A bulk row: a create without its category, which the payload gives once. */
+const BULK_ROW_ALLOWED_FIELDS = new Set(
+  [...CREATE_ALLOWED_FIELDS].filter((field) => field !== "categoryId"),
+);
 
-    const slugError = validateProductSlug(slug, true);
-    if (slugError) errors.slug = slugError;
+export const MAX_BULK_PRODUCTS = 1000;
 
-    const descriptionError = validateProductDescription(description);
-    if (descriptionError) errors.description = descriptionError;
+const unknownFieldMessage = (field) => {
+  if (field === "categoryId") {
+    return "categoryId cannot be set here — move products with bulkUpdateCategory";
+  }
 
+  if (field === "sizeChartId") {
+    return "sizeChartId is not a product field — the size chart follows attributes.fit";
+  }
+
+  return `Field "${field}" is not allowed`;
+};
+
+const collectUnknownFields = (body, allowed) => {
+  const errors = {};
+  for (const field of Object.keys(body)) {
+    if (!allowed.has(field)) errors[field] = unknownFieldMessage(field);
+  }
+  return errors;
+};
+
+/**
+ * Every rule a new product is held to, as a field -> message map.
+ *
+ * Shared by the single create and by each row of the bulk create, so the
+ * spreadsheet path cannot become the way round the form's rules. It was:
+ * a bulk row skipped the slug pattern, the uuid checks, the type checks
+ * and the length limits, and reached Postgres as a 500.
+ *
+ * @param {object} body
+ * @param {{requireCategory?: boolean, allowed?: Set<string>}} [options]
+ * @returns {Record<string, string>} empty when the product is valid
+ */
+export const collectCreateProductErrors = (
+  body,
+  { requireCategory = true, allowed = CREATE_ALLOWED_FIELDS } = {},
+) => {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return { product: "Product must be an object" };
+  }
+
+  const {
+    name,
+    slug,
+    description,
+    categoryId,
+    subCategoryId,
+    basePrice,
+    discountPercentage,
+    attributes,
+    isFeatured,
+    active,
+  } = body;
+
+  const errors = collectUnknownFields(body, allowed);
+
+  const nameError = validateProductName(name, true);
+  if (nameError) errors.name = nameError;
+
+  const slugError = validateProductSlug(slug, true);
+  if (slugError) errors.slug = slugError;
+
+  const descriptionError = validateProductDescription(description);
+  if (descriptionError) errors.description = descriptionError;
+
+  if (requireCategory) {
     const categoryIdError = validateProductCategoryId(categoryId, true);
     if (categoryIdError) errors.categoryId = categoryIdError;
+  }
 
-    const subCategoryIdError = validateProductSubCategoryId(subCategoryId);
-    if (subCategoryIdError) errors.subCategoryId = subCategoryIdError;
+  const subCategoryIdError = validateProductSubCategoryId(subCategoryId);
+  if (subCategoryIdError) errors.subCategoryId = subCategoryIdError;
 
-    const basePriceError = validateProductBasePrice(basePrice, true);
-    if (basePriceError) errors.basePrice = basePriceError;
+  const basePriceError = validateProductBasePrice(basePrice, true);
+  if (basePriceError) errors.basePrice = basePriceError;
 
-    // The pair, not just each field. Both can be valid alone and still
-    // leave the customer paying nothing between them — see
-    // validateProductSalePrice. Create has both to hand; update may send
-    // only one, so its version of this check lives in the service, where
-    // the sent field is merged with the stored one.
-    const discountError =
-      validateProductDiscountPercentage(discountPercentage) ??
-      validateProductSalePrice(basePrice, discountPercentage);
-    if (discountError) errors.discountPercentage = discountError;
+  // The pair, not just each field. Both can be valid alone and still
+  // leave the customer paying nothing between them — see
+  // validateProductSalePrice. Create has both to hand; update may send
+  // only one, so its version of this check lives in the service, where
+  // the sent field is merged with the stored one.
+  const discountError =
+    validateProductDiscountPercentage(discountPercentage) ??
+    validateProductSalePrice(basePrice, discountPercentage);
+  if (discountError) errors.discountPercentage = discountError;
 
-    const attributesError = validateProductAttributes(attributes);
-    if (attributesError) errors.attributes = attributesError;
+  const attributesError = validateProductAttributes(attributes);
+  if (attributesError) errors.attributes = attributesError;
 
-    const isFeaturedError = validateProductIsFeatured(isFeatured);
-    if (isFeaturedError) errors.isFeatured = isFeaturedError;
+  const isFeaturedError = validateProductIsFeatured(isFeatured);
+  if (isFeaturedError) errors.isFeatured = isFeaturedError;
 
-    const activeError = validateProductActive(active);
-    if (activeError) errors.active = activeError;
+  const activeError = validateProductActive(active);
+  if (activeError) errors.active = activeError;
+
+  return errors;
+};
+
+/** A body that passed collectCreateProductErrors, in the shape it is stored. */
+export const normalizeCreateProduct = (body) => {
+  const out = {
+    name: body.name.trim(),
+    slug: body.slug.trim().toLowerCase(),
+    description:
+      typeof body.description === "string" ? body.description.trim() : null,
+    subCategoryId: body.subCategoryId ? String(body.subCategoryId).trim() : null,
+    basePrice: Number(body.basePrice),
+    discountPercentage:
+      body.discountPercentage !== undefined &&
+      body.discountPercentage !== null &&
+      body.discountPercentage !== ""
+        ? Number(body.discountPercentage)
+        : 0,
+    attributes: normalizeProductAttributes(body.attributes),
+    isFeatured: normalizeBoolean(body.isFeatured) ?? false,
+    active: normalizeBoolean(body.active) ?? true,
+  };
+
+  if (body.categoryId !== undefined) {
+    out.categoryId = String(body.categoryId).trim();
+  }
+
+  return out;
+};
+
+export const validateCreateProduct = (req, res, next) => {
+  try {
+    const body = req.body ?? {};
+    const errors = collectCreateProductErrors(body);
 
     if (Object.keys(errors).length > 0) {
       throw new ApiError(400, "Validation failed", errors);
     }
 
-    req.body.name = name.trim();
-    req.body.slug = slug.trim().toLowerCase();
-    req.body.description =
-      typeof description === "string" ? description.trim() : null;
-    req.body.categoryId = String(categoryId).trim();
-    req.body.subCategoryId = subCategoryId
-      ? String(subCategoryId).trim()
-      : null;
-    req.body.basePrice = Number(basePrice);
-    req.body.discountPercentage =
-      discountPercentage !== undefined ? Number(discountPercentage) : 0;
-    req.body.attributes = normalizeProductAttributes(attributes);
-    req.body.isFeatured = normalizeBoolean(isFeatured) ?? false;
-    req.body.active = normalizeBoolean(active) ?? true;
+    req.body = normalizeCreateProduct(body);
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * `{ categoryId, products: [...] }`, every row held to the single
+ * create's rules.
+ *
+ * Every row is checked before anything is refused, and the errors come
+ * back keyed `products[i].field`, so a spreadsheet of a thousand rows is
+ * fixed in one pass rather than one 400 at a time. A slug repeated inside
+ * the payload is caught here too: Postgres would refuse the whole insert
+ * over it and name only one of the rows.
+ *
+ * Collected by a pure function so the rules can be tested without a
+ * request; the middleware below is a thin wrapper.
+ *
+ * @returns {{errors: Record<string,string>, rowsWithErrors: number}}
+ */
+export const collectBulkCreateErrors = (body) => {
+  const source = body ?? {};
+  const { categoryId, products } = source;
+  const errors = collectUnknownFields(
+    source,
+    new Set(["categoryId", "products"]),
+  );
+
+  const categoryIdError = validateProductCategoryId(categoryId, true);
+  if (categoryIdError) errors.categoryId = categoryIdError;
+
+  if (!Array.isArray(products) || products.length === 0) {
+    errors.products = "products must be a non-empty array";
+    return { errors, rowsWithErrors: 0 };
+  }
+
+  if (products.length > MAX_BULK_PRODUCTS) {
+    errors.products = `Maximum ${MAX_BULK_PRODUCTS} products can be created in bulk`;
+    return { errors, rowsWithErrors: 0 };
+  }
+
+  const firstRowBySlug = new Map();
+  let rowsWithErrors = 0;
+
+  products.forEach((row, index) => {
+    const rowErrors = collectCreateProductErrors(row, {
+      requireCategory: false,
+      allowed: BULK_ROW_ALLOWED_FIELDS,
+    });
+
+    if (!rowErrors.slug && typeof row?.slug === "string") {
+      const slug = row.slug.trim().toLowerCase();
+      const first = firstRowBySlug.get(slug);
+
+      if (first !== undefined) {
+        rowErrors.slug = `Slug "${slug}" is also used by products[${first}]`;
+      } else {
+        firstRowBySlug.set(slug, index);
+      }
+    }
+
+    const entries = Object.entries(rowErrors);
+    if (entries.length > 0) rowsWithErrors += 1;
+
+    for (const [field, message] of entries) {
+      errors[`products[${index}].${field}`] = message;
+    }
+  });
+
+  return { errors, rowsWithErrors };
+};
+
+export const validateBulkCreateProducts = (req, res, next) => {
+  try {
+    const body = req.body ?? {};
+    const { errors, rowsWithErrors } = collectBulkCreateErrors(body);
+
+    if (Object.keys(errors).length > 0) {
+      const total = Array.isArray(body.products) ? body.products.length : 0;
+
+      throw new ApiError(
+        400,
+        rowsWithErrors > 0
+          ? `Validation failed in ${rowsWithErrors} of ${total} product${total === 1 ? "" : "s"}`
+          : "Validation failed",
+        errors,
+      );
+    }
+
+    req.body = {
+      categoryId: String(body.categoryId).trim(),
+      products: body.products.map(normalizeCreateProduct),
+    };
 
     next();
   } catch (error) {
@@ -124,6 +324,12 @@ export const validateUpdateProduct = (req, res, next) => {
     }
 
     const body = req.body ?? {};
+
+    const unknown = collectUnknownFields(body, UPDATE_ALLOWED_FIELDS);
+    if (Object.keys(unknown).length > 0) {
+      throw new ApiError(400, "Validation failed", unknown);
+    }
+
     const {
       name,
       slug,

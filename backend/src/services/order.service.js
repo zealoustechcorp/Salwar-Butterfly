@@ -12,6 +12,8 @@ import {
   SHIPPING_FEE,
   TERMINAL_STATUSES,
 } from "../config/order.policy.js";
+import { RazorpayGateway } from "../config/razorpay.gateway.js";
+
 import { ApiError } from "../utils/ApiError.js";
 import { logger } from "../utils/logger.js";
 
@@ -348,7 +350,23 @@ export const OrderService = {
         );
       }
 
-      return OrderMapper.toCustomerDTO(order);
+      // What a "Pay now" on the track-order page needs and the customer
+      // DTO does not carry. A guest who closed /checkout/done has no
+      // other way back to an unpaid order, and paying is public by order
+      // id (`id` is already on the DTO) for a guest order only — an
+      // account's order needs its owner's token, and the DTO strips
+      // `customerId`, so without this the page would offer a button that
+      // 404s. The flag says only that a sign-in is needed, not whose.
+      const awaiting = order.status === ORDER_STATUS.PENDING_PAYMENT;
+
+      return {
+        ...OrderMapper.toCustomerDTO(order),
+        payment: {
+          canPayOnline:
+            awaiting && Number(order.total) > 0 && RazorpayGateway.isEnabled(),
+          requiresSignIn: awaiting && Boolean(order.customer_id),
+        },
+      };
     } catch (error) {
       if (error instanceof ApiError) throw error;
 

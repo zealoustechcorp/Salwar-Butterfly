@@ -10,7 +10,10 @@ import {
   requireCustomer,
   requireSelf,
 } from "../middlewares/authorize.middleware.js";
-import { authRateLimiter } from "../middlewares/rateLimiter.js";
+import {
+  authRateLimiter,
+  registerRateLimiter,
+} from "../middlewares/rateLimiter.js";
 
 import {
   validateCreateCustomer,
@@ -44,8 +47,14 @@ const router = express.Router();
 // PUBLIC
 // ============================================================
 
-// Register customer (F-05.01)
-router.post("/register", validateCreateCustomer, CustomerController.register);
+// Register customer (F-05.01). Its own limiter (LOW-5): every accepted
+// call costs a bcrypt hash and an INSERT.
+router.post(
+  "/register",
+  registerRateLimiter,
+  validateCreateCustomer,
+  CustomerController.register,
+);
 
 // ============================================================
 // CUSTOMER'S OWN ACCOUNT

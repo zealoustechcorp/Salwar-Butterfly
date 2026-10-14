@@ -188,8 +188,10 @@ export function AuthProvider({ children }) {
     const land = (account, issuedToken) => {
       // Adopt before the session is written, so the wishlist is already
       // the account's by the time anything re-renders against the new
-      // user.
-      adoptGuestWishlist(account.id);
+      // user. The session store does not hold the token yet at this
+      // point, which is why it is handed over explicitly — the server
+      // half of the merge needs it.
+      adoptGuestWishlist(account.id, issuedToken);
       writeSession(issuedToken, account);
 
       // The token that just arrived is by definition fresh, so there is

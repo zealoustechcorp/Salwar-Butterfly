@@ -39,7 +39,7 @@ import {
   TOP_PRODUCT_SORTS,
 } from "@/lib/api/reports";
 import { money, number, shortDate } from "@/lib/format";
-import { STOCK_LABEL, STOCK_TONE } from "@/lib/stock";
+import { LOW_STOCK_BELOW, STOCK_LABEL, STOCK_TONE } from "@/lib/stock";
 
 /**
  * Reports (F-11.02 – F-11.05).
@@ -976,7 +976,7 @@ function InventoryReport({ reload, onRetry }) {
         <StatTile
           label="Healthy sizes"
           value={loading ? "—" : number(stock.inStock.sizes)}
-          sub={`${stock?.thresholds.lowStockBelow ?? 10} or more each`}
+          sub={`${stock?.thresholds?.lowStockBelow ?? LOW_STOCK_BELOW} or more each`}
           tone="green"
         />
         <StatTile

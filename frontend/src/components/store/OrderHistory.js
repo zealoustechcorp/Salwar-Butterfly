@@ -24,25 +24,59 @@ import { useAuth } from "./AuthProvider";
 import { OrderCard } from "./OrderSummary";
 import { PayNow } from "./PayNow";
 
+/** How many orders one "Show more" adds. */
+const PAGE_SIZE = 20;
+
+/**
+ * Concatenated pages, with any order that appears twice kept once.
+ *
+ * Pages are offsets into a list that moves: an order placed in another tab
+ * between two reads pushes everything down by one, and the last order of
+ * page 1 comes back again as the first of page 2.
+ */
+function uniqueById(rows) {
+  const seen = new Set();
+  return rows.filter((row) => (seen.has(row.id) ? false : (seen.add(row.id), true)));
+}
+
 export function OrderHistory({ shop }) {
   const { token, isSignedIn } = useAuth();
 
   const [orders, setOrders] = useState(null); // null while loading
+  const [pagination, setPagination] = useState(null);
   const [error, setError] = useState(null);
   const [busyId, setBusyId] = useState(null);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   /**
-   * Promise chaining rather than `await`, matching <AuthProvider>'s /me call.
+   * Reads the first `pages` pages afresh and replaces the list with them.
    *
+   * `pages` is how far the shopper had already scrolled: re-reading after a
+   * cancel or a payment must not fold a list they had opened to forty orders
+   * back down to twenty, taking the one they just paid for out of view.
+   *
+   * Promise chaining rather than `await`, matching <AuthProvider>'s /me call.
    * The state only ever moves in a `.then` or a `.catch`, which is the shape
    * an effect is allowed to have: nothing here sets state while the effect
    * body is still running, so mounting cannot cascade renders.
    */
   const load = useCallback(
-    (signal) =>
-      fetchMyOrders(token, { signal })
-        .then(({ orders: rows }) => {
-          setOrders(rows);
+    (signal, pages = 1) => {
+      const readFrom = (page, soFar) =>
+        fetchMyOrders(token, { signal, page, limit: PAGE_SIZE }).then(
+          ({ orders: rows, pagination: meta }) => {
+            const all = [...soFar, ...rows];
+
+            return page < pages && meta?.hasNextPage
+              ? readFrom(page + 1, all)
+              : { rows: all, meta };
+          },
+        );
+
+      return readFrom(1, [])
+        .then(({ rows, meta }) => {
+          setOrders(uniqueById(rows));
+          setPagination(meta);
           setError(null);
         })
         .catch((thrown) => {
@@ -50,12 +84,14 @@ export function OrderHistory({ shop }) {
           if (thrown?.name === "AbortError") return;
 
           setOrders([]);
+          setPagination(null);
           setError(
             thrown instanceof ApiError && thrown.code === NETWORK_ERROR
               ? "Could not reach the shop. Your orders are safe — try again in a moment."
               : "Your orders could not be loaded just now.",
           );
-        }),
+        });
+    },
     [token],
   );
 
@@ -67,6 +103,30 @@ export function OrderHistory({ shop }) {
 
     return () => controller.abort();
   }, [token, load]);
+
+  /** Pages already on screen, so a refresh re-reads as many. */
+  const pagesShown = pagination?.page ?? 1;
+
+  /**
+   * The next page, appended. A failure keeps what is already listed and
+   * says so above it — the orders already on screen are still right.
+   */
+  function loadMore() {
+    if (loadingMore || !pagination?.hasNextPage) return;
+
+    setLoadingMore(true);
+
+    fetchMyOrders(token, { page: pagination.page + 1, limit: PAGE_SIZE })
+      .then(({ orders: rows, pagination: meta }) => {
+        setOrders((current) => uniqueById([...(current ?? []), ...rows]));
+        setPagination(meta);
+        setError(null);
+      })
+      .catch(() => {
+        setError("More orders could not be loaded just now. Try again in a moment.");
+      })
+      .finally(() => setLoadingMore(false));
+  }
 
   if (!isSignedIn) return null;
 
@@ -89,7 +149,7 @@ export function OrderHistory({ shop }) {
     // stock, and a re-read is the cheap way to be sure this list agrees with
     // the shop's own view of the order.
     setError(null);
-    load();
+    load(undefined, pagesShown);
   }
 
   return (
@@ -153,7 +213,7 @@ export function OrderHistory({ shop }) {
                       // Re-read rather than patching the row: paying moves
                       // the order's status and its timestamps together, and
                       // this list should agree with the shop's own view.
-                      onPaid={() => load()}
+                      onPaid={() => load(undefined, pagesShown)}
                     />
 
                     <button
@@ -172,6 +232,25 @@ export function OrderHistory({ shop }) {
               }
             />
           ))}
+
+          {pagination?.hasNextPage ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+              <p className="text-xs text-sb-text-muted">
+                Showing {orders.length} of {pagination.total} orders
+              </p>
+              <button
+                type="button"
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="inline-flex items-center gap-2 rounded-full border border-sb-gold/50 px-6 py-2.5 text-sm font-semibold text-sb-heading transition-colors hover:bg-sb-surface/60 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loadingMore ? (
+                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                ) : null}
+                Show older orders
+              </button>
+            </div>
+          ) : null}
         </div>
       )}
     </section>

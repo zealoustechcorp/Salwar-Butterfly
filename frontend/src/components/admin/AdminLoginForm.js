@@ -38,13 +38,26 @@ import { Button, Field, Input, Spinner, cx } from "./ui";
 const DEFAULT_DESTINATION = "/admin/products";
 
 /**
- * Only ever redirect inside this app. A `?next=` of
+ * Only ever redirect inside the admin panel. A `?next=` of
  * `https://example.com` would otherwise turn the login page into an
  * open redirect — handy for phishing, since the link genuinely starts
  * on the real admin domain.
+ *
+ * A prefix check is not enough: browsers normalise "\" to "/" in
+ * special-scheme URLs, so `/\evil.com` (sent as `?next=/%5Cevil.com`)
+ * is navigated to as `//evil.com` — protocol-relative, off-site. So the
+ * value is parsed the way the browser will parse it, against a fixed
+ * placeholder origin (this also runs during SSR, where there is no
+ * `location`), and only kept when it is still that same origin and
+ * lands under /admin. Backslashes and control characters are refused
+ * outright rather than trusted to normalise harmlessly.
  */
+const PLACEHOLDER_ORIGIN = "https://admin.invalid";
+
 function safeDestination(next) {
   if (typeof next !== "string" || !next) return DEFAULT_DESTINATION;
+
+  if (/[\\\u0000-\u001f\u007f]/.test(next)) return DEFAULT_DESTINATION;
 
   // Must be a single-slash absolute path. Rejects "//evil.com"
   // (protocol-relative) and anything with a scheme.
@@ -52,7 +65,25 @@ function safeDestination(next) {
     return DEFAULT_DESTINATION;
   }
 
-  return next;
+  let url;
+
+  try {
+    url = new URL(next, PLACEHOLDER_ORIGIN);
+  } catch {
+    return DEFAULT_DESTINATION;
+  }
+
+  if (url.origin !== PLACEHOLDER_ORIGIN) return DEFAULT_DESTINATION;
+
+  const inPanel =
+    url.pathname === "/admin" || url.pathname.startsWith("/admin/");
+
+  // Bouncing back to the login page itself would just loop.
+  if (!inPanel || url.pathname.startsWith("/admin/login")) {
+    return DEFAULT_DESTINATION;
+  }
+
+  return `${url.pathname}${url.search}${url.hash}`;
 }
 
 export function AdminLoginForm() {

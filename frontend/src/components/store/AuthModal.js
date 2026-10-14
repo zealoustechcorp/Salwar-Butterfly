@@ -15,6 +15,7 @@ import { AlertCircle, ArrowLeft, Eye, EyeOff, Loader2, MailCheck, X } from "luci
 import { Dialog as DialogPrimitive } from "radix-ui";
 import { useState } from "react";
 
+import { compactPhone } from "@/lib/format";
 import { requestPasswordReset } from "@/lib/store/auth";
 import {
   collect,
@@ -153,7 +154,10 @@ function AuthForm({ intent, signIn, signUp, closeAuth }) {
     setPending(true);
     setErrors({});
 
-    const result = isSignUp ? await signUp(values) : await signIn(values);
+    // The phone goes up compacted — see compactPhone for why.
+    const result = isSignUp
+      ? await signUp({ ...values, phone: compactPhone(values.phone) })
+      : await signIn(values);
 
     // On success the provider closes this dialog, which unmounts the form —
     // so only the failure path has any state left to set.

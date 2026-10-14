@@ -32,8 +32,18 @@
 import { listCategories } from "./categories";
 import { api, ApiError } from "./client";
 import { toImage } from "./images";
+import { EMPTY_SUMMARY, getVariantSummaries } from "./variants";
 
 export { ApiError };
+
+/**
+ * `updateProduct` saved the fields but the separate category move after
+ * it failed. Its own code so a screen can say exactly that — "saved,
+ * category not moved" — instead of "save failed" over a write that
+ * actually happened. The error carries the saved `product` when there
+ * is one.
+ */
+export const CATEGORY_NOT_MOVED = "CATEGORY_NOT_MOVED";
 
 /** The API caps a page at 100 rows. */
 const MAX_PAGE_SIZE = 100;
@@ -149,9 +159,15 @@ export async function getReference({ token, signal } = {}) {
 /**
  * Every product, walked page by page. Capped at `maxPages` so a large
  * catalogue degrades into an undercount rather than a stalled screen.
+ *
+ * The undercount is not silent: the array carries a `truncated` flag
+ * (non-enumerable, so spreading or iterating it is unaffected), a
+ * console warning is logged, and listProducts passes the flag on for
+ * the list screen to show.
  */
 export async function listAllProducts({ maxPages = 20, token, signal } = {}) {
   const rows = [];
+  let truncated = false;
 
   for (let page = 1; page <= maxPages; page++) {
     const { data, meta } = await api.get(
@@ -163,7 +179,18 @@ export async function listAllProducts({ maxPages = 20, token, signal } = {}) {
 
     const totalPages = meta?.pagination?.totalPages ?? meta?.pagination?.pages;
     if (!data?.length || (totalPages && page >= totalPages)) break;
+
+    if (page === maxPages) {
+      truncated = true;
+      console.warn(
+        `listAllProducts: stopped after ${maxPages * MAX_PAGE_SIZE} products` +
+          (totalPages ? ` (${totalPages} pages exist)` : "") +
+          "; lists and counts built on it are partial.",
+      );
+    }
   }
+
+  Object.defineProperty(rows, "truncated", { value: truncated, enumerable: false });
 
   return rows;
 }
@@ -212,11 +239,20 @@ export async function listProducts(query = {}, { token, signal } = {}) {
     status = "all", // all | active | inactive
     discount = "all", // all | discounted | full_price
     featured = "all", // all | featured | not_featured
+    stock = "all", // all | in_stock | low_stock | out_of_stock | unavailable
     sort = "newest",
     page = 1,
   } = query;
 
-  const all = await listAllProducts({ token, signal });
+  // Stock lives in the variants table, so filtering on it needs the
+  // roll-ups. Fetched here, alongside the catalogue, so the filter runs
+  // *before* the page is cut — applied afterwards (as it used to be, on
+  // the screen) it hid rows from a page of 24 while the pager and the
+  // "matching" count still described the unfiltered set.
+  const [all, summaries] = await Promise.all([
+    listAllProducts({ token, signal }),
+    stock === "all" ? null : getVariantSummaries({ token, signal }),
+  ]);
   const term = search.trim().toLowerCase();
 
   let rows = all;
@@ -249,6 +285,14 @@ export async function listProducts(query = {}, { token, signal } = {}) {
     rows = rows.filter((p) => p.isFeatured === (featured === "featured"));
   }
 
+  if (summaries) {
+    // A product with no variant rows has no summary at all; it reads as
+    // EMPTY_SUMMARY, i.e. "unavailable" — the "No sizes" filter.
+    rows = rows.filter(
+      (p) => (summaries[p.id] ?? EMPTY_SUMMARY).lowestStatus === stock,
+    );
+  }
+
   rows = [...rows].sort(COMPARATORS[sort] ?? COMPARATORS.newest);
 
   const matched = rows.length;
@@ -264,6 +308,7 @@ export async function listProducts(query = {}, { token, signal } = {}) {
     page: current,
     pages,
     stats: statsFor(all),
+    truncated: Boolean(all.truncated || summaries?.truncated),
   };
 }
 
@@ -328,7 +373,26 @@ export async function updateProduct(
     categoryId && categoryId !== (currentCategoryId ?? product?.categoryId);
 
   if (movingCategory) {
-    await assignProductsToCategory(categoryId, [id], { token });
+    try {
+      await assignProductsToCategory(categoryId, [id], { token });
+    } catch (error) {
+      // The fields above are already written. Reporting this as a plain
+      // failure would have the admin retype changes that were saved, so
+      // it says precisely what did and did not happen.
+      // (With no other field to write, nothing was saved at all.)
+      const reason = error?.message || "the move failed.";
+      const partial = new ApiError(
+        CATEGORY_NOT_MOVED,
+        product
+          ? `Changes saved, but the category was not moved: ${reason}`
+          : `The category was not moved: ${reason}`,
+        error?.fields ?? {},
+        error?.status ?? 0,
+      );
+      partial.product = product;
+      throw partial;
+    }
+
     return getProduct(id, { token });
   }
 

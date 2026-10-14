@@ -47,7 +47,15 @@ export default function SizeChartForm({ chart, editing = false, onSave, onCancel
     // arrives once the shop has transcribed forty rows off a printed card;
     // the same message here arrives while they are still looking at it.
     const invalid = collect([
-      ["fit", draft.fit.trim() ? null : "A fit name is required"],
+      [
+        "fit",
+        !draft.fit.trim()
+          ? "A fit name is required"
+          : // validateFit (size_chart.rules.js) refuses a single character.
+            draft.fit.trim().length < 2
+            ? "A fit name needs at least 2 characters"
+            : null,
+      ],
       ["title", draft.title.trim() ? null : "A title is required"],
       [
         "columns",

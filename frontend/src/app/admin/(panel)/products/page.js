@@ -8,7 +8,6 @@ import { DeleteDialog } from "@/components/admin/DeleteDialog";
 import { DiscountDialog } from "@/components/admin/DiscountDialog";
 import { ActiveDot, PriceCell, StatGrid, StatTile } from "@/components/admin/ProductBits";
 import { ProductCover } from "@/components/admin/ProductThumb";
-import { StockBadge } from "@/components/admin/SizeStockEditor";
 import {
   Badge,
   Button,
@@ -27,6 +26,7 @@ import {
 import { getReference, listProducts, setActive } from "@/lib/api/products";
 import { EMPTY_SUMMARY, getVariantSummaries } from "@/lib/api/variants";
 import { number, relativeDate } from "@/lib/format";
+import { STOCK_LABEL, STOCK_STATUS, STOCK_TONE } from "@/lib/stock";
 
 const DEFAULT_QUERY = {
   search: "",
@@ -57,7 +57,9 @@ export default function ProductsListPage() {
 
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [dialog, setDialog] = useState(null); // "discount" | "delete"
-  const [rowBusy, setRowBusy] = useState(null);
+  // Ids with a storefront toggle in flight — a set, so flipping a second
+  // product before the first answers does not re-enable the first.
+  const [rowBusy, setRowBusy] = useState(() => new Set());
 
   // Debounced search — a real API call per keystroke would be wasteful.
   // A changed term also rewinds to page 1: the old offset is meaningless
@@ -131,13 +133,10 @@ export default function ProductsListPage() {
           categoryName: categoryById.get(product.categoryId)?.name ?? "—",
           categoryActive: categoryById.get(product.categoryId)?.active ?? true,
           stock: summaries[product.id] ?? EMPTY_SUMMARY,
-        }))
-        // Applied here rather than in the API layer because stock lives
-        // in a second request that lands independently of the list.
-        .filter((product) =>
-          query.stock === "all" ? true : product.stock.lowestStatus === query.stock,
-        ),
-    [data, categoryById, summaries, query.stock],
+        })),
+    // The stock filter is applied by listProducts, before the page is
+    // cut, so the pager and the counts describe the filtered set.
+    [data, categoryById, summaries],
   );
 
   const selection = useMemo(
@@ -189,7 +188,7 @@ export default function ProductsListPage() {
   }
 
   async function toggleRowActive(product) {
-    setRowBusy(product.id);
+    setRowBusy((current) => new Set(current).add(product.id));
     try {
       const outcome = await setActive({ productIds: [product.id], active: !product.active });
       toast.success(outcome.message);
@@ -197,7 +196,11 @@ export default function ProductsListPage() {
     } catch (err) {
       toast.error(err.message || "Could not change availability.");
     } finally {
-      setRowBusy(null);
+      setRowBusy((current) => {
+        const next = new Set(current);
+        next.delete(product.id);
+        return next;
+      });
     }
   }
 
@@ -312,7 +315,7 @@ export default function ProductsListPage() {
               <option value="in_stock">In stock</option>
               <option value="low_stock">Low stock</option>
               <option value="out_of_stock">Out of stock</option>
-              <option value="unavailable">No sizes</option>
+              <option value="unavailable">No sizes on sale</option>
             </Select>
 
             <Select
@@ -375,6 +378,13 @@ export default function ProductsListPage() {
           </div>
         </div>
 
+        {data?.truncated || summaries.truncated ? (
+          <p className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900">
+            The catalogue is larger than this screen reads in one go, so the list, counts or stock
+            figures are partial. Narrow the search or filters to see the rest.
+          </p>
+        ) : null}
+
         {selection.length ? (
           <BulkBar
             count={selection.length}
@@ -427,7 +437,7 @@ export default function ProductsListPage() {
                     key={product.id}
                     product={product}
                     selected={selectedIds.has(product.id)}
-                    busy={rowBusy === product.id}
+                    busy={rowBusy.has(product.id)}
                     onToggleSelect={() => toggleProduct(product.id)}
                     onToggleActive={() => toggleRowActive(product)}
                   />
@@ -460,7 +470,7 @@ export default function ProductsListPage() {
                       key={product.id}
                       product={product}
                       selected={selectedIds.has(product.id)}
-                      busy={rowBusy === product.id}
+                      busy={rowBusy.has(product.id)}
                       onToggleSelect={() => toggleProduct(product.id)}
                       onToggleActive={() => toggleRowActive(product)}
                     />
@@ -485,7 +495,7 @@ export default function ProductsListPage() {
                   key={product.id}
                   product={product}
                   selected={selectedIds.has(product.id)}
-                  busy={rowBusy === product.id}
+                  busy={rowBusy.has(product.id)}
                   onToggleSelect={() => toggleProduct(product.id)}
                   onToggleActive={() => toggleRowActive(product)}
                 />
@@ -527,6 +537,28 @@ export default function ProductsListPage() {
       />
     </div>
   );
+}
+
+/**
+ * A product's stock badge, from its worst *size* — the same status the
+ * stock filter and the "Needs attention" tile use. It used to be worked
+ * out from the product's total units, so a product with 40 of one size
+ * and none of another read "In stock" while the "Out of stock" filter
+ * listed it. The total is still on the line beside the badge.
+ */
+function ProductStockBadge({ summary }) {
+  const status = summary.lowestStatus ?? STOCK_STATUS.UNAVAILABLE;
+
+  // "Out of stock" for the whole product only when nothing is left; a
+  // product still selling other sizes is told apart.
+  const label =
+    status === STOCK_STATUS.OUT_OF_STOCK && summary.totalStock > 0
+      ? "Size out of stock"
+      : status === STOCK_STATUS.UNAVAILABLE && !summary.sizeCount
+        ? "No sizes"
+        : STOCK_LABEL[status];
+
+  return <Badge tone={STOCK_TONE[status]}>{label}</Badge>;
 }
 
 function PageHeader() {
@@ -748,10 +780,7 @@ function ProductGridCard({ product, selected, busy, onToggleSelect, onToggleActi
           align="left"
         />
         <div className="mt-1">
-          <StockBadge
-            active={product.stock.activeSizeCount > 0}
-            stock={product.stock.totalStock}
-          />
+          <ProductStockBadge summary={product.stock} />
         </div>
         <div className="mt-auto flex items-center justify-between gap-2 pt-1">
           <ActiveDot active={product.active} />
@@ -809,7 +838,7 @@ function ProductListCard({ product, selected, busy, onToggleSelect, onToggleActi
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] text-ink-400">
-        <StockBadge active={product.stock.activeSizeCount > 0} stock={product.stock.totalStock} />
+        <ProductStockBadge summary={product.stock} />
         <span>
           {product.stock.sizeCount
             ? `${product.stock.sizeCount} sizes · ${number(product.stock.totalStock)} units`
@@ -882,10 +911,7 @@ function ProductRow({ product, selected, busy, onToggleSelect, onToggleActive })
         />
       </td>
       <td className="px-3 py-2.5">
-        <StockBadge
-          active={product.stock.activeSizeCount > 0}
-          stock={product.stock.totalStock}
-        />
+        <ProductStockBadge summary={product.stock} />
         <div className="mt-1 text-[11px] text-ink-400">
           {product.stock.sizeCount
             ? `${product.stock.sizeCount} sizes · ${number(product.stock.totalStock)} units`

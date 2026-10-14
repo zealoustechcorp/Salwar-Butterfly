@@ -27,7 +27,6 @@ import * as Sentry from "@sentry/node";
 import { withTransaction } from "../config/db.js";
 import {
   newFamilyId,
-  REFRESH_REUSE_GRACE_MS,
   REVOKE_REASON,
   TOKEN_USE,
 } from "../config/auth.policy.js";
@@ -81,10 +80,16 @@ const issuePair = async (
   { subjectId, typ, claims, familyId, userAgent, ip },
   client,
 ) => {
+  // `fam` rides on the access token too. It is not a secret — it names a
+  // session, it does not unlock one — and it is the only way an endpoint
+  // outside the refresh cookie's path (change-password lives under
+  // /api/customers/:id, the cookie under /api/customers/auth) can tell
+  // which session is asking, so it can end every *other* one.
   const accessToken = generateAccessToken({
     sub: subjectId,
     typ,
     ...claims,
+    fam: familyId,
   });
 
   // No claims beyond identity on this one. It is exchanged for an
@@ -178,7 +183,8 @@ export const SessionService = Object.freeze({
    * @param {object}   params
    * @param {string}   params.token       the presented refresh token
    * @param {string}   params.typ         the audience of the endpoint it arrived at
-   * @param {Function} params.loadSubject (subjectId) => claims | null
+   * @param {Function} params.loadSubject (subjectId, client) => claims | null
+   *        — must run its query on `client`, not on the pool (HIGH-1)
    * @param {string}   [params.userAgent]
    * @param {string}   [params.ip]
    */
@@ -267,8 +273,10 @@ export const SessionService = Object.freeze({
       }
 
       // Belt and braces — the signature's own exp already covers this,
-      // unless the row and the token were somehow signed apart.
-      if (row.expires_at.getTime() <= Date.now()) {
+      // unless the row and the token were somehow signed apart. Judged
+      // by the database's clock (`expired` is computed in the SELECT),
+      // since the database is what stamped the row.
+      if (row.expired) {
         throw ApiError.unauthorized(SESSION_ENDED, "REFRESH_INVALID");
       }
 
@@ -284,9 +292,12 @@ export const SessionService = Object.freeze({
       // the whole family goes.
 
       if (row.used_at) {
-        const sinceUse = Date.now() - row.used_at.getTime();
+        // Measured in SQL against the clock that wrote `used_at` — the
+        // API host and Aiven disagree by a couple of seconds, which is a
+        // fifth of the window. See RefreshTokenRepository.findForUpdate.
+        const sinceUse = Number(row.ms_since_use ?? 0);
 
-        if (sinceUse > REFRESH_REUSE_GRACE_MS) {
+        if (!row.within_grace) {
           await RefreshTokenRepository.revokeFamily(
             row.family_id,
             REVOKE_REASON.REUSE_DETECTED,
@@ -333,8 +344,15 @@ export const SessionService = Object.freeze({
       // one moment in a thirty-day session where the shop gets to ask
       // "is this person still allowed in?", and deactivating an admin
       // has to mean something before their token happens to lapse.
+      //
+      // On this transaction's `client`, never the pool. The row lock
+      // above already holds one of the pool's ten connections; a lookup
+      // that asked the pool for a second one meant ten concurrent
+      // renewals held all ten and each waited for an eleventh, until
+      // connectionTimeoutMillis failed every one of them with a 500
+      // (stress test HIGH-1, 2026-10-09).
 
-      const claims = await loadSubject(row.subject_id);
+      const claims = await loadSubject(row.subject_id, client);
 
       if (!claims) {
         await RefreshTokenRepository.revokeFamily(

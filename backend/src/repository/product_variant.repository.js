@@ -70,6 +70,51 @@ const SELECT_VARIANT = `
  */
 const VARIANT_ORDER = "v.position ASC, v.colour ASC, v.size ASC";
 
+/**
+ * Which rows of a size-matrix save were edited against a stock count
+ * that has since moved.
+ *
+ * Pure, so the rule is testable without a database: `variants` is the
+ * normalised payload, `currentRows` the stored rows (size, colour,
+ * stock_quantity). Only rows that carry `expectedStock` and already exist
+ * are compared.
+ *
+ * @returns {Array<{index, size, colour, expected, current}>}
+ */
+export const findStockConflicts = (variants, currentRows) => {
+  const stored = new Map(
+    currentRows.map((row) => [
+      `${row.size}\t${row.colour ?? ""}`,
+      Number(row.stock_quantity),
+    ]),
+  );
+
+  const conflicts = [];
+
+  variants.forEach((variant, index) => {
+    if (variant.expectedStock === undefined || variant.expectedStock === null) {
+      return;
+    }
+
+    const key = `${variant.size}\t${variant.colour ?? ""}`;
+    if (!stored.has(key)) return;
+
+    const current = stored.get(key);
+
+    if (current !== Number(variant.expectedStock)) {
+      conflicts.push({
+        index,
+        size: variant.size,
+        colour: variant.colour ?? "",
+        expected: Number(variant.expectedStock),
+        current,
+      });
+    }
+  });
+
+  return conflicts;
+};
+
 export const ProductVariantRepository = {
   async findByProductId(productId) {
     const text = `
@@ -121,6 +166,36 @@ export const ProductVariantRepository = {
       return result.rows[0] ?? null;
     } catch (error) {
       throw handleDatabaseError(error, "findById", { variantId: id });
+    }
+  },
+
+  /**
+   * Every variant of the given products, for the stock roll-up.
+   *
+   * getAllVariants pages by variant row, so a product whose rows straddle
+   * a page boundary used to be summarised from whichever half landed on
+   * the page — "4 in stock" for a product holding 9. The summaries are
+   * built from this instead: all of a product's rows, for every product
+   * that appears on the page, in one query.
+   */
+  async findForSummaries(productIds) {
+    if (!Array.isArray(productIds) || productIds.length === 0) return [];
+
+    const text = `
+      SELECT v.product_id, v.size, v.colour, v.stock_quantity, v.active,
+             v.position
+      FROM product_variants v
+      WHERE v.product_id = ANY($1::uuid[])
+      ORDER BY v.product_id, ${VARIANT_ORDER}
+    `;
+
+    try {
+      const result = await query(text, [productIds]);
+      return result.rows;
+    } catch (error) {
+      throw handleDatabaseError(error, "findForSummaries", {
+        count: productIds.length,
+      });
     }
   },
 
@@ -237,19 +312,49 @@ export const ProductVariantRepository = {
     }
   },
 
-  async delete(id) {
-    const text = `
-      DELETE FROM product_variants
-      WHERE id = $1::uuid
-      RETURNING id
-    `;
-
+  /**
+   * Deletes one variant, unless it still holds stock and `force` is off.
+   *
+   * The same rule as bulkDelete, which the single delete used to skip:
+   * deleting a variant destroys its stock count, and there is no other
+   * record of it. The row is locked while it is checked, so a sale or a
+   * restock cannot change the answer between the check and the delete.
+   *
+   * @returns {Promise<{status: "missing"} |
+   *   {status: "blocked" | "deleted", row: object}>}
+   */
+  async delete(id, { force = false } = {}) {
     try {
-      const result = await query(text, [id]);
-      if (result.rowCount === 0) return null;
+      return await withTransaction(async (client) => {
+        const found = await client.query(
+          `SELECT v.id, v.product_id, v.size, v.colour, v.stock_quantity,
+                  p.name AS product_name
+           FROM product_variants v
+           JOIN products p ON p.id = v.product_id
+           WHERE v.id = $1::uuid
+           FOR UPDATE OF v`,
+          [id],
+        );
 
-      logger.info("Product variant deleted", { variantId: id });
-      return result.rows[0];
+        const row = found.rows[0];
+        if (!row) return { status: "missing" };
+
+        if (!force && Number(row.stock_quantity) > 0) {
+          return { status: "blocked", row };
+        }
+
+        await client.query(
+          "DELETE FROM product_variants WHERE id = $1::uuid",
+          [id],
+        );
+
+        logger.info("Product variant deleted", {
+          variantId: id,
+          stockDiscarded: Number(row.stock_quantity),
+        });
+
+        return { status: "deleted", row };
+      });
     } catch (error) {
       throw handleDatabaseError(error, "delete", { variantId: id });
     }
@@ -314,23 +419,59 @@ export const ProductVariantRepository = {
   },
 
   /**
-   * Deletes several sizes, and reports which products that leaves with
-   * none.
+   * Deletes several sizes — the ones not still holding stock, unless
+   * `force` — and reports which products that leaves with none.
    *
-   * Both halves run in one transaction so the second answer describes
-   * the catalogue the first half actually produced — asking afterwards
-   * could read a state something else had moved on from.
+   * Everything runs in one transaction, and the stock check is part of
+   * it: the selection is read FOR UPDATE, so a size that sells its last
+   * unit, or is restocked, while the admin's request is in flight is
+   * judged on the count it actually has when it is deleted. The check
+   * used to read the rows before the transaction began, which is a
+   * window in which a restocked size could be deleted along with its new
+   * stock. Locked in id order, the same order checkout locks variants
+   * in, so the two cannot deadlock on each other.
    *
-   * @returns {Promise<{deleted: object[], emptiedProducts: object[]}>}
+   * The emptied-products answer is read in the same transaction so it
+   * describes the catalogue the delete actually produced.
+   *
+   * @returns {Promise<{found: object[], blocked: object[],
+   *   deleted: object[], emptiedProducts: object[]}>}
    */
-  async bulkDelete(ids) {
+  async bulkDelete(ids, { force = false } = {}) {
     try {
       return await withTransaction(async (client) => {
+        const found = await client.query(
+          `SELECT v.*, p.name AS product_name, p.slug AS product_slug
+           FROM product_variants v
+           JOIN products p ON p.id = v.product_id
+           WHERE v.id = ANY($1::uuid[])
+           ORDER BY v.id
+           FOR UPDATE OF v`,
+          [ids],
+        );
+
+        const blocked = force
+          ? []
+          : found.rows.filter((row) => Number(row.stock_quantity) > 0);
+        const blockedIds = new Set(blocked.map((row) => row.id));
+        const deletableIds = found.rows
+          .filter((row) => !blockedIds.has(row.id))
+          .map((row) => row.id);
+
+        if (deletableIds.length === 0) {
+          return {
+            found: found.rows,
+            blocked,
+            deleted: [],
+            emptiedProducts: [],
+          };
+        }
+
         const deleted = await client.query(
           `DELETE FROM product_variants
            WHERE id = ANY($1::uuid[])
            RETURNING id, product_id, size, colour`,
-          [ids],
+          [deletableIds],
         );
 
         const productIds = [...new Set(deleted.rows.map((row) => row.product_id))];
@@ -357,7 +498,12 @@ export const ProductVariantRepository = {
           emptiedProducts: emptied.rows.length,
         });
 
-        return { deleted: deleted.rows, emptiedProducts: emptied.rows };
+        return {
+          found: found.rows,
+          blocked,
+          deleted: deleted.rows,
+          emptiedProducts: emptied.rows,
+        };
       });
     } catch (error) {
       throw handleDatabaseError(error, "bulkDelete", { count: ids.length });
@@ -378,10 +524,42 @@ export const ProductVariantRepository = {
    * which is what makes "add Teal to a product already sold in Maroon"
    * an insert of four new rows rather than a rewrite of the four that
    * exist.
+   *
+   * Stock is the one column that moves without the admin: every sale
+   * decrements it. The form is filled from a read taken when the page
+   * opened, so writing its numbers back as they are would undo every
+   * sale made since — a size that sold out at 10:05 restored to 3 by a
+   * price edit saved at 10:10. A row that carries `expectedStock` (the
+   * count the form was loaded with) is compared with the stored count
+   * under a row lock, and any mismatch rejects the whole save before
+   * anything is written; the caller re-reads and tries again. Rows
+   * without it keep the old last-write-wins behaviour, and new rows have
+   * nothing to compare against.
+   *
+   * @returns {Promise<object[]>} the saved rows
+   * @throws {Error} code VARIANT_STOCK_CHANGED, with `conflicts`
    */
   async replaceForProduct(productId, variants) {
     try {
       return await withTransaction(async (client) => {
+        const current = await client.query(
+          `SELECT id, size, colour, stock_quantity
+           FROM product_variants
+           WHERE product_id = $1::uuid
+           ORDER BY id
+           FOR UPDATE`,
+          [productId],
+        );
+
+        const conflicts = findStockConflicts(variants, current.rows);
+
+        if (conflicts.length > 0) {
+          const err = new Error("VARIANT_STOCK_CHANGED");
+          err.code = "VARIANT_STOCK_CHANGED";
+          err.conflicts = conflicts;
+          throw err;
+        }
+
         const keptSizes = variants.map((variant) => variant.size);
         const keptColours = variants.map((variant) => variant.colour ?? "");
 
@@ -447,6 +625,7 @@ export const ProductVariantRepository = {
         return result.rows;
       });
     } catch (error) {
+      if (error?.code === "VARIANT_STOCK_CHANGED") throw error;
       throw handleDatabaseError(error, "replaceForProduct", { productId });
     }
   },

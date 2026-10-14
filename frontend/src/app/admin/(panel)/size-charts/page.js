@@ -245,7 +245,11 @@ export default function SizeChartsPage() {
             <ChartCard
               key={chart.id}
               chart={chart}
-              busy={busyId === chart.id}
+              // Every card waits on any write, not only the one being
+              // changed: a toggle answered after a reorder used to land on
+              // a list it no longer matched, and two reorders in flight
+              // could settle in either order.
+              busy={Boolean(busyId)}
               first={index === 0}
               last={index === state.charts.length - 1}
               onMove={(delta) => moveChart(index, delta)}

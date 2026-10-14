@@ -11,11 +11,13 @@
  * 3. Redirects the user back to the main categories list (`/admin/category`).
  *
  * A rejected save is re-thrown so the form can keep the admin's input and
- * show the API's field errors in place.
+ * show the API's field errors in place. A create that succeeded but whose
+ * product move did not switches the form to editing the new category.
  */
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useCategories } from "@/lib/categories/context";
+import { ProductMoveError, useCategories } from "@/lib/categories/context";
 import { useToast } from "@/components/admin/ui";
 import CategoryForm from "@/components/categories/CategoryForm";
 
@@ -29,17 +31,43 @@ import CategoryForm from "@/components/categories/CategoryForm";
 export default function NewCategoryPage() {
   const router = useRouter();
   const toast = useToast();
-  const { products, saveCategory } = useCategories();
+  const { categories, products, productsError, saveCategory } = useCategories();
+
+  /**
+   * The category a create already wrote, when the product move after it
+   * failed. From then on this screen edits that category: the same form
+   * instance stays mounted (so the checked products survive), but with
+   * `initial` set its next save is a PUT plus the move, not a second
+   * create that would only be refused with "slug already exists".
+   *
+   * The context's copy is preferred once it has one; the saved record is
+   * the fallback while the list is still loading.
+   */
+  const [created, setCreated] = useState(null);
+
+  const initial = created
+    ? (categories.find((c) => c.id === created.id) ?? { ...created, productIds: [] })
+    : undefined;
 
   return (
     <CategoryForm
+      initial={initial}
       products={products}
+      productsError={productsError}
       /* Callback executed when the user saves the new category */
       onSave={async (data) => {
-        const saved = await saveCategory(data);
+        try {
+          const saved = await saveCategory(data);
 
-        toast.success("Category created", `${saved.name} is now in the catalogue.`);
-        router.push("/admin/category");
+          toast.success(
+            created ? "Category updated" : "Category created",
+            `${saved.name} is now in the catalogue.`,
+          );
+          router.push("/admin/category");
+        } catch (saveError) {
+          if (saveError instanceof ProductMoveError) setCreated(saveError.category);
+          throw saveError;
+        }
       }}
       /* Callback executed when the user cancels creation */
       onCancel={() => router.push("/admin/category")}

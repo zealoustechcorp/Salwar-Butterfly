@@ -3,6 +3,7 @@
 import express from "express";
 import { ProductController } from "../controllers/product.controller.js";
 import {
+  validateBulkCreateProducts,
   validateCreateProduct,
   validateUpdateProduct,
 } from "../validators/product.validator.js";
@@ -11,11 +12,15 @@ const router = express.Router();
 
 router.post("/createProduct", validateCreateProduct, ProductController.create);
 
-// No validateCreateProduct here: that middleware reads a single product
-// off the body root and would reject every bulk payload, whose shape is
-// { categoryId, products: [...] }. ProductService.bulkCreateByCategoryId
-// validates each element and reports the offending index.
-router.post("/bulkCreateProducts", ProductController.bulkCreate);
+// Not validateCreateProduct, which reads a single product off the body
+// root: the bulk payload is { categoryId, products: [...] }. Its own
+// validator holds every row to the same rules (collectCreateProductErrors)
+// and reports them all at once, keyed products[i].field.
+router.post(
+  "/bulkCreateProducts",
+  validateBulkCreateProducts,
+  ProductController.bulkCreate,
+);
 
 router.post("/bulkUpdateCategory", ProductController.bulkUpdateCategory);
 

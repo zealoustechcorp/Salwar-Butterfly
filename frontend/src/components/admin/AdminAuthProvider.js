@@ -11,10 +11,21 @@
  * admin who was deactivated an hour ago.
  *
  * Status is derived, never stored. The token is the single source of
- * truth, and a resolution is only meaningful for the token it was
- * fetched with — pairing them means a token change cannot leave a
- * stale identity behind, and there is no state to synchronise in an
- * effect.
+ * truth, and a resolution is tagged with the token it was fetched with.
+ *
+ * One token change is not a change of identity, though: renewal. An
+ * access token lives fifteen minutes and the api client swaps it off
+ * the refresh cookie whenever one lapses, so a panel left open renews
+ * several times an hour. Treating each new token as unresolved used to
+ * drop status back to "loading" for the length of a /me round trip —
+ * and RequireAdmin answers "loading" by replacing AdminShell (and the
+ * ToastProvider inside it) with a spinner, which unmounted the page and
+ * threw away unsaved edits, staged uploads and toasts every quarter of
+ * an hour. So an identity resolved for one token is *carried* onto the
+ * next while that one is re-checked in the background; "loading" is
+ * only for the first resolution after a page load or a sign-in. A real
+ * sign-out still clears it: the token goes to null on the way (see the
+ * transition check below), and an expiry drops it explicitly.
  *
  * Expiry is not this provider's job to detect. The api client ends the
  * session the moment any call comes back with an expired token
@@ -90,23 +101,48 @@ export function AdminAuthProvider({ children }) {
    */
   const [expiry, setExpiry] = useState(null);
 
-  // A resolution only counts if it was fetched with the token we
-  // currently hold. Anything else is stale by definition.
-  const isResolved = resolved !== null && resolved.token === token;
+  /**
+   * The token the previous render saw. Only used to spot the session
+   * passing through "no token" — a sign-out here or in another tab —
+   * which is what separates a sign-out-then-sign-in (a possibly
+   * different admin, so the old identity must not be carried) from a
+   * renewal (token A straight to token B, same session).
+   *
+   * Adjusted during render rather than in an effect, React's pattern
+   * for state derived from a changing input. signIn records its
+   * identity while the token is still null, which is not a non-null →
+   * null transition, so it survives this.
+   */
+  const [seenToken, setSeenToken] = useState(token);
 
-  const admin = isResolved ? resolved.admin : null;
-  const outage = isResolved ? resolved.outage : null;
+  if (seenToken !== token) {
+    setSeenToken(token);
+    if (seenToken && !token) setResolved(null);
+  }
+
+  // A resolution fetched with the token we currently hold.
+  const isFresh = resolved !== null && resolved.token === token;
+
+  // An identity resolved for an earlier token of this same session —
+  // the token was renewed and /me has not answered for the new one yet.
+  const isCarried =
+    !isFresh && Boolean(token) && Boolean(resolved?.admin) && seenToken === token;
+
+  const admin = isFresh || isCarried ? resolved.admin : null;
+  const outage = isFresh ? resolved.outage : null;
 
   const status = !ready
     ? // The session is still being restored from the refresh cookie.
       STATUS.LOADING
     : !token
       ? STATUS.ANONYMOUS
-      : isResolved
+      : isFresh
         ? admin
           ? STATUS.AUTHENTICATED
           : STATUS.ANONYMOUS
-        : STATUS.LOADING;
+        : isCarried
+          ? STATUS.AUTHENTICATED
+          : STATUS.LOADING;
 
   // --------------------------------------------------------
   // RESOLVE THE TOKEN INTO AN IDENTITY
@@ -129,9 +165,16 @@ export function AdminAuthProvider({ children }) {
         if (!active || error?.name === "AbortError") return;
 
         // The API is unreachable. Keep the token — it may well still
-        // be valid once the backend is back — and say so.
+        // be valid once the backend is back — and say so. Unless this
+        // was only the background re-check after a renewal: the refresh
+        // endpoint just vouched for the session, so keep the identity
+        // (and the mounted panel) rather than blanking it for a blip.
         if (error instanceof ApiError && error.code === NETWORK_ERROR) {
-          setResolved({ token, admin: null, outage: error.message });
+          setResolved((prev) =>
+            prev?.admin
+              ? { token, admin: prev.admin, outage: null }
+              : { token, admin: null, outage: error.message },
+          );
           return;
         }
 

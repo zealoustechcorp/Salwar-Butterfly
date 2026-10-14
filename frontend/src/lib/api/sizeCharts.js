@@ -80,8 +80,14 @@ export function toSizeChart(dto) {
  * A blank cell goes up as null rather than being dropped: the API stores
  * null and the storefront prints a dash, which is the shop saying "no
  * measurement for this size" instead of the column quietly disappearing.
+ *
+ * `active` is only sent when asked for. The edit screen has no published
+ * control — that is the toggle on the list — so the value it holds is
+ * whatever the chart had when the page loaded, and sending it back made
+ * every save quietly revert a toggle flipped since (in another tab, or by
+ * another admin). Left out, the API keeps the stored flag.
  */
-function toBody(chart) {
+function toBody(chart, { includeActive = true } = {}) {
   const columns = chart.columns;
 
   return {
@@ -103,7 +109,9 @@ function toBody(chart) {
 
       return out;
     }),
-    ...(chart.active === undefined ? {} : { active: Boolean(chart.active) }),
+    ...(!includeActive || chart.active === undefined
+      ? {}
+      : { active: Boolean(chart.active) }),
   };
 }
 
@@ -155,11 +163,14 @@ export async function createSizeChart(chart, { token } = {}) {
   return toSizeChart(data);
 }
 
-/** A full replace — see the module header. */
-export async function updateSizeChart(id, chart, { token } = {}) {
+/**
+ * A full replace — see the module header — of everything but `active`,
+ * unless the caller says the form changed it (`{ activeChanged: true }`).
+ */
+export async function updateSizeChart(id, chart, { token, activeChanged = false } = {}) {
   const data = await api.put(
     `/sizeCharts/updateSizeChart/${encodeURIComponent(id)}`,
-    toBody(chart),
+    toBody(chart, { includeActive: activeChanged }),
     { token },
   );
 

@@ -50,24 +50,26 @@ async function issueAndSend(email, { ip }) {
       return;
     }
 
-    const last = await PasswordResetRepository.lastRequestedAt(customer.id);
+    // 32 random bytes, URL-safe. Only its hash is stored.
+    const token = randomBytes(32).toString("base64url");
 
-    if (last && Date.now() - new Date(last).getTime() < PASSWORD_RESET_COOLDOWN_SECONDS * 1000) {
+    // The cooldown and the expiry are both computed by Postgres, inside
+    // the same transaction as the insert — see PasswordResetRepository.create
+    // for why the API host's clock is kept out of it.
+    const issued = await PasswordResetRepository.create({
+      customerId: customer.id,
+      tokenHash: hashToken(token),
+      ttlMinutes: PASSWORD_RESET_TTL_MINUTES,
+      cooldownSeconds: PASSWORD_RESET_COOLDOWN_SECONDS,
+      ip,
+    });
+
+    if (!issued) {
       logger.info("Password reset ignored: requested again inside the cooldown", {
         customerId: customer.id,
       });
       return;
     }
-
-    // 32 random bytes, URL-safe. Only its hash is stored.
-    const token = randomBytes(32).toString("base64url");
-
-    await PasswordResetRepository.create({
-      customerId: customer.id,
-      tokenHash: hashToken(token),
-      expiresAt: new Date(Date.now() + PASSWORD_RESET_TTL_MINUTES * 60 * 1000),
-      ip,
-    });
 
     const resetUrl = `${env.email.storefrontUrl}/reset-password?token=${encodeURIComponent(token)}`;
 

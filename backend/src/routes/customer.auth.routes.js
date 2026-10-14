@@ -15,6 +15,7 @@ import {
   authRateLimiter,
   passwordResetRateLimiter,
   refreshRateLimiter,
+  resetPasswordRateLimiter,
 } from "../middlewares/rateLimiter.js";
 
 const router = express.Router();
@@ -55,11 +56,12 @@ router.post(
   CustomerAuthController.forgotPassword,
 );
 
-// Sets the new password from the emailed link. On the sign-in limiter:
-// a token is a credential, and guessing one is guessing a password.
+// Sets the new password from the emailed link. Its own bucket rather
+// than the sign-in one (LOW-6): somebody who just failed to sign in is
+// exactly who resets next, and must not find this already spent.
 router.post(
   "/reset-password",
-  authRateLimiter,
+  resetPasswordRateLimiter,
   validateResetPassword,
   CustomerAuthController.resetPassword,
 );

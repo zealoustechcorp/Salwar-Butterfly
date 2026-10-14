@@ -7,6 +7,34 @@ const PG_ERROR_CODES = {
   NOT_NULL_VIOLATION: "23502",
 };
 
+/**
+ * Every name the slug's uniqueness goes by.
+ *
+ * The migration calls it `products_slug_unique`, but the live database
+ * was built by an earlier script and has `products_slug_key` — and also
+ * a second unique index, `idx_products_slug`, on the same column, so
+ * which of the two Postgres reports depends on which it checks first.
+ * Matching only the migration's name is what turned every duplicate
+ * slug into a 500. The column in `detail` ("Key (slug)=(...)") is the
+ * fallback for any name not listed here.
+ */
+const SLUG_CONSTRAINTS = new Set([
+  "products_slug_unique",
+  "products_slug_key",
+  "idx_products_slug",
+]);
+
+export const isSlugViolation = (error) =>
+  error?.code === PG_ERROR_CODES.UNIQUE_VIOLATION &&
+  (SLUG_CONSTRAINTS.has(error.constraint) ||
+    /^Key \(slug\)=/.test(String(error.detail ?? "")));
+
+/** "Key (slug)=(silk-kurta) already exists." -> "silk-kurta" */
+export const slugFromDetail = (detail) => {
+  const match = /^Key \(slug\)=\((.*)\) already exists/.exec(String(detail ?? ""));
+  return match ? match[1] : null;
+};
+
 const handleDatabaseError = (error, operation, context = {}) => {
   logger.error(`Product repository error: ${operation}`, {
     operation,
@@ -16,12 +44,12 @@ const handleDatabaseError = (error, operation, context = {}) => {
     message: error.message,
   });
 
-  if (
-    error.code === PG_ERROR_CODES.UNIQUE_VIOLATION &&
-    error.constraint === "products_slug_unique"
-  ) {
+  if (isSlugViolation(error)) {
     const err = new Error("PRODUCT_SLUG_EXISTS");
     err.code = "PRODUCT_SLUG_EXISTS";
+    // The offending value, read back out of Postgres' own message, so a
+    // bulk insert of a thousand rows can name the one that clashed.
+    err.slug = slugFromDetail(error.detail);
     return err;
   }
 
@@ -201,9 +229,21 @@ export const ProductRepository = {
 
     const placeholders = productIds.map((_, i) => `$${i + 1}::uuid`).join(",");
 
+    // A sub-category belongs to one category, so a product moved out of
+    // its category cannot keep a sub-category from the old one — it would
+    // be filed under a heading that does not exist where it now lives.
+    // Kept only when it happens to belong to the destination too.
+    const target = `$${productIds.length + 1}::uuid`;
     const text = `
       UPDATE products
-      SET category_id = $${productIds.length + 1}::uuid, updated_at = NOW()
+      SET category_id = ${target},
+          sub_category_id = CASE
+            WHEN sub_category_id IN (
+              SELECT sc.id FROM sub_categories sc WHERE sc.category_id = ${target}
+            ) THEN sub_category_id
+            ELSE NULL
+          END,
+          updated_at = NOW()
       WHERE id IN (${placeholders})
       RETURNING id
     `;
@@ -462,6 +502,27 @@ export const ProductRepository = {
       return result.rows[0]?.exists ?? false;
     } catch (error) {
       throw handleDatabaseError(error, "exists", { productId: id });
+    }
+  },
+
+  /**
+   * Which of these slugs are already taken — the bulk create's pre-flight,
+   * so a clash is reported as the rows that carry it rather than as one
+   * unique violation naming whichever row Postgres happened to reach first.
+   */
+  async findExistingSlugs(slugs) {
+    if (!Array.isArray(slugs) || slugs.length === 0) return [];
+
+    try {
+      const result = await query(
+        "SELECT slug FROM products WHERE slug = ANY($1::text[])",
+        [slugs],
+      );
+      return result.rows.map((row) => row.slug);
+    } catch (error) {
+      throw handleDatabaseError(error, "findExistingSlugs", {
+        count: slugs.length,
+      });
     }
   },
 

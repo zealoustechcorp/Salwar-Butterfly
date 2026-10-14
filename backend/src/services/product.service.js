@@ -2,6 +2,8 @@
 
 import { ProductRepository } from "../repository/poduct.repository.js";
 import { SizeChartRepository } from "../repository/size_chart.repository.js";
+import { CategoryRepository } from "../repository/category.repository.js";
+import { SubCategoryRepository } from "../repository/sub_categories.repository.js";
 import { CreateProductDTO, UpdateProductDTO } from "../dto/product.dto.js";
 import { ProductMapper } from "../mapper/product.mapper.js";
 import { ImageStorage } from "../config/r2.storage.js";
@@ -46,12 +48,20 @@ const calculateCurrentPrice = (basePrice, discountPercentage) => {
  * refusing an edit to one of them because the chart is off would make
  * withdrawing a chart a catalogue-wide event.
  *
+ * The same reasoning covers a chart that has been deleted outright, for
+ * an edit that does not touch the fit: `storedFit` is what the product
+ * already carries, and a save that sends it back unchanged is not asking
+ * to adopt a fit, so it is not checked. Without that, deleting a chart
+ * made every product cut to it uneditable — a price change refused over
+ * a size guide nobody was changing.
+ *
  * @param {object|null|undefined} attributes  the normalised document
- * @param {Map<string, string>} [seen]  fit -> canonical, for the bulk
+ * @param {Map<string, string>|null} [seen]  fit -> canonical, for the bulk
  *        path, where a thousand products share a handful of fits
+ * @param {string|null} [storedFit]  the fit the product already carries
  * @returns {Promise<object>} the attributes, with `fit` canonicalised
  */
-const resolveFit = async (attributes, seen = null) => {
+export const resolveFit = async (attributes, seen = null, storedFit = null) => {
   if (!attributes || typeof attributes !== "object") return attributes ?? {};
 
   const fit = attributes[FIT_GROUP];
@@ -62,6 +72,13 @@ const resolveFit = async (attributes, seen = null) => {
   if (typeof fit !== "string" || !fit.trim()) return attributes;
 
   const wanted = fit.trim();
+
+  if (
+    typeof storedFit === "string" &&
+    storedFit.trim().toLowerCase() === wanted.toLowerCase()
+  ) {
+    return { ...attributes, [FIT_GROUP]: storedFit };
+  }
   const cached = seen?.get(wanted.toLowerCase());
 
   if (cached) return { ...attributes, [FIT_GROUP]: cached };
@@ -86,6 +103,64 @@ const resolveFit = async (attributes, seen = null) => {
   return { ...attributes, [FIT_GROUP]: chart.fit };
 };
 
+/** The 409 every slug clash becomes, naming the slug where it is known. */
+const slugConflict = (slug) => {
+  const message = slug
+    ? `A product with the slug "${slug}" already exists`
+    : "A product with this slug already exists";
+
+  return new ApiError(409, message, { slug: message });
+};
+
+/**
+ * The category a product is being filed under, which must still exist.
+ *
+ * Categories are soft-deleted, so the foreign key alone accepts one the
+ * admin has already deleted: the product is written, and lands in a
+ * category no screen lists and the storefront hides. Inactive is allowed
+ * — that is how a collection is stocked before it is switched on.
+ *
+ * @returns {Promise<object>} the category row
+ */
+const assertCategoryUsable = async (categoryId) => {
+  const category = await CategoryRepository.findById(categoryId);
+
+  if (!category) {
+    throw new ApiError(404, "Category not found", {
+      categoryId: "Category not found or has been deleted",
+    });
+  }
+
+  return category;
+};
+
+/**
+ * A sub-category is a heading inside one category, so a product may only
+ * carry one from its own category. Nothing enforced that: the foreign key
+ * only asks that the sub-category exists somewhere.
+ */
+const assertSubCategoryBelongs = async (
+  subCategoryId,
+  categoryId,
+  field = "subCategoryId",
+) => {
+  if (!subCategoryId) return;
+
+  const subCategory = await SubCategoryRepository.findById(subCategoryId);
+
+  if (!subCategory) {
+    throw new ApiError(404, "Sub-category not found", {
+      [field]: "Sub-category not found",
+    });
+  }
+
+  if (String(subCategory.category_id) !== String(categoryId)) {
+    throw new ApiError(400, "Sub-category belongs to a different category", {
+      [field]: `"${subCategory.name}" belongs to a different category`,
+    });
+  }
+};
+
 export const ProductService = {
   async create({
     name,
@@ -93,7 +168,6 @@ export const ProductService = {
     description = null,
     categoryId,
     subCategoryId = null,
-    sizeChartId = null,
     basePrice,
     discountPercentage = 0,
     attributes = {},
@@ -119,9 +193,6 @@ export const ProductService = {
       const normalizedSubCategoryId = subCategoryId
         ? String(subCategoryId).trim()
         : null;
-      const normalizedSizeChartId = sizeChartId
-        ? String(sizeChartId).trim()
-        : null;
 
       if (!normalizedName || !normalizedSlug) {
         throw new ApiError(400, "Product name and slug cannot be empty");
@@ -138,10 +209,6 @@ export const ProductService = {
         throw new ApiError(400, "Invalid sub-category ID format");
       }
 
-      if (normalizedSizeChartId && !UUID_REGEX.test(normalizedSizeChartId)) {
-        throw new ApiError(400, "Invalid size chart ID format");
-      }
-
       const price = parseFloat(basePrice);
       if (isNaN(price) || price < 0) {
         throw new ApiError(400, "Base price must be a positive number");
@@ -156,6 +223,12 @@ export const ProductService = {
       }
 
       const currentPrice = calculateCurrentPrice(price, discount);
+
+      await assertCategoryUsable(normalizedCategoryId);
+      await assertSubCategoryBelongs(
+        normalizedSubCategoryId,
+        normalizedCategoryId,
+      );
 
       let normalizedActive = true;
       if (active !== undefined && active !== null) {
@@ -183,7 +256,6 @@ export const ProductService = {
         description: normalizedDescription,
         categoryId: normalizedCategoryId,
         subCategoryId: normalizedSubCategoryId,
-        sizeChartId: normalizedSizeChartId,
         basePrice: price,
         discountPercentage: discount,
         currentPrice,
@@ -203,7 +275,6 @@ export const ProductService = {
       const product = await ProductRepository.create({
         categoryId: productDTO.categoryId,
         subCategoryId: productDTO.subCategoryId,
-        sizeChartId: productDTO.sizeChartId,
         name: productDTO.name,
         slug: productDTO.slug,
         description: productDTO.description,
@@ -231,15 +302,14 @@ export const ProductService = {
 
       if (error?.code === "PRODUCT_SLUG_EXISTS") {
         logger.warn("Product creation failed - slug already exists", { slug });
-        throw new ApiError(409, "Product slug already exists");
+        throw slugConflict(error.slug ?? slug);
       }
 
       if (error?.code === "PRODUCT_FOREIGN_KEY_VIOLATION") {
-        logger.warn(
-          "Product creation failed - invalid category or size chart",
-          { categoryId },
-        );
-        throw new ApiError(400, "Invalid category ID or size chart ID");
+        logger.warn("Product creation failed - invalid category", {
+          categoryId,
+        });
+        throw new ApiError(400, "Invalid category or sub-category ID");
       }
 
       logger.error("ProductService.create failed", {
@@ -272,6 +342,11 @@ export const ProductService = {
       if (productsData.length > 1000) {
         throw new ApiError(400, "Maximum 1000 products can be created in bulk");
       }
+
+      // The row-level rules (types, slug pattern, lengths, uuids) belong to
+      // validateBulkCreateProducts, which checks every row before this
+      // runs. What is left here is what needs the database.
+      await assertCategoryUsable(normalizedCategoryId);
 
       const processedProducts = [];
 
@@ -339,12 +414,30 @@ export const ProductService = {
           throw error;
         }
 
+        if (p.subCategoryId) {
+          try {
+            await assertSubCategoryBelongs(
+              String(p.subCategoryId).trim(),
+              normalizedCategoryId,
+              `products[${i}].subCategoryId`,
+            );
+          } catch (error) {
+            if (error instanceof ApiError) {
+              throw new ApiError(
+                error.statusCode,
+                `Product at index ${i}: ${error.message}`,
+                error.errors,
+              );
+            }
+            throw error;
+          }
+        }
+
         processedProducts.push({
           name: p.name.trim(),
           slug: p.slug.trim().toLowerCase(),
           description: p.description ? p.description.trim() : null,
           subCategoryId: p.subCategoryId ? String(p.subCategoryId).trim() : null,
-          sizeChartId: p.sizeChartId ? String(p.sizeChartId).trim() : null,
           basePrice: price,
           discountPercentage: discount,
           currentPrice,
@@ -352,6 +445,34 @@ export const ProductService = {
           isFeatured: p.isFeatured === true || p.isFeatured === "true",
           active: p.active !== false && p.active !== "false",
         });
+      }
+
+      // Slugs already in the catalogue, found up front and reported by
+      // row. Left to the insert, one clash fails all thousand rows with
+      // a unique violation naming whichever row Postgres reached first.
+      const taken = new Set(
+        await ProductRepository.findExistingSlugs(
+          processedProducts.map((p) => p.slug),
+        ),
+      );
+
+      if (taken.size > 0) {
+        const errors = {};
+        processedProducts.forEach((p, index) => {
+          if (taken.has(p.slug)) {
+            errors[`products[${index}].slug`] =
+              `A product with the slug "${p.slug}" already exists`;
+          }
+        });
+
+        const listed = [...taken].slice(0, 10).join(", ");
+        const more = taken.size > 10 ? ", ..." : "";
+
+        throw new ApiError(
+          409,
+          `${taken.size} slug${taken.size === 1 ? " is" : "s are"} already in use: ${listed}${more}`,
+          errors,
+        );
       }
 
       logger.info("Bulk creating products", {
@@ -376,6 +497,19 @@ export const ProductService = {
       return ProductMapper.toDTOList(products);
     } catch (error) {
       if (error instanceof ApiError) throw error;
+
+      // A slug taken between the pre-flight above and the insert.
+      if (error?.code === "PRODUCT_SLUG_EXISTS") {
+        logger.warn("Bulk product creation failed - slug already exists", {
+          categoryId,
+          slug: error.slug,
+        });
+        throw slugConflict(error.slug);
+      }
+
+      if (error?.code === "PRODUCT_FOREIGN_KEY_VIOLATION") {
+        throw new ApiError(400, "Invalid category or sub-category ID");
+      }
 
       logger.error("ProductService.bulkCreateByCategoryId failed", {
         categoryId,
@@ -425,6 +559,10 @@ export const ProductService = {
       if (invalid) {
         throw new ApiError(400, `Invalid product ID format: ${invalid}`);
       }
+
+      // Not deleted. Inactive is allowed, as on create: moving pieces into
+      // a collection that is not switched on yet is how one is built.
+      await assertCategoryUsable(normalizedCategoryId);
 
       logger.info("Bulk updating product category", {
         categoryId: normalizedCategoryId,
@@ -609,7 +747,7 @@ export const ProductService = {
         updateData.attributes !== undefined ||
         updateData.isFeatured !== undefined ||
         updateData.active !== undefined ||
-        updateData.sizeChartId !== undefined;
+        updateData.subCategoryId !== undefined;
 
       if (!hasFields) {
         throw new ApiError(400, "At least one field is required to update");
@@ -626,22 +764,38 @@ export const ProductService = {
 
       let finalData = { ...dto };
 
+      // Read first: an unknown id is a 404 here rather than a repository
+      // error further down, and the stored row is what the sub-category,
+      // the fit and the prices below are all checked against.
+      const product = await ProductRepository.findById(normalizedProductId);
+
+      if (!product) throw new ApiError(404, "Product not found");
+
+      if (finalData.subCategoryId) {
+        await assertSubCategoryBelongs(
+          String(finalData.subCategoryId).trim(),
+          product.category_id,
+        );
+      }
+
       // The attributes document is replaced wholesale by an update, so a
       // fit arriving here is the fit the product will carry — it has to
       // be resolved against the charts on the way in exactly as it is on
-      // create, or the edit screen becomes the way round the rule.
+      // create, or the edit screen becomes the way round the rule. The
+      // stored fit is passed so that sending it back unchanged is not
+      // re-checked (see resolveFit).
       if (updateData.attributes !== undefined) {
-        finalData.attributes = await resolveFit(finalData.attributes);
+        finalData.attributes = await resolveFit(
+          finalData.attributes,
+          null,
+          product.attributes?.[FIT_GROUP] ?? null,
+        );
       }
 
       if (
         updateData.basePrice !== undefined ||
         updateData.discountPercentage !== undefined
       ) {
-        const product = await ProductRepository.findById(normalizedProductId);
-
-        if (!product) throw new ApiError(404, "Product not found");
-
         const base =
           updateData.basePrice !== undefined
             ? parseFloat(updateData.basePrice)
@@ -692,23 +846,34 @@ export const ProductService = {
         productId: normalizedProductId,
       });
 
-      const product = await ProductRepository.update(
+      const updated = await ProductRepository.update(
         normalizedProductId,
         finalData,
       );
 
-      if (!product) throw new ApiError(404, "Product not found");
+      if (!updated) throw new ApiError(404, "Product not found");
 
-      logger.info("Product updated successfully", { productId: product.id });
-      return ProductMapper.toDTO(product);
+      logger.info("Product updated successfully", { productId: updated.id });
+      return ProductMapper.toDTO(updated);
     } catch (error) {
       if (error instanceof ApiError) throw error;
+
+      // Deleted between the read above and the write.
+      if (error?.code === "PRODUCT_NOT_FOUND") {
+        throw new ApiError(404, "Product not found");
+      }
 
       if (error?.code === "PRODUCT_SLUG_EXISTS") {
         logger.warn("Product update failed - slug already exists", {
           productId,
         });
-        throw new ApiError(409, "Product slug already exists");
+        throw slugConflict(error.slug ?? updateData?.slug);
+      }
+
+      if (error?.code === "PRODUCT_FOREIGN_KEY_VIOLATION") {
+        throw new ApiError(400, "Invalid sub-category ID", {
+          subCategoryId: "Sub-category not found",
+        });
       }
 
       logger.error("ProductService.updateProduct failed", {

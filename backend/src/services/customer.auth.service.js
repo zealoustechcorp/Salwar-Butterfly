@@ -154,10 +154,16 @@ export const CustomerAuthService = Object.freeze({
       userAgent,
       ip,
 
-      loadSubject: async (customerId) => {
+      loadSubject: async (customerId, client) => {
         // findById filters on deleted_at IS NULL, so a closed account
         // comes back null and the family is revoked.
-        const customer = await CustomerRepository.findById(customerId);
+        //
+        // On the renewal's own transaction client — a second pool
+        // connection here is what deadlocked the pool at ten
+        // concurrent refreshes (HIGH-1).
+        const customer = await CustomerRepository.findById(customerId, {
+          client,
+        });
 
         if (!customer) return null;
 

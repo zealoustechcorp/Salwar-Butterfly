@@ -20,6 +20,7 @@
  * Errors are the `ApiError` thrown by the shared client.
  */
 
+import { LOW_STOCK_BELOW, OUT_OF_STOCK_AT } from "../stock";
 import { api } from "./client";
 
 export const STOCK_SORTS = [
@@ -38,7 +39,9 @@ export const EMPTY_SUMMARY = {
   outOfStock: { sizes: 0, products: 0, units: 0 },
   unavailable: { sizes: 0, products: 0, units: 0 },
   productsWithoutSizes: 0,
-  thresholds: { outOfStockAt: 0, lowStockBelow: 10 },
+  // The policy constants, not a guess: this shows until the first
+  // summary lands, and the API answers with the same two numbers.
+  thresholds: { outOfStockAt: OUT_OF_STOCK_AT, lowStockBelow: LOW_STOCK_BELOW },
 };
 
 /**

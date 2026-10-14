@@ -17,6 +17,7 @@
 import { query } from "../config/db.js";
 import { logger } from "../utils/logger.js";
 import { DEFAULT_SORT, reviewSortSql } from "../config/review.policy.js";
+import { escapeLikePattern } from "../config/customer.query.js";
 
 const PG_ERROR_CODES = {
   CHECK_VIOLATION: "23514",
@@ -135,14 +136,17 @@ const buildFilters = ({
   }
 
   if (search) {
-    values.push(`%${search}%`);
+    // Escaped the way the customer search is: `%` and `_` typed into the
+    // box are characters to find, not wildcards — "100%" otherwise
+    // matched every review containing "100".
+    values.push(`%${escapeLikePattern(search)}%`);
     const like = `$${values.length}`;
 
     conditions.push(
-      `(r.author_name ILIKE ${like}
-        OR r.title ILIKE ${like}
-        OR r.body ILIKE ${like}
-        OR p.name ILIKE ${like})`,
+      `(r.author_name ILIKE ${like} ESCAPE '\\'
+        OR r.title ILIKE ${like} ESCAPE '\\'
+        OR r.body ILIKE ${like} ESCAPE '\\'
+        OR p.name ILIKE ${like} ESCAPE '\\')`,
     );
   }
 

@@ -6,6 +6,7 @@ import { verifyToken } from "../utils/jwt.js";
 import { TOKEN_USE } from "../config/auth.policy.js";
 import { ApiError } from "../utils/ApiError.js";
 import { logger } from "../utils/logger.js";
+import { redactUrl } from "../utils/redactUrl.js";
 
 /**
  * Authenticate incoming requests using JWT.
@@ -62,7 +63,7 @@ export const authenticate = (req, res, next) => {
     if (!decoded || typeof decoded !== "object" || !decoded.sub) {
       logger.warn("JWT payload is invalid", {
         method: req.method,
-        path: req.originalUrl,
+        path: redactUrl(req.originalUrl),
       });
 
       throw ApiError.unauthorized(
@@ -92,7 +93,7 @@ export const authenticate = (req, res, next) => {
         tok: decoded.tok ?? null,
         typ: decoded.typ ?? null,
         method: req.method,
-        path: req.originalUrl,
+        path: redactUrl(req.originalUrl),
       });
 
       throw ApiError.unauthorized(
@@ -115,6 +116,11 @@ export const authenticate = (req, res, next) => {
       email: decoded.email,
       role: decoded.role,
       typ: decoded.typ,
+      // The session family this token was minted for. Null on tokens
+      // signed before the claim was added (they lapse within fifteen
+      // minutes). Read by change-password to keep the caller's own
+      // session while ending every other one.
+      fam: decoded.fam ?? null,
     };
 
     next();
@@ -134,7 +140,7 @@ export const authenticate = (req, res, next) => {
     if (error instanceof jwt.TokenExpiredError) {
       logger.warn("JWT authentication failed: token expired", {
         method: req.method,
-        path: req.originalUrl,
+        path: redactUrl(req.originalUrl),
       });
 
       throw ApiError.unauthorized(
@@ -146,7 +152,7 @@ export const authenticate = (req, res, next) => {
     if (error instanceof jwt.JsonWebTokenError) {
       logger.warn("JWT authentication failed: invalid token", {
         method: req.method,
-        path: req.originalUrl,
+        path: redactUrl(req.originalUrl),
         error: error.message,
       });
 
@@ -162,7 +168,7 @@ export const authenticate = (req, res, next) => {
 
     logger.error("Unexpected JWT authentication error", {
       method: req.method,
-      path: req.originalUrl,
+      path: redactUrl(req.originalUrl),
       error: error.message,
       stack: error.stack,
     });

@@ -228,9 +228,18 @@ export class SubCategoryRepository {
     }
   }
 
+  /**
+   * Whether a sub-category may be filed under this category.
+   *
+   * Deleted categories do not count. Categories are soft-deleted, so the
+   * row is still there, and without the filter a sub-category could be
+   * created under — or moved into — a category no screen lists any more.
+   */
   static async checkCategoryExists(categoryId) {
     const sql = `
-      SELECT EXISTS(SELECT 1 FROM categories WHERE id = $1::uuid) as exists
+      SELECT EXISTS(
+        SELECT 1 FROM categories WHERE id = $1::uuid AND deleted_at IS NULL
+      ) as exists
     `;
 
     try {

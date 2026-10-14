@@ -388,6 +388,19 @@ export const uploadErrorHandler =
       error instanceof multer.MulterError &&
       error.code === "LIMIT_UNEXPECTED_FILE"
     ) {
+      // The right field, one file too many. `.array(field, maxCount)`
+      // reports going over *its* count as LIMIT_UNEXPECTED_FILE, not as
+      // LIMIT_FILE_COUNT — that code is reserved for the instance-wide
+      // `files` limit, which on the shared batch instance is the
+      // product gallery's 20. So a ninth banner arrived here and was
+      // told to use the field name it had just used. A file on the
+      // route's own field is never "unexpected"; it is one past the cap.
+      if (error.field === field && maxFiles > 1) {
+        return next(
+          new ApiError(400, `At most ${maxFiles} images can be uploaded at once`),
+        );
+      }
+
       return next(
         new ApiError(
           400,

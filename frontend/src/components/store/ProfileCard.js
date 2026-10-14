@@ -32,6 +32,7 @@ import {
   validatePassword,
   validatePhone,
 } from "@/lib/validate";
+import { compactPhone } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useAuth } from "./AuthProvider";
 import { useStoreToast } from "./Toast";
@@ -182,8 +183,10 @@ function DetailsForm({ user, onCancel, onSaved }) {
   // would still make the API check it for a clash against every other
   // account, and a slow duplicate check on a field nobody touched is
   // a strange way to fail.
-  const changed = Object.keys(values).filter(
-    (key) => values[key].trim() !== user[key],
+  const changed = Object.keys(values).filter((key) =>
+    key === "phone"
+      ? compactPhone(values.phone) !== user.phone
+      : values[key].trim() !== user[key],
   );
 
   const onSubmit = async (event) => {
@@ -216,7 +219,12 @@ function DetailsForm({ user, onCancel, onSaved }) {
     setErrors({});
 
     const result = await updateProfile(
-      Object.fromEntries(changed.map((key) => [key, values[key].trim()])),
+      Object.fromEntries(
+        changed.map((key) => [
+          key,
+          key === "phone" ? compactPhone(values.phone) : values[key].trim(),
+        ]),
+      ),
     );
 
     if (result.ok) {

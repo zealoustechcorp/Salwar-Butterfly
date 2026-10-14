@@ -29,15 +29,18 @@ import {
   validateOrderNumber,
 } from "@/lib/validate";
 import { cn } from "@/lib/utils";
+import { useAuth } from "./AuthProvider";
 import { OrderCard } from "./OrderSummary";
+import { PayNow } from "./PayNow";
 import { useStoreToast } from "./Toast";
 
 // 16px below `sm`: iOS Safari zooms the page in on focus for anything smaller.
 const FIELD_CLASS =
   "h-11 w-full rounded-xl border border-sb-gold/45 bg-white/70 px-3.5 text-base text-sb-text sm:text-sm placeholder:text-sb-text-muted/60 focus:border-sb-link focus:bg-white focus:outline-none";
 
-export function TrackOrder() {
+export function TrackOrder({ shop }) {
   const toast = useStoreToast();
+  const { isSignedIn } = useAuth();
 
   const [values, setValues] = useState({ orderNumber: "", email: "" });
   const [order, setOrder] = useState(null);
@@ -190,7 +193,37 @@ export function TrackOrder() {
 
       {order ? (
         <div className="mt-8">
-          <OrderCard order={order} defaultOpen />
+          <OrderCard
+            order={order}
+            defaultOpen
+            actions={
+              // The way back to paying for a guest. The confirmation page
+              // only lives as long as the tab it was opened in, so this —
+              // number plus email — is where an order left unpaid is
+              // finished. Payment sessions are open to anyone for a guest
+              // order (payment.service.js assertPayableBy); one placed from
+              // an account still needs that account, which the line under
+              // the button says.
+              order.status === "pending_payment" ? (
+                <div>
+                  <PayNow
+                    order={order}
+                    shop={shop}
+                    compact
+                    onPaid={(paid) => {
+                      if (paid) setOrder(paid);
+                    }}
+                  />
+                  {!isSignedIn ? (
+                    <p className="mt-2 text-xs leading-relaxed text-sb-text-muted">
+                      Placed while signed in? Sign in first to pay for it from
+                      your account.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null
+            }
+          />
         </div>
       ) : null}
 

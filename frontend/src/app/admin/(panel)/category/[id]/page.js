@@ -8,7 +8,9 @@
  *
  * Three outcomes rather than two: the collection is still loading, it failed
  * to load, or it loaded and this id is genuinely not in it — only the last
- * of which is a "not found".
+ * of which is a "not found". "Not in it" is confirmed against the API
+ * (`useCategory` falls back to `getCategoryById`) rather than inferred from
+ * the loaded list alone.
  */
 
 import { FolderX } from "lucide-react";
@@ -20,7 +22,7 @@ import {
   SkeletonRows,
   useToast,
 } from "@/components/admin/ui";
-import { useCategories } from "@/lib/categories/context";
+import { useCategories, useCategory } from "@/lib/categories/context";
 import CategoryDetail from "@/components/categories/CategoryDetail";
 
 /**
@@ -37,8 +39,8 @@ export default function CategoryDetailPage() {
   const { id } = useParams();
   const router = useRouter();
   const toast = useToast();
-  const { categories, products, status, error, refresh, toggleActive } =
-    useCategories();
+  const { products, productsError, toggleActive, isToggling } = useCategories();
+  const { category, status, error, retry } = useCategory(id);
 
   if (status === "loading") {
     return (
@@ -49,16 +51,11 @@ export default function CategoryDetailPage() {
   }
 
   if (status === "error") {
-    return <ErrorNotice error={error} onRetry={refresh} />;
+    return <ErrorNotice error={error} onRetry={retry} />;
   }
 
-  /**
-   * Finds matching category record by ID
-   */
-  const category = categories.find((c) => c.id === id);
-
   /* Render fallback empty state if category ID does not exist in catalog */
-  if (!category) {
+  if (status === "missing" || !category) {
     return (
       <div className="max-w-xl rounded-xl bg-white p-4 ring-1 ring-ink-200/80 shadow-xs sm:p-8">
         <EmptyState
@@ -96,6 +93,8 @@ export default function CategoryDetailPage() {
     <CategoryDetail
       category={category}
       products={linkedProducts}
+      productsError={productsError}
+      toggling={isToggling(category.id)}
       /* Navigate to category edit screen */
       onEdit={() => router.push(`/admin/category/${id}/edit`)}
       /* Navigate back to category list screen */

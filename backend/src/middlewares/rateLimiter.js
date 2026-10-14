@@ -133,6 +133,84 @@ export const authRateLimiter = createLimiter({
   message: "Too many authentication attempts. Please try again later.",
 });
 
+// ------------------------------------------------------------
+// The buckets below were split out of `authRateLimiter` (stress test
+// LOW-5 / LOW-6, 2026-10-09). With one shared "rl:auth:" key per IP,
+// six fumbled storefront passwords plus four order look-ups locked a
+// shopper out of tracking their own order, and an admin signing in from
+// the shop's wifi shared a budget with every shopper on it. Each flow
+// now spends its own budget, sized to how that flow is actually used.
+// `authRateLimiter` itself stays as the storefront sign-in bucket.
+// ------------------------------------------------------------
+
+/**
+ * Admin sign-in.
+ *
+ * Same size as the storefront's — ten guesses per fifteen minutes is
+ * what a password needs — but its own key, so the admin panel's login is
+ * never spent by shoppers sharing an IP with the shop, nor the other way
+ * round.
+ */
+export const adminAuthRateLimiter = createLimiter({
+  name: "admin-authentication",
+  prefix: "rl:auth-admin:",
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  message: "Too many authentication attempts. Please try again later.",
+});
+
+/**
+ * Registration (F-05.01).
+ *
+ * Every accepted call costs a bcrypt hash at cost 12 (~250 ms of CPU)
+ * and an INSERT, and until now only the global 300 / 15 min applied —
+ * enough for one IP to keep a core busy and fill the customers table
+ * with junk accounts. Ten an IP per fifteen minutes is a household
+ * signing up several people with room to spare.
+ */
+export const registerRateLimiter = createLimiter({
+  name: "register",
+  prefix: "rl:register:",
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  message: "Too many sign-up attempts. Please try again in a few minutes.",
+});
+
+/**
+ * Completing a password reset from the emailed link.
+ *
+ * Its own bucket rather than the sign-in one: a shopper who has just
+ * failed to sign in a few times is exactly the person who then resets,
+ * and should not find the reset form already spent. Guessing a 256-bit
+ * token is not a realistic attack, so this only needs to stop the form
+ * being hammered — and each attempt costs a bcrypt hash.
+ */
+export const resetPasswordRateLimiter = createLimiter({
+  name: "reset-password",
+  prefix: "rl:pwreset-confirm:",
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  message: "Too many password reset attempts. Please try again in a few minutes.",
+});
+
+/**
+ * Guest order tracking (order number + email/phone).
+ *
+ * The pair is a weak credential, so it is still limited — but it is not
+ * a password, and the person using it is often a guest refreshing the
+ * page while waiting on a parcel. Thirty per fifteen minutes allows
+ * that, while keeping enumeration of order numbers impractical.
+ *
+ * Exported for order.routes.js, which mounts it on POST /trackOrder.
+ */
+export const trackOrderRateLimiter = createLimiter({
+  name: "track-order",
+  prefix: "rl:track:",
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  message: "Too many order look-ups. Please try again in a few minutes.",
+});
+
 /**
  * Session renewal.
  *

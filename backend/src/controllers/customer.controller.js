@@ -2,6 +2,7 @@ import { CustomerService } from "../services/customer.service.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { logger } from "../utils/logger.js";
+import { redactUrl } from "../utils/redactUrl.js";
 
 import {
   successResponse,
@@ -25,7 +26,7 @@ export const CustomerController = {
         logger.warn("Customer registration validation failed", {
           ip: req.ip,
           method: req.method,
-          path: req.originalUrl,
+          path: redactUrl(req.originalUrl),
         });
 
         throw new ApiError(400, "Name, email, phone and password are required");
@@ -246,21 +247,31 @@ export const CustomerController = {
       const oldPasswordValue = oldPassword;
       const newPasswordValue = newPassword;
 
-      await CustomerService.changePassword(
+      // `fam` identifies the session making this request, so it can be
+      // kept while every other one is ended — see
+      // CustomerService.changePassword.
+      const result = await CustomerService.changePassword(
         id,
         oldPasswordValue,
         newPasswordValue,
+        { currentFamilyId: req.user?.fam ?? null },
       );
 
       logger.info("Customer password change request completed", {
         customerId: id,
         ip: req.ip,
+        sessionsRevoked: result.sessionsRevoked,
       });
 
       return successResponse({
         res,
-        data: null,
-        message: "Password changed successfully",
+        data: {
+          signedOutElsewhere: result.sessionsRevoked > 0,
+          keptCurrentSession: result.keptCurrentSession,
+        },
+        message: result.keptCurrentSession
+          ? "Password changed. You have been signed out on your other devices."
+          : "Password changed. Please sign in again on every device.",
       });
     } catch (error) {
       if (error instanceof ApiError) {

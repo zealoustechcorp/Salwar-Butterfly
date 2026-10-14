@@ -193,8 +193,10 @@ export const AdminAuthService = Object.freeze({
       userAgent,
       ip,
 
-      loadSubject: async (adminId) => {
-        const admin = await AdminRepository.findById(adminId);
+      loadSubject: async (adminId, client) => {
+        // On the renewal's transaction client, not the pool: see the
+        // customer side and HIGH-1 in session.service.js.
+        const admin = await AdminRepository.findById(adminId, { client });
 
         // Null ends the session rather than throwing: deactivated,
         // deleted and never-existed are one answer here — "this account

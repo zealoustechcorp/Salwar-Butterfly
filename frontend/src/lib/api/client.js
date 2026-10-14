@@ -84,6 +84,50 @@ function renewerFor(bearer) {
   return null;
 }
 
+/**
+ * Tokens this client has already renewed away, mapped to the reader of
+ * the session that replaced them.
+ *
+ * The de-duplication in the session modules only covers 401s that land
+ * while the renewal is still in flight. A sibling request sent with the
+ * same old token whose 401 arrives *after* the renewal finished no
+ * longer matches either stored token, so renewerFor() rightly refuses
+ * to renew again — but the request is not dead, it simply went out a
+ * moment too early. Remembering which session each retired token
+ * belonged to lets that straggler be replayed with whatever token the
+ * session holds now. Small and bounded: only the last few rotations
+ * can still have requests in the air.
+ */
+const retired = new Map();
+const RETIRED_LIMIT = 8;
+
+function retire(bearer, read) {
+  retired.set(bearer, read);
+
+  while (retired.size > RETIRED_LIMIT) {
+    retired.delete(retired.keys().next().value);
+  }
+}
+
+/**
+ * The token to replay a rejected request with, when its session has
+ * already moved on to a newer one — or null when it has not.
+ */
+function supersededToken(bearer, explicitToken) {
+  if (!bearer) return null;
+
+  // A call that took "whatever we have" means the admin session, so
+  // whatever the admin session has *now* is the right answer, however
+  // the token was replaced (a renewal here, or one prompted by another
+  // tab signing in).
+  const read =
+    explicitToken === undefined ? readToken : retired.get(bearer);
+
+  const current = read ? read() : null;
+
+  return current && current !== bearer ? current : null;
+}
+
 // ============================================================
 // REQUEST
 // ============================================================
@@ -194,12 +238,23 @@ export async function request(path, options = {}) {
     // another tab — is the session actually over, and the original
     // behaviour takes over.
     if (isSessionEnded(response.status, code)) {
+      // Already renewed by a sibling request: replay with the new token
+      // instead of renewing again (a second rotation off a rotated
+      // token reads as theft at the server) or giving up.
+      const current = isRetry ? null : supersededToken(bearer, token);
+
+      if (current) {
+        return request(path, { ...options, token: current, isRetry: true });
+      }
+
       const renewer = isRetry ? null : renewerFor(bearer);
 
       if (renewer) {
+        const read = renewer === renewAdmin ? readToken : readCustomerToken;
         const renewed = await renewer();
 
         if (renewed) {
+          retire(bearer, read);
           return request(path, { ...options, token: renewed, isRetry: true });
         }
       }

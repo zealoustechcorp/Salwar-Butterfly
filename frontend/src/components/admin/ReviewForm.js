@@ -90,8 +90,19 @@ export default function ReviewForm({ review, products = [], onSave, onCancel }) 
         )
       : products;
 
-    return matches.slice(0, 50);
-  }, [products, productSearch]);
+    const shown = matches.slice(0, 50);
+
+    // The chosen product stays an option whatever the search says. A
+    // <select> whose value has no matching <option> renders its first
+    // one — "Choose a product…" — while the form still holds the old
+    // pick, so narrowing the search used to look like it had cleared a
+    // choice that it had not.
+    const chosen = form.productId
+      ? products.find((product) => product.id === form.productId)
+      : null;
+
+    return chosen && !shown.includes(chosen) ? [chosen, ...shown] : shown;
+  }, [products, productSearch, form.productId]);
 
   const fieldError = (name) => error?.fields?.[name];
 

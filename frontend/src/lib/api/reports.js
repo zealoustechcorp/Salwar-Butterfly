@@ -15,6 +15,7 @@
  * Errors are the `ApiError` thrown by the shared client.
  */
 
+import { LOW_STOCK_BELOW, OUT_OF_STOCK_AT } from "../stock";
 import { api } from "./client";
 import { toInventoryLine } from "./inventory";
 import { toOrder } from "./orders";
@@ -97,7 +98,7 @@ export const EMPTY_DASHBOARD = {
     outOfStock: { sizes: 0, products: 0, units: 0 },
     unavailable: { sizes: 0, products: 0, units: 0 },
     productsWithoutSizes: 0,
-    thresholds: { outOfStockAt: 0, lowStockBelow: 10 },
+    thresholds: { outOfStockAt: OUT_OF_STOCK_AT, lowStockBelow: LOW_STOCK_BELOW },
   },
   recentOrders: [],
   lowStock: [],
