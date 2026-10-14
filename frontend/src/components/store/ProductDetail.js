@@ -54,7 +54,11 @@ export function ProductDetail({ product, shop }) {
   const [size, setSize] = useState(null);
   const [qty, setQty] = useState(1);
 
-  const shots = [product.image, product.image2].filter(Boolean);
+  // The whole gallery. Falls back to the two card shots for a catalogue
+  // served by an API that predates `images`.
+  const shots = product.images?.length
+    ? product.images
+    : [product.image, product.image2].filter(Boolean);
   const wished = wishlist.includes(product.id);
 
   // The size chips: per colour when the piece is sold by colour, otherwise
@@ -453,10 +457,9 @@ function StepButton({ label, disabled, onClick, children }) {
  *
  * The shots are a track rather than one swapped `<img>`, which is what lets a
  * shopper on a phone move between them by swiping the picture itself — the
- * gesture they will try first, and the one this page had no answer to. Both
- * shots are then in the DOM at once; that is the point of the track, and with
- * two of them at most it costs one extra request on a page that is already
- * mostly photograph. The thumbnails stay for the pointer, and now say which
+ * gesture they will try first, and the one this page had no answer to. Every
+ * shot is then in the DOM at once; that is the point of the track, and only
+ * the first is loaded eagerly, so the rest cost nothing until they are near. The thumbnails stay for the pointer, and now say which
  * shot is showing after a swipe as well as after a click.
  *
  * No autoplay here. Two photographs of one garment are a thing to compare, and
@@ -523,7 +526,10 @@ function Gallery({ product, shots }) {
       </div>
 
       {count > 1 ? (
-        <div className="mt-3 flex gap-3">
+        // A phone fits about four of up to twenty shots, so there the strip
+        // is swiped sideways, without a scrollbar. From `md` there is room
+        // to lay them all out, so the strip wraps and nothing is hidden.
+        <div className="sb-no-scrollbar mt-3 flex snap-x gap-3 overflow-x-auto md:flex-wrap md:overflow-visible">
           {shots.map((shot, i) => (
             <button
               key={shot}
@@ -532,7 +538,7 @@ function Gallery({ product, shots }) {
               aria-pressed={active === i}
               aria-label={`Photo ${i + 1} of ${count}`}
               className={cn(
-                "relative aspect-3/4 w-20 overflow-hidden rounded-xl border-2 bg-sb-surface/40 transition-all duration-300 motion-reduce:transition-none sm:w-24",
+                "relative aspect-3/4 w-20 shrink-0 snap-start overflow-hidden rounded-xl border-2 bg-sb-surface/40 transition-all duration-300 motion-reduce:transition-none sm:w-24",
                 active === i
                   ? "border-sb-heading"
                   : "border-sb-gold/30 opacity-70 hover:border-sb-gold hover:opacity-100",

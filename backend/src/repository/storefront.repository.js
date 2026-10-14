@@ -85,6 +85,7 @@ const PRODUCTS_SQL = `
     COALESCE(by_colour.rows, '[]'::json)  AS variants,
     photos.image_url                 AS image,
     photos.image_url_2               AS image2,
+    COALESCE(photos.images, '[]'::json) AS images,
     COALESCE(rating.count, 0)        AS rating_count,
     COALESCE(rating.sum, 0)          AS rating_sum,
     rating.average                   AS rating_average
@@ -176,7 +177,11 @@ const PRODUCTS_SQL = `
   LEFT JOIN LATERAL (
     SELECT
       MAX(i.image_url) FILTER (WHERE i.rn = 1) AS image_url,
-      MAX(i.image_url) FILTER (WHERE i.rn = 2) AS image_url_2
+      MAX(i.image_url) FILTER (WHERE i.rn = 2) AS image_url_2,
+      -- The whole gallery, in the shop's order, for the product page.
+      -- The two columns above stay for the cards, which only ever show
+      -- the cover and a hover shot.
+      JSON_AGG(i.image_url ORDER BY i.rn) AS images
     FROM (
       SELECT
         pi.image_url,
