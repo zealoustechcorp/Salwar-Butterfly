@@ -536,10 +536,7 @@ export default function BulkUploadPage() {
             return (
               <li
                 key={row.key}
-                className={cx(
-                  "space-y-3 rounded-lg p-3 ring-1 ring-inset ring-ink-200",
-                  !filledRow && "opacity-60",
-                )}
+                className="space-y-3 rounded-lg p-3 ring-1 ring-inset ring-ink-200"
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[11px] font-semibold tracking-wide text-ink-500 uppercase">
@@ -603,7 +600,6 @@ export default function BulkUploadPage() {
 
                 <RowPhotos
                   files={row.photos}
-                  disabled={!filledRow}
                   label={`row ${index + 1}`}
                   onOpen={() => setPhotoRow(index)}
                 />
@@ -630,7 +626,7 @@ export default function BulkUploadPage() {
                 const { derivedSlug, filledRow, sells, sellsTone } = rowView(row);
 
                 return (
-                  <tr key={row.key} className={cx(!filledRow && "opacity-60")}>
+                  <tr key={row.key}>
                     <td className="py-1.5 pr-2 text-right text-[11px] text-ink-400">{index + 1}</td>
                     <td className="py-1.5 pr-3">
                       <Input
@@ -671,7 +667,6 @@ export default function BulkUploadPage() {
                     <td className="py-1.5 pr-3">
                       <RowPhotos
                         files={row.photos}
-                        disabled={!filledRow}
                         label={`row ${index + 1}`}
                         onOpen={() => setPhotoRow(index)}
                       />
@@ -790,7 +785,7 @@ export default function BulkUploadPage() {
  * changes, so a twenty-row batch does not pin twenty files in memory
  * for the sake of twenty thumbnails.
  */
-function RowPhotos({ files, onOpen, disabled, label }) {
+function RowPhotos({ files, onOpen, label }) {
   const cover = files[0] ?? null;
 
   const preview = useMemo(
@@ -805,17 +800,19 @@ function RowPhotos({ files, onOpen, disabled, label }) {
     [preview],
   );
 
+  // A real button rather than a faint icon: it was easy to miss that a row
+  // takes photographs at all. Always enabled — photos staged on an unnamed
+  // row simply wait there, and an unnamed row is never uploaded anyway.
   return (
     <button
       type="button"
       onClick={onOpen}
-      disabled={disabled}
-      title={disabled ? "Name this product first" : undefined}
       className={cx(
-        "flex items-center gap-2 rounded-lg px-1.5 py-1 text-xs transition-colors",
-        disabled
-          ? "cursor-not-allowed text-ink-300"
-          : "text-ink-600 hover:bg-ink-100 hover:text-ink-900",
+        "inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-semibold whitespace-nowrap transition-colors",
+        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600",
+        files.length === 0
+          ? "border border-dashed border-brand-600 bg-brand-50 text-brand-700 hover:bg-brand-100"
+          : "bg-white text-ink-800 ring-1 ring-inset ring-ink-300 hover:bg-ink-50",
       )}
     >
       {preview ? (
@@ -823,16 +820,14 @@ function RowPhotos({ files, onOpen, disabled, label }) {
         <img
           src={preview}
           alt=""
-          className="size-8 shrink-0 rounded object-cover ring-1 ring-ink-900/10"
+          className="-ml-1.5 size-7 shrink-0 rounded object-cover ring-1 ring-ink-900/10"
         />
       ) : (
-        <span className="flex size-8 shrink-0 items-center justify-center rounded bg-ink-100 text-ink-400">
-          <ImagePlus className="size-3.5" aria-hidden="true" />
-        </span>
+        <ImagePlus className="size-4" aria-hidden="true" />
       )}
-      <span className="whitespace-nowrap">
-        {files.length === 0 ? "Add" : `${files.length} photo${files.length === 1 ? "" : "s"}`}
-      </span>
+      {files.length === 0
+        ? "Add photos"
+        : `${files.length} photo${files.length === 1 ? "" : "s"} · Edit`}
       <span className="sr-only">for {label}</span>
     </button>
   );

@@ -59,6 +59,9 @@ export const StorefrontMapper = {
 
       image: row.image,
       image2: row.image2 ?? null,
+      // Every photograph, cover first — what the product page's gallery
+      // walks through. `image` and `image2` are its first two.
+      images: (row.images ?? []).filter(Boolean),
       stock: Number(row.stock) || 0,
       sizes: (row.sizes ?? []).map((size) => ({
         // The id a bag line carries and checkout orders against — for a
