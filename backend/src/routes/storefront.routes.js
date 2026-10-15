@@ -66,4 +66,13 @@ router.get("/getBanners", StorefrontController.getBanners);
 // none of those are here.
 router.get("/getCustomerStories", StorefrontController.getCustomerStories);
 
+// PIN code lookup for the address forms (F-05.03, F-08.05).
+//
+// The sixth public read, and the only one that is not the catalogue: it
+// answers from India Post's directory, bundled as a file, and touches no
+// table at all. Public because a guest at checkout needs it as much as a
+// signed-in shopper does, and nothing in it is the shop's — every row is
+// already published by the Department of Posts.
+router.get("/getPincode/:pincode", StorefrontController.getPincode);
+
 export default router;

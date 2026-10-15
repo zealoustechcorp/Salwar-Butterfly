@@ -38,6 +38,7 @@ import {
 import { hasErrors, summarizeErrors, validateAddressFields } from "@/lib/validate";
 import { cn } from "@/lib/utils";
 import { useAuth } from "./AuthProvider";
+import { AreaCombobox, pincodeHint, usePincodeAutofill, usePincodeLookup } from "./PincodeLookup";
 import { useStoreToast } from "./Toast";
 
 // 16px below `sm`: iOS Safari zooms the page in on focus for anything smaller.
@@ -104,6 +105,9 @@ function AddressFields({ idPrefix, values, errors, onChange, disabled }) {
 
   const id = (key) => `${idPrefix}-${key}`;
 
+  const lookup = usePincodeLookup(values.postalCode);
+  const areas = lookup.result?.areas ?? [];
+
   return (
     <fieldset disabled={disabled} className="space-y-3.5 disabled:opacity-60">
       <Field
@@ -135,14 +139,42 @@ function AddressFields({ idPrefix, values, errors, onChange, disabled }) {
         />
       </Field>
 
-      <Field id={id("line2")} label="Area (optional)" error={errors.line2}>
+      {/*
+        Second, not last. The PIN code is what fills in the area list, the
+        city and the state, so it has to be typed before the shopper reaches
+        them rather than after they have typed all three by hand.
+      */}
+      <Field
+        id={id("postalCode")}
+        label="PIN code"
+        error={errors.postalCode}
+        hint={pincodeHint(lookup, "Six digits. The shop ships within India only.")}
+      >
         <input
-          id={id("line2")}
+          id={id("postalCode")}
           type="text"
+          inputMode="numeric"
+          value={values.postalCode}
+          onChange={set("postalCode")}
+          autoComplete="postal-code"
+          maxLength={6}
+          aria-invalid={Boolean(errors.postalCode)}
+          className={cn(FIELD_CLASS, "sm:max-w-48")}
+        />
+      </Field>
+
+      <Field
+        id={id("line2")}
+        label="Area"
+        error={errors.line2}
+        hint={areas.length ? "Pick one from the list, or type your own." : undefined}
+      >
+        <AreaCombobox
+          id={id("line2")}
           value={values.line2}
-          onChange={set("line2")}
-          autoComplete="address-line2"
-          aria-invalid={Boolean(errors.line2)}
+          onChange={(value) => onChange("line2", value)}
+          areas={areas}
+          invalid={Boolean(errors.line2)}
           className={FIELD_CLASS}
         />
       </Field>
@@ -188,25 +220,6 @@ function AddressFields({ idPrefix, values, errors, onChange, disabled }) {
           />
         </Field>
       </div>
-
-      <Field
-        id={id("postalCode")}
-        label="PIN code"
-        error={errors.postalCode}
-        hint={errors.postalCode ? undefined : "Six digits. The shop ships within India only."}
-      >
-        <input
-          id={id("postalCode")}
-          type="text"
-          inputMode="numeric"
-          value={values.postalCode}
-          onChange={set("postalCode")}
-          autoComplete="postal-code"
-          maxLength={6}
-          aria-invalid={Boolean(errors.postalCode)}
-          className={cn(FIELD_CLASS, "sm:max-w-48")}
-        />
-      </Field>
     </fieldset>
   );
 }
@@ -227,14 +240,24 @@ function AddressForm({ address, canDefault, onCancel, onSaved }) {
   const [banner, setBanner] = useState(null);
   const [pending, setPending] = useState(false);
 
-  const onChange = (key, value) => {
-    setValues((current) => ({ ...current, [key]: value }));
+  const clearErrors = useCallback((...keys) => {
     setErrors((current) => {
-      if (!current[key]) return current;
+      if (!keys.some((key) => current[key])) return current;
       const next = { ...current };
-      delete next[key];
+      for (const key of keys) delete next[key];
       return next;
     });
+  }, []);
+
+  const autofill = usePincodeAutofill(
+    setValues,
+    useCallback(() => clearErrors("city", "state"), [clearErrors]),
+  );
+
+  const onChange = (key, value) => {
+    setValues((current) => ({ ...current, [key]: value }));
+    clearErrors(key);
+    if (key === "postalCode") autofill(value);
   };
 
   const onSubmit = async (event) => {

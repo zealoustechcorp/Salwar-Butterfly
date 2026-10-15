@@ -173,7 +173,7 @@ export function validateAddressFields(address, { prefix = "" } = {}) {
   return collect([
     [key("label"), validateAddressText(address?.label, "Label", { required: false, max: 40 })],
     [key("line1"), validateAddressText(address?.line1, "Address line 1")],
-    [key("line2"), validateAddressText(address?.line2, "Address line 2", { required: false })],
+    [key("line2"), validateAddressText(address?.line2, "Area")],
     [key("landmark"), validateAddressText(address?.landmark, "Landmark", { required: false })],
     [key("city"), validateAddressText(address?.city, "City", { max: 120 })],
     [key("state"), validateAddressText(address?.state, "State", { max: 120 })],

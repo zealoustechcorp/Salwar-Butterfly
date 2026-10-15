@@ -1,8 +1,8 @@
 "use client";
 
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, ChevronDown } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { CarouselDots, CarouselEdge, useCarousel } from "./Carousel";
 import { GarmentArt } from "./GarmentArt";
@@ -67,8 +67,10 @@ export function Hero({ banners = [] }) {
     setDown((current) => new Set(current).add(src));
   }, []);
 
+  const sectionRef = useRef(null);
+
   return (
-    <section id="top" className="relative overflow-hidden">
+    <section ref={sectionRef} id="top" className="relative overflow-hidden">
       {/* Carrying the document outline the removed headline used to, and
           nothing else — it is the page's title read aloud, which is why it is
           the brand and what the shop sells rather than a keyword list. Kept
@@ -118,9 +120,73 @@ export function Hero({ banners = [] }) {
           </div>
         </div>
       ) : (
-        <BannerCarousel slides={slides} onFail={markDown} />
+        <>
+          <BannerCarousel slides={slides} onFail={markDown} />
+          <SkipBanner sectionRef={sectionRef} />
+        </>
       )}
     </section>
+  );
+}
+
+/**
+ * A floating "take me past the banner" button, for large screens only.
+ *
+ * The band is full width at 16:9, so on a desktop it can be taller than the
+ * window and the rest of the page starts below the fold with nothing on screen
+ * saying so. This sits at the bottom of the window for as long as some of the
+ * banner is still below it, and drops the visitor at the section underneath.
+ *
+ * Fixed rather than inside the band: a button at the band's own bottom edge is
+ * exactly the part of it a too-tall band has pushed off screen. It goes once
+ * the band's bottom edge is in view, because by then the next section is too.
+ *
+ * Not on phones and tablets, where a 16:9 band is a fraction of the screen and
+ * a thumb is already scrolling.
+ */
+function SkipBanner({ sectionRef }) {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const update = () => {
+      const el = sectionRef.current;
+      if (!el) return;
+      setVisible(el.getBoundingClientRect().bottom > window.innerHeight + 8);
+    };
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+  }, [sectionRef]);
+
+  const skip = () => {
+    const el = sectionRef.current;
+    if (!el) return;
+    // Land under the sticky header, not behind it.
+    const header = document.querySelector("header")?.offsetHeight ?? 0;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({
+      top: el.getBoundingClientRect().bottom + window.scrollY - header,
+      behavior: reduce ? "auto" : "smooth",
+    });
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={skip}
+      aria-label="Scroll past the banners"
+      tabIndex={visible ? undefined : -1}
+      aria-hidden={!visible}
+      className={`fixed bottom-6 left-1/2 z-30 hidden size-12 -translate-x-1/2 cursor-pointer place-items-center rounded-full border border-sb-gold/45 bg-sb-bg/85 text-sb-heading shadow-lg backdrop-blur-sm transition-[opacity,transform] duration-300 hover:bg-sb-bg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sb-link motion-reduce:transition-none lg:grid ${
+        visible ? "opacity-100" : "pointer-events-none translate-y-3 opacity-0"
+      }`}
+    >
+      <ChevronDown className="size-6 motion-safe:animate-bounce" aria-hidden="true" />
+    </button>
   );
 }
 
@@ -174,16 +240,18 @@ function BannerCarousel({ slides, onFail }) {
           What fills the frame is MediaFrame's problem; how big the frame
           is, is this line's.
 
-          It widens as the window does, and that is the whole reason the
-          ratio is not one number any more. Full-bleed 16:9 is 1080px tall
-          on a 1920px screen — a banner nobody can see the bottom of and a
-          page whose second section starts below the fold. The letterbox
-          keeps the band roughly a third of a tall window at every size.
+          One ratio at every size — 16:9, the shape the admin guide asks the
+          shop to design at — so a banner is never cropped. It used to widen
+          to 21:9 and then 2.7:1, and `object-cover` trimmed up to a third of
+          the artwork off the top and bottom on a desktop. It is also full
+          width at every size, which is the price of the other two: on a
+          1920px screen the band is 1080px tall, so on a desktop the second
+          section starts below the fold.
 
-          No rounding and no side border: those are edges, and the point of
-          a full-bleed band is that it has none. A rule along the bottom is
-          all that is left, and only there — the band butts straight up
-          against the sticky header, which already draws its own.
+          No rounding and no side border: the band runs edge to edge and has
+          no edges to draw. A rule along the bottom is all
+          that is left, and only there — the band butts straight up against
+          the sticky header, which already draws its own.
 
           The ground colour is not decoration. A cross-fading stack has a
           moment where neither picture is fully opaque, and a damped drag
@@ -196,7 +264,7 @@ function BannerCarousel({ slides, onFail }) {
           a scroll down the home page. */}
       <div
         {...swipe}
-        className="relative aspect-16/9 touch-pan-y overflow-hidden border-b border-sb-gold/45 bg-sb-bg shadow-lg shadow-sb-maroon-deco/15 md:aspect-[21/9] xl:aspect-[2.7/1]"
+        className="relative aspect-16/9 w-full touch-pan-y overflow-hidden border-b border-sb-gold/45 bg-sb-bg shadow-lg shadow-sb-maroon-deco/15"
       >
         <div {...track}>
           {slides.map((slide, i) => (
