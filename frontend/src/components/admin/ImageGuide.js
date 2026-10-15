@@ -44,9 +44,9 @@ export const BANNER_GUIDE = {
         "Artwork is scaled until it fills the slide and whatever falls outside is cut off. A portrait photograph loses most of its sides, so upload something already landscape wherever possible.",
     },
     {
-      term: "The band gets wider than 16:9",
+      term: "Same shape on every screen",
       detail:
-        "It runs 16:9 on a phone, about 21:9 on a tablet and 2.7:1 on a wide monitor — the top and bottom are trimmed as the window widens. Keep faces, prices and any words inside the middle band of the artwork.",
+        "The band is 16:9 on a phone, a tablet and a wide monitor alike, so 16:9 artwork is shown whole everywhere — nothing is trimmed as the window widens.",
     },
     {
       term: "If the slide links to a piece",

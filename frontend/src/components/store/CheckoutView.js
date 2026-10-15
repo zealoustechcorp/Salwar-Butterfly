@@ -39,7 +39,7 @@
 import { AlertCircle, Check, Loader2, Lock, MapPin, ShoppingBag } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { compactPhone, money } from "@/lib/format";
 import { orderableQty } from "@/lib/stock";
@@ -64,7 +64,9 @@ import {
 import { cn } from "@/lib/utils";
 import { formatAddress } from "./AddressBook";
 import { useAuth } from "./AuthProvider";
+import { AreaCombobox, pincodeHint, usePincodeAutofill, usePincodeLookup } from "./PincodeLookup";
 import { Photo } from "./Photo";
+import { StateSelect } from "./StateSelect";
 import { useStore } from "./StoreProvider";
 import { useStoreToast } from "./Toast";
 
@@ -75,14 +77,6 @@ const FIELD_CLASS =
 
 /** Where the confirmation is handed off, so a refresh does not lose it. */
 export const LAST_ORDER_KEY = "sb.lastOrder";
-
-const STATES = [
-  "Tamil Nadu", "Kerala", "Karnataka", "Andhra Pradesh", "Telangana",
-  "Maharashtra", "Gujarat", "Rajasthan", "Delhi", "Uttar Pradesh",
-  "Madhya Pradesh", "West Bengal", "Odisha", "Bihar", "Punjab", "Haryana",
-  "Assam", "Jharkhand", "Chhattisgarh", "Uttarakhand", "Himachal Pradesh",
-  "Goa", "Puducherry", "Jammu and Kashmir",
-];
 
 /**
  * The form fields that make up the address, as opposed to the contact details
@@ -132,7 +126,7 @@ const addressToValues = (address) => ({
 function Field({ id, label, error, hint, children, className }) {
   return (
     <div className={className}>
-      <label htmlFor={id} className="block text-xs font-semibold text-sb-text">
+      <label id={`${id}-label`} htmlFor={id} className="block text-xs font-semibold text-sb-text">
         {label}
       </label>
       <div className="mt-1.5">{children}</div>
@@ -301,9 +295,37 @@ export function CheckoutView({ products = null }) {
     setValues((current) => ({ ...current, [key]: checked }));
   };
 
-  const set = (key) => (event) => {
-    const { value } = event.target;
+  // --------------------------------------------------------
+  // PIN CODE LOOKUP (F-08.05)
+  // --------------------------------------------------------
+  //
+  // Typing a PIN code fills in the state and, if it is empty, the city, and
+  // offers the post office areas under that code. Picking a saved address
+  // does not trigger it — see PincodeLookup.js for why.
+
+  const lookup = usePincodeLookup(values.postalCode);
+  const areas = lookup.result?.areas ?? [];
+
+  const autofill = usePincodeAutofill(
+    setValues,
+    useCallback(() => {
+      setErrors((current) => {
+        if (!current.city && !current.state) return current;
+        const next = { ...current };
+        delete next.city;
+        delete next.state;
+        return next;
+      });
+    }, []),
+  );
+
+  const set = (key) => (event) => setField(key, event.target.value);
+
+  /** `set`, for an input that hands over a value rather than an event. */
+  const setField = (key, value) => {
     setValues((current) => ({ ...current, [key]: value }));
+
+    if (key === "postalCode") autofill(value);
 
     // Typing in an address field means this is no longer the saved address it
     // was filled from, whatever the radio says. Contact fields are left alone:
@@ -372,7 +394,7 @@ export function CheckoutView({ products = null }) {
     isSignedIn &&
     chosen === "new" &&
     saved.length < MAX_ADDRESSES &&
-    Boolean(values.line1.trim() && values.city.trim() && values.postalCode.trim()) &&
+    Boolean(values.line1.trim() && values.line2.trim() && values.city.trim() && values.postalCode.trim()) &&
     !saved.some((address) => isSameAddress(address, values));
 
   async function onSubmit(event) {
@@ -786,18 +808,59 @@ export function CheckoutView({ products = null }) {
                   value={values.line1}
                   onChange={set("line1")}
                   autoComplete="address-line1"
-                  placeholder="14 Bharathi Street"
+                  placeholder="House or flat no., building, street"
                   className={FIELD_CLASS}
                 />
               </Field>
 
-              <Field id="co-line2" label="Area (optional)" error={errorFor("line2")} className="col-span-2 sm:col-span-1">
+              {/*
+                Straight after the street, not at the end. The PIN code fills
+                in the city, the state and the area list, so it has to be typed
+                before the shopper reaches them rather than after they have
+                typed all three by hand.
+              */}
+              <Field
+                id="co-postal"
+                label="PIN code"
+                error={errorFor("postalCode")}
+                hint={pincodeHint(lookup)}
+              >
                 <input
+                  id="co-postal"
+                  inputMode="numeric"
+                  value={values.postalCode}
+                  onChange={set("postalCode")}
+                  autoComplete="postal-code"
+                  placeholder="6-digit PIN code"
+                  maxLength={6}
+                  className={cn(FIELD_CLASS, "tabular")}
+                />
+              </Field>
+
+              <Field id="co-city" label="City" error={errorFor("city")}>
+                <input
+                  id="co-city"
+                  value={values.city}
+                  onChange={set("city")}
+                  autoComplete="address-level2"
+                  placeholder="Town or city"
+                  className={FIELD_CLASS}
+                />
+              </Field>
+
+              <Field
+                id="co-line2"
+                label="Area"
+                error={errorFor("line2")}
+                hint={areas.length ? "Pick one from the list, or type your own." : undefined}
+                className="col-span-2 sm:col-span-1"
+              >
+                <AreaCombobox
                   id="co-line2"
                   value={values.line2}
-                  onChange={set("line2")}
-                  autoComplete="address-line2"
-                  placeholder="Gandhipuram"
+                  onChange={(value) => setField("line2", value)}
+                  areas={areas}
+                  placeholder="Locality or area"
                   className={FIELD_CLASS}
                 />
               </Field>
@@ -812,49 +875,19 @@ export function CheckoutView({ products = null }) {
                   id="co-landmark"
                   value={values.landmark}
                   onChange={set("landmark")}
-                  placeholder="Opposite the water tank"
+                  placeholder="Near a school, temple or shop"
                   className={FIELD_CLASS}
-                />
-              </Field>
-
-              <Field id="co-city" label="City" error={errorFor("city")}>
-                <input
-                  id="co-city"
-                  value={values.city}
-                  onChange={set("city")}
-                  autoComplete="address-level2"
-                  placeholder="Coimbatore"
-                  className={FIELD_CLASS}
-                />
-              </Field>
-
-              <Field id="co-postal" label="PIN code" error={errorFor("postalCode")}>
-                <input
-                  id="co-postal"
-                  inputMode="numeric"
-                  value={values.postalCode}
-                  onChange={set("postalCode")}
-                  autoComplete="postal-code"
-                  placeholder="641012"
-                  maxLength={6}
-                  className={cn(FIELD_CLASS, "tabular")}
                 />
               </Field>
 
               <Field id="co-state" label="State" error={errorFor("state")} className="col-span-2">
-                <select
+                <StateSelect
                   id="co-state"
                   value={values.state}
-                  onChange={set("state")}
-                  autoComplete="address-level1"
+                  onChange={(state) => setField("state", state)}
+                  invalid={Boolean(errorFor("state"))}
                   className={FIELD_CLASS}
-                >
-                  {STATES.map((state) => (
-                    <option key={state} value={state}>
-                      {state}
-                    </option>
-                  ))}
-                </select>
+                />
               </Field>
 
               <Field

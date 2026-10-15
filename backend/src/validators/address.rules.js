@@ -92,7 +92,11 @@ export const validateAddressFields = (address, { prefix = "" } = {}) => {
   const checks = [
     ["label", validateAddressText(address?.label, "Label", { required: false, max: 40 })],
     ["line1", validateAddressText(address?.line1, "Address line 1")],
-    ["line2", validateAddressText(address?.line2, "Address line 2", { required: false })],
+    // Required since the PIN code lookup (F-08.05): the area list under a PIN
+    // code makes it one pick rather than one more thing to type, and a
+    // courier finds a door far faster with the locality than with a street
+    // name and a six-digit number.
+    ["line2", validateAddressText(address?.line2, "Area")],
     ["landmark", validateAddressText(address?.landmark, "Landmark", { required: false })],
     ["city", validateAddressText(address?.city, "City", { max: 120 })],
     ["state", validateAddressText(address?.state, "State", { max: 120 })],

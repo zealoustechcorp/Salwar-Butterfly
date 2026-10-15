@@ -3,6 +3,7 @@
 // The public catalogue (F-06).
 
 import { StorefrontService } from "../services/storefront.service.js";
+import { PincodeService } from "../services/pincode.service.js";
 import { okResponse } from "../utils/apiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
@@ -134,6 +135,28 @@ export const StorefrontController = {
           total: reviews.rating.count,
         },
       },
+    });
+  }),
+
+  /**
+   * GET /api/storefront/getPincode/:pincode
+   *
+   * The city, state and post office areas for one PIN code, for the
+   * address forms to prefill from.
+   *
+   * Cached for a day. The answer comes from a file that changes when
+   * somebody rebuilds it and redeploys, and the same few hundred codes
+   * a shop like this ships to are looked up over and over.
+   */
+  getPincode: asyncHandler(async (req, res) => {
+    const pincode = await PincodeService.lookup(req.params.pincode);
+
+    res.set("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800");
+
+    return okResponse({
+      res,
+      data: pincode,
+      message: "PIN code found",
     });
   }),
 };
