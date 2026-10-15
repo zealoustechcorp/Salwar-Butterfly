@@ -7,6 +7,7 @@ import { ProductCard } from "@/components/store/ProductCard";
 import { ProductDetail } from "@/components/store/ProductDetail";
 import { ProductReviews } from "@/components/store/ProductReviews";
 import { money } from "@/lib/format";
+import { SITE_URL } from "@/lib/site";
 import {
   getProductIds,
   getRelatedProducts,
@@ -64,9 +65,24 @@ export async function generateMetadata({ params }) {
   // Everything below is what a shared link unfurls into (see <ShareButton>):
   // WhatsApp, Instagram and Facebook read `og:*`, X reads `twitter:*`. The
   // URLs are relative and resolved against `metadataBase` in the root layout.
+  //
+  // The image is a resized copy from ./share-image, not the photo itself:
+  // the uploads are 500–800 KB and WhatsApp drops anything over ~300 KB,
+  // which is why shared links used to unfurl without a picture. Width,
+  // height and type are stated so a crawler can lay the card out without
+  // downloading it first.
   const url = `/product/${encodeURIComponent(product.id)}`;
   const images = product.image
-    ? [{ url: product.image, alt: product.name }]
+    ? [
+        {
+          url: `${url}/share-image`,
+          secureUrl: `${SITE_URL}${url}/share-image`,
+          width: 1200,
+          height: 630,
+          type: "image/jpeg",
+          alt: product.name,
+        },
+      ]
     : undefined;
 
   return {
