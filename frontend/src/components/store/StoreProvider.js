@@ -639,14 +639,51 @@ export function StoreProvider({ children }) {
         { action: saved ? null : { href: "/wishlist", label: "View wishlist" } },
       );
 
+      writeWish(product.id, { saved, previous });
+    };
+
+    /**
+     * "Move to wishlist" on a bag line: out of the bag, onto the wishlist,
+     * in one commit so the two never disagree for a render.
+     *
+     * The wishlist holds pieces, not sizes — moving "Maroon, size 40" saves
+     * the piece, and the size is picked again when it comes back to the bag.
+     * A piece already on the wishlist just leaves the bag; saving it twice
+     * would be a round trip for nothing.
+     */
+    const moveToWishlist = (key) => {
+      const line = bag.find((entry) => entry.key === key);
+      if (!line) return;
+
+      const saved = wishlist.includes(line.product_id);
+      const previous = wishlist;
+
+      commit({
+        bag: bag.filter((entry) => entry.key !== key),
+        wishlist: saved ? wishlist : [...wishlist, line.product_id],
+      });
+
+      toast.success("Moved to wishlist", line.name, {
+        action: { href: "/wishlist", label: "View wishlist" },
+      });
+
+      if (!saved) writeWish(line.product_id, { saved: false, previous });
+    };
+
+    /**
+     * The signed-in half of a wishlist change: the server's answer replaces
+     * the optimistic list, and a failure puts the previous one back — see
+     * `toggleWish` for why. A guest has nothing to send.
+     */
+    const writeWish = (productId, { saved, previous }) => {
       const token = readToken();
       const userId = activeUserId;
 
       if (!token || !userId) return;
 
       const write = saved
-        ? removeFromWishlist(product.id, token)
-        : saveToWishlist(product.id, token);
+        ? removeFromWishlist(productId, token)
+        : saveToWishlist(productId, token);
 
       write.then((result) => {
         if (result.ok) {
@@ -672,6 +709,7 @@ export function StoreProvider({ children }) {
       removeLine,
       clearBag,
       toggleWish,
+      moveToWishlist,
       bagCount: bag.reduce((sum, line) => sum + line.qty, 0),
       bagTotal: bag.reduce((sum, line) => sum + line.qty * line.price, 0),
       wishCount: wishlist.length,

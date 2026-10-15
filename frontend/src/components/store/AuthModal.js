@@ -516,7 +516,7 @@ export function AuthModal({ intent, signIn, signUp, closeAuth }) {
     >
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-sb-footer/50 backdrop-blur-[2px]" />
-        <DialogPrimitive.Content className="sb-enter fixed top-1/2 left-1/2 z-50 max-h-[92dvh] w-[calc(100vw-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-sb-gold/40 bg-sb-bg p-6 font-body shadow-2xl shadow-sb-footer/25 sm:p-7">
+        <DialogPrimitive.Content className="sb-enter fixed top-1/2 left-1/2 z-50 max-h-[92dvh] w-[calc(100vw-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 sb-no-scrollbar overflow-y-auto rounded-2xl border border-sb-gold/40 bg-sb-bg p-6 font-body shadow-2xl shadow-sb-footer/25 sm:p-7">
           <DialogPrimitive.Close
             aria-label="Close"
             className="absolute top-3.5 right-3.5 rounded-full p-2 text-sb-text-muted transition-colors hover:bg-sb-surface/70 hover:text-sb-heading"
