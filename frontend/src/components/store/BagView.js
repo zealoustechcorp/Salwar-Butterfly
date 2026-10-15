@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, Lock, Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
+import { AlertCircle, Heart, Lock, Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect } from "react";
 
@@ -35,7 +35,8 @@ import { useStore } from "./StoreProvider";
  * the line remembered when it was added.
  */
 export function BagView({ products, shop }) {
-  const { bag, bagTotal, bagCount, setQty, syncStock, removeLine, clearBag } = useStore();
+  const { bag, bagTotal, bagCount, setQty, syncStock, removeLine, moveToWishlist, clearBag } =
+    useStore();
   const { isSignedIn, openAuth } = useAuth();
   const byId = new Map(products.map((product) => [product.id, product]));
 
@@ -204,14 +205,30 @@ export function BagView({ products, shop }) {
                         </p>
                       ) : null}
                     </div>
+                  </div>
 
+                  {/* "Move to wishlist" is for the piece a shopper is not
+                      ready to buy but does not want to lose — the honest
+                      alternative to leaving it in the bag, and to deleting it
+                      outright. */}
+                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+                    <button
+                      type="button"
+                      onClick={() => moveToWishlist(line.key)}
+                      aria-label={`Move ${line.name} to the wishlist`}
+                      className="inline-flex items-center gap-1.5 rounded-full py-1 text-xs font-semibold text-sb-text-muted transition-colors hover:text-sb-link"
+                    >
+                      <Heart className="size-3.5" aria-hidden="true" />
+                      Move to wishlist
+                    </button>
                     <button
                       type="button"
                       onClick={() => removeLine(line.key)}
                       aria-label={`Remove ${line.name} from the bag`}
-                      className="shrink-0 rounded-full p-2 text-sb-text-muted transition-colors hover:bg-sb-surface/60 hover:text-sb-link"
+                      className="inline-flex items-center gap-1.5 rounded-full py-1 text-xs font-semibold text-sb-text-muted transition-colors hover:text-sb-link"
                     >
-                      <Trash2 className="size-4" aria-hidden="true" />
+                      <Trash2 className="size-3.5" aria-hidden="true" />
+                      Remove
                     </button>
                   </div>
 

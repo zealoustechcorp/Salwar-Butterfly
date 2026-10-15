@@ -52,20 +52,46 @@ export async function generateMetadata({ params }) {
     ? `${money(product.price)} (was ${money(product.mrp)}, ${product.off}% off)`
     : money(product.price);
 
+  const description = [
+    `${product.name} — ${product.fabric ? `${product.fabric}, ` : ""}${product.category_name.toLowerCase()} from Salwar Butterfly.`,
+    `${price}.`,
+    product.available_sizes.length
+      ? `Sizes ${product.available_sizes.join(", ")} in stock.`
+      : "This run has sold out.",
+    "Free shipping all over India.",
+  ].join(" ");
+
+  // Everything below is what a shared link unfurls into (see <ShareButton>):
+  // WhatsApp, Instagram and Facebook read `og:*`, X reads `twitter:*`. The
+  // URLs are relative and resolved against `metadataBase` in the root layout.
+  const url = `/product/${encodeURIComponent(product.id)}`;
+  const images = product.image
+    ? [{ url: product.image, alt: product.name }]
+    : undefined;
+
   return {
     title: product.name,
-    description: [
-      `${product.name} — ${product.fabric ? `${product.fabric}, ` : ""}${product.category_name.toLowerCase()} from Salwar Butterfly.`,
-      `${price}.`,
-      product.available_sizes.length
-        ? `Sizes ${product.available_sizes.join(", ")} in stock.`
-        : "This run has sold out.",
-      "Free shipping all over India.",
-    ].join(" "),
+    description,
+    alternates: { canonical: url },
     openGraph: {
-      title: product.name,
+      title: `${product.name} · ${money(product.price)}`,
+      description,
+      url,
+      siteName: "Salwar Butterfly",
       type: "website",
-      images: product.image ? [{ url: product.image }] : undefined,
+      locale: "en_IN",
+      images,
+    },
+    twitter: {
+      card: product.image ? "summary_large_image" : "summary",
+      title: `${product.name} · ${money(product.price)}`,
+      description,
+      images,
+    },
+    other: {
+      "product:price:amount": String(product.price),
+      "product:price:currency": "INR",
+      "product:availability": product.in_stock ? "in stock" : "out of stock",
     },
   };
 }

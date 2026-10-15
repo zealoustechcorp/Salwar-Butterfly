@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Heart, Minus, Plus, ShoppingBag, X } from "lucide-react";
+import { Check, Heart, Minus, Plus, Share2, ShoppingBag, X } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -14,6 +14,7 @@ import { Photo } from "./Photo";
 import { SizeChartButton } from "./SizeChart";
 import { Stars } from "./Stars";
 import { useStore } from "./StoreProvider";
+import { useStoreToast } from "./Toast";
 
 /**
  * A single piece, in full (F-06 Product Browsing).
@@ -398,6 +399,8 @@ export function ProductDetail({ product, shop }) {
             />
             {wished ? "Saved" : "Save for later"}
           </button>
+
+          <ShareButton product={product} />
         </div>
 
         {shop?.whatsapp ? (
@@ -431,6 +434,58 @@ export function ProductDetail({ product, shop }) {
         <Spec product={product} />
       </div>
     </div>
+  );
+}
+
+/**
+ * Sends the piece to someone else — most often a WhatsApp chat.
+ *
+ * What is shared is the product's own URL. The preview the other person sees
+ * (photograph, name, price, sizes in stock) is not built here: it is the
+ * page's Open Graph metadata, which WhatsApp, Instagram and the rest read
+ * from that URL. See `generateMetadata` in app/(storefront)/product/[id].
+ *
+ * The phone's own share sheet where there is one; elsewhere — most desktop
+ * browsers — the link is copied instead, and the toast says so.
+ */
+function ShareButton({ product }) {
+  const toast = useStoreToast();
+
+  const share = async () => {
+    const url = `${window.location.origin}/product/${encodeURIComponent(product.id)}`;
+    const price = product.mrp
+      ? `${money(product.price)} (${product.off}% off)`
+      : money(product.price);
+    const text = `${product.name} — ${price} at Salwar Butterfly`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: product.name, text, url });
+        return;
+      } catch (error) {
+        // Closing the share sheet is a choice, not a failure.
+        if (error?.name === "AbortError") return;
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Link copied", "Paste it anywhere to share this piece.");
+    } catch {
+      toast.error("Could not copy the link", url);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={share}
+      aria-label={`Share ${product.name}`}
+      className="flex items-center justify-center gap-2 rounded-full border border-sb-gold/50 px-5 py-3.5 text-sm font-semibold text-sb-heading transition-colors hover:bg-sb-surface/60"
+    >
+      <Share2 className="size-4 shrink-0" aria-hidden="true" />
+      Share
+    </button>
   );
 }
 
