@@ -4,6 +4,7 @@ import {
   getStorefrontProducts,
 } from "@/lib/store/catalogue";
 import { filterProducts } from "@/lib/store/filters";
+import { productPath } from "@/lib/store/links";
 
 /**
  * Where an address from the shop's previous site should land now.
@@ -18,7 +19,7 @@ import { filterProducts } from "@/lib/store/filters";
  * "floral-salwar" — while today's categories are cuts), so the handle is
  * matched against what the shop sells now, most specific first:
  *
- *   1. a product whose name spells the same handle    → /product/<id>
+ *   1. a product whose name spells the same handle    → /product/<slug>
  *   2. a fabric named in the handle                   → /shop?fabric=<name>
  *   3. a category with the same name                  → /shop?category=<id>
  *   4. the handle's words as a search, if it finds any → /shop?q=<words>
@@ -109,8 +110,10 @@ async function resolveHandle(handle, { products: tryProducts = false } = {}) {
   }
 
   if (tryProducts) {
-    const product = products.find((p) => slugify(p.name) === slug);
-    if (product) return `/product/${product.id}`;
+    const product = products.find(
+      (p) => p.slug === slug || slugify(p.name) === slug,
+    );
+    if (product) return productPath(product);
   }
 
   const words = stems(slug);

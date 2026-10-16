@@ -1,6 +1,6 @@
 import { ChevronRight } from "lucide-react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 
 import { PolicySection } from "@/components/store/HomeSections";
 import { ProductCard } from "@/components/store/ProductCard";
@@ -9,11 +9,13 @@ import { ProductReviews } from "@/components/store/ProductReviews";
 import { money } from "@/lib/format";
 import { SITE_URL } from "@/lib/site";
 import {
-  getProductIds,
+  getProductSlugs,
   getRelatedProducts,
   getShop,
   getStorefrontProduct,
+  getStorefrontProductBySlug,
 } from "@/lib/store/catalogue";
+import { productPath } from "@/lib/store/links";
 import { getProductReviews } from "@/lib/store/reviews";
 
 /**
@@ -22,10 +24,14 @@ import { getProductReviews } from "@/lib/store/reviews";
  *
  * Every piece is prerendered at build time, so opening a product is a static
  * document with no spinner, and each one revalidates on the same minute the
- * rest of the storefront does. An id that is not in the catalogue 404s rather
- * than rendering an empty frame.
+ * rest of the storefront does. Pages are addressed by the product's slug; a
+ * slug that is not in the catalogue 404s rather than rendering an empty frame.
  *
- * The build asks the API for the id list. If it cannot reach it, the build
+ * Pages used to be addressed by the product's UUID, and those links are still
+ * shared and indexed, so a segment that is no product's slug but is a
+ * product's id permanently redirects to that product's slug URL.
+ *
+ * The build asks the API for the slug list. If it cannot reach it, the build
  * still succeeds and every product page renders on first request instead —
  * `dynamicParams` is on by default, so an empty list here means "prerender
  * none of them", not "these are the only ones that exist". A backend that is
@@ -33,7 +39,7 @@ import { getProductReviews } from "@/lib/store/reviews";
  */
 export async function generateStaticParams() {
   try {
-    return (await getProductIds()).map((id) => ({ id }));
+    return (await getProductSlugs()).map((slug) => ({ slug }));
   } catch (error) {
     console.warn(
       `[product] could not prerender product pages: ${error.message}`,
@@ -43,9 +49,25 @@ export async function generateStaticParams() {
   }
 }
 
+/**
+ * The product a slug segment names. A segment that is instead an old UUID
+ * link is redirected to the slug URL (308) — this runs in generateMetadata
+ * as well as the page, and whichever reaches it first issues the redirect.
+ */
+async function productFor(params) {
+  const { slug } = await params;
+
+  const product = await getStorefrontProductBySlug(slug);
+  if (product) return product;
+
+  const legacy = await getStorefrontProduct(slug);
+  if (legacy?.slug) permanentRedirect(productPath(legacy));
+
+  return null;
+}
+
 export async function generateMetadata({ params }) {
-  const { id } = await params;
-  const product = await getStorefrontProduct(id);
+  const product = await productFor(params);
 
   if (!product) return { title: "Piece not found" };
 
@@ -71,7 +93,7 @@ export async function generateMetadata({ params }) {
   // which is why shared links used to unfurl without a picture. Width,
   // height and type are stated so a crawler can lay the card out without
   // downloading it first.
-  const url = `/product/${encodeURIComponent(product.id)}`;
+  const url = productPath(product);
   const images = product.image
     ? [
         {
@@ -113,8 +135,7 @@ export async function generateMetadata({ params }) {
 }
 
 export default async function ProductPage({ params }) {
-  const { id } = await params;
-  const product = await getStorefrontProduct(id);
+  const product = await productFor(params);
 
   if (!product) notFound();
 

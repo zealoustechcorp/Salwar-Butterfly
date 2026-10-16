@@ -1,9 +1,9 @@
 import sharp from "sharp";
 
-import { getStorefrontProduct } from "@/lib/store/catalogue";
+import { getStorefrontProductBySlug } from "@/lib/store/catalogue";
 
 /**
- * `/product/<id>/share-image` — the picture a shared product link unfurls
+ * `/product/<slug>/share-image` — the picture a shared product link unfurls
  * with. generateMetadata in ../page.js points og:image and twitter:image here.
  *
  * Not the product photo itself. Those are the admin's uploads as they came
@@ -32,8 +32,8 @@ const CACHE_CONTROL =
   "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800";
 
 export async function GET(_request, { params }) {
-  const { id } = await params;
-  const product = await getStorefrontProduct(id);
+  const { slug } = await params;
+  const product = await getStorefrontProductBySlug(slug);
 
   if (!product?.image) {
     return new Response("Not found", { status: 404 });
@@ -74,7 +74,7 @@ export async function GET(_request, { params }) {
       },
     });
   } catch (error) {
-    console.warn(`[share-image] ${id}: ${error.message}`);
+    console.warn(`[share-image] ${slug}: ${error.message}`);
 
     // A preview with the heavy photo beats a preview with none: some
     // platforms take it, and WhatsApp is no worse off than before.

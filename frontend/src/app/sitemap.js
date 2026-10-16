@@ -1,4 +1,5 @@
-import { getProductIds } from "@/lib/store/catalogue";
+import { getProductSlugs } from "@/lib/store/catalogue";
+import { productPath } from "@/lib/store/links";
 import { SITE_URL } from "@/lib/site";
 
 /**
@@ -21,18 +22,18 @@ export default async function sitemap() {
     { url: `${SITE_URL}/privacy`, changeFrequency: "yearly", priority: 0.2 },
   ];
 
-  let productIds = [];
+  let productSlugs = [];
 
   try {
-    productIds = await getProductIds();
+    productSlugs = await getProductSlugs();
   } catch (error) {
     console.warn(`[sitemap] could not list products: ${error.message}`);
   }
 
   return [
     ...pages,
-    ...productIds.map((id) => ({
-      url: `${SITE_URL}/product/${id}`,
+    ...productSlugs.map((slug) => ({
+      url: `${SITE_URL}${productPath({ slug })}`,
       changeFrequency: "weekly",
       priority: 0.8,
     })),

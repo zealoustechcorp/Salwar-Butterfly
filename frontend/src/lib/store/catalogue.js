@@ -229,29 +229,43 @@ export async function getStorefrontProducts() {
 }
 
 /**
- * One product, decorated exactly as the grid's cards are.
+ * One product, decorated exactly as the grid's cards are, found by `field`.
  *
- * Ids come out of a URL segment and are matched as opaque strings — an id
- * that is not in the catalogue is a miss rather than a crash, and the route
- * turns that into a 404.
+ * The key comes out of a URL segment and is matched as an opaque string — a
+ * key that is not in the catalogue is a miss rather than a crash, and the
+ * route turns that into a 404.
  */
-export async function getStorefrontProduct(id) {
-  const productId = String(id ?? "");
-  if (!productId) return null;
+async function findProduct(matches, key) {
+  const value = String(key ?? "");
+  if (!value) return null;
 
   const { categories, products } = await loadCatalogue();
 
-  const row = products.find((p) => p.id === productId);
+  const row = products.find((p) => matches(p, value));
   if (!row) return null;
 
   const names = new Map(categories.map((c) => [c.id, c.name]));
   return decorate(row, names.get(row.category_id) || "—");
 }
 
-/** Every product id, as route segments — what the detail route prerenders. */
-export async function getProductIds() {
+/** One product by its URL slug — what /product/<slug> renders. */
+export async function getStorefrontProductBySlug(slug) {
+  return findProduct((p, value) => p.slug === value, slug);
+}
+
+/**
+ * One product by its UUID. Product pages used to be addressed by id, and
+ * those links are still out there — shared on WhatsApp, held by Google — so
+ * the route looks an unmatched segment up here and redirects to the slug.
+ */
+export async function getStorefrontProduct(id) {
+  return findProduct((p, value) => String(p.id) === value, id);
+}
+
+/** Every product slug, as route segments — what the detail route prerenders. */
+export async function getProductSlugs() {
   const { products } = await loadCatalogue();
-  return products.map((p) => String(p.id));
+  return products.map((p) => p.slug).filter(Boolean).map(String);
 }
 
 /**

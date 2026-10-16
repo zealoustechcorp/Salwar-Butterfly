@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { money } from "@/lib/format";
+import { productPath } from "@/lib/store/links";
 import { soldByColour } from "@/lib/store/variants";
 import { cn } from "@/lib/utils";
 import { Photo } from "./Photo";
@@ -65,7 +66,7 @@ export function ProductCard({ product, priority = false }) {
 
           {/* Covers the photo only, and sits under every control on the tile. */}
           <Link
-            href={`/product/${product.id}`}
+            href={productPath(product)}
             aria-hidden="true"
             // The product name below is the keyboard-reachable link to the same
             // page, so this one is a pointer convenience and not a second tab stop.
@@ -118,7 +119,7 @@ export function ProductCard({ product, priority = false }) {
         <div className="border-t border-sb-gold/30 bg-sb-bg/95 p-3 transition-transform duration-300 group-hover:translate-y-0 group-focus-within:translate-y-0 [@media(hover:hover)]:absolute [@media(hover:hover)]:inset-x-0 [@media(hover:hover)]:bottom-0 [@media(hover:hover)]:translate-y-full">
           {byColour ? (
             <Link
-              href={`/product/${product.id}`}
+              href={productPath(product)}
               className="flex w-full items-center justify-center gap-2 rounded-full bg-sb-btn-primary px-3 py-2.5 text-[13px] font-semibold text-sb-bg transition-colors hover:bg-sb-btn-rose sm:px-4 sm:text-sm"
             >
               {product.in_stock ? "Choose a colour" : "Sold out — see colours"}
@@ -177,7 +178,7 @@ export function ProductCard({ product, priority = false }) {
         <p className="sb-eyebrow text-[9px] text-sb-gold-text">{product.category_name}</p>
         <h3 className="mt-1 font-display text-lg leading-snug font-semibold text-sb-heading sm:text-xl">
           <Link
-            href={`/product/${product.id}`}
+            href={productPath(product)}
             className="underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sb-link"
           >
             {product.name}

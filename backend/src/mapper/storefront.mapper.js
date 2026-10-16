@@ -43,6 +43,9 @@ export const StorefrontMapper = {
 
     return {
       id: row.id,
+      // What the product page is addressed by: /product/<slug>. Unique
+      // across the catalogue, so it identifies the piece as well as the id.
+      slug: row.slug,
       name: row.name,
       price,
       mrp,

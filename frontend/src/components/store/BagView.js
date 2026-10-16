@@ -7,6 +7,7 @@ import { useEffect } from "react";
 import { money } from "@/lib/format";
 import { MAX_BAG_LINES, MAX_LINE_QTY, orderableQty } from "@/lib/stock";
 import { describeChoice, variantFor } from "@/lib/store/variants";
+import { productPath } from "@/lib/store/links";
 import { useAuth } from "./AuthProvider";
 import { WhatsAppGlyph } from "./Ornaments";
 import { Photo } from "./Photo";
@@ -146,13 +147,21 @@ export function BagView({ products, shop }) {
             const ceiling = shelf === null ? MAX_LINE_QTY : orderableQty(shelf);
             const atCeiling = !gone && line.qty >= ceiling;
 
+            // A bag line holds only the product id. While the piece is in the
+            // catalogue, link by its slug; once it has left, the id link is
+            // expected (and 404s, as before) — not a missing-slug bug, so it
+            // does not go through productPath's warning.
+            const lineHref = product
+              ? productPath(product)
+              : `/product/${encodeURIComponent(line.product_id)}`;
+
             return (
               <li key={line.key} className="flex gap-4 py-5">
                 {/* The photo and the name go back to the piece — the bag is
                     where a shopper second-guesses a size or a fabric, and the
                     only way back used to be the shop and a search. */}
                 <Link
-                  href={`/product/${line.product_id}`}
+                  href={lineHref}
                   aria-label={`View ${line.name}`}
                   className="relative aspect-3/4 w-20 shrink-0 overflow-hidden rounded-xl border border-sb-gold/30 bg-sb-surface/40 transition-opacity hover:opacity-85 sm:w-24"
                 >
@@ -176,7 +185,7 @@ export function BagView({ products, shop }) {
                       ) : null}
                       <h2 className="mt-0.5 font-display text-lg leading-snug font-semibold text-sb-heading sm:text-xl">
                         <Link
-                          href={`/product/${line.product_id}`}
+                          href={lineHref}
                           className="underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sb-link"
                         >
                           {line.name}

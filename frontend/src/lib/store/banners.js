@@ -54,7 +54,7 @@ const REVALIDATE_SECONDS = 300;
  * ask make one request.
  *
  * @returns {Promise<Array<{image: string,
- *          product: {id: string, name: string}|null}>>} the slides — an
+ *          product: {id: string, slug: string|null, name: string}|null}>>} the slides — an
  *          empty array means the shop has taken every banner down, or
  *          that they could not be read
  */

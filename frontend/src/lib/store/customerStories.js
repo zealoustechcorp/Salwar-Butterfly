@@ -43,7 +43,7 @@ const REVALIDATE_SECONDS = 300;
  * The published stories, in the order the shop chose.
  *
  * @returns {Promise<Array<{customer_name: string|null, body: string|null,
- *          image: string, product: {id: string, name: string}|null}>>}
+ *          image: string, product: {id: string, slug: string|null, name: string}|null}>>}
  *          an empty array means the shop publishes none, or that they
  *          could not be read
  */
