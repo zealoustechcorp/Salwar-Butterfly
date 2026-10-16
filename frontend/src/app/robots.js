@@ -26,6 +26,8 @@ export default function robots() {
         "/reset-password",
         "/track",
         "/monitoring",
+        // The header search's piece list — data for the dropdown, not a page.
+        "/search-index",
       ],
     },
     sitemap: `${SITE_URL}/sitemap.xml`,

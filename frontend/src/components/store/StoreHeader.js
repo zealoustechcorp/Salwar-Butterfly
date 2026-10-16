@@ -1,11 +1,32 @@
 "use client";
 
-import { ChevronDown, Heart, LogOut, Menu, Search, ShoppingBag, User, X } from "lucide-react";
+import {
+  ChevronDown,
+  Heart,
+  History,
+  LogOut,
+  Menu,
+  Search,
+  ShoppingBag,
+  User,
+  X,
+} from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
+import { money } from "@/lib/format";
+import {
+  buildVocabulary,
+  clearRecent,
+  correctQuery,
+  loadSearchIndex,
+  matchProducts,
+  pushRecent,
+  queryWords,
+  readRecent,
+} from "@/lib/store/searchSuggest";
 import { cn } from "@/lib/utils";
 import { WhatsAppGlyph } from "./Ornaments";
 import { Photo } from "./Photo";
@@ -139,28 +160,123 @@ function IconLink({ label, href, children, count, active, className }) {
 }
 
 /**
- * The words the search prompt cycles through.
+ * The prompt's fallback words, for a render with no suggestions — the
+ * catalogue read failed, or nothing is in stock.
  *
- * Every one of them was checked against the committed catalogue and comes back
- * with results — the search matches a query against everything the shop
- * records about a piece (name, collection, fabric, fit, colour, size and piece
- * code — see `searchText` in lib/store/filters.js), and these are the words the
- * shop itself uses. A placeholder is a suggestion, and suggesting a search that
- * lands on an empty grid is worse than suggesting nothing.
- *
- * "dress" is deliberately absent. It is the shop's own word for what it sells —
- * it is in the logo — but no product name, category or fabric in the snapshot
- * contains it, so offering it here would send shoppers to nothing.
+ * Normally the prompt cycles through `searchHints` instead: the collections,
+ * fabrics and cuts that have stock behind them right now, built from the live
+ * catalogue in getSearchHints(). A hardcoded list goes stale the moment the
+ * shop renames a collection, and suggesting a search that lands on an empty
+ * grid is worse than suggesting nothing.
  */
-const SEARCH_TERMS = [
-  "dhabu cotton",
-  "anarkali",
-  "coord set",
-  "azrak",
-  "straight cut",
-  "chanderi silk",
-  "kurti",
-];
+const FALLBACK_TERMS = ["anarkali", "cotton", "silk"];
+
+/** How many prompt words to cycle through, and rows of each kind to list. */
+const MAX_PROMPT_TERMS = 8;
+const MAX_POPULAR = 6;
+const MAX_TYPED_HINTS = 5;
+const MAX_PIECES = 3;
+
+// One shared empty list, so a missing prop does not re-key the memos below
+// (and restart the prompt timer) on every render.
+const NO_HINTS = [];
+
+const HINT_KIND_LABEL = {
+  category: "Collection",
+  fabric: "Fabric",
+  fit: "Fit",
+  colour: "Colour",
+  size: "Size",
+};
+
+/**
+ * The kinds worth offering before anything is typed. Colours and sizes are
+ * suggested once typed ("maroon", "40") but not up front: every piece comes
+ * in several sizes, so "Size 40" would top a popularity list on count alone
+ * and crowd out the collections a shopper actually browses by.
+ */
+const BROWSE_KINDS = ["category", "fabric", "fit"];
+
+/**
+ * The prompt words, taken a kind at a time — a collection, then a fabric,
+ * then a cut — so the cycle shows the range of what can be typed rather than
+ * eight collections in a row.
+ */
+function promptTerms(hints) {
+  const queues = BROWSE_KINDS.map((kind) => hints.filter((hint) => hint.kind === kind));
+  if (!queues.some((q) => q.length)) return FALLBACK_TERMS;
+
+  const out = [];
+  while (out.length < MAX_PROMPT_TERMS && queues.some((q) => q.length)) {
+    for (const queue of queues) {
+      const next = queue.shift();
+      if (next && out.length < MAX_PROMPT_TERMS) out.push(next.label.toLowerCase());
+    }
+  }
+  return out;
+}
+
+/**
+ * The suggestions for what has been typed. Every word has to appear in the
+ * label, the same AND rule the grid's search uses, so a suggestion never
+ * promises more than the search itself would find.
+ */
+function matchHints(hints, words) {
+  return hints
+    .filter((hint) => {
+      const label = hint.label.toLowerCase();
+      return words.every((word) => label.includes(word));
+    })
+    .slice(0, MAX_TYPED_HINTS);
+}
+
+/**
+ * Every row the dropdown shows, in order, each tagged with the section it
+ * belongs to so the list can draw a heading where the section changes.
+ *
+ * Before anything is typed: the shopper's recent searches, then what is
+ * popular. Once typed: the text itself, a spelling correction when nothing
+ * else matched, the matching collections/fabrics/fits/colours/sizes, and the
+ * matching pieces.
+ */
+function buildRows({ typed, hints, index, recent, vocabulary }) {
+  if (!typed) {
+    return [
+      ...recent.map((item) => ({ section: "recent", ...item })),
+      ...hints
+        .filter((hint) => BROWSE_KINDS.includes(hint.kind))
+        .slice(0, MAX_POPULAR)
+        .map((hint) => ({ section: "popular", ...hint })),
+    ];
+  }
+
+  const words = queryWords(typed);
+  const hintRows = matchHints(hints, words).map((hint) => ({ section: "hint", ...hint }));
+  const pieceRows = matchProducts(index ?? [], typed, MAX_PIECES).map((product) => ({
+    section: "piece",
+    kind: "piece",
+    label: product.name,
+    product,
+  }));
+
+  // Only offered when the words found nothing at all — a correction beside
+  // real results reads as the shop second-guessing a search that worked.
+  const correction =
+    hintRows.length || pieceRows.length ? null : correctQuery(typed, vocabulary);
+
+  return [
+    { section: "query", kind: "query", label: typed },
+    ...(correction ? [{ section: "correct", kind: "correct", label: correction }] : []),
+    ...hintRows,
+    ...pieceRows,
+  ];
+}
+
+const SECTION_HEADING = {
+  recent: "Recent searches",
+  popular: "Popular right now",
+  piece: "Pieces",
+};
 
 const ROTATE_MS = 2400;
 
@@ -181,19 +297,112 @@ function useRotatingTerm(terms, paused) {
     return () => clearInterval(timer);
   }, [terms, paused]);
 
-  return terms[index];
+  return terms[index % terms.length];
 }
 
 /**
  * Typing filters whatever grid is on screen straight away; submitting commits
  * the term to `/shop`, so it survives a reload and can be shared.
+ *
+ * Focused, it also offers a dropdown (see buildRows). Picking a collection,
+ * fabric, fit or size opens `/shop` with that filter ticked rather than as a
+ * text search, which is what the shopper meant by it; picking a piece opens
+ * the piece.
+ *
+ * What it costs: the suggestions came with the page, and the piece list is
+ * fetched once per visit on the first focus, from a static file on the CDN
+ * (see app/search-index). After that a keystroke asks the server nothing.
  */
-function SearchField({ className, autoFocus = false, onSubmit }) {
+function SearchField({ className, autoFocus = false, onSubmit, hints = NO_HINTS }) {
   const { query, setQuery } = useBrowse();
   const router = useRouter();
+  const listId = useId();
+
+  const terms = useMemo(() => promptTerms(hints), [hints]);
   // Nothing to prompt for once they have started typing — and the overlay is
   // hidden then anyway, so the timer may as well stop.
-  const term = useRotatingTerm(SEARCH_TERMS, Boolean(query));
+  const term = useRotatingTerm(terms, Boolean(query));
+
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(-1);
+  // Read from storage on focus rather than on render, so the server render
+  // and hydration agree (the server has no storage to read).
+  const [recent, setRecent] = useState([]);
+  const [index, setIndex] = useState(null);
+
+  const vocabulary = useMemo(
+    () => buildVocabulary(hints.map((hint) => hint.label), index ?? []),
+    [hints, index],
+  );
+
+  const typed = query.trim();
+  const rows = useMemo(
+    () => buildRows({ typed, hints, index, recent, vocabulary }),
+    [typed, hints, index, recent, vocabulary],
+  );
+  const showList = open && rows.length > 0;
+
+  const close = () => {
+    setOpen(false);
+    setActive(-1);
+  };
+
+  const onFocus = () => {
+    setOpen(true);
+    setRecent(readRecent());
+    if (!index) {
+      loadSearchIndex()
+        .then(setIndex)
+        // No pieces in the dropdown this time; everything else still works.
+        .catch(() => {});
+    }
+  };
+
+  const go = (row) => {
+    // A spelling fix is applied to the box, not navigated to: the shopper
+    // sees the corrected words and the suggestions that now match them.
+    if (row?.kind === "correct") {
+      setQuery(row.label);
+      setActive(-1);
+      return;
+    }
+
+    if (!row || row.kind === "query") {
+      const href = typed ? `/shop?q=${encodeURIComponent(typed)}` : "/shop";
+      if (typed) pushRecent({ label: typed, href });
+      router.push(href);
+    } else if (row.kind === "piece") {
+      router.push(`/product/${encodeURIComponent(row.product.id)}`);
+    } else {
+      // The filter replaces the text: leaving "silk" in the box as well
+      // would narrow the grid twice over.
+      pushRecent({ label: row.label, href: row.href });
+      setQuery("");
+      router.push(row.href);
+    }
+    close();
+    onSubmit?.();
+  };
+
+  const onKeyDown = (event) => {
+    if (event.key === "Escape") {
+      close();
+      return;
+    }
+    if (!rows.length) return;
+
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      setOpen(true);
+      const step = event.key === "ArrowDown" ? 1 : -1;
+      // Positions -1 (the text) through rows.length - 1, wrapping both ways.
+      const span = rows.length + 1;
+      setActive((current) => ((current + 1 + step + span) % span) - 1);
+    }
+  };
+
+  // -1 is "no row", the text itself; the arrows cycle through it.
+  const activeRow = active >= 0 && active < rows.length ? rows[active] : null;
 
   return (
     <form
@@ -201,9 +410,7 @@ function SearchField({ className, autoFocus = false, onSubmit }) {
       className={cn("relative", className)}
       onSubmit={(event) => {
         event.preventDefault();
-        const submitted = query.trim();
-        router.push(submitted ? `/shop?q=${encodeURIComponent(submitted)}` : "/shop");
-        onSubmit?.();
+        go(activeRow);
       }}
     >
       <Search
@@ -212,9 +419,22 @@ function SearchField({ className, autoFocus = false, onSubmit }) {
       />
       <input
         type="search"
+        role="combobox"
+        aria-expanded={showList}
+        aria-controls={listId}
+        aria-autocomplete="list"
+        aria-activedescendant={activeRow ? `${listId}-${active}` : undefined}
         value={query}
         autoFocus={autoFocus}
-        onChange={(event) => setQuery(event.target.value)}
+        autoComplete="off"
+        onFocus={onFocus}
+        onBlur={close}
+        onKeyDown={onKeyDown}
+        onChange={(event) => {
+          setQuery(event.target.value);
+          setOpen(true);
+          setActive(-1);
+        }}
         // The visible prompt is the overlay below, because a `placeholder`
         // attribute cannot animate. The accessible name stays fixed, so a
         // screen reader is never read a moving target.
@@ -222,6 +442,57 @@ function SearchField({ className, autoFocus = false, onSubmit }) {
         aria-label="Search the catalogue"
         className="h-10 w-full rounded-full border border-sb-gold/40 bg-white/70 pr-4 pl-9 text-base text-sb-text sm:text-sm focus:border-sb-link focus:bg-white focus:outline-none"
       />
+      {showList ? (
+        <ul
+          id={listId}
+          role="listbox"
+          aria-label="Suggestions"
+          // mousedown, not click, is cancelled: it is what moves focus, and
+          // the input losing focus is what closes this list.
+          onMouseDown={(event) => event.preventDefault()}
+          className="absolute top-full right-0 left-0 z-50 mt-2 max-h-[70vh] min-w-72 overflow-y-auto rounded-2xl border border-sb-gold/30 bg-white py-1.5 shadow-lg shadow-sb-text/10"
+        >
+          {rows.map((row, rowIndex) => {
+            const heading =
+              SECTION_HEADING[row.section] && rows[rowIndex - 1]?.section !== row.section
+                ? SECTION_HEADING[row.section]
+                : null;
+
+            return (
+              <Fragment key={`${row.section}-${row.kind}-${row.label}-${row.product?.id ?? ""}`}>
+                {heading ? (
+                  <li
+                    role="presentation"
+                    className="flex items-center justify-between px-4 pt-2 pb-1 text-[10px] font-semibold tracking-[0.14em] text-sb-gold-text uppercase"
+                  >
+                    {heading}
+                    {row.section === "recent" ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          clearRecent();
+                          setRecent([]);
+                          setActive(-1);
+                        }}
+                        className="rounded px-1 text-[10px] font-semibold tracking-normal text-sb-link normal-case hover:underline"
+                      >
+                        Clear
+                      </button>
+                    ) : null}
+                  </li>
+                ) : null}
+                <SuggestionRow
+                  id={`${listId}-${rowIndex}`}
+                  row={row}
+                  selected={rowIndex === active}
+                  onPick={() => go(row)}
+                  onHover={() => setActive(rowIndex)}
+                />
+              </Fragment>
+            );
+          })}
+        </ul>
+      ) : null}
       {query ? null : (
         <span
           aria-hidden="true"
@@ -236,6 +507,73 @@ function SearchField({ className, autoFocus = false, onSubmit }) {
         </span>
       )}
     </form>
+  );
+}
+
+/** One row of the dropdown. What it shows depends on what kind of row it is. */
+function SuggestionRow({ id, row, selected, onPick, onHover }) {
+  const Icon = row.section === "recent" ? History : Search;
+
+  return (
+    <li
+      id={id}
+      role="option"
+      aria-selected={selected}
+      onClick={onPick}
+      onMouseEnter={onHover}
+      className={cn(
+        "flex cursor-pointer items-center gap-3 px-4 py-2 text-sm text-sb-text",
+        selected && "bg-sb-bg",
+      )}
+    >
+      {row.kind === "piece" ? (
+        <>
+          <span className="relative size-10 shrink-0 overflow-hidden rounded-md bg-sb-surface/50">
+            {row.product.image ? (
+              <Image
+                src={row.product.image}
+                alt=""
+                fill
+                sizes="40px"
+                className="object-cover object-top"
+              />
+            ) : null}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-medium">{row.product.name}</span>
+            <span className="block truncate text-xs text-sb-text-muted">
+              {row.product.category_name}
+              {row.product.in_stock ? "" : " · sold out"}
+            </span>
+          </span>
+          <span className="shrink-0 text-sm font-semibold text-sb-heading tabular">
+            {money(row.product.price)}
+          </span>
+        </>
+      ) : (
+        <>
+          <Icon className="size-3.5 shrink-0 text-sb-text-muted" aria-hidden="true" />
+          {row.kind === "query" ? (
+            <span className="min-w-0 truncate">
+              Search for <span className="font-semibold">“{row.label}”</span>
+            </span>
+          ) : row.kind === "correct" ? (
+            <span className="min-w-0 truncate">
+              Did you mean <span className="font-semibold text-sb-link">“{row.label}”</span>?
+            </span>
+          ) : (
+            <>
+              <span className="min-w-0 flex-1 truncate font-medium">{row.label}</span>
+              {row.count ? (
+                <span className="shrink-0 text-xs text-sb-text-muted">
+                  {HINT_KIND_LABEL[row.kind]} · {row.count}
+                </span>
+              ) : null}
+            </>
+          )}
+        </>
+      )}
+    </li>
   );
 }
 
@@ -329,7 +667,7 @@ function AccountControl({ className }) {
   );
 }
 
-export function StoreHeader({ categories, shop }) {
+export function StoreHeader({ categories, searchHints = NO_HINTS, shop }) {
   const { bagCount, wishCount } = useStore();
   const { user, isSignedIn, signOut, openAuth } = useAuth();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -475,7 +813,10 @@ export function StoreHeader({ categories, shop }) {
             being pinned to one width. Below `wide` that gap is too narrow to
             type in, and it drops to its own row under the bar.
           */}
-          <SearchField className="mx-3 hidden max-w-sm min-w-0 flex-1 wide:block" />
+          <SearchField
+            hints={searchHints}
+            className="mx-3 hidden max-w-sm min-w-0 flex-1 wide:block"
+          />
 
           {/* Icons thin out as the bar narrows: account stays reachable from the
               drawer, the bag never leaves. Search does not thin out at all — it
@@ -516,7 +857,7 @@ export function StoreHeader({ categories, shop }) {
           the bag's sticky summary) carries the matching wide: breakpoint.
         */}
         <div className="mx-auto max-w-7xl px-4 pb-2.5 sm:px-6 lg:px-8 wide:hidden">
-          <SearchField />
+          <SearchField hints={searchHints} />
         </div>
       </div>
 
@@ -542,7 +883,7 @@ export function StoreHeader({ categories, shop }) {
             </div>
 
             <div className="border-b border-sb-gold/25 px-5 py-4">
-              <SearchField onSubmit={() => setDrawerOpen(false)} />
+              <SearchField hints={searchHints} onSubmit={() => setDrawerOpen(false)} />
             </div>
 
             <nav className="flex-1 overflow-y-auto px-3 py-4">
