@@ -314,6 +314,94 @@ export async function getStorefrontCategories(products) {
   });
 }
 
+/**
+ * What the header search can suggest: every collection, fabric, cut, colour
+ * and size that has a piece in stock behind it, most-stocked first.
+ *
+ * Built from the catalogue the layout has already loaded — no request of its
+ * own — and small enough to send to every page (a handful of short labels).
+ * Counted over in-stock pieces only, because a suggestion is a promise: one
+ * that opens on a grid of sold-out cards is worse than no suggestion at all.
+ *
+ * Each carries the /shop link that opens it as a filter rather than as a
+ * text search, so tapping "Chanderi silk" ticks the fabric on the rail, the
+ * same as choosing it there.
+ *
+ * @returns {Promise<Array<{kind: "category"|"fabric"|"fit"|"colour"|"size", label: string,
+ *   count: number, href: string}>>}
+ */
+export async function getSearchHints(products) {
+  const { categories } = await loadCatalogue();
+  const rows = (products ?? (await getStorefrontProducts())).filter((p) => p.in_stock);
+
+  const tally = (key) => {
+    const counts = new Map();
+    for (const p of rows) {
+      const value = key(p);
+      if (value) counts.set(value, (counts.get(value) || 0) + 1);
+    }
+    return counts;
+  };
+
+  const byCategory = tally((p) => p.category_id);
+  const byFabric = tally((p) => p.fabric);
+  const byFit = tally((p) => p.fit);
+
+  // Colours and sizes count a piece once each, and only where that colourway
+  // or size still has stock — "Maroon" should not promise a sold-out run.
+  const byColour = new Map();
+  const bySize = new Map();
+  for (const p of rows) {
+    for (const name of new Set(
+      (p.colours ?? []).filter((c) => c.name && c.stock > 0).map((c) => c.name),
+    )) {
+      byColour.set(name, (byColour.get(name) || 0) + 1);
+    }
+    for (const size of new Set(p.available_sizes ?? [])) {
+      bySize.set(size, (bySize.get(size) || 0) + 1);
+    }
+  }
+
+  const hints = [
+    ...categories
+      .filter((c) => byCategory.has(c.id))
+      .map((c) => ({
+        kind: "category",
+        label: c.name,
+        count: byCategory.get(c.id),
+        href: `/shop?category=${encodeURIComponent(c.id)}`,
+      })),
+    ...[...byFabric].map(([name, count]) => ({
+      kind: "fabric",
+      label: name,
+      count,
+      href: `/shop?fabric=${encodeURIComponent(name)}`,
+    })),
+    ...[...byFit].map(([name, count]) => ({
+      kind: "fit",
+      label: name,
+      count,
+      href: `/shop?fit=${encodeURIComponent(name)}`,
+    })),
+    // No colour filter on the rail, so a colour opens as a text search —
+    // the grid's search already matches colourway names.
+    ...[...byColour].map(([name, count]) => ({
+      kind: "colour",
+      label: name,
+      count,
+      href: `/shop?q=${encodeURIComponent(name)}`,
+    })),
+    ...[...bySize].map(([size, count]) => ({
+      kind: "size",
+      label: `Size ${size}`,
+      count,
+      href: `/shop?size=${encodeURIComponent(size)}`,
+    })),
+  ];
+
+  return hints.sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+}
+
 /** Distinct fabrics across the catalogue — the "shop by fabric" chips. */
 export async function getFabrics(products) {
   const rows = products ?? (await getStorefrontProducts());

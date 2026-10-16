@@ -6,7 +6,12 @@ import { StoreFooter } from "@/components/store/StoreFooter";
 import { StoreHeader } from "@/components/store/StoreHeader";
 import { StoreProvider } from "@/components/store/StoreProvider";
 import { ToastProvider } from "@/components/store/Toast";
-import { getShop, getStorefrontCategories } from "@/lib/store/catalogue";
+import {
+  getSearchHints,
+  getShop,
+  getStorefrontCategories,
+  getStorefrontProducts,
+} from "@/lib/store/catalogue";
 import { getSizeCharts } from "@/lib/store/sizeCharts";
 
 export const metadata = {
@@ -39,9 +44,16 @@ export const metadata = {
  * means the read failed, and <SizeChartProvider> decides what to do about it.
  */
 export default async function StorefrontLayout({ children }) {
-  const [categories, sizeCharts] = await Promise.all([
-    getStorefrontCategories(),
+  // The products are decorated once and shared by the category menu and
+  // the search suggestions — both are views of the same cached catalogue,
+  // so the suggestions cost no request of their own.
+  const [products, sizeCharts] = await Promise.all([
+    getStorefrontProducts(),
     getSizeCharts(),
+  ]);
+  const [categories, searchHints] = await Promise.all([
+    getStorefrontCategories(products),
+    getSearchHints(products),
   ]);
   const shop = getShop();
 
@@ -52,7 +64,11 @@ export default async function StorefrontLayout({ children }) {
           <StoreProvider>
             <BrowseProvider>
               <SizeChartProvider charts={sizeCharts}>
-                <StoreHeader categories={categories} shop={shop} />
+                <StoreHeader
+                  categories={categories}
+                  searchHints={searchHints}
+                  shop={shop}
+                />
                 <main className="flex-1">{children}</main>
                 <StoreFooter shop={shop} />
               </SizeChartProvider>

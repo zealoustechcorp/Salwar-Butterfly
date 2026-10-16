@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSwipeable } from "react-swipeable";
 
 import { applyRail, filterProducts, TABS } from "@/lib/store/filters";
+import { buildVocabulary, correctQuery } from "@/lib/store/searchSuggest";
 import { cn } from "@/lib/utils";
 import { useBrowse } from "./BrowseProvider";
 import { ProductCard } from "./ProductCard";
@@ -31,7 +32,7 @@ const BLURB = {
  * is the same filtering the rail counts with.
  */
 export function ProductShowcase({ products, categories, withSidebar = false }) {
-  const { tab, setTab, filters, setQuery, clearFilters } = useBrowse();
+  const { tab, setTab, filters, setQuery } = useBrowse();
   const [shown, setShown] = useState(PAGE);
 
   const rows = useMemo(
@@ -160,25 +161,120 @@ export function ProductShowcase({ products, categories, withSidebar = false }) {
             ) : null}
           </>
         ) : (
-          <div className="sb-enter mt-5 rounded-2xl border border-dashed border-sb-gold/50 bg-sb-surface/25 px-6 py-12 text-center">
-            <p className="font-display text-2xl font-semibold text-sb-heading">Nothing matches that yet</p>
-            <p className="mt-2 text-sm text-sb-text-muted">
-              Try a different fabric or clear the filters to see the whole shop.
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                clearFilters();
-                setShown(PAGE);
-              }}
-              className="mt-5 rounded-full bg-sb-btn-primary px-7 py-3 text-sm font-semibold text-sb-bg hover:bg-sb-btn-rose"
-            >
-              Clear filters
-            </button>
-          </div>
+          <NoResults
+            products={products}
+            categories={categories}
+            onChange={() => setShown(PAGE)}
+          />
         )}
       </div>
     </section>
+  );
+}
+
+/**
+ * An empty grid, with somewhere to go next.
+ *
+ * Three things, cheapest to act on first: a spelling fix when the search box
+ * holds a near-miss ("chandheri" → "chanderi"), a few collections and fabrics
+ * that do have stock, and clearing everything. All of it is worked out from
+ * the products this grid already has — nothing is fetched.
+ *
+ * The chips are counted over in-stock pieces, so each one is a promise of a
+ * non-empty grid; and each starts from a clean filter, because adding a
+ * collection on top of a search that found nothing would find nothing again.
+ */
+function NoResults({ products, categories, onChange }) {
+  const { filters, setQuery, clearFilters, browseCategory, browseFabric } = useBrowse();
+  const query = filters.query.trim();
+
+  const correction = useMemo(() => {
+    if (!query) return null;
+    const vocabulary = buildVocabulary(
+      categories.map((c) => c.name),
+      products,
+    );
+    return correctQuery(query, vocabulary);
+  }, [query, categories, products]);
+
+  const suggestions = useMemo(() => {
+    const inStock = products.filter((p) => p.in_stock);
+    const count = (test) => inStock.filter(test).length;
+
+    const byCategory = categories
+      .map((c) => ({ kind: "category", id: c.id, label: c.name, count: count((p) => p.category_id === c.id) }))
+      .filter((s) => s.count > 0);
+
+    const fabrics = [...new Set(inStock.map((p) => p.fabric).filter(Boolean))]
+      .map((name) => ({ kind: "fabric", id: name, label: name, count: count((p) => p.fabric === name) }));
+
+    return [...byCategory, ...fabrics].sort((a, b) => b.count - a.count).slice(0, 6);
+  }, [products, categories]);
+
+  const pick = (suggestion) => {
+    onChange();
+    if (suggestion.kind === "category") {
+      browseCategory(suggestion.id);
+    } else {
+      clearFilters();
+      browseFabric(suggestion.id);
+    }
+  };
+
+  return (
+    <div className="sb-enter mt-5 rounded-2xl border border-dashed border-sb-gold/50 bg-sb-surface/25 px-6 py-12 text-center">
+      <p className="font-display text-2xl font-semibold text-sb-heading">
+        {query ? <>Nothing for “{query}” yet</> : "Nothing matches that yet"}
+      </p>
+
+      {correction ? (
+        <p className="mt-3 text-sm text-sb-text">
+          Did you mean{" "}
+          <button
+            type="button"
+            onClick={() => {
+              setQuery(correction);
+              onChange();
+            }}
+            className="font-semibold text-sb-link underline underline-offset-4 hover:text-sb-heading"
+          >
+            {correction}
+          </button>
+          ?
+        </p>
+      ) : (
+        <p className="mt-2 text-sm text-sb-text-muted">
+          Try one of these, or clear the filters to see the whole shop.
+        </p>
+      )}
+
+      {suggestions.length ? (
+        <div className="mt-5 flex flex-wrap justify-center gap-2">
+          {suggestions.map((suggestion) => (
+            <button
+              key={`${suggestion.kind}-${suggestion.id}`}
+              type="button"
+              onClick={() => pick(suggestion)}
+              className="rounded-full border border-sb-gold/50 bg-white/70 px-4 py-2 text-sm font-medium text-sb-text transition-colors hover:border-sb-link hover:text-sb-link"
+            >
+              {suggestion.label}
+              <span className="ml-1.5 text-xs text-sb-text-muted tabular">{suggestion.count}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      <button
+        type="button"
+        onClick={() => {
+          clearFilters();
+          onChange();
+        }}
+        className="mt-6 rounded-full bg-sb-btn-primary px-7 py-3 text-sm font-semibold text-sb-bg hover:bg-sb-btn-rose"
+      >
+        {query ? "Clear search and filters" : "Clear filters"}
+      </button>
+    </div>
   );
 }
 
