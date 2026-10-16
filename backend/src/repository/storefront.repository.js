@@ -89,6 +89,7 @@ const PRODUCT_CATEGORY_VISIBLE = `
 const PRODUCTS_SQL = `
   SELECT
     p.id,
+    p.slug,
     p.name,
     p.current_price,
     p.base_price,
@@ -383,6 +384,7 @@ const BANNERS_SQL = `
     b.image,
     b.product_id,
     p.name   AS product_name,
+    p.slug   AS product_slug,
     p.active AS product_active
   FROM banners b
   LEFT JOIN products p
@@ -423,6 +425,7 @@ const CUSTOMER_STORIES_SQL = `
     cs.image,
     cs.product_id,
     p.name   AS product_name,
+    p.slug   AS product_slug,
     p.active AS product_active
   FROM customer_stories cs
   LEFT JOIN products p

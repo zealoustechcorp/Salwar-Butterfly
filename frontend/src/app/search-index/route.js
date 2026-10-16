@@ -24,6 +24,7 @@ export async function GET() {
     return Response.json(
       products.map((p) => ({
         id: p.id,
+        slug: p.slug,
         name: p.name,
         price: p.price,
         mrp: p.mrp ?? null,

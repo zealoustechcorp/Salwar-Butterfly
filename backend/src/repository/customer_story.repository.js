@@ -40,6 +40,7 @@ const COLUMNS = `
   cs.created_at,
   cs.updated_at,
   p.name   AS product_name,
+  p.slug   AS product_slug,
   p.active AS product_active
 `;
 

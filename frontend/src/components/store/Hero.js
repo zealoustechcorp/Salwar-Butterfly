@@ -4,6 +4,7 @@ import { ArrowRight, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { productPath } from "@/lib/store/links";
 import { CarouselDots, CarouselEdge, useCarousel } from "./Carousel";
 import { GarmentArt } from "./GarmentArt";
 import { MediaFrame } from "./MediaFrame";
@@ -363,7 +364,7 @@ function Slide({ slide, reachable, priority, onFail }) {
 
   return (
     <Link
-      href={`/product/${slide.product.id}`}
+      href={productPath(slide.product)}
       aria-label={`Shop ${slide.product.name}`}
       tabIndex={reachable ? undefined : -1}
       draggable={false}

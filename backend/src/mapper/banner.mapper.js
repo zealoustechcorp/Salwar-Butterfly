@@ -94,7 +94,11 @@ export const BannerMapper = {
     return {
       image: row.image,
       product: linkable
-        ? { id: row.product_id, name: cleaned(row.product_name) }
+        ? {
+            id: row.product_id,
+            slug: row.product_slug ?? null,
+            name: cleaned(row.product_name),
+          }
         : null,
     };
   },

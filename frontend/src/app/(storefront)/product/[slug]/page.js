@@ -1,0 +1,223 @@
+import { ChevronRight } from "lucide-react";
+import Link from "next/link";
+import { notFound, permanentRedirect } from "next/navigation";
+
+import { PolicySection } from "@/components/store/HomeSections";
+import { ProductCard } from "@/components/store/ProductCard";
+import { ProductDetail } from "@/components/store/ProductDetail";
+import { ProductReviews } from "@/components/store/ProductReviews";
+import { money } from "@/lib/format";
+import { SITE_URL } from "@/lib/site";
+import {
+  getProductSlugs,
+  getRelatedProducts,
+  getShop,
+  getStorefrontProduct,
+  getStorefrontProductBySlug,
+} from "@/lib/store/catalogue";
+import { productPath } from "@/lib/store/links";
+import { getProductReviews } from "@/lib/store/reviews";
+
+/**
+ * A single piece (F-06 Product Browsing) — where a card on the home page, the
+ * shop or the wishlist leads.
+ *
+ * Every piece is prerendered at build time, so opening a product is a static
+ * document with no spinner, and each one revalidates on the same minute the
+ * rest of the storefront does. Pages are addressed by the product's slug; a
+ * slug that is not in the catalogue 404s rather than rendering an empty frame.
+ *
+ * Pages used to be addressed by the product's UUID, and those links are still
+ * shared and indexed, so a segment that is no product's slug but is a
+ * product's id permanently redirects to that product's slug URL.
+ *
+ * The build asks the API for the slug list. If it cannot reach it, the build
+ * still succeeds and every product page renders on first request instead —
+ * `dynamicParams` is on by default, so an empty list here means "prerender
+ * none of them", not "these are the only ones that exist". A backend that is
+ * down should cost a cold first visit, not a failed deploy.
+ */
+export async function generateStaticParams() {
+  try {
+    return (await getProductSlugs()).map((slug) => ({ slug }));
+  } catch (error) {
+    console.warn(
+      `[product] could not prerender product pages: ${error.message}`,
+    );
+
+    return [];
+  }
+}
+
+/**
+ * The product a slug segment names. A segment that is instead an old UUID
+ * link is redirected to the slug URL (308) — this runs in generateMetadata
+ * as well as the page, and whichever reaches it first issues the redirect.
+ */
+async function productFor(params) {
+  const { slug } = await params;
+
+  const product = await getStorefrontProductBySlug(slug);
+  if (product) return product;
+
+  const legacy = await getStorefrontProduct(slug);
+  if (legacy?.slug) permanentRedirect(productPath(legacy));
+
+  return null;
+}
+
+export async function generateMetadata({ params }) {
+  const product = await productFor(params);
+
+  if (!product) return { title: "Piece not found" };
+
+  const price = product.mrp
+    ? `${money(product.price)} (was ${money(product.mrp)}, ${product.off}% off)`
+    : money(product.price);
+
+  const description = [
+    `${product.name} — ${product.fabric ? `${product.fabric}, ` : ""}${product.category_name.toLowerCase()} from Salwar Butterfly.`,
+    `${price}.`,
+    product.available_sizes.length
+      ? `Sizes ${product.available_sizes.join(", ")} in stock.`
+      : "This run has sold out.",
+    "Free shipping all over India.",
+  ].join(" ");
+
+  // Everything below is what a shared link unfurls into (see <ShareButton>):
+  // WhatsApp, Instagram and Facebook read `og:*`, X reads `twitter:*`. The
+  // URLs are relative and resolved against `metadataBase` in the root layout.
+  //
+  // The image is a resized copy from ./share-image, not the photo itself:
+  // the uploads are 500–800 KB and WhatsApp drops anything over ~300 KB,
+  // which is why shared links used to unfurl without a picture. Width,
+  // height and type are stated so a crawler can lay the card out without
+  // downloading it first.
+  const url = productPath(product);
+  const images = product.image
+    ? [
+        {
+          url: `${url}/share-image`,
+          secureUrl: `${SITE_URL}${url}/share-image`,
+          width: 1200,
+          height: 630,
+          type: "image/jpeg",
+          alt: product.name,
+        },
+      ]
+    : undefined;
+
+  return {
+    title: product.name,
+    description,
+    alternates: { canonical: url },
+    openGraph: {
+      title: `${product.name} · ${money(product.price)}`,
+      description,
+      url,
+      siteName: "Salwar Butterfly",
+      type: "website",
+      locale: "en_IN",
+      images,
+    },
+    twitter: {
+      card: product.image ? "summary_large_image" : "summary",
+      title: `${product.name} · ${money(product.price)}`,
+      description,
+      images,
+    },
+    other: {
+      "product:price:amount": String(product.price),
+      "product:price:currency": "INR",
+      "product:availability": product.in_stock ? "in stock" : "out of stock",
+    },
+  };
+}
+
+export default async function ProductPage({ params }) {
+  const product = await productFor(params);
+
+  if (!product) notFound();
+
+  // Fetched alongside the related pieces rather than after them: two
+  // independent reads, and awaiting them in sequence would add a round
+  // trip to a page that is prerendered anyway.
+  const [related, reviews] = await Promise.all([
+    getRelatedProducts(product),
+    getProductReviews(product.id),
+  ]);
+
+  const shop = getShop();
+
+  return (
+    <>
+      <Breadcrumb product={product} />
+
+      <ProductDetail product={product} shop={shop} />
+
+      {/* F-06.08. Renders nothing at all when the piece has no reviews,
+          and nothing when the read failed — the page is about the
+          garment, and a review section is not worth 500ing over. */}
+      {reviews ? (
+        <ProductReviews rating={reviews.rating} reviews={reviews.reviews} />
+      ) : null}
+
+      {related.length ? (
+        <section className="mx-auto max-w-7xl px-4 py-9 sm:px-6 sm:py-11 lg:px-8 lg:py-13">
+          <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
+            <div>
+              <p className="sb-eyebrow text-[10px] text-sb-gold-text">Nearby On The Shelf</p>
+              <h2 className="mt-2 font-display text-3xl font-semibold text-sb-heading sm:text-4xl">
+                More from {product.category_name.toLowerCase()}
+              </h2>
+            </div>
+            <Link
+              href={`/shop?category=${product.category_id}`}
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-sb-link underline underline-offset-4 hover:text-sb-heading"
+            >
+              See the whole collection
+              <ChevronRight className="size-4" aria-hidden="true" />
+            </Link>
+          </div>
+
+          <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 sm:gap-x-5 lg:grid-cols-4 lg:gap-x-6">
+            {related.map((item) => (
+              <ProductCard key={item.id} product={item} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <PolicySection />
+    </>
+  );
+}
+
+function Breadcrumb({ product }) {
+  const trail = [
+    { label: "Home", href: "/" },
+    { label: "Shop", href: "/shop" },
+    { label: product.category_name, href: `/shop?category=${product.category_id}` },
+  ];
+
+  return (
+    <nav
+      aria-label="Breadcrumb"
+      className="mx-auto max-w-7xl px-4 pt-5 text-xs text-sb-text-muted sm:px-6 lg:px-8"
+    >
+      <ol className="sb-no-scrollbar flex items-center gap-1.5 overflow-x-auto whitespace-nowrap">
+        {trail.map((crumb) => (
+          <li key={crumb.href} className="flex items-center gap-1.5">
+            <Link href={crumb.href} className="hover:text-sb-link hover:underline">
+              {crumb.label}
+            </Link>
+            <ChevronRight className="size-3.5 shrink-0" aria-hidden="true" />
+          </li>
+        ))}
+        <li aria-current="page" className="font-semibold text-sb-text">
+          {product.name}
+        </li>
+      </ol>
+    </nav>
+  );
+}

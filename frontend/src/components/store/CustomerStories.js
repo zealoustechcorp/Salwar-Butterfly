@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { productPath } from "@/lib/store/links";
 import { MediaFrame } from "./MediaFrame";
 import { Butterfly } from "./Ornaments";
 
@@ -272,7 +273,7 @@ function StoryCard({ story, index, hiddenClass }) {
   return (
     <li className={`mb-4 break-inside-avoid sm:mb-5 ${hiddenClass}`}>
       {product ? (
-        <Link href={`/product/${product.id}`} className="group block">
+        <Link href={productPath(product)} className="group block">
           {card}
         </Link>
       ) : (

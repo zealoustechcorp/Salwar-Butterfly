@@ -80,7 +80,11 @@ export const CustomerStoryMapper = {
       body: cleaned(row.body),
       image: row.image ?? null,
       product: linkable
-        ? { id: row.product_id, name: cleaned(row.product_name) }
+        ? {
+            id: row.product_id,
+            slug: row.product_slug ?? null,
+            name: cleaned(row.product_name),
+          }
         : null,
     };
   },

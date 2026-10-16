@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { money, shortDate } from "@/lib/format";
+import { productPath } from "@/lib/store/links";
 import { MAX_LINE_QTY, availabilityNotice, orderableQty } from "@/lib/stock";
 import { lineKey, sizesInColour, soldByColour } from "@/lib/store/variants";
 import { cn } from "@/lib/utils";
@@ -443,7 +444,7 @@ export function ProductDetail({ product, shop }) {
  * What is shared is the product's own URL. The preview the other person sees
  * (photograph, name, price, sizes in stock) is not built here: it is the
  * page's Open Graph metadata, which WhatsApp, Instagram and the rest read
- * from that URL. See `generateMetadata` in app/(storefront)/product/[id].
+ * from that URL. See `generateMetadata` in app/(storefront)/product/[slug].
  *
  * The phone's own share sheet where there is one; elsewhere — most desktop
  * browsers — the link is copied instead, and the toast says so.
@@ -452,7 +453,7 @@ function ShareButton({ product }) {
   const toast = useStoreToast();
 
   const share = async () => {
-    const url = `${window.location.origin}/product/${encodeURIComponent(product.id)}`;
+    const url = `${window.location.origin}${productPath(product)}`;
     const price = product.mrp
       ? `${money(product.price)} (${product.off}% off)`
       : money(product.price);

@@ -17,6 +17,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { money } from "@/lib/format";
+import { productPath } from "@/lib/store/links";
 import {
   buildVocabulary,
   clearRecent,
@@ -372,7 +373,7 @@ function SearchField({ className, autoFocus = false, onSubmit, hints = NO_HINTS 
       if (typed) pushRecent({ label: typed, href });
       router.push(href);
     } else if (row.kind === "piece") {
-      router.push(`/product/${encodeURIComponent(row.product.id)}`);
+      router.push(productPath(row.product));
     } else {
       // The filter replaces the text: leaving "silk" in the box as well
       // would narrow the grid twice over.
