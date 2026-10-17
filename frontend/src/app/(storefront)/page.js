@@ -3,7 +3,7 @@ import { CustomerStories } from "@/components/store/CustomerStories";
 import { Hero } from "@/components/store/Hero";
 import { PolicySection, StorySection, TrustBar } from "@/components/store/HomeSections";
 import { ProductShowcase } from "@/components/store/ProductShowcase";
-import { FabricStrip, FollowSection, OfferBanner } from "@/components/store/Promos";
+import { FabricStrip, FollowSection } from "@/components/store/Promos";
 import { getBanners } from "@/lib/store/banners";
 import { getHomePageData } from "@/lib/store/catalogue";
 import { getCustomerStories } from "@/lib/store/customerStories";
@@ -31,7 +31,6 @@ export default async function StorefrontHome() {
       products,
       categories,
       fabrics,
-      offerCount,
     },
     banners,
     stories,
@@ -60,12 +59,11 @@ export default async function StorefrontHome() {
       <CategoryGrid categories={categories} />
       <FabricStrip fabrics={fabrics} />
       <ProductShowcase products={products} categories={categories} />
-      {/* After the products and before the offer band: social proof lands
+      {/* After the products and before the brand story: social proof lands
           best once a visitor has seen what is being sold and before they
           are asked to act on it. Renders nothing when the shop has
           published no stories. */}
       <CustomerStories stories={stories} />
-      <OfferBanner offerCount={offerCount} />
       <StorySection />
       <PolicySection />
       <FollowSection shop={shop} />

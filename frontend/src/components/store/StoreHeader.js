@@ -41,7 +41,7 @@ import { useStore } from "./StoreProvider";
  * no shop grid on the page to scroll to. `/shop` reads these query strings back
  * out through <ShopFilterSync>.
  *
- * "Almost Gone" is deliberately not here any more. It is one of four rails on
+ * "Almost Gone" is deliberately not here any more. It is one of three rails on
  * the grid itself, and giving one of them a place in the header promised a
  * section of the shop rather than a sort order — the whole shelf is the thing
  * worth linking to, which is what <ShopButton> below does. The rail has not
@@ -50,7 +50,6 @@ import { useStore } from "./StoreProvider";
  */
 const NAV = [
   { id: "new", label: "New In", href: "/shop?tab=new" },
-  { id: "offers", label: "Offers", href: "/shop?tab=offers" },
   // The story lives on the home page; the absolute path keeps the anchor
   // working from the other routes as well.
   { id: "story", label: "Our Story", href: "/#story" },
@@ -59,8 +58,8 @@ const NAV = [
 /**
  * The way into the whole shop, as the header's one solid button.
  *
- * A button rather than a fourth text link, because it is not a peer of the
- * others: "New In" and "Offers" each open on a slice, and this opens on
+ * A button rather than a third text link, because it is not a peer of the
+ * others: "New In" opens on a slice, and this opens on
  * everything with the rail's filters in front of it. It is a real <Link>
  * underneath, so it keeps middle-click, open-in-new-tab and prefetch — a
  * `<button>` with a `router.push` would look identical and quietly lose all

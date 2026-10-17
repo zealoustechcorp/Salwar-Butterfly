@@ -12,7 +12,6 @@ const SECTIONS = [
     links: [
       { label: "New arrivals", href: "/shop?tab=new" },
       { label: "All collections", href: "/#categories" },
-      { label: "On offer", href: "/shop?tab=offers" },
       { label: "Almost gone", href: "/shop?tab=almost-gone" },
       { label: "Our story", href: "/#story" },
     ],

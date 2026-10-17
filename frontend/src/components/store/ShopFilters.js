@@ -186,9 +186,9 @@ function FilterPanel({ scope, products, categories, fabrics, fits, sizes }) {
   const anyRated = useMemo(() => products.some((p) => p.rating?.count > 0), [products]);
 
   const counts = useMemo(() => {
-    // The rail's own tab still applies: "On Offer" is a filter as much as a
-    // sort, and a count that ignored it would promise discounted pieces that
-    // are not.
+    // The rail's own tab still applies: "Almost Gone" is a filter as much as
+    // a sort, and a count that ignored it would promise pieces that are not
+    // on that shelf.
     const without = (dimension) =>
       applyRail(filterProducts(products, filters, { except: dimension }), tab);
     const tally = (rows, choice) => filterProducts(rows, choice).length;

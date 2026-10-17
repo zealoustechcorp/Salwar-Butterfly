@@ -1,73 +1,8 @@
 "use client";
 
-import { ArrowRight } from "lucide-react";
-
 import { cn } from "@/lib/utils";
 import { Butterfly, InstagramGlyph, WhatsAppGlyph } from "./Ornaments";
 import { useBrowse } from "./BrowseProvider";
-
-/**
- * Dusty-pink band. Text on this fill must be sb-ink-on-pink — 7.34:1 AAA.
- *
- * The headline used to read "Up to {topDiscount}% off", which was true but
- * tied the shop's loudest line to one number that moves on its own: the day
- * the deepest cut is 5% it reads as an apology, and the day nothing is
- * discounted it reads "Up to 0% off". So the percentage is gone and the claim
- * is the one thing that is always true here — the runs are short. The count
- * underneath still carries the specifics, and it cannot overstate itself
- * because it is counted from the same rows the button opens on.
- *
- * Both lines answer to an empty offer list rather than asserting into it. A
- * banner that promises offers and opens on an empty grid is worse than one
- * that talks about the shelf instead, and a shop this size sells out of its
- * discounted runs often enough for that to be a real afternoon.
- */
-export function OfferBanner({ offerCount }) {
-  const { setTab, focusShop } = useBrowse();
-
-  const hasOffers = offerCount > 0;
-
-  return (
-    <section className="px-4 sm:px-6 lg:px-8">
-      <div className="relative mx-auto max-w-7xl overflow-hidden rounded-3xl bg-sb-surface-pink px-5 py-9 sm:px-10 sm:py-11 lg:py-12">
-        <Butterfly
-          className="absolute -top-6 -right-4 size-28 text-sb-maroon-deco opacity-20 sm:size-40"
-          strokeWidth={0.9}
-        />
-        <Butterfly
-          className="absolute -bottom-8 left-4 hidden size-28 text-sb-maroon-deco opacity-15 sm:block"
-          strokeWidth={1}
-        />
-
-        <div className="relative max-w-2xl">
-          <p className="sb-eyebrow text-[10px] text-sb-ink-on-pink/80">Live prices · Limited runs</p>
-          <h2 className="mt-2.5 font-display text-3xl leading-tight font-semibold text-sb-ink-on-pink sm:text-4xl lg:text-5xl">
-            {hasOffers ? "Offers on now, while the run lasts" : "Short runs, while they last"}
-          </h2>
-          <p className="mt-3 max-w-lg text-sm leading-relaxed text-sb-ink-on-pink/85">
-            {hasOffers
-              ? offerCount === 1
-                ? "One piece is marked below its original price right now."
-                : `${offerCount} pieces are marked below their original price right now.`
-              : "Everything is at its full price today."}{" "}
-            Every run is limited — when a size sells out it does not come back.
-          </p>
-          <button
-            type="button"
-            onClick={() => {
-              setTab(hasOffers ? "offers" : "new");
-              focusShop();
-            }}
-            className="mt-6 inline-flex items-center gap-2 rounded-full bg-sb-btn-primary px-6 py-3 text-sm font-semibold text-sb-bg transition-colors hover:bg-sb-footer sm:px-7 sm:py-3.5"
-          >
-            {hasOffers ? "See everything on offer" : "See the whole shop"}
-            <ArrowRight className="size-4" aria-hidden="true" />
-          </button>
-        </div>
-      </div>
-    </section>
-  );
-}
 
 export function FabricStrip({ fabrics }) {
   // `chosen` is the shopper's picks, `fabrics` is what the shop stocks. The

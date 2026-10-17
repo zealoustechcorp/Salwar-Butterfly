@@ -36,11 +36,10 @@ const ROTATE_MS = 5000;
  *     level-one heading is a page assistive tech cannot summarise and search
  *     engines read as untitled, and the banner set cannot stand in for it
  *     because every slide is deliberately `alt=""`.
- *   - **The two shop buttons were the only direct entry** to the catalogue's
- *     "new" and "offers" tabs from this fold. Browsing still reaches both
- *     through <ProductShowcase> further down, and the offers band still
- *     carries the discount, so nothing is unreachable — it is just further
- *     away. That is why `topDiscount` is no longer a prop here.
+ *   - **The two shop buttons were the only direct entry** to the catalogue
+ *     from this fold. Browsing still reaches it through <ProductShowcase>
+ *     further down, so nothing is unreachable — it is just further away.
+ *     That is why `topDiscount` is no longer a prop here.
  *   - **The rating (F-06.08) no longer appears on the home page at all.** It
  *     is still computed and still shown on a product, but the shop's overall
  *     score has no other place in this page, so `rating` stopped being passed

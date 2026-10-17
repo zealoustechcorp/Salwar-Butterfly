@@ -16,7 +16,6 @@ const PAGE = 12;
 
 const BLURB = {
   new: "The most recently added pieces, newest first.",
-  offers: "Everything currently below its original price.",
   lowest: "The whole shelf, cheapest first.",
   "almost-gone": "Only a few of each left — these runs are ending.",
 };
@@ -53,7 +52,7 @@ export function ProductShowcase({ products, categories, withSidebar = false, fil
   /**
    * Sideways across the grid moves to the next rail.
    *
-   * The four tabs are one strip of shelves, and on a phone the strip is wider
+   * The three tabs are one strip of shelves, and on a phone the strip is wider
    * than the screen — a shopper reading "Almost Gone" has had to scroll the
    * chips sideways to find it, which is the gesture this makes work on the
    * products themselves. Touch only: a mouse has the chips in full view, and a
@@ -288,7 +287,7 @@ function NoResults({ products, categories, onChange }) {
 }
 
 /**
- * The four rails, as chips.
+ * The three rails, as chips.
  *
  * The strip is wider than a phone, so the chip that is now active is scrolled
  * back into view whenever the tab changes. That matters because the tab can

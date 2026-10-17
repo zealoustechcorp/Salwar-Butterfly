@@ -211,7 +211,7 @@ Addresses are managed on `/account` and offered at checkout.
 
 | ID | Scenario | Steps | Expected result | Pri | Result |
 |---|---|---|---|---|---|
-| HOME-01 | Page loads | Open `/`. | Sections appear in order: banner carousel, trust bar, categories, fabric strip, product tabs, customer stories, offer banner, story, policies, follow us. | H | |
+| HOME-01 | Page loads | Open `/`. | Sections appear in order: banner carousel, trust bar, categories, fabric strip, product tabs, customer stories, story, policies, follow us. | H | |
 | HOME-02 | Banner carousel rotation | Watch the carousel. | Slides change every 5 seconds. Only active banners appear, in the order set by the admin. | H | |
 | HOME-03 | Banner links | Click a banner linked to an active product. | Opens that product page. A banner with no product, or a product that is inactive, is shown but not clickable. | M | |
 | HOME-04 | Reduced motion | Turn on "reduce motion" in OS settings, reload. | Carousel does not auto-rotate. | L | |
@@ -234,7 +234,7 @@ Open `/shop`. The same product section also appears on the home page.
 | ID | Scenario | Steps | Expected result | Pri | Result |
 |---|---|---|---|---|---|
 | SHOP-01 | Default tab | Open `/shop`. | "New In" tab is selected; newest products first. Count "N pieces" shown. | H | |
-| SHOP-02 | On Offer tab | Click "On Offer". | Only discounted products, highest discount % first. | H | |
+| SHOP-02 | No On Offer tab | Look at the tabs. Open `/shop?tab=offers`. | Only New In, Lowest Price and Almost Gone. The old offers URL opens on New In. | M | |
 | SHOP-03 | Lowest Price tab | Click "Lowest Price". | Products sorted from cheapest to most expensive. | H | |
 | SHOP-04 | Almost Gone tab | Click "Almost Gone". | Only in-stock products with fewer than 20 pieces, lowest stock first. | M | |
 | SHOP-05 | Swipe between tabs (phone) | On a phone, swipe left/right on the grid. | Tab changes. Does not wrap from last to first. | L | |
@@ -253,7 +253,7 @@ Open `/shop`. The same product section also appears on the home page.
 | SHOP-18 | Search by colour | Search a colour name used by P2. | P2 is found. | L | |
 | SHOP-19 | Load more | With more than 12 results, click "Show 12 more". | 12 more products load. Button shows the remaining count when fewer than 12 are left. | H | |
 | SHOP-20 | Count resets | Load more, then change a filter. | Back to the first 12 results. | L | |
-| SHOP-21 | URL filters | Open `/shop?tab=offers&size=M&q=cotton`. | On Offer tab, size M and search "cotton" are applied. | M | |
+| SHOP-21 | URL filters | Open `/shop?tab=lowest&size=M&q=cotton`. | Lowest Price tab, size M and search "cotton" are applied. | M | |
 | SHOP-22 | Bad URL filter values | Open `/shop?tab=xyz&category=nonsense`. | Ignored: New In tab, all categories. No error. | L | |
 | SHOP-23 | Product card badges | Look at cards. | "X% off" on discounted items, "Sold out" on sold-out items, "Only N left — order fast!" when 1–19 pieces left. | H | |
 | SHOP-24 | Hover second photo | Hover a card with 2+ photos (desktop). | Shows the second photo. | L | |
