@@ -65,7 +65,7 @@ const FEATURES = [
     ],
   },
   // What the shop puts on the storefront's front page, as opposed to what it
-  // sells. Nested because the two screens under it edit the same page and
+  // sells. Nested because the screens under it edit the same page and
   // are reached on the same errand.
   {
     label: "Home page",
@@ -73,6 +73,7 @@ const FEATURES = [
     href: "/admin/home",
     children: [
       { href: "/admin/home/carousel", label: "Carousel" },
+      { href: "/admin/home/sections", label: "Sections" },
       { href: "/admin/home/stories", label: "Customer stories" },
     ],
   },

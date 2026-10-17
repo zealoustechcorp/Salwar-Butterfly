@@ -1,36 +1,27 @@
-"use client";
+import Link from "next/link";
 
-import { cn } from "@/lib/utils";
 import { Butterfly, InstagramGlyph, WhatsAppGlyph } from "./Ornaments";
-import { useBrowse } from "./BrowseProvider";
 
+/**
+ * Each chip opens `/shop?fabric=<name>` (read back by <ShopFilterSync>). It
+ * used to filter the home page's own shop grid and scroll to it; the home
+ * page is shelves now and has no grid to scroll to.
+ */
 export function FabricStrip({ fabrics }) {
-  // `chosen` is the shopper's picks, `fabrics` is what the shop stocks. The
-  // picks are a list, not one value: the chips add up the same way the shop
-  // page's sidebar checkboxes do, because they are the same state.
-  const { fabrics: chosen, browseFabric } = useBrowse();
-
   return (
     <section className="mx-auto max-w-7xl px-4 pb-1 sm:px-6 lg:px-8">
       <div className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-2xl border border-sb-gold/35 bg-sb-bg px-4 py-4 sm:px-5">
         <p className="sb-eyebrow shrink-0 text-[10px] text-sb-gold-text">Shop by fabric &amp; print</p>
         <div className="sb-no-scrollbar flex flex-1 gap-2 overflow-x-auto">
           {fabrics.map((item) => (
-            <button
+            <Link
               key={item.name}
-              type="button"
-              onClick={() => browseFabric(item.name)}
-              aria-pressed={chosen.includes(item.name)}
-              className={cn(
-                "shrink-0 rounded-full border px-4 py-2 text-sm font-medium transition-colors",
-                chosen.includes(item.name)
-                  ? "border-sb-heading bg-sb-heading text-sb-bg"
-                  : "border-sb-gold/45 text-sb-text hover:border-sb-heading hover:bg-sb-surface/50",
-              )}
+              href={`/shop?fabric=${encodeURIComponent(item.name)}`}
+              className="shrink-0 rounded-full border border-sb-gold/45 px-4 py-2 text-sm font-medium text-sb-text transition-colors hover:border-sb-heading hover:bg-sb-surface/50"
             >
               {item.name}
               <span className="ml-1.5 text-xs opacity-60 tabular">{item.count}</span>
-            </button>
+            </Link>
           ))}
         </div>
       </div>

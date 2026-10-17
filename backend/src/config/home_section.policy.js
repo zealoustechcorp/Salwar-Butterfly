@@ -34,3 +34,15 @@ export const MAX_SECTIONS = 30;
  * page behind "View all".
  */
 export const MAX_PRODUCTS_PER_SECTION = 40;
+
+/** How a shelf is drawn — chk_home_sections_layout. */
+export const LAYOUTS = ["festival", "cards", "editorial"];
+
+/** The festival band's colour presets — chk_home_sections_theme. */
+export const THEMES = [
+  "maroon-gold",
+  "turmeric-leaf",
+  "emerald",
+  "saffron-navy",
+  "ink-blush",
+];

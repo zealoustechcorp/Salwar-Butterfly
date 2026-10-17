@@ -10,6 +10,8 @@
 
 import { ApiError } from "../utils/ApiError.js";
 import {
+  LAYOUTS,
+  THEMES,
   MAX_PRODUCTS_PER_SECTION,
   MAX_SLUG_LENGTH,
   MAX_SUBTITLE_LENGTH,
@@ -59,7 +61,8 @@ export const validateSectionIdParam = (req, res, next) => {
 /**
  * A shelf as create and update both send it — a full replace:
  *
- *   { title, subtitle?, slug?, startsAt?, endsAt?, active?, productIds }
+ *   { title, subtitle?, slug?, startsAt?, endsAt?, active?, layout?,
+ *     theme?, productIds }
  *
  * `active` defaults to true, so a shelf saved without touching the switch
  * goes live (inside its window). `productIds` is the whole ordered list;
@@ -143,6 +146,20 @@ export const validateSectionBody = (req, res, next) => {
     errors.active = "Active must be true or false";
   }
 
+  // --- layout and theme -----------------------------------------------------
+
+  if (blank(body.layout)) {
+    body.layout = "cards";
+  } else if (!LAYOUTS.includes(body.layout)) {
+    errors.layout = `Layout must be one of: ${LAYOUTS.join(", ")}`;
+  }
+
+  if (blank(body.theme)) {
+    body.theme = THEMES[0];
+  } else if (!THEMES.includes(body.theme)) {
+    errors.theme = `Theme must be one of: ${THEMES.join(", ")}`;
+  }
+
   // --- productIds -----------------------------------------------------------
 
   const ids = body.productIds ?? [];
@@ -184,6 +201,8 @@ export const validateSectionBody = (req, res, next) => {
     startsAt: body.startsAt,
     endsAt: body.endsAt,
     active: body.active,
+    layout: body.layout,
+    theme: body.theme,
     productIds: body.productIds,
   };
 

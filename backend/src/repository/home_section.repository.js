@@ -41,6 +41,8 @@ const COLUMNS = `
   s.ends_at,
   s.position,
   s.active,
+  s.layout,
+  s.theme,
   s.created_at,
   s.updated_at,
   (
@@ -151,10 +153,11 @@ export const HomeSectionRepository = {
     return withTransaction(async (client) => {
       const result = await client.query(
         `INSERT INTO home_sections (
-           title, subtitle, slug, starts_at, ends_at, active, position
+           title, subtitle, slug, starts_at, ends_at, active, layout, theme,
+           position
          )
          VALUES (
-           $1, $2, $3, $4::timestamptz, $5::timestamptz, $6,
+           $1, $2, $3, $4::timestamptz, $5::timestamptz, $6, $7, $8,
            (SELECT COALESCE(MAX(position), 0) + 1 FROM home_sections)
          )
          RETURNING id`,
@@ -165,6 +168,8 @@ export const HomeSectionRepository = {
           fields.startsAt,
           fields.endsAt,
           fields.active,
+          fields.layout,
+          fields.theme,
         ],
       );
 
@@ -197,6 +202,8 @@ export const HomeSectionRepository = {
              starts_at  = $5::timestamptz,
              ends_at    = $6::timestamptz,
              active     = $7,
+             layout     = $8,
+             theme      = $9,
              updated_at = NOW()
          WHERE id = $1::uuid
          RETURNING id`,
@@ -208,6 +215,8 @@ export const HomeSectionRepository = {
           fields.startsAt,
           fields.endsAt,
           fields.active,
+          fields.layout,
+          fields.theme,
         ],
       );
 

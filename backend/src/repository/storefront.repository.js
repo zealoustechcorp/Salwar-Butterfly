@@ -441,8 +441,9 @@ const CUSTOMER_STORIES_SQL = `
 // HOME SECTIONS (F-06)
 // ============================================================
 //
-// Three columns and an id list. The shelf's own id, position, active flag
-// and dates are the admin screen's business: the ORDER BY already says the
+// Six columns and an id list. The shelf's own id, position, active flag
+// and start date are the admin screen's business; the end date is here
+// because the festival layout counts down to it: the ORDER BY already says the
 // order, and the WHERE already applies the switch and the window — judged
 // on the database clock, so a Diwali shelf opens at the same instant for
 // every server.
@@ -456,6 +457,9 @@ const HOME_SECTIONS_SQL = `
     s.title,
     s.subtitle,
     s.slug,
+    s.layout,
+    s.theme,
+    s.ends_at,
     picked.product_ids
   FROM home_sections s
   CROSS JOIN LATERAL (

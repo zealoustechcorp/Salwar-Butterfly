@@ -56,6 +56,21 @@ CREATE TABLE IF NOT EXISTS home_sections (
   -- back on with its pieces still picked.
   active BOOLEAN NOT NULL DEFAULT TRUE,
 
+  -- How the shelf is drawn on the home page:
+  --   festival   a coloured band with the title, a countdown to `ends_at`
+  --              when there is one, and arch-framed pieces
+  --   cards      plain product cards with a Shop now button
+  --   editorial  the first picked piece as a large picture beside a
+  --              slider of the rest
+  -- Nothing festival-specific is built into any of them; a Diwali shelf
+  -- and a Pongal shelf differ only in their text, dates and theme.
+  layout VARCHAR(20) NOT NULL DEFAULT 'cards',
+
+  -- The colour set the festival band is drawn in. One of a few presets
+  -- rather than a free colour, so a shelf cannot clash with the brand.
+  -- Ignored by the other layouts.
+  theme VARCHAR(20) NOT NULL DEFAULT 'maroon-gold',
+
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
@@ -75,6 +90,12 @@ CREATE TABLE IF NOT EXISTS home_sections (
 
   CONSTRAINT chk_home_sections_position
     CHECK (position >= 0),
+
+  CONSTRAINT chk_home_sections_layout
+    CHECK (layout IN ('festival', 'cards', 'editorial')),
+
+  CONSTRAINT chk_home_sections_theme
+    CHECK (theme IN ('maroon-gold', 'turmeric-leaf', 'emerald', 'saffron-navy', 'ink-blush')),
 
   CONSTRAINT uq_home_sections_slug
     UNIQUE (slug)
