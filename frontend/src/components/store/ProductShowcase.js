@@ -30,8 +30,11 @@ const BLURB = {
  * margins and a fourth column would squeeze the cards. `withSidebar` is that
  * difference and nothing else — the filtering underneath is identical, and it
  * is the same filtering the rail counts with.
+ *
+ * `filterButton` is `/shop`'s small-screen filter drawer trigger, set on the
+ * piece-count line so it costs no row of its own.
  */
-export function ProductShowcase({ products, categories, withSidebar = false }) {
+export function ProductShowcase({ products, categories, withSidebar = false, filterButton = null }) {
   const { tab, setTab, filters, setQuery } = useBrowse();
   const [shown, setShown] = useState(PAGE);
 
@@ -85,13 +88,16 @@ export function ProductShowcase({ products, categories, withSidebar = false }) {
         withSidebar ? "" : "mx-auto max-w-7xl px-4 py-9 sm:px-6 sm:py-11 lg:px-8 lg:py-13",
       )}
     >
-      <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
+      {/* On a phone the eyebrow and the blurb are dropped and the title
+          shrinks: the tab strip below already says which shelf this is, and
+          the three lines were a third of the first screen. */}
+      <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3 sm:gap-y-4">
         <div>
-          <p className="sb-eyebrow text-[10px] text-sb-gold-text">The Shop</p>
-          <h2 className="mt-2 font-display text-3xl font-semibold text-sb-heading sm:text-4xl lg:text-5xl">
+          <p className="sb-eyebrow hidden text-[10px] text-sb-gold-text sm:block">The Shop</p>
+          <h2 className="font-display text-2xl font-semibold text-sb-heading sm:mt-2 sm:text-4xl lg:text-5xl">
             {activeCategory ? activeCategory.name : "Everything in store"}
           </h2>
-          <p className="mt-2 text-sm text-sb-text-muted">{BLURB[tab]}</p>
+          <p className="mt-2 hidden text-sm text-sb-text-muted sm:block">{BLURB[tab]}</p>
         </div>
 
         <div className="relative w-full sm:w-72">
@@ -120,9 +126,12 @@ export function ProductShowcase({ products, categories, withSidebar = false }) {
         onAnyChange={() => setShown(PAGE)}
       />
 
-      <p className="mt-4 text-xs text-sb-text-muted tabular" aria-live="polite">
-        {rows.length} {rows.length === 1 ? "piece" : "pieces"}
-      </p>
+      <div className="mt-4 flex items-center justify-between gap-3">
+        <p className="text-xs text-sb-text-muted tabular" aria-live="polite">
+          {rows.length} {rows.length === 1 ? "piece" : "pieces"}
+        </p>
+        {filterButton}
+      </div>
 
       {/* The swipe area starts below the count, so the shelf itself is what
           answers a sideways drag. */}

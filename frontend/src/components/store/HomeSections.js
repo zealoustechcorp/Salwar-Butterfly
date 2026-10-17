@@ -20,31 +20,75 @@ const PROMISES = [
   {
     icon: Truck,
     title: "Fast delivery",
+    // The phone strip's label: it shows titles only, so this one carries "free".
+    short: "Free delivery",
     detail: "5–10 working days to your door, free all over India.",
   },
   {
     icon: ShieldCheck,
     title: "Secure payment",
+    short: "Secure payment",
     detail: "GPay, PhonePe, Paytm and more — online payment only.",
   },
   {
     icon: BadgeCheck,
     title: "Genuine products",
+    short: "Genuine products",
     detail: "99% best products, delivered safely.",
   },
   {
     icon: PackageCheck,
     title: "WhatsApp support",
+    short: "WhatsApp help",
     detail: "Message us for any query, before or after the order.",
     // Filled in from the shop's own contact details below.
     contact: true,
   },
 ];
 
+/**
+ * On phones the four badges with their sentences filled most of the first
+ * screen under the hero, so shoppers saw text before any product. Below `sm`
+ * they collapse to one sideways-scrolling strip of icon + short label; the
+ * WhatsApp chip links out so the number stays one tap away. From `sm` up the
+ * full grid with details is unchanged.
+ */
 export function TrustBar({ shop }) {
   return (
     <section className="border-y border-sb-gold/30 bg-sb-surface/30">
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-7 lg:px-8">
+      <ul
+        aria-label="Shop promises"
+        className="flex gap-x-4 overflow-x-auto px-4 py-2.5 whitespace-nowrap [scrollbar-width:none] sm:hidden [&::-webkit-scrollbar]:hidden"
+      >
+        {PROMISES.map(({ icon: Icon, short, contact }) => {
+          const glyph = contact ? (
+            <WhatsAppGlyph className="size-4 shrink-0 text-sb-gold-text" />
+          ) : (
+            <Icon className="size-4 shrink-0 text-sb-gold-text" aria-hidden="true" />
+          );
+          return (
+            <li key={short} className="flex shrink-0">
+              {contact && shop?.whatsapp ? (
+                <a
+                  href={shop.whatsapp}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="flex items-center gap-1.5 text-xs font-bold text-sb-link underline underline-offset-2"
+                >
+                  {glyph}
+                  {short}
+                </a>
+              ) : (
+                <span className="flex items-center gap-1.5 text-xs font-bold text-sb-text">
+                  {glyph}
+                  {short}
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      <div className="mx-auto hidden max-w-7xl px-4 py-6 sm:block sm:px-6 sm:py-7 lg:px-8">
         <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-4">
           {PROMISES.map(({ icon: Icon, title, detail, contact }) => (
             <div key={title} className="flex gap-3">

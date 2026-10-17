@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 
 import { ProductShowcase } from "@/components/store/ProductShowcase";
-import { ShopFilters } from "@/components/store/ShopFilters";
+import { ShopFilters, ShopFiltersButton } from "@/components/store/ShopFilters";
 import { ShopFilterSync } from "@/components/store/ShopFilterSync";
 import {
   getFabrics,
@@ -57,7 +57,7 @@ export default async function ShopPage() {
         />
       </Suspense>
 
-      <div className="mx-auto max-w-7xl px-4 py-9 sm:px-6 sm:py-11 lg:px-8 lg:py-13">
+      <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-11 lg:px-8 lg:py-13">
         {/* Stacked on a phone — the rail is a drawer there and its trigger is
             the first thing in the column — and side by side from `lg`, which
             is the first width where taking 15rem for the rail still leaves
@@ -74,7 +74,20 @@ export default async function ShopPage() {
           {/* `min-w-0` or the grid's widest card sets the column's width and
               pushes the rail off the page. */}
           <div className="min-w-0 flex-1">
-            <ProductShowcase products={products} categories={categories} withSidebar />
+            <ProductShowcase
+              products={products}
+              categories={categories}
+              withSidebar
+              filterButton={
+                <ShopFiltersButton
+                  products={products}
+                  categories={categories}
+                  fabrics={fabrics}
+                  fits={fits}
+                  sizes={sizes}
+                />
+              }
+            />
           </div>
         </div>
       </div>

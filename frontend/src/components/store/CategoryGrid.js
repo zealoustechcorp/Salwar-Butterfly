@@ -1,21 +1,18 @@
-"use client";
-
 import { ArrowRight } from "lucide-react";
+import Link from "next/link";
 
 import { money } from "@/lib/format";
 import { Photo } from "./Photo";
-import { useBrowse } from "./BrowseProvider";
 
 /**
  * The live shop's five categories, on its own category photography.
  *
- * Each tile filters the shop section below and scrolls to it — with no category
- * route built yet, that keeps every tile genuinely clickable instead of
- * pointing at a page that does not exist.
+ * Every category opens `/shop?category=<id>` (read back by <ShopFilterSync>)
+ * rather than filtering the home page's shop section and scrolling to it: the
+ * shop page has the filter rail and a full grid, which the home section does
+ * not, and a link survives a reload or being shared.
  */
 export function CategoryGrid({ categories }) {
-  const { browseCategory } = useBrowse();
-
   return (
     <section
       id="categories"
@@ -28,23 +25,21 @@ export function CategoryGrid({ categories }) {
             Find your silhouette
           </h2>
         </div>
-        <button
-          type="button"
-          onClick={() => browseCategory("all")}
+        <Link
+          href="/shop"
           className="inline-flex items-center gap-1.5 text-sm font-semibold text-sb-link underline underline-offset-4 hover:text-sb-heading"
         >
           Browse everything
           <ArrowRight className="size-4" aria-hidden="true" />
-        </button>
+        </Link>
       </div>
 
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5">
         {categories.map((category) => (
-          <button
+          <Link
             key={category.id}
-            type="button"
-            onClick={() => browseCategory(category.id)}
-            className="group relative overflow-hidden rounded-2xl border border-sb-gold/35 bg-sb-surface/30 text-left transition-shadow hover:shadow-lg hover:shadow-sb-maroon-deco/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sb-link"
+            href={`/shop?category=${encodeURIComponent(category.id)}`}
+            className="group relative block overflow-hidden rounded-2xl border border-sb-gold/35 bg-sb-surface/30 text-left transition-shadow hover:shadow-lg hover:shadow-sb-maroon-deco/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sb-link"
           >
             <div className="relative aspect-4/5 w-full overflow-hidden">
               <Photo
@@ -69,7 +64,7 @@ export function CategoryGrid({ categories }) {
                 <span className="text-sb-bg/60">· from {money(category.from_price)}</span>
               </p>
             </div>
-          </button>
+          </Link>
         ))}
       </div>
     </section>
