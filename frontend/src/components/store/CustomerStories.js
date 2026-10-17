@@ -88,8 +88,7 @@ export function CustomerStories({ stories = [] }) {
             Worn, and sent back to us
           </h2>
           <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-sb-text-muted">
-            Photographs and messages customers have shared with the shop, published
-            with their permission.
+            Photographs and messages customers have shared with the shop.
           </p>
         </div>
       </div>

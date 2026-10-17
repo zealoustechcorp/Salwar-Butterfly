@@ -33,15 +33,13 @@ import { money } from "@/lib/format";
  */
 export const TABS = [
   { id: "new", label: "New In" },
-  { id: "offers", label: "On Offer" },
   { id: "lowest", label: "Lowest Price" },
   { id: "almost-gone", label: "Almost Gone" },
 ];
 
-/** Sort orders behind the four tabs. Filtering happens before any of them. */
+/** Sort orders behind the three tabs. Filtering happens before any of them. */
 const RAILS = {
   new: (rows) => [...rows].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)),
-  offers: (rows) => rows.filter((p) => p.off > 0).sort((a, b) => b.off - a.off),
   lowest: (rows) => [...rows].sort((a, b) => a.price - b.price),
   "almost-gone": (rows) =>
     rows.filter((p) => p.in_stock && p.is_low_stock).sort((a, b) => a.stock - b.stock),

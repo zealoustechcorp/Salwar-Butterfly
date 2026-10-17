@@ -515,7 +515,6 @@ function compareSizes(a, b) {
 export async function getHomePageData() {
   const catalogue = await loadCatalogue();
   const products = decorateAll(catalogue);
-  const discounted = products.filter((p) => p.off > 0);
 
   return {
     shop: SHOP,
@@ -531,14 +530,6 @@ export async function getHomePageData() {
 
     categories: await getStorefrontCategories(products),
     fabrics: await getFabrics(products),
-    // The deepest cut in the shop is no longer computed here. Nothing on the
-    // page printed it except the offer banner's headline, and that headline
-    // stopped quoting a percentage: a number that swings between 30% and 5%
-    // with the stock makes the shop's loudest line loudest on its best week
-    // and apologetic on its worst. `offerCount` is the honest half of that
-    // pair — how many pieces are actually marked down — and it is the half
-    // the banner kept.
-    offerCount: discounted.length,
     entryPrice: products.length ? Math.min(...products.map((p) => p.price)) : 0,
     catalogueSize: products.length,
     sizeRange: sizeRange(products),

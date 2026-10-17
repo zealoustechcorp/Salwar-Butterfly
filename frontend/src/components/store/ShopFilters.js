@@ -28,7 +28,13 @@ import { cn } from "@/lib/utils";
 import { useBrowse } from "./BrowseProvider";
 import { Stars } from "./Stars";
 
-export function ShopFilters({ products, categories, fabrics, fits, sizes }) {
+/**
+ * The small-screen drawer and the button that opens it. Rendered by the grid on
+ * its "N pieces" line (see <ProductShowcase filterButton>) rather than as a row
+ * of its own above the title, which pushed the first products down by a
+ * button's height and a gap. Hidden from `lg`, where <ShopFilters> is a rail.
+ */
+export function ShopFiltersButton({ products, categories, fabrics, fits, sizes }) {
   const { filters, tab, activeCount, clearFilters } = useBrowse();
   const [open, setOpen] = useState(false);
 
@@ -42,63 +48,70 @@ export function ShopFilters({ products, categories, fabrics, fits, sizes }) {
   const panelProps = { products, categories, fabrics, fits, sizes };
 
   return (
-    <>
-      <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
-        <DialogPrimitive.Trigger className="flex w-full items-center justify-center gap-2 rounded-full border border-sb-heading px-5 py-3 text-sm font-semibold text-sb-heading transition-colors hover:bg-sb-surface/50 lg:hidden">
-          <ListFilter className="size-4" aria-hidden="true" />
-          Filters
-          {activeCount ? (
-            <span className="rounded-full bg-sb-heading px-2 py-0.5 text-xs text-sb-bg tabular">
-              {activeCount}
-            </span>
-          ) : null}
-        </DialogPrimitive.Trigger>
+    <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
+      <DialogPrimitive.Trigger className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-sb-heading/60 px-3 py-1 text-xs font-semibold text-sb-heading transition-colors hover:bg-sb-surface/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sb-link lg:hidden">
+        <ListFilter className="size-3.5" aria-hidden="true" />
+        Filters
+        {activeCount ? (
+          <span className="rounded-full bg-sb-heading px-1.5 text-[10px] leading-4 text-sb-bg tabular">
+            {activeCount}
+          </span>
+        ) : null}
+      </DialogPrimitive.Trigger>
 
-        <DialogPrimitive.Portal>
-          <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-sb-footer/50 backdrop-blur-[2px] lg:hidden" />
-          <DialogPrimitive.Content
-            // The panel is its own description — a paragraph above a list of
-            // checkboxes would only be read out on the way past them. Radix
-            // warns unless the omission is explicit.
-            aria-describedby={undefined}
-            className="fixed inset-y-0 right-0 z-50 flex w-[88%] max-w-sm flex-col bg-sb-bg font-body shadow-2xl shadow-sb-footer/25 lg:hidden"
-          >
-            <div className="flex items-center justify-between border-b border-sb-gold/30 px-5 py-4">
-              <DialogPrimitive.Title className="font-display text-xl font-semibold text-sb-heading">
-                Filters
-              </DialogPrimitive.Title>
-              <DialogPrimitive.Close
-                aria-label="Close filters"
-                className="rounded-full p-2 text-sb-text-muted transition-colors hover:bg-sb-surface/70 hover:text-sb-heading"
-              >
-                <X className="size-4" aria-hidden="true" />
-              </DialogPrimitive.Close>
-            </div>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-sb-footer/50 backdrop-blur-[2px] lg:hidden" />
+        <DialogPrimitive.Content
+          // The panel is its own description — a paragraph above a list of
+          // checkboxes would only be read out on the way past them. Radix
+          // warns unless the omission is explicit.
+          aria-describedby={undefined}
+          className="fixed inset-y-0 right-0 z-50 flex w-[88%] max-w-sm flex-col bg-sb-bg font-body shadow-2xl shadow-sb-footer/25 lg:hidden"
+        >
+          <div className="flex items-center justify-between border-b border-sb-gold/30 px-5 py-4">
+            <DialogPrimitive.Title className="font-display text-xl font-semibold text-sb-heading">
+              Filters
+            </DialogPrimitive.Title>
+            <DialogPrimitive.Close
+              aria-label="Close filters"
+              className="rounded-full p-2 text-sb-text-muted transition-colors hover:bg-sb-surface/70 hover:text-sb-heading"
+            >
+              <X className="size-4" aria-hidden="true" />
+            </DialogPrimitive.Close>
+          </div>
 
-            {/* The panel is long on a phone, so it scrolls between a pinned
+          {/* The panel is long on a phone, so it scrolls between a pinned
                 header and a pinned action rather than pushing them away. */}
-            <div className="sb-no-scrollbar flex-1 overflow-y-auto px-5 py-4">
-              <FilterPanel scope="drawer" {...panelProps} />
-            </div>
+          <div className="sb-no-scrollbar flex-1 overflow-y-auto px-5 py-4">
+            <FilterPanel scope="drawer" {...panelProps} />
+          </div>
 
-            <div className="flex items-center gap-3 border-t border-sb-gold/30 px-5 py-4">
-              {activeCount ? (
-                <button
-                  type="button"
-                  onClick={clearFilters}
-                  className="shrink-0 text-sm font-semibold text-sb-link underline underline-offset-4"
-                >
-                  Clear all
-                </button>
-              ) : null}
-              <DialogPrimitive.Close className="flex-1 rounded-full bg-sb-btn-primary px-5 py-3 text-sm font-semibold text-sb-bg transition-colors hover:bg-sb-btn-rose">
-                Show {shown} {shown === 1 ? "piece" : "pieces"}
-              </DialogPrimitive.Close>
-            </div>
-          </DialogPrimitive.Content>
-        </DialogPrimitive.Portal>
-      </DialogPrimitive.Root>
+          <div className="flex items-center gap-3 border-t border-sb-gold/30 px-5 py-4">
+            {activeCount ? (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="shrink-0 text-sm font-semibold text-sb-link underline underline-offset-4"
+              >
+                Clear all
+              </button>
+            ) : null}
+            <DialogPrimitive.Close className="flex-1 rounded-full bg-sb-btn-primary px-5 py-3 text-sm font-semibold text-sb-bg transition-colors hover:bg-sb-btn-rose">
+              Show {shown} {shown === 1 ? "piece" : "pieces"}
+            </DialogPrimitive.Close>
+          </div>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
+  );
+}
 
+export function ShopFilters({ products, categories, fabrics, fits, sizes }) {
+  const { activeCount, clearFilters } = useBrowse();
+  const panelProps = { products, categories, fabrics, fits, sizes };
+
+  return (
+    <>
       {/*
         The <aside> is the sticky element itself, not a wrapper around one.
         That is the whole trick: a sticky box can only travel inside its own
@@ -173,9 +186,9 @@ function FilterPanel({ scope, products, categories, fabrics, fits, sizes }) {
   const anyRated = useMemo(() => products.some((p) => p.rating?.count > 0), [products]);
 
   const counts = useMemo(() => {
-    // The rail's own tab still applies: "On Offer" is a filter as much as a
-    // sort, and a count that ignored it would promise discounted pieces that
-    // are not.
+    // The rail's own tab still applies: "Almost Gone" is a filter as much as
+    // a sort, and a count that ignored it would promise pieces that are not
+    // on that shelf.
     const without = (dimension) =>
       applyRail(filterProducts(products, filters, { except: dimension }), tab);
     const tally = (rows, choice) => filterProducts(rows, choice).length;

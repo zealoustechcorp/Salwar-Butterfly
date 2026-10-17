@@ -20,31 +20,75 @@ const PROMISES = [
   {
     icon: Truck,
     title: "Fast delivery",
+    // The phone strip's label: it shows titles only, so this one carries "free".
+    short: "Free delivery",
     detail: "5–10 working days to your door, free all over India.",
   },
   {
     icon: ShieldCheck,
     title: "Secure payment",
+    short: "Secure payment",
     detail: "GPay, PhonePe, Paytm and more — online payment only.",
   },
   {
     icon: BadgeCheck,
     title: "Genuine products",
+    short: "Genuine products",
     detail: "99% best products, delivered safely.",
   },
   {
     icon: PackageCheck,
     title: "WhatsApp support",
+    short: "WhatsApp help",
     detail: "Message us for any query, before or after the order.",
     // Filled in from the shop's own contact details below.
     contact: true,
   },
 ];
 
+/**
+ * On phones the four badges with their sentences filled most of the first
+ * screen under the hero, so shoppers saw text before any product. Below `sm`
+ * they collapse to one sideways-scrolling strip of icon + short label; the
+ * WhatsApp chip links out so the number stays one tap away. From `sm` up the
+ * full grid with details is unchanged.
+ */
 export function TrustBar({ shop }) {
   return (
     <section className="border-y border-sb-gold/30 bg-sb-surface/30">
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-7 lg:px-8">
+      <ul
+        aria-label="Shop promises"
+        className="flex gap-x-4 overflow-x-auto px-4 py-2.5 whitespace-nowrap [scrollbar-width:none] sm:hidden [&::-webkit-scrollbar]:hidden"
+      >
+        {PROMISES.map(({ icon: Icon, short, contact }) => {
+          const glyph = contact ? (
+            <WhatsAppGlyph className="size-4 shrink-0 text-sb-gold-text" />
+          ) : (
+            <Icon className="size-4 shrink-0 text-sb-gold-text" aria-hidden="true" />
+          );
+          return (
+            <li key={short} className="flex shrink-0">
+              {contact && shop?.whatsapp ? (
+                <a
+                  href={shop.whatsapp}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="flex items-center gap-1.5 text-xs font-bold text-sb-link underline underline-offset-2"
+                >
+                  {glyph}
+                  {short}
+                </a>
+              ) : (
+                <span className="flex items-center gap-1.5 text-xs font-bold text-sb-text">
+                  {glyph}
+                  {short}
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      <div className="mx-auto hidden max-w-7xl px-4 py-6 sm:block sm:px-6 sm:py-7 lg:px-8">
         <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-4">
           {PROMISES.map(({ icon: Icon, title, detail, contact }) => (
             <div key={title} className="flex gap-3">
@@ -85,7 +129,7 @@ export function TrustBar({ shop }) {
 
 export function StorySection() {
   return (
-    <section id="story" className="scroll-mt-40 bg-sb-surface/25 wide:scroll-mt-28">
+    <section id="story" className="scroll-mt-40 wide:scroll-mt-28">
       <div className="mx-auto grid max-w-7xl items-center gap-8 px-4 py-10 sm:px-6 sm:py-12 lg:grid-cols-[0.85fr_1.15fr] lg:gap-12 lg:px-8 lg:py-16">
         <div className="relative mx-auto w-full max-w-[15rem] sm:max-w-xs lg:max-w-sm">
           <div aria-hidden="true" className="absolute -inset-4 rounded-3xl border border-sb-gold/40" />
@@ -166,41 +210,40 @@ const POLICY = [
 
 export function PolicySection() {
   return (
-    <section
-      id="policy"
-      className="mx-auto max-w-7xl scroll-mt-40 px-4 py-9 sm:px-6 sm:py-11 lg:px-8 lg:py-13 wide:scroll-mt-28"
-    >
-      <div className="text-center">
-        <p className="sb-eyebrow text-[10px] text-sb-gold-text">Before You Order</p>
-        <h2 className="mt-2 font-display text-3xl font-semibold text-sb-heading sm:text-4xl lg:text-5xl">
-          Stress-free, both ways
-        </h2>
-        <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-sb-text-muted">
-          Every outfit is checked before it leaves us — and here is exactly what a return does and
-          does not cover.
+    <section id="policy" className="scroll-mt-40 bg-sb-surface/25 wide:scroll-mt-28">
+      <div className="mx-auto max-w-7xl px-4 py-9 sm:px-6 sm:py-11 lg:px-8 lg:py-13">
+        <div className="text-center">
+          <p className="sb-eyebrow text-[10px] text-sb-gold-text">Before You Order</p>
+          <h2 className="mt-2 font-display text-3xl font-semibold text-sb-heading sm:text-4xl lg:text-5xl">
+            Stress-free, both ways
+          </h2>
+          <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-sb-text-muted">
+            Every outfit is checked before it leaves us — and here is exactly what a return does and
+            does not cover.
+          </p>
+        </div>
+
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
+          {POLICY.map(({ icon: Icon, title, detail }) => (
+            <div
+              key={title}
+              className="rounded-2xl border border-sb-gold/35 bg-sb-bg p-5 sm:p-6"
+            >
+              <Icon className="size-6 text-sb-gold-text" aria-hidden="true" />
+              <p className="mt-3 font-display text-xl font-semibold text-sb-heading">{title}</p>
+              <p className="mt-2 text-sm leading-relaxed text-sb-text">{detail}</p>
+            </div>
+          ))}
+        </div>
+
+        <p className="mt-5 text-center text-sm text-sb-text-muted">
+          Returned pieces must be unused, unworn and still tagged.{" "}
+          <Link href="/returns" className="font-semibold text-sb-link underline underline-offset-4">
+            Read the full return &amp; refund policy
+          </Link>
+          .
         </p>
       </div>
-
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
-        {POLICY.map(({ icon: Icon, title, detail }) => (
-          <div
-            key={title}
-            className="rounded-2xl border border-sb-gold/35 bg-sb-bg p-5 sm:p-6"
-          >
-            <Icon className="size-6 text-sb-gold-text" aria-hidden="true" />
-            <p className="mt-3 font-display text-xl font-semibold text-sb-heading">{title}</p>
-            <p className="mt-2 text-sm leading-relaxed text-sb-text">{detail}</p>
-          </div>
-        ))}
-      </div>
-
-      <p className="mt-5 text-center text-sm text-sb-text-muted">
-        Returned pieces must be unused, unworn and still tagged.{" "}
-        <Link href="/returns" className="font-semibold text-sb-link underline underline-offset-4">
-          Read the full return &amp; refund policy
-        </Link>
-        .
-      </p>
     </section>
   );
 }

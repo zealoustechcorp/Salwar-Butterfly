@@ -423,7 +423,6 @@ export function ProductDetail({ product, shop }) {
           {[
             "Free shipping all over India, delivered in 5–10 working days.",
             "Online payment only — GPay, PhonePe, Paytm. No cash on delivery.",
-            "Returned if it arrives damaged, defective, or as the wrong piece or size.",
           ].map((line) => (
             <li key={line} className="flex gap-2.5">
               <Check className="mt-0.5 size-4 shrink-0 text-sb-gold-text" aria-hidden="true" />
