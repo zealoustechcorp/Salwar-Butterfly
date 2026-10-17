@@ -88,6 +88,28 @@ export const StorefrontController = {
   }),
 
   /**
+   * GET /api/storefront/getHomeSections
+   *
+   * The hand-picked shelves that are live right now.
+   *
+   * A minute in front of it rather than the banners' five: a festival
+   * shelf opens and closes on its dates, and a five-minute cache would
+   * show a sale that has already ended for that long.
+   */
+  getHomeSections: asyncHandler(async (req, res) => {
+    const sections = await StorefrontService.getHomeSections();
+
+    res.set("Cache-Control", "public, max-age=60, stale-while-revalidate=120");
+
+    return okResponse({
+      res,
+      data: sections,
+      message: "Home page sections fetched successfully",
+      meta: { counts: { sections: sections.sections.length } },
+    });
+  }),
+
+  /**
    * GET /api/storefront/getCustomerStories
    *
    * What customers have sent the shop, as the home page prints it.

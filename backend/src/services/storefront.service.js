@@ -22,6 +22,7 @@ import { SizeChartMapper } from "../mapper/size_chart.mapper.js";
 import { BannerMapper } from "../mapper/banner.mapper.js";
 import { CustomerStoryMapper } from "../mapper/customer_story.mapper.js";
 import { MAX_STORIES_ON_HOME } from "../config/customer_story.policy.js";
+import { HomeSectionMapper } from "../mapper/home_section.mapper.js";
 import { ApiError } from "../utils/ApiError.js";
 import { logger } from "../utils/logger.js";
 
@@ -77,6 +78,9 @@ let bannersCache = null;
 /** The customer stories, memoed on the same terms as the banners. */
 let storiesCache = null;
 
+/** The hand-picked home page shelves, memoed on the same terms. */
+let sectionsCache = null;
+
 const readCache = () => {
   if (cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.value;
   return null;
@@ -88,6 +92,7 @@ export const clearStorefrontCache = () => {
   chartsCache = null;
   bannersCache = null;
   storiesCache = null;
+  sectionsCache = null;
 };
 
 // ============================================================
@@ -271,6 +276,42 @@ export const StorefrontService = {
       });
 
       throw new ApiError(500, "Failed to load the banners");
+    }
+  },
+
+  /**
+   * The hand-picked shelves on the home page — best sellers, festival
+   * sales — that are live right now, in the shop's order.
+   *
+   * Each carries product ids rather than products: the home page already
+   * holds the catalogue and builds the cards from it, so sending the
+   * products twice would only double the payload. An empty list means no
+   * shelf is live, and the home page shows its automatic shelves alone.
+   */
+  async getHomeSections() {
+    if (sectionsCache && Date.now() - sectionsCache.at < CACHE_TTL_MS) {
+      return sectionsCache.value;
+    }
+
+    try {
+      const rows = await StorefrontRepository.homeSections();
+
+      const sections = {
+        fetched_at: new Date().toISOString(),
+        sections: HomeSectionMapper.toPublicList(rows),
+      };
+
+      sectionsCache = { at: Date.now(), value: sections };
+
+      return sections;
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+
+      logger.error("StorefrontService.getHomeSections failed", {
+        error: error?.message,
+      });
+
+      throw new ApiError(500, "Failed to load the home page sections");
     }
   },
 

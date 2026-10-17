@@ -437,7 +437,53 @@ const CUSTOMER_STORIES_SQL = `
   LIMIT $1
 `;
 
+// ============================================================
+// HOME SECTIONS (F-06)
+// ============================================================
+//
+// Three columns and an id list. The shelf's own id, position, active flag
+// and dates are the admin screen's business: the ORDER BY already says the
+// order, and the WHERE already applies the switch and the window — judged
+// on the database clock, so a Diwali shelf opens at the same instant for
+// every server.
+//
+// The picks are filtered the way every other product here is — on sale,
+// in a visible category — and a shelf left with none is dropped, so the
+// storefront never has to decide what an empty shelf means.
+
+const HOME_SECTIONS_SQL = `
+  SELECT
+    s.title,
+    s.subtitle,
+    s.slug,
+    picked.product_ids
+  FROM home_sections s
+  CROSS JOIN LATERAL (
+    SELECT array_agg(p.id ORDER BY hsp.position ASC) AS product_ids
+    FROM home_section_products hsp
+    JOIN products p ON p.id = hsp.product_id
+    WHERE hsp.section_id = s.id
+      AND p.active = TRUE
+      AND ${PRODUCT_CATEGORY_VISIBLE}
+  ) picked
+  WHERE s.active
+    AND (s.starts_at IS NULL OR s.starts_at <= NOW())
+    AND (s.ends_at IS NULL OR s.ends_at > NOW())
+    AND picked.product_ids IS NOT NULL
+  ORDER BY s.position ASC, s.created_at ASC, s.id ASC
+`;
+
 export const StorefrontRepository = {
+  /** The live hand-picked shelves, in the shop's order. */
+  async homeSections() {
+    try {
+      const result = await query(HOME_SECTIONS_SQL);
+      return result.rows;
+    } catch (error) {
+      throw handleDatabaseError(error, "homeSections");
+    }
+  },
+
   async categories() {
     try {
       const result = await query(CATEGORIES_SQL);

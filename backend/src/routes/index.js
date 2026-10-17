@@ -21,6 +21,7 @@ import reviewRoutes from './review.routes.js';
 import sizeChartRoutes from './size_chart.routes.js';
 import bannerRoutes from './banner.routes.js';
 import customerStoryRoutes from './customer_story.routes.js';
+import homeSectionRoutes from './home_section.routes.js';
 import whatsappRoutes from './whatsapp.routes.js';
 
 import { env } from '../config/env.js';
@@ -173,5 +174,10 @@ router.use('/banners', adminOnly, bannerRoutes);
 // and there is nothing on this router a visitor should reach. What they
 // read is /storefront/getCustomerStories.
 router.use('/customerStories', adminOnly, customerStoryRoutes);
+
+// The hand-picked product shelves on the home page — best sellers,
+// festival sales (F-06). Every endpoint changes what shoppers see first.
+// What they read is /storefront/getHomeSections.
+router.use('/homeSections', adminOnly, homeSectionRoutes);
 
 export default router;
