@@ -71,9 +71,9 @@ export default async function StorefrontHome() {
           again. */}
       <Hero banners={banners} />
       <TrustBar shop={shop} />
-      {/* The shop's special sections first — Best sellers, Diwali, Pongal,
-          whatever is live — in the order set in Admin → Home → Sections.
-          Every one is drawn the same way. */}
+      {/* The shop's own section first — named for whatever it needs: Best
+          sellers, Diwali, Pongal — as a row of cards. Not drawn when nothing
+          is ticked for it in the admin. */}
       {shelves.map(({ section, products: picked }) => (
         <CardShelf key={section.slug} section={section} products={picked} />
       ))}

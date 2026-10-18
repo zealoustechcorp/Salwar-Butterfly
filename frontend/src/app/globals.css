@@ -275,7 +275,7 @@ body {
 }
 
 /* The home page's vertical rhythm: one gap between every pair of sections,
-   36px on a phone, 44px from `sm`, 52px from `lg`.
+   28px on a phone, 36px from `sm`, 40px from `lg`.
 
    .sb-section  a section on the page's own cream ground. Padded top and
                 bottom by the gap, except that one following another drops
@@ -283,29 +283,27 @@ body {
                 stack their paddings into a double gap.
    .sb-band     a section with its own background. Always padded both ends,
                 since its edge is visible and its content needs the room
-                inside it. Two shelves in a row share one maroon band, so
-                the second of them drops its top for the same reason. */
+                inside it. */
 .sb-section,
 .sb-band {
-  padding-block: 2.25rem;
+  padding-block: 1.75rem;
 }
 
 @media (min-width: 40rem) {
   .sb-section,
   .sb-band {
-    padding-block: 2.75rem;
+    padding-block: 2.25rem;
   }
 }
 
 @media (min-width: 64rem) {
   .sb-section,
   .sb-band {
-    padding-block: 3.25rem;
+    padding-block: 2.5rem;
   }
 }
 
-.sb-section + .sb-section,
-.sb-band-shelf + .sb-band-shelf {
+.sb-section + .sb-section {
   padding-top: 0;
 }
 
@@ -474,3 +472,4 @@ body {
     animation: none;
   }
 }
+

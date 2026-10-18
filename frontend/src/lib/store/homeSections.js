@@ -1,12 +1,12 @@
 /**
- * The two hand-picked sections on the home page (F-06): Best sellers, and the
- * custom section the shop renames for whatever is running.
+ * The home page's one hand-picked section (F-06), which the shop names for
+ * whatever it needs: Best sellers, a Diwali sale, Pongal specials.
  *
  * Read from `GET /storefront/getHomeSections`, which returns each section
  * that has on-sale pieces, with its name, its description, its key and the
  * ids of those pieces in the shop's order. The products themselves
  * are not in the response: the home page already holds the catalogue, and
- * the sections are built from that (see <CardShelf>).
+ * the section is built from that (see <CardShelf>).
  *
  * A minute's revalidation, the catalogue's own, so a change made in the admin
  * shows within about a minute.

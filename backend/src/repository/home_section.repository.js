@@ -1,9 +1,9 @@
 // src/repository/home_section.repository.js
 //
-// The two home page sections (F-06), admin side.
+// The home page's one hand-picked section (F-06), admin side.
 //
-// There are exactly two rows that matter — "best-sellers" and "custom"
-// (029) — addressed by slug. Every statement names its columns and casts its
+// There is exactly one row that matters — "custom" (030) — addressed by
+// slug. Every statement names its columns and casts its
 // ids. A write that replaces a section's pieces runs in one transaction, so
 // a section is never left half-saved with the old pieces gone and the new
 // ones not yet in.

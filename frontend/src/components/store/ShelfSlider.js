@@ -100,7 +100,7 @@ export function ShelfSlider({ head, label, fade = "var(--color-sb-bg)", trackCla
     <div>
       {head}
 
-      <div className="relative mt-6">
+      <div className="relative mt-5">
         <div
           ref={track}
           role="region"

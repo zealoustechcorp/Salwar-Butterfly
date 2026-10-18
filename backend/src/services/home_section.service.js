@@ -1,10 +1,9 @@
 // src/services/home_section.service.js
 //
-// The two home page sections (F-06): "Best sellers", and a custom section
-// the shop renames for whatever is running — a Diwali sale, Pongal
-// specials, a collection.
+// The home page's one hand-picked section (F-06), which the shop renames
+// for whatever it needs — Best sellers, a Diwali sale, Pongal specials.
 //
-// Both are fixed (029). Nothing here creates, deletes or reorders a
+// It is fixed (030). Nothing here creates, deletes or reorders a
 // section; the shop changes a section's name, its description and its
 // pieces, either from the section's own page or with the checkboxes on a
 // product's page. What this layer adds over the repository is the ceiling
@@ -29,7 +28,7 @@ const asProductError = (error) =>
     : null;
 
 export const HomeSectionService = {
-  /** Both sections, Best sellers first, each with its picks. */
+  /** The section, with its picks, as a one-item list. */
   async getAll() {
     try {
       return HomeSectionMapper.toDTOList(await HomeSectionRepository.list());

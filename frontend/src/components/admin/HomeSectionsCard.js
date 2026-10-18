@@ -1,12 +1,12 @@
 "use client";
 
 /**
- * "Show on the home page" — the product page's way into the two home page
- * sections (F-06): Best sellers and the custom section.
+ * "Show on the home page" — the product page's way into the home page's one
+ * hand-picked section (F-06), the custom section.
  *
- * One checkbox per section, saved the moment it is ticked; there is no Save
- * button to forget. The section names are the shop's current ones, so a
- * custom section renamed "Diwali Sale" reads as that here too. The same
+ * A checkbox, saved the moment it is ticked; there is no Save button to
+ * forget. It carries the section's current name, so a section renamed
+ * "Diwali Sale" reads as that here too. The same
  * ticks can be made from the section's own page; both write the same list.
  */
 
@@ -89,9 +89,9 @@ export function HomeSectionsCard({ productId }) {
             </label>
           ))}
           <p className="px-2 pt-1 text-xs text-ink-500">
-            Rename them or change their products in{" "}
-            <Link href="/admin/home/sections" className="font-medium text-brand-700 underline underline-offset-2">
-              Home → Sections
+            Rename it or change its products in{" "}
+            <Link href="/admin/home/sections/custom" className="font-medium text-brand-700 underline underline-offset-2">
+              Home page → Custom section
             </Link>
             .
           </p>

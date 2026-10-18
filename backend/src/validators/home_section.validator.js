@@ -116,7 +116,7 @@ export const validateSectionBody = (req, res, next) => {
 
 /**
  * Which sections one product is in, as the product page's checkboxes send
- * it: `{ sections: ["best-sellers"] }`. An empty list takes it out of both.
+ * it: `{ sections: ["custom"] }`. An empty list takes it out.
  */
 export const validateProductSections = (req, res, next) => {
   const sections = req.body?.sections;

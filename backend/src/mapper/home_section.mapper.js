@@ -1,6 +1,6 @@
 // src/mapper/home_section.mapper.js
 //
-// The two home page sections (F-06).
+// The home page's one hand-picked section (F-06).
 //
 // Two shapes, for two readers.
 //

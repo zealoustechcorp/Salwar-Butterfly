@@ -1,7 +1,7 @@
 // src/routes/home_section.routes.js
 //
-// The two home page sections (F-06), admin side: "Best sellers" and a
-// custom section, both fixed (029) and addressed by slug.
+// The home page's one hand-picked section (F-06), admin side: "custom",
+// fixed (030), addressed by slug and renamed by the shop as it needs.
 //
 // Admin-only in its entirety, guarded at the mount in routes/index.js.
 // There is no create, delete or reorder: the shop changes a section's name,

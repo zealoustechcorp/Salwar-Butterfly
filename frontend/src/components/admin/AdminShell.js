@@ -73,7 +73,7 @@ const FEATURES = [
     href: "/admin/home",
     children: [
       { href: "/admin/home/carousel", label: "Carousel" },
-      { href: "/admin/home/sections", label: "Sections" },
+      { href: "/admin/home/sections/custom", label: "Custom section" },
       { href: "/admin/home/stories", label: "Customer stories" },
     ],
   },

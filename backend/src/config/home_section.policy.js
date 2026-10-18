@@ -12,10 +12,12 @@ export const MAX_TITLE_LENGTH = 80;
 export const MAX_SUBTITLE_LENGTH = 200;
 
 /**
- * The two sections the home page has, and the only two (029). Addressed by
- * slug, which never changes; the title is the shop's to rename.
+ * The one hand-picked section the home page has (030). Addressed by slug,
+ * which never changes; the title is the shop's to rename — "Best sellers",
+ * "Diwali Sale", whatever it needs. Kept a list so the validator and the
+ * product checkboxes need not change if a second ever returns.
  */
-export const FIXED_SECTIONS = ["best-sellers", "custom"];
+export const FIXED_SECTIONS = ["custom"];
 
 /**
  * The most pieces one section may hold. A sideways row on the home page,

@@ -466,7 +466,7 @@ const HOME_SECTIONS_SQL = `
       AND p.active = TRUE
       AND ${PRODUCT_CATEGORY_VISIBLE}
   ) picked
-  WHERE s.slug IN ('best-sellers', 'custom')
+  WHERE s.slug = 'custom'
     AND s.active
     AND (s.starts_at IS NULL OR s.starts_at <= NOW())
     AND (s.ends_at IS NULL OR s.ends_at > NOW())

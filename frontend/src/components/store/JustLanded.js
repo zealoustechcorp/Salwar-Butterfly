@@ -27,13 +27,13 @@ const SIZES = "(min-width: 640px) 280px, 230px";
  * from its top, and clips only sideways, so a grown card reaches down into
  * the blank space before the next section while hovered — never up over the
  * heading — and nothing below the row moves. It grows into the section's
- * own bottom padding (the home page gap, .sb-section in globals.css: 36px on
- * a phone, 44px from `sm`), so it is held to what fits there: 30px and 35px
- * taller, about an eighth larger. Hover-capable devices only; a card reached with
+ * own bottom padding (the home page gap, .sb-section in globals.css: 28px on
+ * a phone, 36px from `sm`), so it is held to what fits there: 20px and 30px
+ * taller, about a tenth larger. Hover-capable devices only; a card reached with
  * the keyboard grows the same way.
  */
 const GROW =
-  "relative transition-[width] [@media(hover:hover)]:hover:z-10 focus-within:z-10 duration-500 [@media(hover:hover)]:hover:w-[12.5rem] sm:[@media(hover:hover)]:hover:w-[14.75rem] focus-within:w-[12.5rem] sm:focus-within:w-[14.75rem]";
+  "relative transition-[width] [@media(hover:hover)]:hover:z-10 focus-within:z-10 duration-500 [@media(hover:hover)]:hover:w-[12rem] sm:[@media(hover:hover)]:hover:w-[14.5rem] focus-within:w-[12rem] sm:focus-within:w-[14.5rem]";
 
 /**
  * "Just landed" — the newest pieces, newest first (F-06 home shelves).

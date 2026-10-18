@@ -14,7 +14,7 @@
  */
 
 import { ArrowLeft, ImageOff, LayoutList, Search, TriangleAlert } from "lucide-react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import {
@@ -42,7 +42,9 @@ import {
 } from "@/lib/api/homeSections";
 import { listAllProducts } from "@/lib/api/products";
 
-const BASE = "/admin/home/sections";
+// Where "back" goes: the Home page group's first screen. There is no list
+// of sections any more, only this one.
+const BASE = "/admin/home";
 
 const thumbnailOf = (product) => product?.primaryImage?.url || product?.images?.[0]?.url || null;
 
@@ -117,11 +119,12 @@ export default function HomeSectionEditorPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <nav className="flex items-center gap-1.5 text-xs text-ink-500">
-        <BackLink />
-        <span aria-hidden="true">/</span>
-        <span className="min-w-0 truncate font-medium text-ink-700">{state.section.title}</span>
-      </nav>
+      <header>
+        <h1 className="text-lg font-semibold text-ink-900">Custom section</h1>
+        <p className="mt-0.5 text-sm text-ink-500">
+          The one section on the home page you pick yourself. It shows as a row of product cards. Currently called <strong className="font-semibold text-ink-700">{state.section.title}</strong>.
+        </p>
+      </header>
 
       <SectionForm key={state.section.updatedAt ?? key} section={state.section} catalogue={catalogue} />
     </div>
@@ -132,13 +135,12 @@ function BackLink() {
   return (
     <LinkButton variant="ghost" size="sm" href={BASE}>
       <ArrowLeft className="size-3.5" aria-hidden="true" />
-      Sections
+      Home page
     </LinkButton>
   );
 }
 
 function SectionForm({ section, catalogue }) {
-  const router = useRouter();
   const toast = useToast();
 
   const [title, setTitle] = useState(section.title);
@@ -192,8 +194,16 @@ function SectionForm({ section, catalogue }) {
     setSaving(true);
     try {
       await updateSection(section.key, { title, subtitle, productIds: picked });
-      toast.success("Section saved", picked.length ? undefined : "It has no products, so it is hidden from the home page.");
-      router.push(BASE);
+      toast.success(
+        "Section saved",
+        picked.length
+          ? "The home page shows it within about a minute."
+          : "It has no products, so it is hidden from the home page.",
+      );
+      // Stay on the page: it is the only one, so there is nowhere to go back
+      // to, and the form already holds what was just saved.
+      setErrors({});
+      setSaving(false);
     } catch (error) {
       setErrors(error?.fields ?? {});
       toast.error("Could not save the section", error?.message);
@@ -327,7 +337,6 @@ function SectionForm({ section, catalogue }) {
       </Card>
 
       <div className="flex justify-end gap-2">
-        <LinkButton href={BASE}>Cancel</LinkButton>
         <Button type="submit" variant="primary" disabled={saving}>
           {saving ? "Saving…" : "Save section"}
         </Button>

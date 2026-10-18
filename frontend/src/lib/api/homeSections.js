@@ -1,12 +1,10 @@
 /**
- * The two home page sections (F-06), admin side.
+ * The home page's one hand-picked section (F-06), admin side.
  *
- * The home page has exactly two hand-picked sections, fixed by the shop:
- * **Best sellers** and a **custom section** the shop renames for whatever is
- * running — a Diwali sale, Pongal specials, a collection. They are addressed
- * by key (`best-sellers`, `custom`), which never changes. Nothing is created,
- * deleted or reordered; the shop changes a section's name, its description
- * and its pieces.
+ * The shop renames it for whatever it needs — Best sellers, a Diwali sale,
+ * Pongal specials, a collection — and picks its pieces. It is addressed by
+ * the key `custom`, which never changes. Nothing is created, deleted or
+ * reordered; the shop changes its name, its description and its pieces.
  *
  * Pieces can be picked two ways, and both end in the same table:
  *
@@ -25,12 +23,14 @@
 import { api } from "./client";
 
 /** Mirrors FIXED_SECTIONS in backend/src/config/home_section.policy.js. */
-export const SECTION_KEYS = ["best-sellers", "custom"];
+export const SECTION_KEYS = ["custom"];
 
-/** What each section is for, as the admin screens describe it. */
+/** The section's own page in the admin. */
+export const SECTION_PATH = "/admin/home/sections/custom";
+
+/** What the section is for, as the admin screens describe it. */
 export const SECTION_HINTS = {
-  "best-sellers": "The pieces customers love most.",
-  custom: "Rename it for whatever is running: Diwali Sale, Pongal Specials, a new collection.",
+  custom: "Name it for whatever you need: Best sellers, Diwali Sale, Pongal Specials, a new collection.",
 };
 
 /** Mirrors MAX_PRODUCTS_PER_SECTION. */

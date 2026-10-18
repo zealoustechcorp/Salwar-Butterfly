@@ -1,6 +1,6 @@
 // src/controllers/home_section.controller.js
 //
-// The two home page sections (F-06), admin side.
+// The home page's one hand-picked section (F-06), admin side.
 //
 // The public read is not here. It lives on StorefrontController — see
 // routes/storefront.routes.js.
@@ -10,7 +10,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { okResponse } from "../utils/apiResponse.js";
 
 export const HomeSectionController = {
-  /** GET /api/homeSections/getHomeSections — both sections, with picks. */
+  /** GET /api/homeSections/getHomeSections — the section, with its picks. */
   getHomeSections: asyncHandler(async (req, res) => {
     const sections = await HomeSectionService.getAll();
 
