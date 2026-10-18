@@ -7,7 +7,7 @@ import { ProductCard } from "@/components/store/ProductCard";
 import { ProductDetail } from "@/components/store/ProductDetail";
 import { ProductReviews } from "@/components/store/ProductReviews";
 import { money } from "@/lib/format";
-import { SITE_URL } from "@/lib/site";
+import { SHARE_LOGO, SITE_URL } from "@/lib/site";
 import {
   getProductSlugs,
   getRelatedProducts,
@@ -105,7 +105,8 @@ export async function generateMetadata({ params }) {
           alt: product.name,
         },
       ]
-    : undefined;
+    : // No photo yet: the logo, since this object replaces the root layout's.
+      [SHARE_LOGO];
 
   return {
     title: product.name,
