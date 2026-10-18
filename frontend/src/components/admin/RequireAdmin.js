@@ -30,8 +30,15 @@ export function RequireAdmin({ children }) {
   useEffect(() => {
     if (isLoading || isSignedIn) return;
 
-    // Carry the attempted path so login can return the admin to it.
-    const next = pathname && pathname !== "/admin" ? pathname : null;
+    // Carry the attempted path — and its query, so a deep link such as
+    // /admin/products/x/edit?tab=photos comes back to the same tab — so
+    // login can return the admin to it. Read from window inside the
+    // effect rather than useSearchParams, which would need a Suspense
+    // boundary around every admin page.
+    const next =
+      pathname && pathname !== "/admin"
+        ? `${pathname}${window.location.search}`
+        : null;
 
     router.replace(
       next ? `/admin/login?next=${encodeURIComponent(next)}` : "/admin/login",

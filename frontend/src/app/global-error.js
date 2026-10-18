@@ -1,6 +1,7 @@
 "use client";
 
 import * as Sentry from "@sentry/nextjs";
+import Link from "next/link";
 import { useEffect } from "react";
 
 /**
@@ -18,10 +19,11 @@ import { useEffect } from "react";
  * to supply them, and that also means none of the storefront's fonts or
  * ground colours are available here. Plain styles on purpose.
  *
- * `reset` re-renders the tree that failed. It is offered rather than a
- * link home because most of what lands here is transient — a chunk that
- * failed to load after a deploy, a hydration mismatch — and trying
- * again is the fix.
+ * `reset` re-renders the tree that failed. It is offered first because
+ * most of what lands here is transient — a chunk that failed to load
+ * after a deploy, a hydration mismatch — and trying again is the fix.
+ * The link home is for when it is not. Errors in pages and in the
+ * storefront layout stop earlier, at app/error.js.
  */
 export default function GlobalError({ error, reset }) {
   useEffect(() => {
@@ -77,6 +79,12 @@ export default function GlobalError({ error, reset }) {
           >
             Try again
           </button>
+
+          <p style={{ marginTop: "1rem" }}>
+            <Link href="/" style={{ color: "inherit" }}>
+              Go to the home page
+            </Link>
+          </p>
         </main>
       </body>
     </html>

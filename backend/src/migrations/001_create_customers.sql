@@ -29,17 +29,17 @@ CREATE TABLE IF NOT EXISTS customers (
   email VARCHAR(255) NOT NULL,
 
   -- E.164 with the country code optional, which is what the validator
-  -- accepts: at most 15 digits plus a leading '+'.
-  phone VARCHAR(20) NULL,
+  -- accepts: at most 15 digits plus a leading '+'. Required, as on the
+  -- live table — registration always collects one.
+  phone VARCHAR(20) NOT NULL,
 
-  -- A bcrypt hash, always 60 characters. Sized generously rather than
-  -- exactly so that changing the cost factor — or the algorithm — is not
-  -- a migration.
+  -- A bcrypt hash, always 60 characters — CHAR(60), as on the live
+  -- table. Changing the algorithm would mean widening this.
   --
   -- Never selected by the repository except in its findBy*ForAuth
   -- queries. That is a convention, not a guarantee, which is why the
   -- storefront reads go through a mapper that cannot see this column.
-  password VARCHAR(255) NOT NULL,
+  password CHAR(60) NOT NULL,
 
   -- Soft delete. An order points at its customer with ON DELETE SET
   -- NULL, so a hard delete would quietly detach a shopper's order
@@ -70,12 +70,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS customers_email_unique
   ON customers (LOWER(email))
   WHERE deleted_at IS NULL;
 
--- The admin customer list, newest first.
-CREATE INDEX IF NOT EXISTS customers_created_at_idx
-  ON customers (created_at DESC)
-  WHERE deleted_at IS NULL;
-
--- Looking a shopper up by the number they are calling from.
-CREATE INDEX IF NOT EXISTS customers_phone_idx
-  ON customers (phone)
-  WHERE deleted_at IS NULL;
+-- The admin customer list, and looking a shopper up by email or by the
+-- number they are calling from. Plain indexes, matching the live table.
+CREATE INDEX IF NOT EXISTS idx_customers_created_at ON customers (created_at);
+CREATE INDEX IF NOT EXISTS idx_customers_email ON customers (email);
+CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers (phone);

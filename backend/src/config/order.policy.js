@@ -108,17 +108,6 @@ export const STATUS_TIMESTAMP_COLUMN = Object.freeze({
   [ORDER_STATUS.CANCELLED]: "cancelled_at",
 });
 
-/**
- * Statuses that hold stock off the shelf.
- *
- * Everything except cancelled: an order that is still going to ship,
- * whether or not it has been paid for, owns the pieces on it. Moving
- * into a status outside this set is what returns them.
- */
-export const STOCK_HOLDING_STATUSES = ORDER_STATUSES.filter(
-  (status) => status !== ORDER_STATUS.CANCELLED,
-);
-
 // ============================================================
 // LIMITS
 // ============================================================

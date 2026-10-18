@@ -81,12 +81,4 @@ export const CategoryMapper = {
       updated_at: row.updated_at,
     };
   },
-
-  // ==========================================================
-  // DATABASE ROW LIST -> INTERNAL ENTITY LIST
-  // ==========================================================
-
-  toEntityList(rows = []) {
-    return rows.map((row) => CategoryMapper.toEntity(row));
-  },
 };

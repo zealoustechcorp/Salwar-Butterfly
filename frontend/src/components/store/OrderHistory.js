@@ -16,7 +16,7 @@
 
 import { AlertCircle, Loader2, PackageSearch } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ApiError, NETWORK_ERROR } from "@/lib/api/client";
 import { cancelOrder, fetchMyOrders } from "@/lib/store/orders";
@@ -104,6 +104,19 @@ export function OrderHistory({ shop }) {
     return () => controller.abort();
   }, [token, load]);
 
+  // /account#my-orders (linked from the track-order page): the browser
+  // jumps to the hash on load, but this section only mounts once the
+  // session has been restored, so the jump finds nothing. Scroll once the
+  // first page has arrived instead.
+  const section = useRef(null);
+  const scrolled = useRef(false);
+  useEffect(() => {
+    if (scrolled.current || orders === null || !section.current) return;
+    if (window.location.hash !== "#my-orders") return;
+    scrolled.current = true;
+    section.current.scrollIntoView({ block: "start" });
+  }, [orders]);
+
   /** Pages already on screen, so a refresh re-reads as many. */
   const pagesShown = pagination?.page ?? 1;
 
@@ -153,7 +166,7 @@ export function OrderHistory({ shop }) {
   }
 
   return (
-    <section id="my-orders" className="mt-8 scroll-mt-40 wide:scroll-mt-28">
+    <section ref={section} id="my-orders" className="mt-8 scroll-mt-40 wide:scroll-mt-28">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-display text-2xl font-semibold text-sb-heading">Your orders</h2>
         <Link

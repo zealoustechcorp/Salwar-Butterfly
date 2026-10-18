@@ -54,8 +54,4 @@ export const ProductMapper = {
       updated_at: row.updated_at,
     };
   },
-
-  toEntityList(rows = []) {
-    return rows.map((row) => ProductMapper.toEntity(row));
-  },
 };

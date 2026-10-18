@@ -138,7 +138,9 @@ export default function DashboardPage() {
                 } placed, stock held, money not in`
               : "Nothing outstanding"
           }
-          href="/admin/orders?paymentStatus=pending"
+          // By status, not payment status: the figure counts orders still
+          // awaiting payment, and "unpaid" would also list cancelled ones.
+          href="/admin/orders?status=pending_payment"
         />
       </StatGrid>
 

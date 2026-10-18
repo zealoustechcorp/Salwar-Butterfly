@@ -331,9 +331,9 @@ export function BagView({ products, shop }) {
             )}
 
             <p className="mt-3 text-xs leading-relaxed text-sb-text-muted">
-              No account needed. Nothing is charged at checkout — the shop confirms your order and
-              sends a payment link. Payment is online only: GPay, PhonePe, Paytm, cards or net
-              banking. No cash on delivery.
+              No account needed. Placing the order holds your sizes, and you pay straight after.
+              Payment is online only: GPay, PhonePe, Paytm, cards or net banking. No cash on
+              delivery.
             </p>
 
             {unorderable ? (

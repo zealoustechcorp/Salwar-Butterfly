@@ -49,13 +49,11 @@ CREATE TABLE IF NOT EXISTS products (
     FOREIGN KEY (category_id)
     REFERENCES categories(id)
     ON UPDATE CASCADE
-    ON DELETE RESTRICT,
+    ON DELETE RESTRICT
 
-  CONSTRAINT fk_products_sub_category
-    FOREIGN KEY (sub_category_id)
-    REFERENCES sub_categories(id)
-    ON UPDATE CASCADE
-    ON DELETE SET NULL
+  -- fk_products_sub_category is added by 001_create_sub_categories.sql.
+  -- Migrations run in filename order and this file sorts first, so the
+  -- table it would reference does not exist yet on a fresh database.
 );
 
 -- ============================================================

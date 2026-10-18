@@ -63,10 +63,6 @@ export const ProductVariantMapper = {
     };
   },
 
-  toEntityList(rows = []) {
-    return rows.map((row) => ProductVariantMapper.toEntity(row));
-  },
-
   /**
    * The per-product roll-up the list and detail screens show: how many
    * sellable rows, how many colourways, how many units, and the worst

@@ -102,12 +102,6 @@ function hydrateUser() {
 // READS
 // ============================================================
 
-/** The whole session. Null-ish fields until the first refresh lands. */
-export function readSessionRecord() {
-  hydrateUser();
-  return accessToken ? { token: accessToken, user } : null;
-}
-
 /**
  * The signed-in shopper, or null.
  *

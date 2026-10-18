@@ -126,12 +126,25 @@ export const STATUS_FILTERS = [
   })),
 ];
 
+/**
+ * Not a payment status: the shop's refund worklist, sent to the API as
+ * `refundDue=true`. Offered in the payment select because that is where
+ * someone looking for "money to send back" looks.
+ */
+export const REFUND_DUE_FILTER = "refund_due";
+
 export const PAYMENT_FILTERS = [
   { value: "all", label: "Paid or not" },
-  ...Object.values(PAYMENT_STATUS).map((status) => ({
-    value: status,
-    label: PAYMENT_STATUS_META[status].label,
-  })),
+  // "failed" is left out: an order's payment status never becomes it —
+  // a declined card is recorded on the payment attempt, and the order
+  // stays unpaid — so the option could only ever show an empty list.
+  ...Object.values(PAYMENT_STATUS)
+    .filter((status) => status !== PAYMENT_STATUS.FAILED)
+    .map((status) => ({
+      value: status,
+      label: PAYMENT_STATUS_META[status].label,
+    })),
+  { value: REFUND_DUE_FILTER, label: "Refund due" },
 ];
 
 // ============================================================
@@ -211,6 +224,7 @@ export const EMPTY_SUMMARY = {
   toPack: 0,
   toShip: 0,
   inTransit: 0,
+  refundDue: 0,
   byStatus: Object.fromEntries(
     Object.values(ORDER_STATUS).map((status) => [status, { orders: 0, revenue: 0 }]),
   ),
@@ -312,6 +326,10 @@ export function toOrder(dto) {
 
     cancellationReason: dto.cancellationReason ?? null,
 
+    // Cancelled after it was paid for, or paid twice — money the shop
+    // owes back. Admin responses only.
+    refundDue: Boolean(dto.refundDue),
+
     // Null until the order is packed.
     shipment: dto.shipment
       ? {
@@ -349,7 +367,9 @@ function buildQuery({ status, paymentStatus, search, sort, page, limit }) {
   // "all" is a UI word. The API filters on the presence of the key, so
   // it must not be sent — it is not one of the statuses it accepts.
   if (status && status !== "all") params.set("status", status);
-  if (paymentStatus && paymentStatus !== "all") {
+  if (paymentStatus === REFUND_DUE_FILTER) {
+    params.set("refundDue", "true");
+  } else if (paymentStatus && paymentStatus !== "all") {
     params.set("paymentStatus", paymentStatus);
   }
   if (search) params.set("search", search);

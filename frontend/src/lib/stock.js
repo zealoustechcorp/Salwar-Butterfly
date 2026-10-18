@@ -103,26 +103,6 @@ export function orderableQty(stock) {
 }
 
 /**
- * The worst status across a set of sizes — what a product shows when
- * its sizes disagree. Deactivated sizes are ignored: they are not on
- * sale, so they cannot drag down the ones that are.
- */
-export function worstStatusOf(sizes = []) {
-  const active = sizes.filter((size) => size.active !== false);
-
-  if (active.length === 0) return STOCK_STATUS.UNAVAILABLE;
-
-  const statuses = active.map((size) =>
-    stockStatusFor(size.stock ?? size.stockQuantity, true),
-  );
-
-  if (statuses.includes(STOCK_STATUS.OUT_OF_STOCK)) return STOCK_STATUS.OUT_OF_STOCK;
-  if (statuses.includes(STOCK_STATUS.LOW_STOCK)) return STOCK_STATUS.LOW_STOCK;
-
-  return STOCK_STATUS.IN_STOCK;
-}
-
-/**
  * What the shopper is told (F-04.05).
  *
  * An exact count rather than a band, because this shop stocks one or

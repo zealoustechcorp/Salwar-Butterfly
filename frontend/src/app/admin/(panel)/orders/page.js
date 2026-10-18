@@ -14,7 +14,8 @@ import {
   Truck,
 } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { StatGrid, StatTile } from "@/components/admin/ProductBits";
 import {
@@ -45,6 +46,7 @@ import {
   ORDER_STATUS,
   PAYMENT_FILTERS,
   paymentMeta,
+  REFUND_DUE_FILTER,
   STATUS_FILTERS,
   statusMeta,
 } from "@/lib/api/orders";
@@ -80,9 +82,49 @@ const DEFAULT_QUERY = {
 
 const PAGE_SIZE = 25;
 
+const allowed = (options, value) =>
+  options.some((option) => option.value === value) ? value : "all";
+
+/**
+ * The filters a link can open the queue with — the dashboard's tiles link
+ * here as /admin/orders?paymentStatus=pending and so on. Anything not in
+ * the select options is ignored rather than sent to the API to be refused.
+ */
+function queryFromParams(params) {
+  return {
+    ...DEFAULT_QUERY,
+    search: params.get("search") ?? "",
+    status: allowed(STATUS_FILTERS, params.get("status")),
+    paymentStatus:
+      params.get("refundDue") === "true"
+        ? REFUND_DUE_FILTER
+        : allowed(PAYMENT_FILTERS, params.get("paymentStatus")),
+  };
+}
+
 export default function OrdersPage() {
-  const [query, setQuery] = useState(DEFAULT_QUERY);
-  const [searchInput, setSearchInput] = useState("");
+  // useSearchParams suspends during prerender, hence the boundary.
+  return (
+    <Suspense fallback={<SkeletonRows rows={8} className="mx-auto max-w-[1400px]" />}>
+      <OrdersFromUrl />
+    </Suspense>
+  );
+}
+
+/**
+ * Keyed on the query string, so following another filtered link — or the
+ * sidebar back to the plain queue — starts from that link's filters
+ * rather than keeping the ones already on screen.
+ */
+function OrdersFromUrl() {
+  const params = useSearchParams();
+  const key = params.toString();
+  return <OrdersQueue key={key} initialQuery={queryFromParams(params)} />;
+}
+
+function OrdersQueue({ initialQuery }) {
+  const [query, setQuery] = useState(initialQuery);
+  const [searchInput, setSearchInput] = useState(initialQuery.search);
   const [reload, setReload] = useState(0);
 
   // Request and outcome in one object: comparing the stored query with
@@ -273,6 +315,26 @@ export default function OrdersPage() {
           Refresh
         </Button>
       </div>
+
+      {summary.refundDue ? (
+        <button
+          type="button"
+          onClick={() =>
+            setQuery({ ...DEFAULT_QUERY, paymentStatus: REFUND_DUE_FILTER })
+          }
+          className="flex w-full items-start gap-3 rounded-xl bg-red-50 px-4 py-3 text-left text-sm text-red-800 ring-1 ring-red-200 transition-colors hover:bg-red-100"
+        >
+          <span className="font-semibold tabular-nums">
+            {number(summary.refundDue)}
+          </span>
+          <span>
+            {summary.refundDue === 1 ? "order needs" : "orders need"} a refund —
+            paid for after it was cancelled, or paid twice. Refund in the
+            Razorpay dashboard; the order clears itself when the refund lands.
+            <span className="ml-1 font-medium underline">Show them</span>
+          </span>
+        </button>
+      ) : null}
 
       <StatGrid cols={5}>
         <StatTile

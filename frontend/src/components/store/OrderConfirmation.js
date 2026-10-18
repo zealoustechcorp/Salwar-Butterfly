@@ -25,6 +25,7 @@ import { CheckCircle2, Clock, Mail, Package } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useState, useSyncExternalStore } from "react";
 
+import { useAuth } from "./AuthProvider";
 import { LAST_ORDER_KEY } from "./CheckoutView";
 import { OrderAddress, OrderLines, OrderStatusBadge } from "./OrderSummary";
 import { PayNow } from "./PayNow";
@@ -95,6 +96,7 @@ const subscribe = () => () => {};
 
 export function OrderConfirmation({ shop }) {
   const stored = useSyncExternalStore(subscribe, read, () => undefined);
+  const { isSignedIn } = useAuth();
 
   /**
    * The order as it stands after paying, if they did.
@@ -186,7 +188,7 @@ export function OrderConfirmation({ shop }) {
 
       <p className="mt-3 max-w-xl text-sm leading-relaxed text-sb-text-muted">
         {awaitingPayment
-          ? "Your pieces are held for you. Pay below to confirm the order and start it on its way."
+          ? "Your pieces are held for you for a day. Pay below to confirm the order and start it on its way."
           : "Payment received. Your pieces are being picked, and the shop will send them within 5 to 10 working days."}
       </p>
 
@@ -285,11 +287,13 @@ export function OrderConfirmation({ shop }) {
         >
           Keep shopping
         </Link>
+        {/* A guest has no order list — /account would only open the sign-in
+            dialog — so they are pointed at tracking by number instead. */}
         <Link
-          href="/account"
+          href={isSignedIn ? "/account#my-orders" : "/track"}
           className="inline-flex rounded-full border border-sb-gold/50 px-7 py-3 text-sm font-semibold text-sb-heading transition-colors hover:bg-sb-surface/60"
         >
-          Your orders
+          {isSignedIn ? "Your orders" : "Track this order"}
         </Link>
       </div>
     </section>

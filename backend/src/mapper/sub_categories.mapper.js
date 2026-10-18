@@ -34,8 +34,4 @@ export const SubCategoryMapper = {
       updated_at: row.updated_at,
     };
   },
-
-  toEntityList(rows = []) {
-    return rows.map((row) => SubCategoryMapper.toEntity(row));
-  },
 };

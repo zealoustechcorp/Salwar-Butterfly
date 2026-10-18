@@ -240,6 +240,11 @@ export function CheckoutView({ products = null }) {
 
   const [pending, setPending] = useState(false);
 
+  // Set the moment an order is placed. The bag is emptied before the
+  // navigation lands, and without this the "Your bag is empty" screen
+  // below flashed up between the two.
+  const [placed, setPlaced] = useState(false);
+
   // --------------------------------------------------------
   // SAVED ADDRESSES (F-08.01, F-08.05)
   // --------------------------------------------------------
@@ -430,7 +435,8 @@ export function CheckoutView({ products = null }) {
         },
         shippingAddress: {
           line1: values.line1.trim(),
-          line2: values.line2.trim() || undefined,
+          // Required on both sides (the "Area" field), so never omitted.
+          line2: values.line2.trim(),
           landmark: values.landmark.trim() || undefined,
           city: values.city.trim(),
           state: values.state.trim(),
@@ -501,6 +507,7 @@ export function CheckoutView({ products = null }) {
     // something the shopper asked for, and "Bag emptied" riding the
     // navigation onto the confirmation page would say the wrong thing
     // about a purchase that just succeeded.
+    setPlaced(true);
     clearBag({ silent: true });
     toast.success(
       `Order ${result.order.orderNumber} placed`,
@@ -512,6 +519,20 @@ export function CheckoutView({ products = null }) {
   // --------------------------------------------------------
   // NOTHING TO BUY
   // --------------------------------------------------------
+
+  if (placed) {
+    return (
+      <section
+        className="mx-auto flex min-h-[60vh] max-w-3xl items-center justify-center px-4"
+        aria-busy="true"
+      >
+        <p className="flex items-center gap-2 text-sm text-sb-text-muted">
+          <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          Taking you to your order…
+        </p>
+      </section>
+    );
+  }
 
   if (!bag.length) {
     return (
@@ -1049,9 +1070,8 @@ export function CheckoutView({ products = null }) {
             </button>
 
             <p className="mt-3 text-xs leading-relaxed text-sb-text-muted">
-              Nothing is charged yet. The shop confirms your order and sends a
-              payment link — GPay, PhonePe, Paytm, cards or net banking. No cash
-              on delivery.
+              Placing the order holds your sizes; you pay on the next screen —
+              GPay, PhonePe, Paytm, cards or net banking. No cash on delivery.
             </p>
 
             <div className="mt-4 border-t border-sb-gold/30 pt-3.5">

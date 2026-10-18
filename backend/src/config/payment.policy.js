@@ -34,8 +34,6 @@ export const PAYMENT_PROVIDER = {
   MANUAL: "manual",
 };
 
-export const PAYMENT_PROVIDERS = Object.values(PAYMENT_PROVIDER);
-
 export const DEFAULT_PROVIDER = PAYMENT_PROVIDER.RAZORPAY;
 
 // ============================================================
@@ -59,16 +57,15 @@ export const PAYMENT_ATTEMPT_STATUS = {
   REFUNDED: "refunded",
 };
 
-export const PAYMENT_ATTEMPT_STATUSES = Object.values(PAYMENT_ATTEMPT_STATUS);
-
 /**
  * Where an attempt may go next.
  *
  * `created → paid` is the happy path and `created → failed` the common
- * one. Nothing leaves `failed`: Razorpay issues a new payment id for a
- * retry, so a second try is a second row, not this one changing its mind.
- * A failed attempt that could later become paid would also make the
- * unique constraint on provider_payment_id meaningless.
+ * one. `failed → paid` is real too: a Razorpay order outlives a declined
+ * payment, the sheet offers "Retry payment", and the retry captures
+ * against the same row — PaymentRepository.settle accepts it for that
+ * reason. Only `paid → refunded` leads out of `paid`, and nothing leaves
+ * `refunded`.
  */
 export const PAYMENT_TRANSITIONS = Object.freeze({
   [PAYMENT_ATTEMPT_STATUS.CREATED]: [
@@ -76,7 +73,7 @@ export const PAYMENT_TRANSITIONS = Object.freeze({
     PAYMENT_ATTEMPT_STATUS.FAILED,
   ],
   [PAYMENT_ATTEMPT_STATUS.PAID]: [PAYMENT_ATTEMPT_STATUS.REFUNDED],
-  [PAYMENT_ATTEMPT_STATUS.FAILED]: [],
+  [PAYMENT_ATTEMPT_STATUS.FAILED]: [PAYMENT_ATTEMPT_STATUS.PAID],
   [PAYMENT_ATTEMPT_STATUS.REFUNDED]: [],
 });
 
@@ -184,8 +181,6 @@ export const WEBHOOK_EVENT = {
   PAYMENT_FAILED: "payment.failed",
   REFUND_PROCESSED: "refund.processed",
 };
-
-export const HANDLED_WEBHOOK_EVENTS = Object.values(WEBHOOK_EVENT);
 
 // ============================================================
 // LIMITS

@@ -37,11 +37,6 @@ const API_BASE = (
  */
 const REVALIDATE_SECONDS = 300;
 
-export const EMPTY_REVIEWS = {
-  rating: { count: 0, average: null, distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } },
-  reviews: [],
-};
-
 /**
  * Published reviews for one piece, newest first.
  *

@@ -218,11 +218,6 @@ export function getShop() {
   return SHOP;
 }
 
-/** When the catalogue in this render was read out of the database. */
-export async function getFetchedAt() {
-  return (await loadCatalogue()).fetched_at;
-}
-
 /** Everything a shopper can see, newest first. */
 export async function getStorefrontProducts() {
   return decorateAll(await loadCatalogue());

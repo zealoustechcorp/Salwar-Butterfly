@@ -564,51 +564,6 @@ export function validateSizeChartRows(rows, columns) {
   return null;
 }
 
-/**
- * A measurement written as text, which is what the category size charts
- * hold — "82", or a range like "80–84".
- *
- * The range form is why these cells cannot simply be `type="number"`: the
- * shop transcribes a printed card, and the card says 80–84. Both halves
- * are checked, so "-5" and "0–84" are refused while "80–84" is not.
- *
- * Either dash is accepted. The shop types a hyphen; the card prints an
- * en dash; neither is worth an error message.
- */
-export function validateMeasurementText(value, label = "Measurement") {
-  const text = String(value ?? "").trim();
-
-  if (!text) return null;
-
-  // Caught before the split, because the split reads the minus as the
-  // range separator: "-5" would come apart into ["", "5"] and be reported
-  // as a malformed range rather than as the negative it is.
-  if (/^[-–—]\s*\d/.test(text)) return `${label} cannot be negative`;
-
-  const parts = text.split(/\s*[-–—]\s*/);
-
-  if (parts.length > 2 || parts.some((part) => part === "")) {
-    return `${label} must be a number, or a range like 80–84`;
-  }
-
-  for (const part of parts) {
-    // Refused here rather than left to Number(), which reads "80cm" as
-    // NaN but "80 " as 80 — one of those is a typo and one is not.
-    if (!/^\d+(\.\d+)?$/.test(part)) {
-      return `${label} must be a number, or a range like 80–84`;
-    }
-
-    const problem = validateMeasurement(part);
-    if (problem) return `${label} ${problem}`;
-  }
-
-  if (parts.length === 2 && Number(parts[0]) >= Number(parts[1])) {
-    return `${label} range must run low to high`;
-  }
-
-  return null;
-}
-
 // ============================================================
 // REVIEWS  (backend/src/config/review.policy.js)
 // ============================================================

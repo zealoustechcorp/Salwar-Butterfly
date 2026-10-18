@@ -205,17 +205,6 @@ export async function replaceVariants(productId, variants, { token } = {}) {
   };
 }
 
-/** Single-field stock edit, for the inline control on the detail screen. */
-export async function updateVariantStock(variantId, stockQuantity, { token } = {}) {
-  const data = await api.patch(
-    `/productVariants/updateVariantStock/${encodeURIComponent(variantId)}`,
-    { stockQuantity: Number(stockQuantity) || 0 },
-    { token },
-  );
-
-  return toVariant(data);
-}
-
 // ============================================================
 // MULTI-SELECT  (F-03.11)
 // ============================================================

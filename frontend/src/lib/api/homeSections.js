@@ -25,9 +25,6 @@ import { api } from "./client";
 /** Mirrors FIXED_SECTIONS in backend/src/config/home_section.policy.js. */
 export const SECTION_KEYS = ["custom"];
 
-/** The section's own page in the admin. */
-export const SECTION_PATH = "/admin/home/sections/custom";
-
 /** What the section is for, as the admin screens describe it. */
 export const SECTION_HINTS = {
   custom: "Name it for whatever you need: Best sellers, Diwali Sale, Pongal Specials, a new collection.",

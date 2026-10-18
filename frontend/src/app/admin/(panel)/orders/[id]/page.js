@@ -36,6 +36,7 @@ import {
   confirmPayment,
   getOrder,
   movesFor,
+  ORDER_STATUS,
   paymentMeta,
   statusMeta,
 } from "@/lib/api/orders";
@@ -225,6 +226,23 @@ export default function OrderDetailPage() {
 
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="space-y-5 lg:col-span-2">
+          {order.refundDue ? (
+            <div
+              role="alert"
+              className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800 ring-1 ring-red-200"
+            >
+              <p className="font-semibold">Refund due</p>
+              <p className="mt-1">
+                {order.status === ORDER_STATUS.CANCELLED
+                  ? "This order was paid for after it was cancelled."
+                  : "This order has been paid for more than once."}{" "}
+                Refund the extra payment from the Razorpay dashboard — see the
+                payment history below. This notice clears itself once
+                Razorpay reports the refund.
+              </p>
+            </div>
+          ) : null}
+
           <Card>
             <CardHeader
               title="What was ordered"
