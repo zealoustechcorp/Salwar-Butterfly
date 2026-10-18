@@ -197,17 +197,3 @@ export const SIZING_NOTES = [
 export function measurement(value) {
   return value === null || value === undefined || value === "" ? "—" : String(value);
 }
-
-/**
- * The chart for a fit, by name.
- *
- * Returns null rather than a nearest match when the shop publishes no
- * chart for that fit — a gown sized off a salwar table is worse than no
- * table.
- *
- * @param {Array<object>} charts
- * @param {string} fit
- */
-export function sizeChartFor(charts, fit) {
-  return charts?.find((chart) => chart.fit === fit) ?? null;
-}

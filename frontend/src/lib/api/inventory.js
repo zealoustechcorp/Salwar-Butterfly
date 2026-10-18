@@ -134,16 +134,6 @@ export async function listInventory(query = {}, { token, signal } = {}) {
   };
 }
 
-/** The totals on their own — for a screen with no table to show. */
-export async function getInventorySummary({ categoryId, token, signal } = {}) {
-  const data = await api.get(
-    `/inventory/getInventorySummary${categoryId && categoryId !== "all" ? `?categoryId=${encodeURIComponent(categoryId)}` : ""}`,
-    { token, signal },
-  );
-
-  return data ?? EMPTY_SUMMARY;
-}
-
 /**
  * Moves one size's stock by `delta`.
  *

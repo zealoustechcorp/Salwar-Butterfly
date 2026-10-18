@@ -14,6 +14,8 @@
 // So both statements run against one client inside one transaction, the
 // pattern OrderRepository.create already established for reserving stock.
 
+import * as Sentry from "@sentry/node";
+
 import { withTransaction, query } from "../config/db.js";
 import { logger } from "../utils/logger.js";
 import {
@@ -142,47 +144,8 @@ export const PaymentRepository = {
   },
 
   /**
-   * The newest attempt on this order that is still open.
-   *
-   * "Open" means `created`: a sheet was opened and nothing has settled
-   * or failed it. A `failed` row must never come back from here — the
-   * shopper whose card was declined is trying again, and handing them
-   * the sheet that just refused them is the one outcome worse than
-   * making a new one. `paid` cannot appear either, because the order
-   * would no longer be awaiting payment.
-   *
-   * Reads on `idx_payments_order_created`, which already orders by
-   * `created_at DESC` for the admin page.
-   */
-  async findLatestOpenAttempt(
-    orderId,
-    { client = null, provider = DEFAULT_PROVIDER } = {},
-  ) {
-    const text = `
-      SELECT ${COLUMNS}
-      FROM payments
-      WHERE order_id = $1::uuid
-        AND provider = $2
-        AND status = $3
-      ORDER BY created_at DESC
-      LIMIT 1
-    `;
-
-    try {
-      const result = await runner(client)(text, [
-        orderId,
-        provider,
-        PAYMENT_ATTEMPT_STATUS.CREATED,
-      ]);
-
-      return result.rows[0] ?? null;
-    } catch (error) {
-      throw handleDatabaseError(error, "findLatestOpenAttempt", { orderId });
-    }
-  },
-
-  /**
-   * `findLatestOpenAttempt`, plus how old the attempt is — measured by
+   * The newest attempt on this order that is still open — `created`,
+   * never `failed` or `paid` — plus how old the attempt is, measured by
    * the database.
    *
    * The age exists for the reuse window in PaymentService.createSession,
@@ -393,10 +356,13 @@ export const PaymentRepository = {
    * the exact failure this method exists to prevent. The two are kept
    * honest by both reading their statuses from order.policy.js.
    *
-   * An order that is already `confirmed` when a payment settles is not a
-   * conflict — an admin may have confirmed a transfer by hand moments
-   * before the gateway callback landed. The attempt is still marked paid;
-   * only the order UPDATE finds nothing to do.
+   * An order that is no longer `pending_payment` when a payment settles
+   * still has the attempt marked paid — the capture happened and cannot
+   * be un-happened from here. Either the order was cancelled while the
+   * sheet was open, or it had already been paid (a transfer an admin
+   * confirmed by hand, or a second attempt). Both leave money the shop
+   * owes back, so the result carries `unmatched`, the order reads as
+   * refund-due, and the event goes to Sentry.
    *
    * A `failed` attempt settles too, and must. A Razorpay order outlives a
    * declined payment: the sheet stays open, offers "Retry payment", and
@@ -456,11 +422,47 @@ export const PaymentRepository = {
           ],
         );
 
+        // Money was taken but the order was not waiting for it. Two ways
+        // in, both real: the order was cancelled while the shopper still
+        // had the Razorpay sheet open, or it had already been paid — by an
+        // admin's manual confirmation or by another attempt. The capture
+        // cannot be undone from here, so it is recorded truthfully and the
+        // order is left reading "refund due" (see REFUND_DUE_SQL in
+        // order.repository.js) rather than being quietly reported as a
+        // success.
+        let unmatched = null;
+
+        if (order.rowCount === 0) {
+          const { rows } = await client.query(
+            `SELECT status FROM orders WHERE id = $1::uuid FOR UPDATE`,
+            [payment.order_id],
+          );
+
+          if (rows[0]?.status === ORDER_STATUS.CANCELLED) {
+            unmatched = "cancelled";
+
+            // A cancelled order carrying `paid` is exactly what refund-due
+            // means; markRefunded moves it on once the money goes back.
+            await client.query(
+              `UPDATE orders
+               SET payment_status = $2,
+                   paid_at = COALESCE(paid_at, NOW()),
+                   updated_at = NOW()
+               WHERE id = $1::uuid
+                 AND payment_status = $3`,
+              [payment.order_id, PAYMENT_STATUS.PAID, PAYMENT_STATUS.PENDING],
+            );
+          } else {
+            unmatched = "duplicate";
+          }
+        }
+
         logger.info("Payment settled", {
           paymentId,
           orderId: payment.order_id,
           providerPaymentId,
           orderConfirmed: order.rowCount > 0,
+          unmatched,
         });
 
         // The one moment in this codebase when an order becomes paid,
@@ -506,6 +508,7 @@ export const PaymentRepository = {
           payment,
           order: order.rows[0] ?? null,
           alreadyPaid: false,
+          unmatched,
           notificationIds,
           emailIds,
         };
@@ -520,6 +523,23 @@ export const PaymentRepository = {
       // that has already been banked.
       NotificationService.dispatch(result.notificationIds);
       EmailService.dispatch(result.emailIds);
+
+      if (result.unmatched) {
+        // Somebody has to refund this by hand, so it must reach a person
+        // and not only the log.
+        logger.error("Payment captured against an order that was not awaiting it", {
+          paymentId,
+          orderId: result.payment?.order_id,
+          providerPaymentId,
+          reason: result.unmatched,
+        });
+
+        Sentry.captureMessage("Payment needs a refund", {
+          level: "error",
+          tags: { feature: "payments", reason: result.unmatched },
+          extra: { paymentId, orderId: result.payment?.order_id, providerPaymentId },
+        });
+      }
 
       return result;
     } catch (error) {
@@ -607,13 +627,25 @@ export const PaymentRepository = {
 
         const payment = refunded.rows[0];
 
+        // Only once nothing else paid for it. Refunding the duplicate of a
+        // double payment must leave the order reading `paid`: the other
+        // payment still stands.
         await client.query(
           `UPDATE orders
            SET payment_status = $2,
                updated_at = NOW()
            WHERE id = $1::uuid
-             AND payment_status = $3`,
-          [payment.order_id, PAYMENT_STATUS.REFUNDED, PAYMENT_STATUS.PAID],
+             AND payment_status = $3
+             AND NOT EXISTS (
+               SELECT 1 FROM payments p
+               WHERE p.order_id = $1::uuid AND p.status = $4
+             )`,
+          [
+            payment.order_id,
+            PAYMENT_STATUS.REFUNDED,
+            PAYMENT_STATUS.PAID,
+            PAYMENT_ATTEMPT_STATUS.PAID,
+          ],
         );
 
         logger.info("Payment refunded", {

@@ -38,6 +38,17 @@ import { cn } from "@/lib/utils";
 
 import { useAuth } from "./AuthProvider";
 
+/**
+ * Verify answers whose message is shown as sent. Every other failure is
+ * treated as "the shop is confirming it", which is right for a network
+ * blip and for PAYMENT_PROCESSING but would be wrong for these.
+ */
+const SAY_WHAT_THE_SHOP_SAID = new Set([
+  "PAYMENT_REFUND_DUE",
+  "PAYMENT_MISMATCH",
+  "PAYMENT_SIGNATURE_INVALID",
+]);
+
 export function PayNow({
   order,
   shop,
@@ -113,11 +124,20 @@ export function PayNow({
 
     setPending(false);
 
+    if (!verified.ok && SAY_WHAT_THE_SHOP_SAID.has(verified.code)) {
+      // The server knows exactly what happened to this money — the order
+      // was cancelled or already paid (a refund is owed), or the payment
+      // could not be matched to it — and the sentence it sent says so.
+      setNotice({ tone: "error", text: verified.error });
+      return;
+    }
+
     if (!verified.ok) {
       // The one case that must not read as a failure. Razorpay has taken
       // the money and told us so; only our own confirmation call did not
-      // land. The webhook settles the same payment server-side, so the
-      // order will confirm itself shortly.
+      // land (or the capture is still a few seconds behind). The webhook
+      // settles the same payment server-side, so the order will confirm
+      // itself shortly.
       setNotice({
         tone: "quiet",
         text:

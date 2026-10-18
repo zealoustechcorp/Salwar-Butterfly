@@ -109,7 +109,7 @@ export default function HomeSectionEditorPage() {
           <EmptyState
             icon={<LayoutList aria-hidden="true" />}
             title="Section not found"
-            description="The home page has two sections: Best sellers and the custom section."
+            description="The home page has one section you pick products for: the custom section."
             action={<BackLink />}
           />
         </Card>
@@ -131,11 +131,14 @@ export default function HomeSectionEditorPage() {
   );
 }
 
+// To the one section that exists. BASE (/admin/home) only redirects to
+// the carousel, which is not where someone looking for a section meant
+// to go.
 function BackLink() {
   return (
-    <LinkButton variant="ghost" size="sm" href={BASE}>
+    <LinkButton variant="ghost" size="sm" href={`${BASE}/sections/custom`}>
       <ArrowLeft className="size-3.5" aria-hidden="true" />
-      Home page
+      Custom section
     </LinkButton>
   );
 }

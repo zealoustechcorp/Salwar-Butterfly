@@ -112,14 +112,6 @@ export async function fetchMyOrders(token, { signal, limit = 20, page = 1 } = {}
   return { orders: data ?? [], pagination: meta?.pagination ?? null };
 }
 
-/** One order, by id. Either token works; the server decides what may be seen. */
-export async function fetchOrder(id, token, { signal } = {}) {
-  return api.get(`/orders/getOrderById/${encodeURIComponent(id)}`, {
-    token,
-    signal,
-  });
-}
-
 /**
  * Tracking without an account (F-07.02).
  *

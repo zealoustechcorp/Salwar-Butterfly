@@ -11,6 +11,10 @@ import {
   stopNotificationSweeper,
 } from './queues/notification.sweeper.js';
 import { startEmailSweeper, stopEmailSweeper } from './queues/email.sweeper.js';
+import {
+  startUnpaidOrderSweeper,
+  stopUnpaidOrderSweeper,
+} from './queues/unpaid_order.sweeper.js';
 import { RefreshTokenRepository } from './repository/refresh_token.repository.js';
 
 const server = http.createServer(app);
@@ -54,6 +58,9 @@ async function start() {
   startNotificationSweeper();
   // The same floor under the email outbox. A no-op without RESEND_API_KEY.
   startEmailSweeper();
+  // Cancels orders left unpaid past UNPAID_ORDER_TTL_HOURS, so an
+  // abandoned checkout cannot hold stock forever.
+  startUnpaidOrderSweeper();
   sweepExpiredSessions();
   server.listen(env.port, () => {
     console.log(`[server] Listening on http://localhost:${env.port} (${env.nodeEnv})`);
@@ -71,6 +78,7 @@ async function shutdown(signal) {
     // next process — the outbox row is still there either way.
     stopNotificationSweeper();
     stopEmailSweeper();
+    stopUnpaidOrderSweeper();
     await stopWebhookWorker();
     await closeWebhookQueue();
     await closeDb();

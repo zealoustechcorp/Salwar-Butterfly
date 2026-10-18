@@ -353,21 +353,6 @@ export const ProductRepository = {
     }
   },
 
-  async countByCategoryId(categoryId) {
-    const text = `
-      SELECT COUNT(*)::INTEGER AS count
-      FROM products
-      WHERE category_id = $1::uuid AND active = true
-    `;
-
-    try {
-      const result = await query(text, [categoryId]);
-      return result.rows[0]?.count ?? 0;
-    } catch (error) {
-      throw handleDatabaseError(error, "countByCategoryId", { categoryId });
-    }
-  },
-
   async update(productId, updateData) {
     const fields = [];
     const values = [];
@@ -523,22 +508,6 @@ export const ProductRepository = {
       throw handleDatabaseError(error, "findExistingSlugs", {
         count: slugs.length,
       });
-    }
-  },
-
-  async slugExists(slug, excludeId = null) {
-    const text = `
-      SELECT EXISTS (
-        SELECT 1 FROM products
-        WHERE slug = $1 AND ($2::UUID IS NULL OR id <> $2::uuid)
-      ) AS exists
-    `;
-
-    try {
-      const result = await query(text, [slug, excludeId]);
-      return result.rows[0]?.exists ?? false;
-    } catch (error) {
-      throw handleDatabaseError(error, "slugExists", { slug });
     }
   },
 };

@@ -63,25 +63,6 @@ export const createdResponse = ({
 };
 
 // ============================================================
-// 202 ACCEPTED
-// ============================================================
-
-export const acceptedResponse = ({
-  res,
-  data = null,
-  message = "Request accepted for processing",
-  meta = undefined,
-}) => {
-  return successResponse({
-    res,
-    statusCode: 202,
-    data,
-    message,
-    meta,
-  });
-};
-
-// ============================================================
 // 204 NO CONTENT
 // ============================================================
 

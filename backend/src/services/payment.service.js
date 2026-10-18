@@ -66,7 +66,7 @@ const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const assertUuid = (value, label) => {
-  const id = String(value ?? "").trim();
+  const id = String(value ?? "").trim().toLowerCase();
 
   if (!UUID_RE.test(id)) {
     throw ApiError.badRequest(`Invalid ${label}`, "INVALID_UUID");
@@ -403,7 +403,10 @@ export const PaymentService = {
       secret: env.razorpay.keySecret,
     });
 
-    if (!safeCompare(expected, signature)) {
+    // Lower-cased: hex is case-insensitive and the validator accepts
+    // capitals, while the digest above is lower-case. (Not inside
+    // safeCompare, which also guards case-sensitive secrets.)
+    if (!safeCompare(expected, String(signature ?? "").toLowerCase())) {
       logger.warn("Payment signature rejected", {
         providerOrderId,
         providerPaymentId,
@@ -436,6 +439,26 @@ export const PaymentService = {
     const paidRupees = fromMinorUnits(remote?.amount ?? 0);
     const owed = Number(attempt.amount);
 
+    // Approved by the bank but not yet captured — the ordinary few
+    // seconds of auto-capture lag. Not a failure: marking it one would
+    // tell a shopper whose money has left their account that it did not
+    // work. The payment.captured webhook settles it, and the storefront
+    // reads this code as "the shop is confirming it".
+    if (remote?.status === "authorized" && paidRupees === owed) {
+      logger.info("Payment authorised, awaiting capture", {
+        providerOrderId,
+        providerPaymentId,
+      });
+
+      throw new ApiError({
+        statusCode: 409,
+        message:
+          "Your payment went through and the shop is confirming it. " +
+          "This can take a moment.",
+        code: "PAYMENT_PROCESSING",
+      });
+    }
+
     if (!captured || paidRupees !== owed) {
       logger.warn("Payment did not match the attempt", {
         providerOrderId,
@@ -462,11 +485,28 @@ export const PaymentService = {
 
     // ---- 4. bank it ------------------------------------------
 
-    return PaymentService.settleAttempt(attempt, {
+    const result = await PaymentService.settleAttempt(attempt, {
       providerPaymentId,
       method: remote?.method ?? null,
       source: "checkout",
     });
+
+    // Recorded, but the order was not waiting for it. Saying "verified"
+    // here would be the one lie this file exists not to tell.
+    if (result.unmatched) {
+      throw new ApiError({
+        statusCode: 409,
+        message:
+          result.unmatched === "cancelled"
+            ? `Order ${result.order?.orderNumber ?? ""} was cancelled before your payment went through. ` +
+              "Your payment has been recorded and the shop will refund it in full."
+            : `Order ${result.order?.orderNumber ?? ""} had already been paid for. ` +
+              "Your extra payment has been recorded and the shop will refund it.",
+        code: "PAYMENT_REFUND_DUE",
+      });
+    }
+
+    return result;
   },
 
   /**
@@ -482,6 +522,7 @@ export const PaymentService = {
       payment,
       order: justConfirmed,
       alreadyPaid,
+      unmatched = null,
       notificationIds,
     } = await PaymentRepository.settle(attempt.id, {
       providerPaymentId,
@@ -504,6 +545,9 @@ export const PaymentService = {
 
     return {
       alreadyPaid,
+      // "cancelled" or "duplicate" when the money arrived for an order
+      // that was not awaiting it — a refund the shop owes.
+      unmatched,
       payment: PaymentMapper.toAdminDTO(payment ?? attempt),
       order: OrderMapper.toCustomerDTO(order),
     };
@@ -558,7 +602,7 @@ export const PaymentService = {
 
     const expected = expectedWebhookSignature({ rawBody, secret });
 
-    if (!safeCompare(expected, signature ?? "")) {
+    if (!safeCompare(expected, String(signature ?? "").toLowerCase())) {
       logger.warn("Webhook signature rejected", {
         bytes: rawBody?.length ?? 0,
       });
@@ -690,7 +734,12 @@ export const PaymentService = {
       source: "webhook",
     });
 
-    return { handled: true, settled: true, alreadyPaid: result.alreadyPaid };
+    return {
+      handled: true,
+      settled: true,
+      alreadyPaid: result.alreadyPaid,
+      unmatched: result.unmatched,
+    };
   },
 
   /**

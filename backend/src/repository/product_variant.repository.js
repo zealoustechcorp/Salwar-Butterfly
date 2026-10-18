@@ -131,29 +131,6 @@ export const ProductVariantRepository = {
     }
   },
 
-  /**
-   * Variants for many products in one round trip — the product list needs
-   * a stock summary per row and must not issue a query per product.
-   */
-  async findByProductIds(productIds) {
-    if (!Array.isArray(productIds) || productIds.length === 0) return [];
-
-    const text = `
-      ${SELECT_VARIANT}
-      WHERE v.product_id = ANY($1::uuid[])
-      ORDER BY v.product_id, ${VARIANT_ORDER}
-    `;
-
-    try {
-      const result = await query(text, [productIds]);
-      return result.rows;
-    } catch (error) {
-      throw handleDatabaseError(error, "findByProductIds", {
-        count: productIds.length,
-      });
-    }
-  },
-
   async findById(id) {
     const text = `
       ${SELECT_VARIANT}

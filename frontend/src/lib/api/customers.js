@@ -8,7 +8,7 @@
  * registration — so there is no create here.
  *
  * Every call is behind an admin token, which the shared client
- * attaches on its own. `registerCustomer` is the exception and says so.
+ * attaches on its own.
  *
  * Errors are the `ApiError` thrown by the shared client.
  */
@@ -123,17 +123,4 @@ export async function deleteCustomer(id, { token } = {}) {
   });
 
   return { id: String(id) };
-}
-
-/**
- * Registration (F-05.01) — the one public call in this file.
- *
- * `token: null` on purpose: a person signing up is not an admin, and
- * sending the panel's token with their registration would be wrong
- * even though the API ignores it.
- */
-export async function registerCustomer(fields) {
-  const data = await api.post("/customers/register", fields, { token: null });
-
-  return toCustomer(data);
 }

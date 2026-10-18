@@ -62,6 +62,22 @@ if (!Number.isInteger(port) || port <= 0 || port > 65535) {
 }
 
 // ============================================================
+// UNPAID ORDERS
+// ============================================================
+//
+// How long a placed-but-unpaid order holds its stock before the sweeper
+// cancels it (src/queues/unpaid_order.sweeper.js). A day by default: long
+// enough for a shopper who closed the tab to come back through the
+// track-order page, short enough that an abandoned guest checkout does not
+// hide the last piece of a size for a week.
+
+const unpaidOrderTtlHours = Number(process.env.UNPAID_ORDER_TTL_HOURS ?? 24);
+
+if (!Number.isFinite(unpaidOrderTtlHours) || unpaidOrderTtlHours <= 0) {
+  throw new Error("UNPAID_ORDER_TTL_HOURS must be a positive number of hours");
+}
+
+// ============================================================
 // JWT
 // ============================================================
 
@@ -522,6 +538,11 @@ export const env = Object.freeze({
   isProd: nodeEnv === "production",
   isTest: nodeEnv === "test",
   port,
+
+  unpaidOrderTtlHours,
+  unpaidOrderSweepEnabled:
+    process.env.UNPAID_ORDER_SWEEP === "on" ||
+    (nodeEnv === "production" && process.env.UNPAID_ORDER_SWEEP !== "off"),
 
   // ==========================================================
   // DATABASE

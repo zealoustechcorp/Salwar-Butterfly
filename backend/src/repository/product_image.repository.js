@@ -49,29 +49,6 @@ export const ProductImageRepository = {
     }
   },
 
-  /**
-   * Galleries for many products in one round trip — the product list draws
-   * a thumbnail per row and must not issue a query per product.
-   */
-  async findByProductIds(productIds) {
-    if (!Array.isArray(productIds) || productIds.length === 0) return [];
-
-    const text = `
-      SELECT * FROM product_images
-      WHERE product_id = ANY($1::uuid[])
-      ORDER BY product_id, position ASC, created_at ASC
-    `;
-
-    try {
-      const result = await query(text, [productIds]);
-      return result.rows;
-    } catch (error) {
-      throw handleDatabaseError(error, "findByProductIds", {
-        count: productIds.length,
-      });
-    }
-  },
-
   async findAll({ page = 1, limit = 200 } = {}) {
     const safePage = Math.max(Number(page) || 1, 1);
     const safeLimit = Math.min(Math.max(Number(limit) || 200, 1), 500);

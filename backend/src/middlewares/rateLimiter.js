@@ -84,7 +84,7 @@ const failOpen = (limiter, name) => {
     });
 };
 
-const createLimiter = ({ windowMs, limit, message, name, prefix }) => {
+const createLimiter = ({ windowMs, limit, message, name, prefix, skip = null }) => {
   const limiter = rateLimit({
     windowMs,
     limit,
@@ -111,11 +111,13 @@ const createLimiter = ({ windowMs, limit, message, name, prefix }) => {
       res.status(options.statusCode).json(options.message);
     },
 
-    skip: () => env.isTest,
+    skip: (req) => env.isTest || Boolean(skip?.(req)),
   });
 
   return failOpen(limiter, name);
 };
+
+const WEBHOOK_PATHS = ["/api/payments/webhook", "/api/whatsapp/webhook"];
 
 export const globalRateLimiter = createLimiter({
   name: "global",
@@ -123,6 +125,12 @@ export const globalRateLimiter = createLimiter({
   windowMs: 15 * 60 * 1000,
   limit: 300,
   message: "Too many requests. Please try again later.",
+
+  // Server-to-server deliveries, signed with an HMAC checked before
+  // anything else runs. Razorpay and Meta send from a handful of IPs, so a
+  // busy hour of genuine webhooks would otherwise spend the same per-IP
+  // budget and be answered 429 — delayed confirmations for real orders.
+  skip: (req) => WEBHOOK_PATHS.includes(req.originalUrl.split("?")[0]),
 });
 
 export const authRateLimiter = createLimiter({

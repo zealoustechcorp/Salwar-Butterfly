@@ -23,6 +23,10 @@ import {
   PAYMENT_STATUS,
   STATUS_TIMESTAMP_COLUMN,
 } from "../config/order.policy.js";
+import {
+  PAYMENT_ATTEMPT_STATUS,
+  PAYMENT_PROVIDER,
+} from "../config/payment.policy.js";
 import { NOTIFY_EVENT, eventForStatus } from "../config/whatsapp.policy.js";
 import { NotificationService } from "../services/notification.service.js";
 import { EmailService } from "../services/email.service.js";
@@ -57,6 +61,26 @@ const handleDatabaseError = (error, operation, context = {}) => {
 // ============================================================
 
 /**
+ * Whether the shop owes this order's customer money back.
+ *
+ * Two shapes, both left by PaymentRepository.settle or by a cancellation:
+ * a cancelled order that was paid for, and an order with more than one
+ * paid payment (a manual confirmation plus a gateway capture, or two
+ * captures). Computed rather than stored, so it clears itself the moment
+ * the refund webhook moves the money — there is no flag to forget to
+ * reset. Refunds themselves are made in the Razorpay dashboard.
+ *
+ * The values are interpolated from the policy modules, never from input.
+ */
+const REFUND_DUE_SQL = `(
+  (o.status = '${ORDER_STATUS.CANCELLED}' AND o.payment_status = '${PAYMENT_STATUS.PAID}')
+  OR (
+    SELECT COUNT(*) FROM payments p
+    WHERE p.order_id = o.id AND p.status = '${PAYMENT_ATTEMPT_STATUS.PAID}'
+  ) > 1
+)`;
+
+/**
  * An order, its customer where there is one, and its lines.
  *
  * Two joins, each for its own reason.
@@ -77,6 +101,7 @@ const SELECT_ORDER = `
     c.name  AS customer_name,
     c.email AS customer_email,
     c.phone AS customer_phone,
+    ${REFUND_DUE_SQL} AS refund_due,
     lines.items AS items
   FROM orders o
   LEFT JOIN customers c ON c.id = o.customer_id
@@ -115,12 +140,15 @@ const buildFilters = ({
   customerId = null,
   status = null,
   paymentStatus = null,
+  refundDue = false,
   search = null,
   placedFrom = null,
   placedTo = null,
 } = {}) => {
   const conditions = [];
   const values = [];
+
+  if (refundDue) conditions.push(REFUND_DUE_SQL);
 
   if (customerId) {
     values.push(customerId);
@@ -536,6 +564,7 @@ export const OrderRepository = {
     customerId = null,
     status = null,
     paymentStatus = null,
+    refundDue = false,
     search = null,
     placedFrom = null,
     placedTo = null,
@@ -551,6 +580,7 @@ export const OrderRepository = {
       customerId,
       status,
       paymentStatus,
+      refundDue,
       search,
       placedFrom,
       placedTo,
@@ -603,9 +633,21 @@ export const OrderRepository = {
       GROUP BY o.status
     `;
 
+    // Not a status, so not a GROUP BY bucket: an order can be both
+    // cancelled and refund-due, and the status tiles must still add up.
+    const refundText = `
+      SELECT COUNT(*)::INTEGER AS count
+      FROM orders o
+      ${clause ? `${clause} AND` : "WHERE"} ${REFUND_DUE_SQL}
+    `;
+
     try {
-      const result = await query(text, values);
-      return result.rows;
+      const [result, refunds] = await Promise.all([
+        query(text, values),
+        query(refundText, values),
+      ]);
+
+      return { rows: result.rows, refundDue: refunds.rows[0]?.count ?? 0 };
     } catch (error) {
       throw handleDatabaseError(error, "summary", { customerId });
     }
@@ -744,6 +786,32 @@ export const OrderRepository = {
 
         const confirmed = result.rows[0];
 
+        // The payment history row for money the shop saw arrive outside
+        // the gateway. Without it the order page shows no payment at all
+        // for a manually confirmed order, and a Razorpay capture landing
+        // afterwards would not read as the double payment it is.
+        //
+        // The provider ids are unique per provider, so both are tied to
+        // the order number — one admin reference may cover two orders.
+        await client.query(
+          `INSERT INTO payments (
+             order_id, provider, provider_order_id, provider_payment_id,
+             status, amount, currency, paid_at
+           )
+           VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, NOW())`,
+          [
+            confirmed.id,
+            PAYMENT_PROVIDER.MANUAL,
+            confirmed.order_number,
+            reference
+              ? `${reference.slice(0, 200)} (${confirmed.order_number})`
+              : confirmed.order_number,
+            PAYMENT_ATTEMPT_STATUS.PAID,
+            confirmed.total,
+            confirmed.currency ?? CURRENCY,
+          ],
+        );
+
         logger.info("Order payment confirmed", { orderId: id, reference });
 
         // The manual counterpart to PaymentRepository.settle's emit.
@@ -777,6 +845,49 @@ export const OrderRepository = {
       return row;
     } catch (error) {
       throw handleDatabaseError(error, "confirmPayment", { orderId: id });
+    }
+  },
+
+  /**
+   * Unpaid orders old enough to give their stock back.
+   *
+   * An order still `pending_payment` past the TTL is an abandoned
+   * checkout, and nothing else ever releases what it reserved — guests
+   * cannot cancel, and a declined card deliberately leaves the order
+   * alone. Skipped while a payment sheet was opened recently: that
+   * shopper may be paying right now. Ages are measured in the database,
+   * against its own clock (see findLatestOpenAttemptWithAge).
+   *
+   * @returns {Promise<string[]>} order ids, oldest first
+   */
+  async findStaleUnpaid({ ttlHours, activeWithinMinutes = 30, limit = 25 }) {
+    const text = `
+      SELECT o.id
+      FROM orders o
+      WHERE o.status = $1
+        AND o.placed_at < NOW() - make_interval(secs => $2::float8 * 3600)
+        AND NOT EXISTS (
+          SELECT 1 FROM payments p
+          WHERE p.order_id = o.id
+            AND p.status = $3
+            AND p.created_at > NOW() - make_interval(mins => $4::int)
+        )
+      ORDER BY o.placed_at ASC
+      LIMIT $5
+    `;
+
+    try {
+      const result = await query(text, [
+        ORDER_STATUS.PENDING_PAYMENT,
+        ttlHours,
+        PAYMENT_ATTEMPT_STATUS.CREATED,
+        activeWithinMinutes,
+        limit,
+      ]);
+
+      return result.rows.map((row) => row.id);
+    } catch (error) {
+      throw handleDatabaseError(error, "findStaleUnpaid", { ttlHours });
     }
   },
 

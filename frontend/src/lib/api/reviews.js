@@ -143,16 +143,6 @@ export async function listReviews(query = {}, { token, signal } = {}) {
   };
 }
 
-/** The scores on their own — for a screen with no list to show. */
-export async function getRatingSummary({ productId, token, signal } = {}) {
-  const data = await api.get(
-    `/reviews/getRatingSummary${productId ? `?productId=${encodeURIComponent(productId)}` : ""}`,
-    { token, signal },
-  );
-
-  return data ?? EMPTY_SUMMARY;
-}
-
 export async function getReview(id, { token, signal } = {}) {
   const data = await api.get(
     `/reviews/getReviewById/${encodeURIComponent(id)}`,

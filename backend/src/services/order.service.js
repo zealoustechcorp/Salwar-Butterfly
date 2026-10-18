@@ -20,8 +20,11 @@ import { logger } from "../utils/logger.js";
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+// Lower-cased: the validators accept either case, but Postgres hands
+// UUIDs back in lower case, and the checkout matches lines to priced
+// rows through a Map keyed on what came back.
 const assertUuid = (value, label) => {
-  const normalized = String(value ?? "").trim();
+  const normalized = String(value ?? "").trim().toLowerCase();
 
   if (!normalized || !UUID_REGEX.test(normalized)) {
     throw new ApiError(400, `Invalid ${label}`);
@@ -243,6 +246,7 @@ export const OrderService = {
     isAdmin = false,
     status = null,
     paymentStatus = null,
+    refundDue = false,
     search = null,
     sort = DEFAULT_SORT,
     page = 1,
@@ -266,6 +270,8 @@ export const OrderService = {
         customerId: customerId ? assertUuid(customerId, "customer ID") : null,
         status,
         paymentStatus,
+        // A shop worklist; never applied to a shopper's own list.
+        refundDue: isAdmin && refundDue === true,
         search: normalizeSearch(search),
         sort: sort || DEFAULT_SORT,
         page: safePage,
@@ -379,8 +385,8 @@ export const OrderService = {
   /** The tiles above the admin queue. */
   async getSummary() {
     try {
-      const rows = await OrderRepository.summary();
-      return OrderMapper.toSummary(rows);
+      const { rows, refundDue } = await OrderRepository.summary();
+      return OrderMapper.toSummary(rows, { refundDue });
     } catch (error) {
       if (error instanceof ApiError) throw error;
 

@@ -1,6 +1,6 @@
 import { Geist, Geist_Mono, Cormorant_Garamond, Karla } from "next/font/google";
 import "./globals.css";
-import { SITE_URL } from "@/lib/site";
+import { SHARE_LOGO, SITE_URL } from "@/lib/site";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -38,6 +38,20 @@ export const metadata = {
   },
   description:
     "Salwar Butterfly — fashion meets comfort. A single-seller dress shop for salwar suits, co-ord sets and anarkalis.",
+  // The logo on every shared link. No og:title or og:url here: they would be
+  // inherited by every page, and a crawler falls back to each page's own
+  // <title> and address without them. A page that sets `openGraph` replaces
+  // this whole object, so the product page repeats the logo as its fallback.
+  openGraph: {
+    siteName: "Salwar Butterfly",
+    type: "website",
+    locale: "en_IN",
+    images: [SHARE_LOGO],
+  },
+  twitter: {
+    card: "summary",
+    images: [SHARE_LOGO],
+  },
 };
 
 export default function RootLayout({ children }) {

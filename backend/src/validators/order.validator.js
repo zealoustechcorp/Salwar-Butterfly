@@ -227,7 +227,7 @@ export const validateCreateOrder = (req, res, next) => {
  * being told has no way to know it is showing a partial list.
  */
 export const validateOrderQuery = (req, res, next) => {
-  const { page, limit, search, sort, status, paymentStatus } = req.query ?? {};
+  const { page, limit, search, sort, status, paymentStatus, refundDue } = req.query ?? {};
 
   const errors = {};
 
@@ -261,6 +261,10 @@ export const validateOrderQuery = (req, res, next) => {
 
   if (paymentStatus !== undefined && !PAYMENT_STATUSES.includes(paymentStatus)) {
     errors.paymentStatus = `Unknown payment status. Expected one of: ${PAYMENT_STATUSES.join(", ")}.`;
+  }
+
+  if (refundDue !== undefined && refundDue !== "true" && refundDue !== "false") {
+    errors.refundDue = "refundDue must be true or false";
   }
 
   if (Object.keys(errors).length > 0) {

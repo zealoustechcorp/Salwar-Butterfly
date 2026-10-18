@@ -113,6 +113,10 @@ export const OrderMapper = {
 
       cancellationReason: row.cancellation_reason ?? null,
 
+      // Money the shop owes back — see REFUND_DUE_SQL in
+      // order.repository.js. Admin only; stripped from the customer DTO.
+      refundDue: Boolean(row.refund_due),
+
       // Entered when the order is marked packed, and emailed to the
       // shopper then. Null until that point. On both DTOs: the courier
       // and tracking number are the shopper's to see.
@@ -151,8 +155,9 @@ export const OrderMapper = {
     // The shopper knows their own email; echoing it is harmless. What
     // does not belong on a storefront response is the customer id of the
     // account the order is attached to, which is only ever used to look
-    // other things up.
-    const { customerId, ...rest } = dto;
+    // other things up. `refundDue` is the shop's worklist, not a promise
+    // to the shopper.
+    const { customerId, refundDue, ...rest } = dto;
 
     return rest;
   },
@@ -173,7 +178,7 @@ export const OrderMapper = {
    * pending_payment is a hope, not a sale, and adding it to a revenue
    * figure overstates the day.
    */
-  toSummary(rows = []) {
+  toSummary(rows = [], { refundDue = 0 } = {}) {
     const byStatus = Object.fromEntries(
       ORDER_STATUSES.map((status) => [status, { orders: 0, revenue: 0 }]),
     );
@@ -209,6 +214,9 @@ export const OrderMapper = {
       toPack: byStatus[ORDER_STATUS.CONFIRMED].orders,
       toShip: byStatus[ORDER_STATUS.PACKED].orders,
       inTransit: byStatus[ORDER_STATUS.SHIPPED].orders,
+
+      /** Paid for and cancelled, or paid twice: money to send back. */
+      refundDue: Number(refundDue) || 0,
 
       byStatus,
     };

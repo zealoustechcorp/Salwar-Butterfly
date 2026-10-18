@@ -43,14 +43,6 @@ export const COLOUR_GROUP = "colour";
 export const FIT_GROUP = "fit";
 
 /**
- * Whether a group's values are chosen per variant rather than per
- * product. Colour is the only one today; the check exists so adding a
- * second is a one-line change here rather than a hunt through the layers
- * above.
- */
-export const isVariantGroup = (groupName) => groupName === COLOUR_GROUP;
-
-/**
  * Whether a group is curated in `product_attribute_values`.
  *
  * Everything but the fit is. The attribute-value endpoints use this to

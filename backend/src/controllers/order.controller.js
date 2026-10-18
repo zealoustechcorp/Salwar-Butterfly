@@ -211,6 +211,7 @@ export const OrderController = {
       const {
         status,
         paymentStatus,
+        refundDue,
         search,
         sort,
         page = 1,
@@ -223,6 +224,7 @@ export const OrderController = {
         isAdmin: true,
         status,
         paymentStatus,
+        refundDue: refundDue === "true",
         search,
         sort,
         page,

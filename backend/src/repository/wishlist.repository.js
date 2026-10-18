@@ -103,21 +103,6 @@ export const WishlistRepository = {
     }
   },
 
-  async countByCustomer(customerId) {
-    try {
-      const result = await query(
-        `SELECT COUNT(*)::int AS total
-         FROM wishlist_items
-         WHERE customer_id = $1::uuid`,
-        [customerId],
-      );
-
-      return result.rows[0]?.total ?? 0;
-    } catch (error) {
-      throw handleDatabaseError(error, "countByCustomer", { customerId });
-    }
-  },
-
   /**
    * Saves a piece.
    *
