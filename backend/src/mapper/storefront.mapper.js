@@ -51,6 +51,9 @@ export const StorefrontMapper = {
       mrp,
       off: discountPercent(price, mrp),
       category_id: row.category_id,
+      // Switched on in the admin to put the piece in the home page's
+      // Explore collections section.
+      featured: Boolean(row.is_featured),
 
       // The fit this piece is cut to — "Normal Fit", "Slim Fit" — or
       // null where the shop has not recorded one. It is the name of a

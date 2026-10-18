@@ -4,7 +4,7 @@ import { CustomerStories } from "@/components/store/CustomerStories";
 import { Hero } from "@/components/store/Hero";
 import { JustLanded } from "@/components/store/JustLanded";
 import { PolicySection, StorySection, TrustBar } from "@/components/store/HomeSections";
-import { ProductShowcase } from "@/components/store/ProductShowcase";
+import { ExploreCollections } from "@/components/store/ExploreCollections";
 import { FabricStrip, FollowSection } from "@/components/store/Promos";
 import { getBanners } from "@/lib/store/banners";
 import { getHomePageData } from "@/lib/store/catalogue";
@@ -80,7 +80,9 @@ export default async function StorefrontHome() {
       <JustLanded products={products} />
       <CategoryGrid categories={categories} />
       <FabricStrip fabrics={fabrics} />
-      <ProductShowcase products={products} categories={categories} />
+      {/* Featured pieces only, and a way into the full shop — the search,
+          tabs and filters live at /shop, not here. */}
+      <ExploreCollections products={products} />
       {/* After the products and before the brand story: social proof lands
           best once a visitor has seen what is being sold and before they
           are asked to act on it. Renders nothing when the shop has

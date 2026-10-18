@@ -95,6 +95,10 @@ const PRODUCTS_SQL = `
     p.base_price,
     p.category_id,
     p.created_at,
+    -- The admin's "Featured" switch: the pieces the home page's Explore
+    -- collections section shows. Already shown to shoppers as a choice the
+    -- shop made in public, so nothing private.
+    p.is_featured,
     -- How the piece is cut, and the only reason the public reader looks
     -- inside \`attributes\` at all. It names a row in \`size_charts\`, so
     -- the storefront can print the one table that applies to this piece
