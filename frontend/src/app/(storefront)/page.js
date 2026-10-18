@@ -71,14 +71,12 @@ export default async function StorefrontHome() {
           again. */}
       <Hero banners={banners} />
       <TrustBar shop={shop} />
-      {/* The shop's own shelves first, in the order set in Admin → Home →
-          Sections. Only the "Product cards" layout is drawn so far; the
-          festival and editorial layouts render nothing until they exist. */}
-      {shelves.map(({ section, products: picked }) =>
-        section.layout === "cards" ? (
-          <CardShelf key={section.slug} section={section} products={picked} />
-        ) : null,
-      )}
+      {/* The shop's special sections first — Best sellers, Diwali, Pongal,
+          whatever is live — in the order set in Admin → Home → Sections.
+          Every one is drawn the same way. */}
+      {shelves.map(({ section, products: picked }) => (
+        <CardShelf key={section.slug} section={section} products={picked} />
+      ))}
       <JustLanded products={products} />
       <CategoryGrid categories={categories} />
       <FabricStrip fabrics={fabrics} />

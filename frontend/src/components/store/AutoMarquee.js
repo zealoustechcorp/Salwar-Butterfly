@@ -220,7 +220,9 @@ export function AutoMarquee({ children, className, label }) {
       // pan-y: a vertical swipe scrolls the page as normal; only sideways
       // movement is the row's. Native image and link dragging is turned off
       // so a drag moves the row instead of lifting a ghost picture.
-      className={cn("overflow-hidden", overflows && "cursor-grab touch-pan-y select-none active:cursor-grabbing")}
+      // Clipped sideways only: a card that grows on hover may rise above the
+      // row (see JustLanded) without the row holding empty room for it.
+      className={cn("overflow-x-clip overflow-y-visible", overflows && "cursor-grab touch-pan-y select-none active:cursor-grabbing")}
       onDragStart={(event) => event.preventDefault()}
     >
       <div ref={strip} className="flex w-max will-change-transform">

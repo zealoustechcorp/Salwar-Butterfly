@@ -1,15 +1,18 @@
 // src/repository/home_section.repository.js
 //
-// The hand-picked shelves on the home page (F-06), admin side.
+// The two home page sections (F-06), admin side.
 //
-// Every statement names its columns and casts its ids. Writes that touch a
-// shelf and its picks together run in one transaction, so a shelf is never
-// left half-saved with the old pieces gone and the new ones not yet in.
+// There are exactly two rows that matter — "best-sellers" and "custom"
+// (029) — addressed by slug. Every statement names its columns and casts its
+// ids. A write that replaces a section's pieces runs in one transaction, so
+// a section is never left half-saved with the old pieces gone and the new
+// ones not yet in.
 //
 // The public read is not here — it lives in storefront.repository.js with
 // the other columns the world may see.
 
 import { query, withTransaction } from "../config/db.js";
+import { FIXED_SECTIONS } from "../config/home_section.policy.js";
 import { logger } from "../utils/logger.js";
 
 const handleDatabaseError = (error, operation, context = {}) => {
@@ -24,42 +27,22 @@ const handleDatabaseError = (error, operation, context = {}) => {
   return error;
 };
 
-/**
- * Every column the admin API returns, plus two derived ones:
- *
- *   product_count  how many pieces are picked, on sale or not
- *   is_live        whether the home page shows it right now — active and
- *                  inside its window, judged on the database clock so the
- *                  admin screen and the storefront agree on the boundary
- */
 const COLUMNS = `
   s.id,
   s.title,
   s.subtitle,
   s.slug,
-  s.starts_at,
-  s.ends_at,
   s.position,
-  s.active,
-  s.layout,
-  s.theme,
   s.created_at,
   s.updated_at,
   (
     SELECT COUNT(*)::INTEGER
     FROM home_section_products hsp
     WHERE hsp.section_id = s.id
-  ) AS product_count,
-  (
-    s.active
-    AND (s.starts_at IS NULL OR s.starts_at <= NOW())
-    AND (s.ends_at IS NULL OR s.ends_at > NOW())
-  ) AS is_live
+  ) AS product_count
 `;
 
-const ORDER = "ORDER BY s.position ASC, s.created_at ASC, s.id ASC";
-
-/** The picks on one shelf, with enough of each product to list it. */
+/** The picks on one section, in order, with enough of each to list it. */
 const PRODUCTS_SQL = `
   SELECT
     p.id,
@@ -73,70 +56,84 @@ const PRODUCTS_SQL = `
   ORDER BY hsp.position ASC
 `;
 
-/** Replaces a shelf's picks with `productIds`, in that order. */
-const writeProducts = async (client, sectionId, productIds) => {
-  await client.query(
-    "DELETE FROM home_section_products WHERE section_id = $1::uuid",
-    [sectionId],
-  );
-
-  if (!productIds.length) return;
-
-  // One statement for the lot: unnest keeps the array's order as the
-  // ordinality, which becomes the position.
-  await client.query(
-    `INSERT INTO home_section_products (section_id, product_id, position)
-     SELECT $1::uuid, picked.product_id, picked.ord - 1
-     FROM unnest($2::uuid[]) WITH ORDINALITY AS picked(product_id, ord)`,
-    [sectionId, productIds],
-  );
-};
-
 export const HomeSectionRepository = {
   // ==========================================================
   // READS
   // ==========================================================
 
-  /** Every shelf, live or not — the admin screen's list. */
+  /** Both sections, Best sellers first, each with its picks. */
   async list() {
     try {
-      const result = await query(
-        `SELECT ${COLUMNS} FROM home_sections s ${ORDER}`,
+      const sections = await query(
+        `SELECT ${COLUMNS}
+         FROM home_sections s
+         WHERE s.slug = ANY($1::text[])
+         ORDER BY s.position ASC, s.id ASC`,
+        [FIXED_SECTIONS],
       );
 
-      return result.rows;
+      return Promise.all(
+        sections.rows.map(async (row) => ({
+          ...row,
+          products: (await query(PRODUCTS_SQL, [row.id])).rows,
+        })),
+      );
     } catch (error) {
       throw handleDatabaseError(error, "list");
     }
   },
 
-  /** One shelf with its picks, or null. */
-  async findById(id) {
+  /** One section with its picks, or null. */
+  async findBySlug(slug) {
     try {
-      const [section, products] = await Promise.all([
-        query(`SELECT ${COLUMNS} FROM home_sections s WHERE s.id = $1::uuid`, [
-          id,
-        ]),
-        query(PRODUCTS_SQL, [id]),
-      ]);
+      const section = await query(
+        `SELECT ${COLUMNS} FROM home_sections s WHERE s.slug = $1`,
+        [slug],
+      );
 
       if (!section.rows[0]) return null;
 
+      const products = await query(PRODUCTS_SQL, [section.rows[0].id]);
+
       return { ...section.rows[0], products: products.rows };
     } catch (error) {
-      throw handleDatabaseError(error, "findById", { id });
+      throw handleDatabaseError(error, "findBySlug", { slug });
     }
   },
 
-  async count() {
+  /** The slugs of the sections one product is in. */
+  async sectionsForProduct(productId) {
     try {
       const result = await query(
-        "SELECT COUNT(*)::INTEGER AS total FROM home_sections",
+        `SELECT s.slug
+         FROM home_section_products hsp
+         JOIN home_sections s ON s.id = hsp.section_id
+         WHERE hsp.product_id = $1::uuid
+           AND s.slug = ANY($2::text[])`,
+        [productId, FIXED_SECTIONS],
       );
 
-      return result.rows[0]?.total ?? 0;
+      return result.rows.map((row) => row.slug);
     } catch (error) {
-      throw handleDatabaseError(error, "count");
+      throw handleDatabaseError(error, "sectionsForProduct", { productId });
+    }
+  },
+
+  /** How many pieces each section holds, by slug. */
+  async counts() {
+    try {
+      const result = await query(
+        `SELECT s.slug, COUNT(hsp.product_id)::INTEGER AS total
+         FROM home_sections s
+         LEFT JOIN home_section_products hsp ON hsp.section_id = s.id
+         WHERE s.slug = ANY($1::text[])
+         GROUP BY s.slug`,
+        [FIXED_SECTIONS],
+      );
+
+      return new Map(result.rows.map((row) => [row.slug, row.total]));
+    } catch (error) {
+      throw handleDatabaseError(error, "counts");
     }
   },
 
@@ -145,139 +142,79 @@ export const HomeSectionRepository = {
   // ==========================================================
 
   /**
-   * Creates a shelf at the end of the stack, with its picks.
+   * Replaces a section's name, description and pieces.
    *
-   * @returns {Promise<string>} the new shelf's id
+   * @returns {Promise<boolean>} false when there is no such section
    */
-  async create(fields) {
-    return withTransaction(async (client) => {
-      const result = await client.query(
-        `INSERT INTO home_sections (
-           title, subtitle, slug, starts_at, ends_at, active, layout, theme,
-           position
-         )
-         VALUES (
-           $1, $2, $3, $4::timestamptz, $5::timestamptz, $6, $7, $8,
-           (SELECT COALESCE(MAX(position), 0) + 1 FROM home_sections)
-         )
-         RETURNING id`,
-        [
-          fields.title,
-          fields.subtitle,
-          fields.slug,
-          fields.startsAt,
-          fields.endsAt,
-          fields.active,
-          fields.layout,
-          fields.theme,
-        ],
-      );
-
-      const id = result.rows[0].id;
-
-      await writeProducts(client, id, fields.productIds);
-
-      return id;
-    }).catch((error) => {
-      throw handleDatabaseError(error, "create", { slug: fields.slug });
-    });
-  },
-
-  /**
-   * Replaces a shelf's fields and its picks.
-   *
-   * A full replace rather than a patch, for the reason the stories give:
-   * clearing a subtitle or an end date is a real edit, and an omitted
-   * field could not be told apart from it.
-   *
-   * @returns {Promise<boolean>} false when there is no such shelf
-   */
-  async update(id, fields) {
+  async update(slug, fields) {
     return withTransaction(async (client) => {
       const result = await client.query(
         `UPDATE home_sections
-         SET title      = $2,
-             subtitle   = $3,
-             slug       = $4,
-             starts_at  = $5::timestamptz,
-             ends_at    = $6::timestamptz,
-             active     = $7,
-             layout     = $8,
-             theme      = $9,
-             updated_at = NOW()
-         WHERE id = $1::uuid
+         SET title = $2, subtitle = $3, updated_at = NOW()
+         WHERE slug = $1
          RETURNING id`,
-        [
-          id,
-          fields.title,
-          fields.subtitle,
-          fields.slug,
-          fields.startsAt,
-          fields.endsAt,
-          fields.active,
-          fields.layout,
-          fields.theme,
-        ],
+        [slug, fields.title, fields.subtitle],
       );
 
-      if (!result.rows[0]) return false;
+      const id = result.rows[0]?.id;
+      if (!id) return false;
 
-      await writeProducts(client, id, fields.productIds);
-
-      return true;
-    }).catch((error) => {
-      throw handleDatabaseError(error, "update", { id });
-    });
-  },
-
-  /** The switch in the admin row. */
-  async setActive(id, active) {
-    try {
-      const result = await query(
-        `UPDATE home_sections
-         SET active = $2, updated_at = NOW()
-         WHERE id = $1::uuid
-         RETURNING id`,
-        [id, active],
-      );
-
-      return Boolean(result.rows[0]);
-    } catch (error) {
-      throw handleDatabaseError(error, "setActive", { id });
-    }
-  },
-
-  /** Rewrites the stacking order from a complete list of ids. */
-  async reorder(ids) {
-    return withTransaction(async (client) => {
-      for (const [index, id] of ids.entries()) {
-        await client.query(
-          `UPDATE home_sections
-           SET position = $2, updated_at = NOW()
-           WHERE id = $1::uuid`,
-          [id, index + 1],
-        );
-      }
-    }).catch((error) => {
-      throw handleDatabaseError(error, "reorder", { count: ids.length });
-    });
-  },
-
-  /**
-   * Deletes a shelf; its picks go with it (ON DELETE CASCADE).
-   *
-   * @returns {Promise<boolean>} false when there was no such shelf
-   */
-  async remove(id) {
-    try {
-      const result = await query(
-        "DELETE FROM home_sections WHERE id = $1::uuid RETURNING id",
+      await client.query(
+        "DELETE FROM home_section_products WHERE section_id = $1::uuid",
         [id],
       );
 
-      return Boolean(result.rows[0]);
-    } catch (error) {
-      throw handleDatabaseError(error, "remove", { id });
-    }
+      if (fields.productIds.length) {
+        // unnest keeps the array's order as the ordinality, which becomes
+        // the position.
+        await client.query(
+          `INSERT INTO home_section_products (section_id, product_id, position)
+           SELECT $1::uuid, picked.product_id, picked.ord - 1
+           FROM unnest($2::uuid[]) WITH ORDINALITY AS picked(product_id, ord)`,
+          [id, fields.productIds],
+        );
+      }
+
+      return true;
+    }).catch((error) => {
+      throw handleDatabaseError(error, "update", { slug });
+    });
+  },
+
+  /**
+   * Puts one product in exactly the sections named, and takes it out of the
+   * other fixed one. A section it joins gets it at the end; a section it was
+   * already in keeps it where it was.
+   */
+  async setProductSections(productId, slugs) {
+    return withTransaction(async (client) => {
+      await client.query(
+        `DELETE FROM home_section_products hsp
+         USING home_sections s
+         WHERE s.id = hsp.section_id
+           AND hsp.product_id = $1::uuid
+           AND s.slug = ANY($2::text[])
+           AND NOT (s.slug = ANY($3::text[]))`,
+        [productId, FIXED_SECTIONS, slugs],
+      );
+
+      if (slugs.length) {
+        await client.query(
+          `INSERT INTO home_section_products (section_id, product_id, position)
+           SELECT s.id, $1::uuid,
+                  COALESCE((
+                    SELECT MAX(hsp.position) + 1
+                    FROM home_section_products hsp
+                    WHERE hsp.section_id = s.id
+                  ), 0)
+           FROM home_sections s
+           WHERE s.slug = ANY($2::text[])
+           ON CONFLICT (section_id, product_id) DO NOTHING`,
+          [productId, slugs],
+        );
+      }
+    }).catch((error) => {
+      throw handleDatabaseError(error, "setProductSections", { productId });
+    });
   },
 };

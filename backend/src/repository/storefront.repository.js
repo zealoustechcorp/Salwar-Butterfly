@@ -441,12 +441,11 @@ const CUSTOMER_STORIES_SQL = `
 // HOME SECTIONS (F-06)
 // ============================================================
 //
-// Six columns and an id list. The shelf's own id, position, active flag
-// and start date are the admin screen's business; the end date is here
-// because the festival layout counts down to it: the ORDER BY already says the
-// order, and the WHERE already applies the switch and the window — judged
-// on the database clock, so a Diwali shelf opens at the same instant for
-// every server.
+// Three columns and an id list: the two fixed sections (029), Best sellers
+// and the custom one, with their name, description and key. Their id and
+// position are the admin screen's business; the ORDER BY already says the
+// order. The switch and the date window are still applied, though the admin
+// screen no longer sets either.
 //
 // The picks are filtered the way every other product here is — on sale,
 // in a visible category — and a shelf left with none is dropped, so the
@@ -457,9 +456,6 @@ const HOME_SECTIONS_SQL = `
     s.title,
     s.subtitle,
     s.slug,
-    s.layout,
-    s.theme,
-    s.ends_at,
     picked.product_ids
   FROM home_sections s
   CROSS JOIN LATERAL (
@@ -470,7 +466,8 @@ const HOME_SECTIONS_SQL = `
       AND p.active = TRUE
       AND ${PRODUCT_CATEGORY_VISIBLE}
   ) picked
-  WHERE s.active
+  WHERE s.slug IN ('best-sellers', 'custom')
+    AND s.active
     AND (s.starts_at IS NULL OR s.starts_at <= NOW())
     AND (s.ends_at IS NULL OR s.ends_at > NOW())
     AND picked.product_ids IS NOT NULL

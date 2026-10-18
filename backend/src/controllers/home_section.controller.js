@@ -1,105 +1,54 @@
 // src/controllers/home_section.controller.js
 //
-// The hand-picked shelves on the home page (F-06), admin side.
+// The two home page sections (F-06), admin side.
 //
 // The public read is not here. It lives on StorefrontController — see
 // routes/storefront.routes.js.
 
 import { HomeSectionService } from "../services/home_section.service.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { okResponse, createdResponse } from "../utils/apiResponse.js";
-
-/**
- * Reorder and delete answer with the whole list, since both move rows the
- * caller did not name. Create, update and the switch answer with the one
- * shelf, picks included.
- */
-const list = (res, sections, message) =>
-  okResponse({
-    res,
-    data: sections,
-    message,
-    meta: {
-      counts: {
-        total: sections.length,
-        active: sections.filter((section) => section.active).length,
-        live: sections.filter((section) => section.isLive).length,
-      },
-    },
-  });
+import { okResponse } from "../utils/apiResponse.js";
 
 export const HomeSectionController = {
-  /** GET /api/homeSections/getHomeSections */
+  /** GET /api/homeSections/getHomeSections — both sections, with picks. */
   getHomeSections: asyncHandler(async (req, res) => {
     const sections = await HomeSectionService.getAll();
 
-    return list(res, sections, "Home page sections fetched successfully");
-  }),
-
-  /** GET /api/homeSections/getHomeSectionById/:id */
-  getHomeSectionById: asyncHandler(async (req, res) => {
-    const section = await HomeSectionService.getById(req.params.id);
-
     return okResponse({
       res,
-      data: section,
-      message: "Section fetched successfully",
+      data: sections,
+      message: "Home page sections fetched successfully",
     });
   }),
 
-  /**
-   * POST /api/homeSections/createHomeSection
-   *
-   * { title, subtitle?, slug?, startsAt?, endsAt?, active?, productIds }
-   */
-  createHomeSection: asyncHandler(async (req, res) => {
-    const section = await HomeSectionService.create(req.body);
+  /** GET /api/homeSections/getHomeSection/:slug */
+  getHomeSection: asyncHandler(async (req, res) => {
+    const section = await HomeSectionService.getBySlug(req.params.slug);
 
-    return createdResponse({
-      res,
-      data: section,
-      message: "Section added",
-    });
+    return okResponse({ res, data: section, message: "Section fetched successfully" });
   }),
 
-  /** PUT /api/homeSections/updateHomeSection/:id — a full replace. */
+  /** PUT /api/homeSections/updateHomeSection/:slug — { title, subtitle?, productIds } */
   updateHomeSection: asyncHandler(async (req, res) => {
-    const section = await HomeSectionService.update(req.params.id, req.body);
+    const section = await HomeSectionService.update(req.params.slug, req.body);
 
-    return okResponse({
-      res,
-      data: section,
-      message: "Section updated successfully",
-    });
+    return okResponse({ res, data: section, message: "Section saved" });
   }),
 
-  /** PATCH /api/homeSections/setHomeSectionActive/:id */
-  setActive: asyncHandler(async (req, res) => {
-    const section = await HomeSectionService.setActive(
-      req.params.id,
-      req.body.active,
+  /** GET /api/homeSections/getProductSections/:productId */
+  getProductSections: asyncHandler(async (req, res) => {
+    const data = await HomeSectionService.getProductSections(req.params.productId);
+
+    return okResponse({ res, data, message: "Product sections fetched successfully" });
+  }),
+
+  /** PUT /api/homeSections/setProductSections/:productId — { sections: [...] } */
+  setProductSections: asyncHandler(async (req, res) => {
+    const data = await HomeSectionService.setProductSections(
+      req.params.productId,
+      req.body.sections,
     );
 
-    return okResponse({
-      res,
-      data: section,
-      message: section.active
-        ? "Section switched on"
-        : "Section hidden from the home page",
-    });
-  }),
-
-  /** PATCH /api/homeSections/reorderHomeSections */
-  reorder: asyncHandler(async (req, res) => {
-    const sections = await HomeSectionService.reorder(req.body.ids);
-
-    return list(res, sections, "Sections reordered successfully");
-  }),
-
-  /** DELETE /api/homeSections/deleteHomeSection/:id */
-  deleteHomeSection: asyncHandler(async (req, res) => {
-    const sections = await HomeSectionService.remove(req.params.id);
-
-    return list(res, sections, "Section deleted successfully");
+    return okResponse({ res, data, message: "Home page sections updated" });
   }),
 };

@@ -1,19 +1,18 @@
 /**
- * The hand-picked shelves on the home page (F-06): best sellers, festival
- * sales, collections.
+ * The two hand-picked sections on the home page (F-06): Best sellers, and the
+ * custom section the shop renames for whatever is running.
  *
- * Read from `GET /storefront/getHomeSections`, which returns only the shelves
- * that are switched on and inside their dates, each with its title, the line
- * under it, its layout and colour theme, its end date (for the countdown) and
- * the ids of its on-sale pieces in the shop's order. The products themselves
+ * Read from `GET /storefront/getHomeSections`, which returns each section
+ * that has on-sale pieces, with its name, its description, its key and the
+ * ids of those pieces in the shop's order. The products themselves
  * are not in the response: the home page already holds the catalogue, and
- * the shelves are built from that (see <HomeShelves>).
+ * the sections are built from that (see <CardShelf>).
  *
- * A minute's revalidation, the catalogue's own, so a festival shelf appears
- * and disappears within about a minute of its dates.
+ * A minute's revalidation, the catalogue's own, so a change made in the admin
+ * shows within about a minute.
  *
  * On failure this returns an empty array, like banners.js: the home page
- * still has its automatic shelves, and a missing festival shelf is a smaller
+ * still has Just landed, and a missing section is a smaller
  * loss than a home page that will not render.
  */
 
@@ -27,8 +26,7 @@ const REVALIDATE_SECONDS = 60;
 
 /**
  * @returns {Promise<Array<{title: string, subtitle: string|null, slug: string,
- *          layout: "festival"|"cards"|"editorial", theme: string,
- *          ends_at: string|null, product_ids: string[]}>>}
+ *          product_ids: string[]}>>}
  */
 export const getHomeSections = cache(async () => {
   try {

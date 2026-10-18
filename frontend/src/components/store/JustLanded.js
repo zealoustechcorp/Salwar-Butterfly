@@ -21,13 +21,16 @@ const SHAPE = "rounded-tl-[2.5rem] rounded-br-[2.5rem]";
 const SIZES = "(min-width: 640px) 280px, 230px";
 
 /**
- * The hovered card grows by getting wider — its height follows from the
- * photo's aspect ratio — so the cards beside it move aside to make room
- * rather than being covered. Hover-capable devices only; a card reached with
+ * The hovered card grows by getting wider, its height following from the
+ * photo's shape, so the cards beside it move aside rather than being
+ * covered. The row is held at a resting card's height with the cards on its
+ * floor, and clips only sideways, so a grown card rises up over the gap
+ * above it while hovered instead of the row keeping empty room for it, and
+ * nothing below the row moves. Hover-capable devices only; a card reached with
  * the keyboard grows the same way.
  */
 const GROW =
-  "transition-[width] duration-500 [@media(hover:hover)]:hover:w-[14.5rem] sm:[@media(hover:hover)]:hover:w-[17rem] focus-within:w-[14.5rem] sm:focus-within:w-[17rem]";
+  "relative transition-[width] [@media(hover:hover)]:hover:z-10 focus-within:z-10 duration-500 [@media(hover:hover)]:hover:w-[14.5rem] sm:[@media(hover:hover)]:hover:w-[17rem] focus-within:w-[14.5rem] sm:focus-within:w-[17rem]";
 
 /**
  * "Just landed" — the newest pieces, newest first (F-06 home shelves).
@@ -54,7 +57,7 @@ export function JustLanded({ products }) {
   if (!pieces.length) return null;
 
   return (
-    <section aria-labelledby="just-landed" className="py-10 sm:py-12">
+    <section aria-labelledby="just-landed" className="py-6 sm:py-8">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <p className="sb-eyebrow text-[10px] text-sb-gold-text">Fresh on the rack</p>
         <h2 id="just-landed" className="mt-1.5 font-display text-3xl font-semibold text-sb-heading sm:text-4xl lg:text-5xl">
@@ -63,15 +66,14 @@ export function JustLanded({ products }) {
       </div>
 
       {/* Full bleed: the row runs edge to edge so pieces drift in from off
-          screen rather than appearing at a margin. The trailing padding
-          matches the gap, so the seam where the loop joins is invisible.
-          On devices that hover, the row is held at a grown card's height
-          and the cards sit on its floor, so a card growing upward never
-          pushes the rest of the page down. */}
-      <div className="mt-6">
+          screen rather than appearing at a margin. Each copy of the row has
+          trailing padding equal to the gap and no leading padding, so the
+          gap where the loop joins is exactly the gap between any two cards.
+ */}
+      <div className="mt-5 sm:mt-6">
         <AutoMarquee
           label="Just landed"
-          className="items-end gap-6 pr-6 pb-2 pl-4 sm:pl-6 lg:pl-8 [@media(hover:hover)]:min-h-[18.75rem] sm:[@media(hover:hover)]:min-h-[22rem]"
+          className="h-[13.75rem] items-end gap-6 pr-6 sm:h-[16.25rem]"
         >
           {pieces.map((product, index) => {
             return (
