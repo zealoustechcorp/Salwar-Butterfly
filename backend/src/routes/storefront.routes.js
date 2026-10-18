@@ -66,6 +66,12 @@ router.get("/getBanners", StorefrontController.getBanners);
 // none of those are here.
 router.get("/getCustomerStories", StorefrontController.getCustomerStories);
 
+// The hand-picked product shelves on the home page — best sellers,
+// festival sales (F-06). Only live shelves, and only their title, the
+// line under it, the link name and the ids of on-sale pieces. The admin's
+// own /homeSections router returns the id, position, switch and dates.
+router.get("/getHomeSections", StorefrontController.getHomeSections);
+
 // PIN code lookup for the address forms (F-05.03, F-08.05).
 //
 // The sixth public read, and the only one that is not the catalogue: it

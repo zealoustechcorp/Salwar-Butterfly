@@ -87,7 +87,14 @@ export const FIELD_TAB = {
 };
 
 /** Identity, description and where the product sits in the catalogue. */
-export function DetailsFields({ form, setField, errors = {}, reference, lockCategory = false }) {
+/**
+ * `customSection`, when given, adds a second switch under Featured that
+ * puts the piece in the home page's custom section — `{ title, checked,
+ * onChange }`, where `title` is the section's current name ("Best sellers",
+ * "Diwali Sale"). It is kept out of `form` because it is saved by its own
+ * request, not with the product's fields; see useCustomSection.
+ */
+export function DetailsFields({ form, setField, errors = {}, reference, lockCategory = false, customSection = null }) {
   const categories = reference?.categories ?? [];
 
   return (
@@ -182,7 +189,7 @@ export function DetailsFields({ form, setField, errors = {}, reference, lockCate
         <div className="flex items-center justify-between gap-3 rounded-lg bg-ink-50 px-3 py-2.5 ring-1 ring-inset ring-ink-200">
           <div className="min-w-0">
             <p className="text-xs font-semibold text-ink-700">Feature on the home page</p>
-            <p className="text-[11px] text-ink-500">Adds it to the featured rail on the storefront.</p>
+            <p className="text-[11px] text-ink-500">Shows it in Explore collections on the home page.</p>
           </div>
           <Toggle
             checked={form.isFeatured}
@@ -191,6 +198,24 @@ export function DetailsFields({ form, setField, errors = {}, reference, lockCate
           />
         </div>
       </div>
+
+      {customSection ? (
+        <div className="md:col-span-2">
+          <div className="flex items-center justify-between gap-3 rounded-lg bg-ink-50 px-3 py-2.5 ring-1 ring-inset ring-ink-200">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-ink-700">Show in &ldquo;{customSection.title}&rdquo;</p>
+              <p className="text-[11px] text-ink-500">
+                Adds it to the custom section on the home page. Rename the section in Home page → Custom section.
+              </p>
+            </div>
+            <Toggle
+              checked={customSection.checked}
+              onChange={customSection.onChange}
+              label={`Show in ${customSection.title}`}
+            />
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

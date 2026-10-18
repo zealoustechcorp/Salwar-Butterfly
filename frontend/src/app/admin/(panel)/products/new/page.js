@@ -10,6 +10,7 @@ import {
   PricingFields,
   validateProductForm,
 } from "@/components/admin/ProductFields";
+import { useCustomSection } from "@/components/admin/useCustomSection";
 import { StagedGallery } from "@/components/admin/ProductGallery";
 import { SizeStockEditor } from "@/components/admin/SizeStockEditor";
 import {
@@ -71,6 +72,7 @@ export default function NewProductPage() {
   const [fits, setFits] = useState([]);
   const [colours, setColours] = useState([]);
   const [form, setForm] = useState(BLANK);
+  const customSection = useCustomSection();
   const [sizes, setSizes] = useState(DEFAULT_SIZES);
   // Held in the browser until the product exists — photographs are keyed
   // by product id, so there is nothing to upload them against yet.
@@ -224,6 +226,20 @@ export default function NewProductPage() {
         }
       }
 
+      // The custom section is a fourth call, keyed by product id like the
+      // two above. A failure here is said plainly and does not undo the
+      // product: the switch is on its own page's card to retry.
+      if (customSection.checked) {
+        try {
+          await customSection.save(product.id);
+        } catch (sectionError) {
+          toast.error(
+            `"${product.name}" was created, but it was not added to ${customSection.title}.`,
+            sectionError.message,
+          );
+        }
+      }
+
       const added = [
         sizes.length ? describeMatrix(sizes) : null,
         photos.length ? `${photos.length} image${photos.length === 1 ? "" : "s"}` : null,
@@ -278,7 +294,13 @@ export default function NewProductPage() {
           description="Identity, description and where the product sits in the catalogue."
         />
         <div className="p-4 sm:p-5">
-          <DetailsFields form={form} setField={setField} errors={errors} reference={reference} />
+          <DetailsFields
+            form={form}
+            setField={setField}
+            errors={errors}
+            reference={reference}
+            customSection={customSection.field}
+          />
         </div>
       </Card>
 

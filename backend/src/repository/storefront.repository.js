@@ -95,6 +95,10 @@ const PRODUCTS_SQL = `
     p.base_price,
     p.category_id,
     p.created_at,
+    -- The admin's "Featured" switch: the pieces the home page's Explore
+    -- collections section shows. Already shown to shoppers as a choice the
+    -- shop made in public, so nothing private.
+    p.is_featured,
     -- How the piece is cut, and the only reason the public reader looks
     -- inside \`attributes\` at all. It names a row in \`size_charts\`, so
     -- the storefront can print the one table that applies to this piece
@@ -437,7 +441,54 @@ const CUSTOMER_STORIES_SQL = `
   LIMIT $1
 `;
 
+// ============================================================
+// HOME SECTIONS (F-06)
+// ============================================================
+//
+// Three columns and an id list: the two fixed sections (029), Best sellers
+// and the custom one, with their name, description and key. Their id and
+// position are the admin screen's business; the ORDER BY already says the
+// order. The switch and the date window are still applied, though the admin
+// screen no longer sets either.
+//
+// The picks are filtered the way every other product here is — on sale,
+// in a visible category — and a shelf left with none is dropped, so the
+// storefront never has to decide what an empty shelf means.
+
+const HOME_SECTIONS_SQL = `
+  SELECT
+    s.title,
+    s.subtitle,
+    s.slug,
+    picked.product_ids
+  FROM home_sections s
+  CROSS JOIN LATERAL (
+    SELECT array_agg(p.id ORDER BY hsp.position ASC) AS product_ids
+    FROM home_section_products hsp
+    JOIN products p ON p.id = hsp.product_id
+    WHERE hsp.section_id = s.id
+      AND p.active = TRUE
+      AND ${PRODUCT_CATEGORY_VISIBLE}
+  ) picked
+  WHERE s.slug = 'custom'
+    AND s.active
+    AND (s.starts_at IS NULL OR s.starts_at <= NOW())
+    AND (s.ends_at IS NULL OR s.ends_at > NOW())
+    AND picked.product_ids IS NOT NULL
+  ORDER BY s.position ASC, s.created_at ASC, s.id ASC
+`;
+
 export const StorefrontRepository = {
+  /** The live hand-picked shelves, in the shop's order. */
+  async homeSections() {
+    try {
+      const result = await query(HOME_SECTIONS_SQL);
+      return result.rows;
+    } catch (error) {
+      throw handleDatabaseError(error, "homeSections");
+    }
+  },
+
   async categories() {
     try {
       const result = await query(CATEGORIES_SQL);

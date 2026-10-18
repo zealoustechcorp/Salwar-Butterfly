@@ -274,6 +274,39 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* The home page's vertical rhythm: one gap between every pair of sections,
+   28px on a phone, 36px from `sm`, 40px from `lg`.
+
+   .sb-section  a section on the page's own cream ground. Padded top and
+                bottom by the gap, except that one following another drops
+                its top — two sections on the same ground would otherwise
+                stack their paddings into a double gap.
+   .sb-band     a section with its own background. Always padded both ends,
+                since its edge is visible and its content needs the room
+                inside it. */
+.sb-section,
+.sb-band {
+  padding-block: 1.75rem;
+}
+
+@media (min-width: 40rem) {
+  .sb-section,
+  .sb-band {
+    padding-block: 2.25rem;
+  }
+}
+
+@media (min-width: 64rem) {
+  .sb-section,
+  .sb-band {
+    padding-block: 2.5rem;
+  }
+}
+
+.sb-section + .sb-section {
+  padding-top: 0;
+}
+
 .sb-no-scrollbar {
   scrollbar-width: none;
 }
@@ -439,3 +472,4 @@ body {
     animation: none;
   }
 }
+

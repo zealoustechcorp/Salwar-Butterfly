@@ -76,9 +76,9 @@ export function CustomerStories({ stories = [] }) {
   return (
     <section
       id="customers"
-      className="scroll-mt-40 bg-sb-surface/25 wide:scroll-mt-28"
+      className="sb-band scroll-mt-40 bg-sb-surface/25 wide:scroll-mt-28"
     >
-      <div className="mx-auto max-w-7xl px-4 py-9 sm:px-6 sm:py-11 lg:px-8 lg:py-13">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="text-center">
           <p className="sb-eyebrow flex items-center justify-center gap-2 text-[10px] text-sb-gold-text">
             <Butterfly className="size-5 text-sb-maroon-deco" />
@@ -93,7 +93,7 @@ export function CustomerStories({ stories = [] }) {
         </div>
       </div>
 
-      <div className="-mt-2 pb-10 sm:pb-12 lg:pb-14">
+      <div className="mt-6">
         {/* The column count steps with the width, and the cap steps with
             it at the same breakpoint (see WIDE_LIMIT) — otherwise a
             four-card cap lands in a three-column wall and the last row

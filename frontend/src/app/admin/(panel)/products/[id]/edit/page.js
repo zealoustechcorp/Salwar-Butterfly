@@ -12,6 +12,7 @@ import {
   PricingFields,
   validateProductForm,
 } from "@/components/admin/ProductFields";
+import { useCustomSection } from "@/components/admin/useCustomSection";
 import { ProductGallery } from "@/components/admin/ProductGallery";
 import { SizeStockEditor } from "@/components/admin/SizeStockEditor";
 import {
@@ -101,6 +102,7 @@ function EditProduct() {
   const [fits, setFits] = useState([]);
   const [colours, setColours] = useState([]);
   const [form, setForm] = useState(null);
+  const customSection = useCustomSection(id);
   // Sizes live in their own table, so they are their own piece of form
   // state and their own save — `null` until the first load lands.
   const [sizes, setSizes] = useState(null);
@@ -393,6 +395,18 @@ function EditProduct() {
         setSavedSizes(rows);
       }
 
+      // The custom section switch, written only if it changed. Its own
+      // request; a failure is reported on its own and leaves the rest saved.
+      let sectionWarning = null;
+      try {
+        await customSection.save(product.id);
+      } catch (sectionError) {
+        sectionWarning = sectionError.message;
+      }
+      if (sectionWarning) {
+        toast.error(`Saved, but the change to ${customSection.title} was not.`, sectionWarning);
+      }
+
       if (categoryWarning) {
         toast.error(
           categoryWarning,
@@ -530,7 +544,13 @@ function EditProduct() {
           <Card>
             <CardHeader title="Product details" />
             <div className="p-4 sm:p-5">
-              <DetailsFields form={form} setField={setField} errors={errors} reference={reference} />
+              <DetailsFields
+                form={form}
+                setField={setField}
+                errors={errors}
+                reference={reference}
+                customSection={customSection.field}
+              />
             </div>
           </Card>
 

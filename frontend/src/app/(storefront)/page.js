@@ -1,12 +1,15 @@
+import { CardShelf } from "@/components/store/CardShelf";
 import { CategoryGrid } from "@/components/store/CategoryGrid";
 import { CustomerStories } from "@/components/store/CustomerStories";
 import { Hero } from "@/components/store/Hero";
+import { JustLanded } from "@/components/store/JustLanded";
 import { PolicySection, StorySection, TrustBar } from "@/components/store/HomeSections";
-import { ProductShowcase } from "@/components/store/ProductShowcase";
+import { ExploreCollections } from "@/components/store/ExploreCollections";
 import { FabricStrip, FollowSection } from "@/components/store/Promos";
 import { getBanners } from "@/lib/store/banners";
 import { getHomePageData } from "@/lib/store/catalogue";
 import { getCustomerStories } from "@/lib/store/customerStories";
+import { getHomeSections } from "@/lib/store/homeSections";
 import { SITE_URL } from "@/lib/site";
 
 /**
@@ -34,11 +37,23 @@ export default async function StorefrontHome() {
     },
     banners,
     stories,
+    sections,
   ] = await Promise.all([
     getHomePageData(),
     getBanners(),
     getCustomerStories(),
+    getHomeSections(),
   ]);
+
+  // Each hand-picked shelf names its pieces by id, in the shop's order. They
+  // are looked up in the catalogue already loaded for this page; an id the
+  // catalogue does not carry (a piece hidden since, or with no photo) is
+  // skipped rather than drawn as a gap.
+  const byId = new Map(products.map((product) => [product.id, product]));
+  const shelves = sections.map((section) => ({
+    section,
+    products: section.product_ids.map((id) => byId.get(id)).filter(Boolean),
+  }));
 
   return (
     <>
@@ -56,9 +71,18 @@ export default async function StorefrontHome() {
           again. */}
       <Hero banners={banners} />
       <TrustBar shop={shop} />
+      {/* The shop's own section first — named for whatever it needs: Best
+          sellers, Diwali, Pongal — as a row of cards. Not drawn when nothing
+          is ticked for it in the admin. */}
+      {shelves.map(({ section, products: picked }) => (
+        <CardShelf key={section.slug} section={section} products={picked} />
+      ))}
+      <JustLanded products={products} />
       <CategoryGrid categories={categories} />
       <FabricStrip fabrics={fabrics} />
-      <ProductShowcase products={products} categories={categories} />
+      {/* Featured pieces only, and a way into the full shop — the search,
+          tabs and filters live at /shop, not here. */}
+      <ExploreCollections products={products} />
       {/* After the products and before the brand story: social proof lands
           best once a visitor has seen what is being sold and before they
           are asked to act on it. Renders nothing when the shop has

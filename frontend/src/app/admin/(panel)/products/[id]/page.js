@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { DiscountDialog } from "@/components/admin/DiscountDialog";
+import { HomeSectionsCard } from "@/components/admin/HomeSectionsCard";
 import { ActiveDot, StatGrid, StatTile } from "@/components/admin/ProductBits";
 import { GalleryThumbnail } from "@/components/admin/ProductGallery";
 import { ProductCover } from "@/components/admin/ProductThumb";
@@ -367,6 +368,8 @@ export default function ProductDetailPage() {
               )}
             </dl>
           </Card>
+
+          <HomeSectionsCard productId={product.id} />
 
           <Card>
             <CardHeader title="Record" />
