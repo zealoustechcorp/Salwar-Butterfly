@@ -37,7 +37,7 @@ export function CardShelf({ section, products }) {
   const headingId = `shelf-${section.slug}`;
 
   return (
-    <section aria-labelledby={headingId} className="bg-sb-footer py-12 text-sb-bg sm:py-14">
+    <section aria-labelledby={headingId} className="sb-band sb-band-shelf bg-sb-footer text-sb-bg">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <ShelfSlider
           label={section.title}

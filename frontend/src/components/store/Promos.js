@@ -9,7 +9,7 @@ import { Butterfly, InstagramGlyph, WhatsAppGlyph } from "./Ornaments";
  */
 export function FabricStrip({ fabrics }) {
   return (
-    <section className="mx-auto max-w-7xl px-4 pb-1 sm:px-6 lg:px-8">
+    <section className="sb-section mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
       <div className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-2xl border border-sb-gold/35 bg-sb-bg px-4 py-4 sm:px-5">
         <p className="sb-eyebrow shrink-0 text-[10px] text-sb-gold-text">Shop by fabric &amp; print</p>
         <div className="sb-no-scrollbar flex flex-1 gap-2 overflow-x-auto">
@@ -36,7 +36,7 @@ export function FabricStrip({ fabrics }) {
  */
 export function FollowSection({ shop }) {
   return (
-    <section className="px-4 pt-9 pb-10 sm:px-6 sm:pt-11 lg:px-8 lg:pt-13 lg:pb-14">
+    <section className="sb-section px-4 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl rounded-3xl bg-sb-footer px-5 py-10 text-center sm:px-12 sm:py-12">
         <Butterfly className="mx-auto size-9 text-sb-pink-deco sm:size-10" strokeWidth={1.2} />
         <h2 className="mt-4 font-display text-3xl font-semibold text-sb-bg sm:text-4xl lg:text-5xl">

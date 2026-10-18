@@ -23,14 +23,17 @@ const SIZES = "(min-width: 640px) 280px, 230px";
 /**
  * The hovered card grows by getting wider, its height following from the
  * photo's shape, so the cards beside it move aside rather than being
- * covered. The row is held at a resting card's height with the cards on its
- * floor, and clips only sideways, so a grown card rises up over the gap
- * above it while hovered instead of the row keeping empty room for it, and
- * nothing below the row moves. Hover-capable devices only; a card reached with
+ * covered. The row is held at a resting card's height with the cards hung
+ * from its top, and clips only sideways, so a grown card reaches down into
+ * the blank space before the next section while hovered — never up over the
+ * heading — and nothing below the row moves. It grows into the section's
+ * own bottom padding (the home page gap, .sb-section in globals.css: 36px on
+ * a phone, 44px from `sm`), so it is held to what fits there: 30px and 35px
+ * taller, about an eighth larger. Hover-capable devices only; a card reached with
  * the keyboard grows the same way.
  */
 const GROW =
-  "relative transition-[width] [@media(hover:hover)]:hover:z-10 focus-within:z-10 duration-500 [@media(hover:hover)]:hover:w-[14.5rem] sm:[@media(hover:hover)]:hover:w-[17rem] focus-within:w-[14.5rem] sm:focus-within:w-[17rem]";
+  "relative transition-[width] [@media(hover:hover)]:hover:z-10 focus-within:z-10 duration-500 [@media(hover:hover)]:hover:w-[12.5rem] sm:[@media(hover:hover)]:hover:w-[14.75rem] focus-within:w-[12.5rem] sm:focus-within:w-[14.75rem]";
 
 /**
  * "Just landed" — the newest pieces, newest first (F-06 home shelves).
@@ -57,7 +60,7 @@ export function JustLanded({ products }) {
   if (!pieces.length) return null;
 
   return (
-    <section aria-labelledby="just-landed" className="py-6 sm:py-8">
+    <section aria-labelledby="just-landed" className="sb-section">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <p className="sb-eyebrow text-[10px] text-sb-gold-text">Fresh on the rack</p>
         <h2 id="just-landed" className="mt-1.5 font-display text-3xl font-semibold text-sb-heading sm:text-4xl lg:text-5xl">
@@ -70,10 +73,10 @@ export function JustLanded({ products }) {
           trailing padding equal to the gap and no leading padding, so the
           gap where the loop joins is exactly the gap between any two cards.
  */}
-      <div className="mt-5 sm:mt-6">
+      <div className="relative z-10 mt-6">
         <AutoMarquee
           label="Just landed"
-          className="h-[13.75rem] items-end gap-6 pr-6 sm:h-[16.25rem]"
+          className="h-[13.75rem] items-start gap-6 pr-6 sm:h-[16.25rem]"
         >
           {pieces.map((product, index) => {
             return (

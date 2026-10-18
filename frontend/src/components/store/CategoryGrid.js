@@ -16,7 +16,7 @@ export function CategoryGrid({ categories }) {
   return (
     <section
       id="categories"
-      className="mx-auto max-w-7xl scroll-mt-40 px-4 py-9 sm:px-6 sm:py-11 lg:px-8 lg:py-13 wide:scroll-mt-28"
+      className="sb-section mx-auto max-w-7xl scroll-mt-40 px-4 sm:px-6 lg:px-8 wide:scroll-mt-28"
     >
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>

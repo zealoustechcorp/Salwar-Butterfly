@@ -84,7 +84,7 @@ export function ProductShowcase({ products, categories, withSidebar = false, fil
       id="shop"
       className={cn(
         "scroll-mt-40 wide:scroll-mt-28",
-        withSidebar ? "" : "mx-auto max-w-7xl px-4 py-9 sm:px-6 sm:py-11 lg:px-8 lg:py-13",
+        withSidebar ? "" : "sb-section mx-auto max-w-7xl px-4 sm:px-6 lg:px-8",
       )}
     >
       {/* On a phone the eyebrow and the blurb are dropped and the title
