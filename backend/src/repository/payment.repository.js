@@ -22,7 +22,11 @@ import {
   DEFAULT_PROVIDER,
   PAYMENT_ATTEMPT_STATUS,
 } from "../config/payment.policy.js";
-import { ORDER_STATUS, PAYMENT_STATUS } from "../config/order.policy.js";
+import {
+  ASSIGN_ORDER_NUMBER_SQL,
+  ORDER_STATUS,
+  PAYMENT_STATUS,
+} from "../config/order.policy.js";
 import { NOTIFY_EVENT } from "../config/whatsapp.policy.js";
 import { NotificationService } from "../services/notification.service.js";
 import { EmailService } from "../services/email.service.js";
@@ -83,6 +87,103 @@ const COLUMNS = `
   paid_at,
   updated_at
 `;
+
+/**
+ * Puts a lapsed checkout back together when its payment lands late.
+ *
+ * A draft's hold is short (CHECKOUT_HOLD_MINUTES), and a payment can be
+ * in flight when it runs out — a UPI collect request approved a minute
+ * after the sheet closed, a webhook delayed by a retry. The sweeper has
+ * by then cancelled the draft and put its pieces back. The shopper has
+ * paid, though, so before falling back to a refund this tries to take
+ * the same pieces off the shelf again, at the price the draft recorded.
+ *
+ * The same lock-sorted, guarded decrement OrderRepository.create uses,
+ * inside a SAVEPOINT so that a piece which has since sold rolls back
+ * only this attempt and leaves the caller's transaction usable.
+ *
+ * Only for a cancelled *draft* (no order number). A placed order that
+ * was cancelled was cancelled by a person, on purpose.
+ *
+ * @returns {Promise<object|null>} the confirmed order row, or null when
+ *          the stock is no longer there (the caller records a refund)
+ */
+const reviveLapsedDraft = async (client, orderId) => {
+  await client.query("SAVEPOINT revive_draft");
+
+  try {
+    const { rows: lines } = await client.query(
+      `SELECT variant_id, quantity
+         FROM order_items
+        WHERE order_id = $1::uuid
+        ORDER BY variant_id`,
+      [orderId],
+    );
+
+    // A variant deleted since: nothing to take, so nothing to ship.
+    if (lines.length === 0 || lines.some((line) => !line.variant_id)) {
+      await client.query("ROLLBACK TO SAVEPOINT revive_draft");
+      return null;
+    }
+
+    await client.query(
+      `SELECT id FROM product_variants
+        WHERE id = ANY($1::uuid[])
+        ORDER BY id
+        FOR UPDATE`,
+      [lines.map((line) => line.variant_id)],
+    );
+
+    for (const line of lines) {
+      const taken = await client.query(
+        `UPDATE product_variants
+            SET stock_quantity = stock_quantity - $2,
+                updated_at = NOW()
+          WHERE id = $1::uuid
+            AND stock_quantity - $2 >= 0`,
+        [line.variant_id, line.quantity],
+      );
+
+      if (taken.rowCount === 0) {
+        await client.query("ROLLBACK TO SAVEPOINT revive_draft");
+        return null;
+      }
+    }
+
+    const revived = await client.query(
+      `UPDATE orders
+          SET status = $2,
+              payment_status = $3,
+              paid_at = COALESCE(paid_at, NOW()),
+              cancelled_at = NULL,
+              cancellation_reason = NULL,
+              order_number = ${ASSIGN_ORDER_NUMBER_SQL},
+              updated_at = NOW()
+        WHERE id = $1::uuid
+          AND status = $4
+          AND order_number IS NULL
+        RETURNING *`,
+      [orderId, ORDER_STATUS.CONFIRMED, PAYMENT_STATUS.PAID, ORDER_STATUS.CANCELLED],
+    );
+
+    if (revived.rowCount === 0) {
+      await client.query("ROLLBACK TO SAVEPOINT revive_draft");
+      return null;
+    }
+
+    await client.query("RELEASE SAVEPOINT revive_draft");
+
+    logger.warn("Lapsed checkout revived by a late payment", {
+      orderId,
+      orderNumber: revived.rows[0].order_number,
+    });
+
+    return revived.rows[0];
+  } catch (error) {
+    await client.query("ROLLBACK TO SAVEPOINT revive_draft").catch(() => {});
+    throw error;
+  }
+};
 
 export const PaymentRepository = {
   // ==========================================================
@@ -405,11 +506,14 @@ export const PaymentRepository = {
 
         const payment = paid.rows[0];
 
+        // Paying is placing: this is where a checkout draft becomes an
+        // order and is given its number.
         const order = await client.query(
           `UPDATE orders
            SET status = $2,
                payment_status = $3,
                paid_at = COALESCE(paid_at, NOW()),
+               order_number = ${ASSIGN_ORDER_NUMBER_SQL},
                updated_at = NOW()
            WHERE id = $1::uuid
              AND status = $4
@@ -431,28 +535,44 @@ export const PaymentRepository = {
         // order.repository.js) rather than being quietly reported as a
         // success.
         let unmatched = null;
+        let confirmed = order.rows[0] ?? null;
 
-        if (order.rowCount === 0) {
+        if (!confirmed) {
           const { rows } = await client.query(
-            `SELECT status FROM orders WHERE id = $1::uuid FOR UPDATE`,
+            `SELECT status, order_number FROM orders WHERE id = $1::uuid FOR UPDATE`,
             [payment.order_id],
           );
 
-          if (rows[0]?.status === ORDER_STATUS.CANCELLED) {
-            unmatched = "cancelled";
+          const lapsedDraft =
+            rows[0]?.status === ORDER_STATUS.CANCELLED && !rows[0]?.order_number;
+
+          // The hold ran out while the money was on its way. Place the
+          // order after all if its pieces are still on the shelf.
+          if (lapsedDraft) {
+            confirmed = await reviveLapsedDraft(client, payment.order_id);
+          }
+
+          if (!confirmed && rows[0]?.status === ORDER_STATUS.CANCELLED) {
+            // "lapsed": the checkout timed out and a piece sold before the
+            // money arrived. "cancelled": a placed order a person cancelled.
+            unmatched = lapsedDraft ? "lapsed" : "cancelled";
 
             // A cancelled order carrying `paid` is exactly what refund-due
             // means; markRefunded moves it on once the money goes back.
+            // Numbered, so that a lapsed draft somebody paid for shows up
+            // on the admin queue and in the shopper's history — money the
+            // shop owes back must never sit on a row no screen lists.
             await client.query(
               `UPDATE orders
                SET payment_status = $2,
                    paid_at = COALESCE(paid_at, NOW()),
+                   order_number = ${ASSIGN_ORDER_NUMBER_SQL},
                    updated_at = NOW()
                WHERE id = $1::uuid
                  AND payment_status = $3`,
               [payment.order_id, PAYMENT_STATUS.PAID, PAYMENT_STATUS.PENDING],
             );
-          } else {
+          } else if (!confirmed) {
             unmatched = "duplicate";
           }
         }
@@ -461,7 +581,7 @@ export const PaymentRepository = {
           paymentId,
           orderId: payment.order_id,
           providerPaymentId,
-          orderConfirmed: order.rowCount > 0,
+          orderConfirmed: Boolean(confirmed),
           unmatched,
         });
 
@@ -483,9 +603,7 @@ export const PaymentRepository = {
         let notificationIds = [];
         let emailIds = [];
 
-        if (order.rowCount > 0) {
-          const confirmed = order.rows[0];
-
+        if (confirmed) {
           const { rows: counts } = await client.query(
             `SELECT COALESCE(SUM(quantity), 0)::int AS units
                FROM order_items
@@ -506,7 +624,7 @@ export const PaymentRepository = {
 
         return {
           payment,
-          order: order.rows[0] ?? null,
+          order: confirmed,
           alreadyPaid: false,
           unmatched,
           notificationIds,
@@ -555,10 +673,10 @@ export const PaymentRepository = {
    * Records that an attempt failed.
    *
    * The *order* is untouched on purpose. A declined card leaves the
-   * order exactly where it was — `pending_payment`, with its stock still
-   * reserved — so the shopper can try again with another method without
-   * losing the last piece in their size to somebody else in the
-   * meantime. Only a cancellation puts stock back.
+   * checkout exactly where it was — `pending_payment`, with its stock
+   * still held — so the shopper can try again with another method
+   * without losing the last piece in their size to somebody else in the
+   * meantime. The hold still runs out on time (CHECKOUT_HOLD_MINUTES).
    */
   async markFailed(paymentId, { providerPaymentId = null, code = null, description = null }) {
     const text = `

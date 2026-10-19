@@ -42,7 +42,7 @@ import { OrderMapper } from "../mapper/order.mapper.js";
 
 import { RazorpayGateway } from "../config/razorpay.gateway.js";
 import { env } from "../config/env.js";
-import { ORDER_STATUS } from "../config/order.policy.js";
+import { isDraft, ORDER_STATUS } from "../config/order.policy.js";
 import {
   CURRENCY,
   DEFAULT_PROVIDER,
@@ -120,6 +120,33 @@ const loadOrder = async (id) => {
 };
 
 /**
+ * How long a checkout draft's stock is still held for, in whole seconds.
+ *
+ * From `age_seconds`, which the database measures against its own clock
+ * (see SELECT_ORDER in order.repository.js). The payment sheet is told
+ * this figure and closes itself when it runs out, so nobody is still
+ * paying when the sweeper releases the stock. Null for an order written
+ * before drafts existed, which has no hold to honour.
+ */
+const holdSecondsLeft = (order) => {
+  if (!isDraft(order)) return null;
+
+  const age = Number(order.age_seconds);
+  const hold = env.checkoutHoldMinutes * 60;
+
+  return Number.isFinite(age) ? Math.max(0, Math.floor(hold - age)) : hold;
+};
+
+const checkoutExpired = () =>
+  new ApiError({
+    statusCode: 409,
+    message:
+      "Your checkout timed out and the pieces were released. " +
+      "Nothing was charged — please place the order again.",
+    code: "CHECKOUT_EXPIRED",
+  });
+
+/**
  * Refuses an order that is not waiting for money, and says why.
  *
  * Split out because both entry points need it and because the messages
@@ -127,7 +154,16 @@ const loadOrder = async (id) => {
  * already been paid for" is an answer; "conflict" is not.
  */
 const assertAwaitingPayment = (order) => {
-  if (order.status === ORDER_STATUS.PENDING_PAYMENT) return;
+  if (order.status === ORDER_STATUS.PENDING_PAYMENT) {
+    if (holdSecondsLeft(order) === 0) throw checkoutExpired();
+    return;
+  }
+
+  // A draft the sweeper released. Not "cancelled" to the shopper — they
+  // never had an order; their checkout simply timed out.
+  if (order.status === ORDER_STATUS.CANCELLED && isDraft(order)) {
+    throw checkoutExpired();
+  }
 
   if (order.status === ORDER_STATUS.CANCELLED) {
     throw new ApiError(409, "This order was cancelled and cannot be paid for.");
@@ -305,13 +341,16 @@ export const PaymentService = {
             payment: open,
             order: current,
             keyId: RazorpayGateway.publicKeyId(),
+            holdSecondsLeft: holdSecondsLeft(current),
           });
         }
 
         const gatewayOrder = await RazorpayGateway.createOrder({
           amount,
           currency,
-          receipt: current.order_number,
+          // A draft has no number until it is paid for; its id (36
+          // characters, under Razorpay's 40) is the stable handle.
+          receipt: current.order_number ?? current.id,
           idempotencyKey,
           notes: {
             // Echoed back on every webhook about this order. The webhook
@@ -319,7 +358,7 @@ export const PaymentService = {
             // human match a Razorpay dashboard row to a row here when
             // something has gone wrong enough that the lookup did not.
             order_id: current.id,
-            order_number: current.order_number,
+            ...(current.order_number ? { order_number: current.order_number } : {}),
           },
         });
 
@@ -345,6 +384,7 @@ export const PaymentService = {
           payment,
           order: current,
           keyId: RazorpayGateway.publicKeyId(),
+          holdSecondsLeft: holdSecondsLeft(current),
         });
       });
     } catch (error) {
@@ -497,11 +537,15 @@ export const PaymentService = {
       throw new ApiError({
         statusCode: 409,
         message:
-          result.unmatched === "cancelled"
-            ? `Order ${result.order?.orderNumber ?? ""} was cancelled before your payment went through. ` +
-              "Your payment has been recorded and the shop will refund it in full."
-            : `Order ${result.order?.orderNumber ?? ""} had already been paid for. ` +
-              "Your extra payment has been recorded and the shop will refund it.",
+          result.unmatched === "lapsed"
+            ? "Your checkout timed out before your payment went through, and a piece in it sold " +
+              `in the meantime. Your payment has been recorded as ${result.order?.orderNumber ?? "an order"} ` +
+              "and the shop will refund it in full."
+            : result.unmatched === "cancelled"
+              ? `Order ${result.order?.orderNumber ?? ""} was cancelled before your payment went through. ` +
+                "Your payment has been recorded and the shop will refund it in full."
+              : `Order ${result.order?.orderNumber ?? ""} had already been paid for. ` +
+                "Your extra payment has been recorded and the shop will refund it.",
         code: "PAYMENT_REFUND_DUE",
       });
     }

@@ -58,8 +58,8 @@ async function start() {
   startNotificationSweeper();
   // The same floor under the email outbox. A no-op without RESEND_API_KEY.
   startEmailSweeper();
-  // Cancels orders left unpaid past UNPAID_ORDER_TTL_HOURS, so an
-  // abandoned checkout cannot hold stock forever.
+  // Releases checkouts left unpaid past CHECKOUT_HOLD_MINUTES, so an
+  // abandoned checkout cannot hold stock.
   startUnpaidOrderSweeper();
   sweepExpiredSessions();
   server.listen(env.port, () => {

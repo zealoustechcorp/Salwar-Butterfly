@@ -2,17 +2,16 @@
 //
 // Gives abandoned checkouts' stock back to the shelf.
 //
-// Placing an order reserves its pieces at once (see ORDER_STATUS in
-// order.policy.js), and until this existed only a cancellation returned
-// them. A guest cannot cancel and a declined card deliberately leaves the
-// order alone, so one abandoned checkout could hide the last piece of a
-// size until somebody noticed it on the admin queue. This cancels orders
-// still unpaid after env.unpaidOrderTtlHours, through the same guarded
-// OrderRepository.cancel an admin uses — so stock, notification and the
-// "changed under you" guard all behave exactly as they do for a person.
+// Starting a checkout holds its pieces at once (see ORDER_STATUS in
+// order.policy.js), but an order is not placed until it is paid for. A
+// draft still unpaid after env.checkoutHoldMinutes is cancelled here,
+// through the same guarded OrderRepository.cancel an admin uses, so the
+// stock and the "changed under you" guard behave exactly as they do for
+// a person. A draft is cancelled silently — nobody was told it existed.
 //
 // A payment that lands after the sweep is not lost: PaymentRepository.settle
-// records it and the order reads as refund-due.
+// re-reserves the pieces if they are still there and places the order, and
+// otherwise records the payment as a refund the shop owes.
 
 import * as Sentry from "@sentry/node";
 
@@ -21,12 +20,11 @@ import { ORDER_STATUS } from "../config/order.policy.js";
 import { OrderRepository } from "../repository/order.repository.js";
 import { logger } from "../utils/logger.js";
 
-const SWEEP_INTERVAL_MS = 10 * 60_000;
+// Every minute: the hold is ten, and a piece held for a minute past it
+// is a piece somebody else could not buy.
+const SWEEP_INTERVAL_MS = 60_000;
 
 const SWEEP_BATCH = 25;
-
-/** A sheet opened this recently means somebody may be paying now. */
-const ACTIVE_PAYMENT_WINDOW_MINUTES = 30;
 
 /** @type {NodeJS.Timeout | null} */
 let timer = null;
@@ -40,9 +38,8 @@ export async function sweepUnpaidOrdersOnce() {
   sweeping = true;
 
   try {
-    const ids = await OrderRepository.findStaleUnpaid({
-      ttlHours: env.unpaidOrderTtlHours,
-      activeWithinMinutes: ACTIVE_PAYMENT_WINDOW_MINUTES,
+    const ids = await OrderRepository.findExpiredCheckouts({
+      holdMinutes: env.checkoutHoldMinutes,
       limit: SWEEP_BATCH,
     });
 
@@ -52,7 +49,7 @@ export async function sweepUnpaidOrdersOnce() {
       // Guarded on pending_payment inside the transaction: an order paid
       // or cancelled since the read above is simply skipped.
       const row = await OrderRepository.cancel(id, {
-        reason: `Not paid within ${env.unpaidOrderTtlHours} hours`,
+        reason: `Not paid within ${env.checkoutHoldMinutes} minutes`,
         cancellableFrom: [ORDER_STATUS.PENDING_PAYMENT],
       });
 
@@ -60,7 +57,7 @@ export async function sweepUnpaidOrdersOnce() {
     }
 
     if (cancelled > 0) {
-      logger.info("Cancelled unpaid orders", { count: cancelled });
+      logger.info("Released expired checkouts", { count: cancelled });
     }
 
     return cancelled;
@@ -89,8 +86,7 @@ export function startUnpaidOrderSweeper() {
   if (!env.unpaidOrderSweepEnabled) return null;
   if (timer) return timer;
 
-  // Once shortly after boot, then on the interval — a deploy should not
-  // postpone the first sweep by ten minutes.
+  // Once shortly after boot, then on the interval.
   setTimeout(() => {
     sweepUnpaidOrdersOnce().catch(() => {});
   }, 30_000).unref();

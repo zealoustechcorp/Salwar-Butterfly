@@ -62,19 +62,21 @@ if (!Number.isInteger(port) || port <= 0 || port > 65535) {
 }
 
 // ============================================================
-// UNPAID ORDERS
+// CHECKOUT HOLD
 // ============================================================
 //
-// How long a placed-but-unpaid order holds its stock before the sweeper
-// cancels it (src/queues/unpaid_order.sweeper.js). A day by default: long
-// enough for a shopper who closed the tab to come back through the
-// track-order page, short enough that an abandoned guest checkout does not
-// hide the last piece of a size for a week.
+// How long a checkout draft holds its stock while the shopper is on the
+// payment sheet. An order is not placed until it is paid for (see
+// 031_order_number_on_payment.sql); until then the pieces are held for
+// this long and no longer, after which the sweeper
+// (src/queues/unpaid_order.sweeper.js) cancels the draft and puts them
+// back. The Razorpay sheet is given the same deadline, so it closes
+// itself before the hold runs out.
 
-const unpaidOrderTtlHours = Number(process.env.UNPAID_ORDER_TTL_HOURS ?? 24);
+const checkoutHoldMinutes = Number(process.env.CHECKOUT_HOLD_MINUTES ?? 10);
 
-if (!Number.isFinite(unpaidOrderTtlHours) || unpaidOrderTtlHours <= 0) {
-  throw new Error("UNPAID_ORDER_TTL_HOURS must be a positive number of hours");
+if (!Number.isFinite(checkoutHoldMinutes) || checkoutHoldMinutes <= 0) {
+  throw new Error("CHECKOUT_HOLD_MINUTES must be a positive number of minutes");
 }
 
 // ============================================================
@@ -539,7 +541,7 @@ export const env = Object.freeze({
   isTest: nodeEnv === "test",
   port,
 
-  unpaidOrderTtlHours,
+  checkoutHoldMinutes,
   unpaidOrderSweepEnabled:
     process.env.UNPAID_ORDER_SWEEP === "on" ||
     (nodeEnv === "production" && process.env.UNPAID_ORDER_SWEEP !== "off"),
