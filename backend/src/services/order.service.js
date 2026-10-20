@@ -6,13 +6,13 @@ import {
   canTransition,
   DEFAULT_PAGE_SIZE,
   DEFAULT_SORT,
+  isDraft,
   MAX_PAGE_SIZE,
   ORDER_STATUS,
   ORDER_TRANSITIONS,
   SHIPPING_FEE,
   TERMINAL_STATUSES,
 } from "../config/order.policy.js";
-import { RazorpayGateway } from "../config/razorpay.gateway.js";
 
 import { ApiError } from "../utils/ApiError.js";
 import { logger } from "../utils/logger.js";
@@ -122,10 +122,18 @@ const assertVisibleTo = (order, { customerId = null, isAdmin = false }) => {
   }
 };
 
+/**
+ * A placed order, by id.
+ *
+ * A checkout draft reads as not found here, to everyone, admin included:
+ * it is not an order until it is paid for, and every screen these
+ * methods serve is a screen of orders. The payment routes, which do need
+ * to reach a draft, load it themselves.
+ */
 const loadOrder = async (id) => {
   const order = await OrderRepository.findById(id);
 
-  if (!order) {
+  if (!order || isDraft(order)) {
     throw ApiError.notFound("Order not found", "ORDER_NOT_FOUND");
   }
 
@@ -138,7 +146,13 @@ export const OrderService = {
   // ==========================================================
 
   /**
-   * Checkout (F-07.01).
+   * Checkout (F-07.01) — the first half of it.
+   *
+   * This writes a checkout draft and holds its stock; it does not place
+   * an order. The storefront opens the payment sheet on the draft
+   * straight away, and the order is placed — numbered, confirmed,
+   * announced — only when that payment settles. An unpaid draft is
+   * released after CHECKOUT_HOLD_MINUTES.
    *
    * The service's whole job here is to decide what the order is *about*
    * — who it belongs to, where it goes, what it costs to ship. What it
@@ -201,15 +215,11 @@ export const OrderService = {
       });
 
       // Re-read through the full shape so the response carries the
-      // order number the sequence assigned and the priced lines as
-      // stored, rather than an echo of what was sent.
+      // priced lines and total as stored, rather than an echo of what
+      // was sent. No order number yet — that comes with the payment.
       const order = await OrderRepository.findById(orderId);
 
-      logger.info("Order placed", {
-        orderId,
-        orderNumber: order?.order_number,
-        customerId,
-      });
+      logger.info("Checkout started", { orderId, customerId });
 
       return OrderMapper.toCustomerDTO(order);
     } catch (error) {
@@ -224,6 +234,54 @@ export const OrderService = {
       });
 
       throw new ApiError(500, "Failed to place the order");
+    }
+  },
+
+  /**
+   * The shopper walked away from the payment sheet and changed their
+   * bag: give this draft's stock back now rather than in ten minutes.
+   *
+   * Without it, cutting a bag from two pieces to one could fail on the
+   * shopper's own hold — the old draft still has both.
+   *
+   * Reachable by the same claim as paying (see
+   * PaymentService.assertPayableBy): a guest's draft by its id, an
+   * account's draft only with its owner's token. Only a draft — an order
+   * that has been paid for is never cancelled from here. Quietly
+   * succeeds when there is nothing to release, because "already gone" is
+   * the state the caller wanted.
+   */
+  async abandonCheckout(id, { customerId = null } = {}) {
+    try {
+      const orderId = assertUuid(id, "order ID");
+      const order = await OrderRepository.findById(orderId);
+
+      if (!order || !isDraft(order)) {
+        throw ApiError.notFound("Checkout not found", "ORDER_NOT_FOUND");
+      }
+
+      if (order.customer_id && String(order.customer_id) !== String(customerId)) {
+        throw ApiError.notFound("Checkout not found", "ORDER_NOT_FOUND");
+      }
+
+      if (order.status !== ORDER_STATUS.PENDING_PAYMENT) return;
+
+      await OrderRepository.cancel(orderId, {
+        reason: "Checkout abandoned",
+        cancellableFrom: [ORDER_STATUS.PENDING_PAYMENT],
+        draftOnly: true,
+      });
+
+      logger.info("Checkout abandoned", { orderId });
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+
+      logger.error("OrderService.abandonCheckout failed", {
+        orderId: id,
+        error: error?.message,
+      });
+
+      throw new ApiError(500, "Failed to release the checkout");
     }
   },
 
@@ -356,23 +414,9 @@ export const OrderService = {
         );
       }
 
-      // What a "Pay now" on the track-order page needs and the customer
-      // DTO does not carry. A guest who closed /checkout/done has no
-      // other way back to an unpaid order, and paying is public by order
-      // id (`id` is already on the DTO) for a guest order only — an
-      // account's order needs its owner's token, and the DTO strips
-      // `customerId`, so without this the page would offer a button that
-      // 404s. The flag says only that a sign-in is needed, not whose.
-      const awaiting = order.status === ORDER_STATUS.PENDING_PAYMENT;
-
-      return {
-        ...OrderMapper.toCustomerDTO(order),
-        payment: {
-          canPayOnline:
-            awaiting && Number(order.total) > 0 && RazorpayGateway.isEnabled(),
-          requiresSignIn: awaiting && Boolean(order.customer_id),
-        },
-      };
+      // Only placed orders have a number, so a draft cannot be found
+      // here — there is nothing to track until it has been paid for.
+      return OrderMapper.toCustomerDTO(order);
     } catch (error) {
       if (error instanceof ApiError) throw error;
 

@@ -1,5 +1,5 @@
 import { CheckoutView } from "@/components/store/CheckoutView";
-import { getStorefrontProducts } from "@/lib/store/catalogue";
+import { getShop, getStorefrontProducts } from "@/lib/store/catalogue";
 
 export const metadata = {
   title: "Checkout",
@@ -16,5 +16,6 @@ export default async function CheckoutPage() {
   // refuse checkout: the API prices and reserves the order regardless.
   const products = await getStorefrontProducts().catch(() => null);
 
-  return <CheckoutView products={products} />;
+  // The shop's name and logo, for the payment sheet this page opens.
+  return <CheckoutView products={products} shop={getShop()} />;
 }

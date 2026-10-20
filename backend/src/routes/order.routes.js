@@ -64,6 +64,20 @@ router.post(
 );
 
 /**
+ * Release a checkout draft (the shopper changed their bag after closing
+ * the payment sheet). Same guards as placing one: open to guests, rate
+ * limited, and a token that is sent must be valid. Only ever cancels an
+ * unpaid draft — see OrderService.abandonCheckout.
+ */
+router.post(
+  "/abandonCheckout/:id",
+  checkoutRateLimiter,
+  authenticateOptional,
+  validateOrderIdParam,
+  OrderController.abandonCheckout,
+);
+
+/**
  * Track an order without an account (F-07.02).
  *
  * A POST although it reads: the email is the second factor here, and a

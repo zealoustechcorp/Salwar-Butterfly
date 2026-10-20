@@ -18,6 +18,7 @@ import { logger } from "../utils/logger.js";
 import {
   CURRENCY,
   DEFAULT_SORT,
+  isPlacedSql,
   ORDER_STATUS,
   orderSortSql,
   PAYMENT_STATUS,
@@ -102,6 +103,10 @@ const SELECT_ORDER = `
     c.email AS customer_email,
     c.phone AS customer_phone,
     ${REFUND_DUE_SQL} AS refund_due,
+    -- How long ago the checkout began, by the database's clock. Read for
+    -- a draft's hold (PaymentService) — never computed from placed_at on
+    -- the API host, whose clock is a different one.
+    FLOOR(EXTRACT(EPOCH FROM (clock_timestamp() - o.placed_at)))::int AS age_seconds,
     lines.items AS items
   FROM orders o
   LEFT JOIN customers c ON c.id = o.customer_id
@@ -145,7 +150,9 @@ const buildFilters = ({
   placedFrom = null,
   placedTo = null,
 } = {}) => {
-  const conditions = [];
+  // Always: a checkout draft is not an order, and no list, count or
+  // total may include one. See isPlacedSql in order.policy.js.
+  const conditions = [isPlacedSql("o")];
   const values = [];
 
   if (refundDue) conditions.push(REFUND_DUE_SQL);
@@ -202,7 +209,12 @@ export const OrderRepository = {
   // ==========================================================
 
   /**
-   * Reserves the stock and writes the order, as one transaction.
+   * Reserves the stock and writes the checkout draft, as one transaction.
+   *
+   * What this writes is not yet an order: it has no number and no screen
+   * shows it. It becomes one when its payment settles
+   * (PaymentRepository.settle), or the sweeper cancels it after
+   * CHECKOUT_HOLD_MINUTES and the stock written off below comes back.
    *
    * Four steps, in this order, and the order matters:
    *
@@ -383,8 +395,9 @@ export const OrderRepository = {
         // 4. WRITE THE ORDER
         // ------------------------------------------------------
         //
-        // order_number is left to its DEFAULT so the sequence assigns
-        // it — two checkouts in the same millisecond cannot collide.
+        // order_number is left NULL: this is a draft until it is paid
+        // for, and the number is assigned then (ASSIGN_ORDER_NUMBER_SQL),
+        // so abandoned checkouts leave no gaps in the sequence.
 
         const orderResult = await client.query(
           `INSERT INTO orders (
@@ -477,9 +490,8 @@ export const OrderRepository = {
           ],
         );
 
-        logger.info("Order placed", {
+        logger.info("Checkout draft written", {
           orderId: order.id,
-          orderNumber: order.order_number,
           lines: items.length,
           total,
           guest: customerId === null,
@@ -769,6 +781,9 @@ export const OrderRepository = {
           updated_at = NOW()
       WHERE id = $1::uuid
         AND status = $5
+        -- Never a checkout draft: those are placed by their own payment,
+        -- not by hand, and no admin screen lists them.
+        AND ${isPlacedSql("orders")}
       RETURNING *
     `;
 
@@ -849,45 +864,44 @@ export const OrderRepository = {
   },
 
   /**
-   * Unpaid orders old enough to give their stock back.
+   * Checkouts whose hold has run out.
    *
-   * An order still `pending_payment` past the TTL is an abandoned
-   * checkout, and nothing else ever releases what it reserved — guests
-   * cannot cancel, and a declined card deliberately leaves the order
-   * alone. Skipped while a payment sheet was opened recently: that
-   * shopper may be paying right now. Ages are measured in the database,
-   * against its own clock (see findLatestOpenAttemptWithAge).
+   * A row still `pending_payment` past CHECKOUT_HOLD_MINUTES is an
+   * abandoned checkout, and nothing else releases what it reserved — a
+   * declined card deliberately leaves it alone so the shopper can retry.
+   * The Razorpay sheet is closed at the same deadline (see
+   * PaymentService.createSession), so nobody is still paying for one of
+   * these; a payment that was already in flight and lands afterwards is
+   * picked up by PaymentRepository.settle, which re-reserves the stock
+   * if it is still there.
+   *
+   * Orders written before migration 031 are swept by the same rule — they
+   * have numbers, but they are just as unpaid.
+   *
+   * Age is measured in the database, against its own clock.
    *
    * @returns {Promise<string[]>} order ids, oldest first
    */
-  async findStaleUnpaid({ ttlHours, activeWithinMinutes = 30, limit = 25 }) {
+  async findExpiredCheckouts({ holdMinutes, limit = 25 }) {
     const text = `
       SELECT o.id
       FROM orders o
       WHERE o.status = $1
-        AND o.placed_at < NOW() - make_interval(secs => $2::float8 * 3600)
-        AND NOT EXISTS (
-          SELECT 1 FROM payments p
-          WHERE p.order_id = o.id
-            AND p.status = $3
-            AND p.created_at > NOW() - make_interval(mins => $4::int)
-        )
+        AND o.placed_at < NOW() - make_interval(secs => $2::float8 * 60)
       ORDER BY o.placed_at ASC
-      LIMIT $5
+      LIMIT $3
     `;
 
     try {
       const result = await query(text, [
         ORDER_STATUS.PENDING_PAYMENT,
-        ttlHours,
-        PAYMENT_ATTEMPT_STATUS.CREATED,
-        activeWithinMinutes,
+        holdMinutes,
         limit,
       ]);
 
       return result.rows.map((row) => row.id);
     } catch (error) {
-      throw handleDatabaseError(error, "findStaleUnpaid", { ttlHours });
+      throw handleDatabaseError(error, "findExpiredCheckouts", { holdMinutes });
     }
   },
 
@@ -904,14 +918,20 @@ export const OrderRepository = {
    * `variant_id` is nulled when a variant is deleted, and there is
    * nothing to give back to a row that is gone.
    *
+   * A checkout draft is cancelled silently. Nobody was told it existed,
+   * so nobody is told it has gone.
+   *
    * @param {string[]} cancellableFrom  statuses this may be applied to,
    *                                    checked inside the transaction so
    *                                    a concurrent dispatch cannot slip
    *                                    between the check and the write
+   * @param {boolean} draftOnly         refuse anything already placed —
+   *                                    for the shopper abandoning their
+   *                                    own checkout
    * @returns {object|null} the cancelled row, or null if it was not in
    *                        one of those statuses
    */
-  async cancel(id, { reason = null, cancellableFrom = [] } = {}) {
+  async cancel(id, { reason = null, cancellableFrom = [], draftOnly = false } = {}) {
     try {
       const { row, notificationIds } = await withTransaction(async (client) => {
         const cancelled = await client.query(
@@ -922,6 +942,7 @@ export const OrderRepository = {
                updated_at = NOW()
            WHERE id = $1::uuid
              AND status = ANY($4::text[])
+             ${draftOnly ? "AND order_number IS NULL" : ""}
            RETURNING *`,
           [id, ORDER_STATUS.CANCELLED, reason, cancellableFrom],
         );
@@ -948,12 +969,15 @@ export const OrderRepository = {
         });
 
         // After the stock is back on the shelf, so that a message
-        // promising a cancellation cannot outlive a rollback of it.
-        const ids = await NotificationService.emitTx(
-          client,
-          cancelled.rows[0],
-          NOTIFY_EVENT.ORDER_CANCELLED,
-        );
+        // promising a cancellation cannot outlive a rollback of it. Not
+        // for a draft: there was never an order to cancel.
+        const ids = cancelled.rows[0].order_number
+          ? await NotificationService.emitTx(
+              client,
+              cancelled.rows[0],
+              NOTIFY_EVENT.ORDER_CANCELLED,
+            )
+          : [];
 
         return { row: cancelled.rows[0], notificationIds: ids };
       });

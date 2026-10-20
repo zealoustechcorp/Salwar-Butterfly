@@ -12,6 +12,10 @@
  * shopper's token and shows what comes back; it never filters by id itself,
  * because a client-side ownership check is decoration — the server already
  * refuses another shopper's order with a 404.
+ *
+ * Every order listed here has been paid for. A checkout that was never paid
+ * is not an order (see CheckoutView), so there is nothing here to pay for or
+ * call off — after payment, cancelling is a conversation with the shop.
  */
 
 import { AlertCircle, Loader2, PackageSearch } from "lucide-react";
@@ -19,10 +23,9 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ApiError, NETWORK_ERROR } from "@/lib/api/client";
-import { cancelOrder, fetchMyOrders } from "@/lib/store/orders";
+import { fetchMyOrders } from "@/lib/store/orders";
 import { useAuth } from "./AuthProvider";
 import { OrderCard } from "./OrderSummary";
-import { PayNow } from "./PayNow";
 
 /** How many orders one "Show more" adds. */
 const PAGE_SIZE = 20;
@@ -39,13 +42,12 @@ function uniqueById(rows) {
   return rows.filter((row) => (seen.has(row.id) ? false : (seen.add(row.id), true)));
 }
 
-export function OrderHistory({ shop }) {
+export function OrderHistory() {
   const { token, isSignedIn } = useAuth();
 
   const [orders, setOrders] = useState(null); // null while loading
   const [pagination, setPagination] = useState(null);
   const [error, setError] = useState(null);
-  const [busyId, setBusyId] = useState(null);
   const [loadingMore, setLoadingMore] = useState(false);
 
   /**
@@ -143,28 +145,6 @@ export function OrderHistory({ shop }) {
 
   if (!isSignedIn) return null;
 
-  async function onCancel(order) {
-    setBusyId(order.id);
-
-    const result = await cancelOrder(order.id, {}, token);
-
-    setBusyId(null);
-
-    if (!result.ok) {
-      // A refusal here is nearly always "the shop already started packing",
-      // which is worth showing verbatim — it tells the shopper what to do
-      // next better than any wording invented here.
-      setError(result.error);
-      return;
-    }
-
-    // Re-read rather than patching the row in place. Cancelling also moves
-    // stock, and a re-read is the cheap way to be sure this list agrees with
-    // the shop's own view of the order.
-    setError(null);
-    load(undefined, pagesShown);
-  }
-
   return (
     <section ref={section} id="my-orders" className="mt-8 scroll-mt-40 wide:scroll-mt-28">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -206,44 +186,7 @@ export function OrderHistory({ shop }) {
       ) : (
         <div className="mt-4 space-y-4">
           {orders.map((order) => (
-            <OrderCard
-              key={order.id}
-              order={order}
-              actions={
-                // Both actions belong to the same moment and no other:
-                // an order awaiting payment can still be paid for, and
-                // can still be called off. Past that the API refuses
-                // both, and a button that is always going to fail is
-                // worse than no button.
-                order.status === "pending_payment" ? (
-                  <div className="flex flex-wrap items-center gap-x-5 gap-y-2.5">
-                    {/* Renders nothing when the shop has no gateway
-                        configured, leaving just the cancel link. */}
-                    <PayNow
-                      order={order}
-                      shop={shop}
-                      compact
-                      // Re-read rather than patching the row: paying moves
-                      // the order's status and its timestamps together, and
-                      // this list should agree with the shop's own view.
-                      onPaid={() => load(undefined, pagesShown)}
-                    />
-
-                    <button
-                      type="button"
-                      onClick={() => onCancel(order)}
-                      disabled={busyId === order.id}
-                      className="inline-flex items-center gap-2 text-sm font-semibold text-sb-text-muted underline underline-offset-4 transition-colors hover:text-sb-link disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {busyId === order.id ? (
-                        <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
-                      ) : null}
-                      Cancel this order
-                    </button>
-                  </div>
-                ) : null
-              }
-            />
+            <OrderCard key={order.id} order={order} />
           ))}
 
           {pagination?.hasNextPage ? (

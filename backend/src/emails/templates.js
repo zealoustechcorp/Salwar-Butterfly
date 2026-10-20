@@ -217,7 +217,26 @@ const itemsText = (order) =>
     )
     .join("\n");
 
-const trackUrl = () => `${env.email.storefrontUrl}/track`;
+/**
+ * The track-order page with this order already filled in, so the button opens
+ * straight onto the order rather than an empty form.
+ *
+ * In the fragment (#), not the query string: a fragment never leaves the
+ * browser, so the shopper's email does not land in the storefront's access
+ * logs or a proxy's — the reason the lookup itself is a POST. It still needs
+ * both halves to match, exactly as typing them would.
+ */
+const trackUrl = (order) => {
+  const base = `${env.email.storefrontUrl}/track`;
+  if (!order?.order_number || !order?.contact_email) return base;
+
+  const fragment = new URLSearchParams({
+    order: order.order_number,
+    email: order.contact_email,
+  });
+
+  return `${base}#${fragment}`;
+};
 
 // ============================================================
 // CUSTOMER: ORDER CONFIRMED
@@ -233,7 +252,7 @@ export function orderConfirmedEmail(order) {
     itemsTable(order),
     sectionTitle("Delivering to"),
     addressBlock(order),
-    button(trackUrl(), "Track your order"),
+    button(trackUrl(order), "Track your order"),
     small(`To track it, use your order number <strong>${esc(order.order_number)}</strong> and this email address.`),
   ].join("\n");
 
@@ -248,7 +267,7 @@ export function orderConfirmedEmail(order) {
     "Delivering to:",
     [order.contact_name, ...addressLines(order), order.contact_phone].join("\n"),
     "",
-    `Track your order: ${trackUrl()}`,
+    `Track your order: ${trackUrl(order)}`,
     "",
     `— ${BRAND}`,
   ].join("\n");

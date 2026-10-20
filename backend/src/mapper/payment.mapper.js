@@ -27,7 +27,7 @@ export const PaymentMapper = {
    * for it, and the verify endpoint looks the attempt up from the
    * provider's order id, which is the only id the gateway will echo back.
    */
-  toSessionDTO({ payment, order, keyId }) {
+  toSessionDTO({ payment, order, keyId, holdSecondsLeft = null }) {
     return {
       provider: payment.provider,
       keyId,
@@ -42,8 +42,14 @@ export const PaymentMapper = {
       currency: payment.currency,
 
       orderId: order.id,
-      orderNumber: order.order_number,
+      // Null for a checkout draft: the number is given when it is paid.
+      orderNumber: order.order_number ?? null,
       amount: toMoney(payment.amount),
+
+      // How long the sheet may stay open before the held stock is
+      // released (null: no hold). The storefront passes it to Razorpay's
+      // `timeout`, so the sheet closes itself in time.
+      holdSecondsLeft,
 
       // Prefills the sheet so the shopper does not retype what checkout
       // already asked for. All three came from them a moment ago.

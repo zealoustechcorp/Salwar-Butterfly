@@ -41,7 +41,12 @@ function toFailure(error, fallbackField = null) {
 // ============================================================
 
 /**
- * Checkout (F-07.01).
+ * Checkout (F-07.01) — the first half of it.
+ *
+ * What this creates is a checkout *draft*, not an order: it holds the sizes
+ * for a few minutes while the shopper pays, and has no order number. The
+ * order is placed — numbered, confirmed, announced — only when the payment
+ * opened on it is verified. See CheckoutView.
  *
  * Sends variant ids and quantities and nothing else. Prices, the subtotal and
  * the total are all read from the database when the order is written — there
@@ -83,6 +88,22 @@ export async function placeOrder(
     return { ok: true, order };
   } catch (error) {
     return toFailure(error);
+  }
+}
+
+/**
+ * Gives a checkout draft's held sizes back straight away.
+ *
+ * For a shopper who closed the payment sheet and then changed their bag:
+ * without it, cutting two pieces to one could be refused by their own hold.
+ * Best effort and silent — the hold runs out on its own in a few minutes
+ * anyway, and the API only ever releases an unpaid draft.
+ */
+export async function abandonCheckout(id, token = null) {
+  try {
+    await api.post(`/orders/abandonCheckout/${encodeURIComponent(id)}`, undefined, { token });
+  } catch (error) {
+    if (!(error instanceof ApiError)) throw error;
   }
 }
 
@@ -135,31 +156,6 @@ export async function trackOrder({ orderNumber, email }) {
 }
 
 // ============================================================
-// CANCELLING
-// ============================================================
-
-/**
- * Cancels the shopper's own order (F-07.05).
- *
- * Only while it is still awaiting payment — after that the shop has started
- * picking and the API refuses with a 409 saying so. The reason is optional
- * for a shopper.
- */
-export async function cancelOrder(id, { reason } = {}, token) {
-  try {
-    const order = await api.post(
-      `/orders/cancelOrder/${encodeURIComponent(id)}`,
-      { reason: reason || undefined },
-      { token },
-    );
-
-    return { ok: true, order };
-  } catch (error) {
-    return toFailure(error, "reason");
-  }
-}
-
-// ============================================================
 // PRESENTATION
 // ============================================================
 
@@ -173,6 +169,7 @@ export async function cancelOrder(id, { reason } = {}, token) {
  * `tone` maps to the badge colours the storefront already uses.
  */
 export const ORDER_STATUS_COPY = {
+  // Only ever seen on an order from before checkout took payment up front.
   pending_payment: {
     label: "Awaiting payment",
     tone: "wait",

@@ -35,6 +35,10 @@ import {
   soldFilterSql,
   topProductsSortSql,
 } from "../config/report.policy.js";
+// Every query below reads placed orders only. A checkout draft that was
+// never paid is not a sale, and one the sweeper cancelled is not a
+// cancellation — counting either would fill the dashboard with carts.
+import { isPlacedSql } from "../config/order.policy.js";
 
 const handleDatabaseError = (error, operation, context = {}) => {
   logger.error(`Report repository error: ${operation}`, {
@@ -150,6 +154,7 @@ export const ReportRepository = {
 
         FROM orders o
         CROSS JOIN bounds b
+        WHERE ${isPlacedSql("o")}
       )
       SELECT t.*, b.day_start, b.week_start, b.month_start
       FROM totals t
@@ -330,6 +335,7 @@ export const ReportRepository = {
         FROM orders o
         WHERE o.placed_at >= $3::timestamptz
           AND o.placed_at <  $4::timestamptz
+          AND ${isPlacedSql("o")}
         GROUP BY 1
       )
       SELECT
@@ -381,12 +387,14 @@ export const ReportRepository = {
           JOIN orders io ON io.id = i.order_id
           WHERE io.placed_at >= $1::timestamptz
             AND io.placed_at <  $2::timestamptz
+            AND ${isPlacedSql("io")}
             AND ${soldFilterSql("io")}
         ), 0)::INTEGER AS units
 
       FROM orders o
       WHERE o.placed_at >= $1::timestamptz
         AND o.placed_at <  $2::timestamptz
+        AND ${isPlacedSql("o")}
     `;
 
     try {
@@ -424,6 +432,7 @@ export const ReportRepository = {
       JOIN orders o ON o.id = i.order_id
       WHERE o.placed_at >= $1::timestamptz
         AND o.placed_at <  $2::timestamptz
+        AND ${isPlacedSql("o")}
         AND ${soldFilterSql("o")}
 
       -- Grouped by product id where the product still exists, and by

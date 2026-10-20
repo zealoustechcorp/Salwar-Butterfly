@@ -58,10 +58,12 @@ export const OrderController = {
         whatsappOptIn,
       });
 
+      // Not "placed": this is the checkout draft the payment sheet opens
+      // on. The order is placed when that payment settles.
       return createdResponse({
         res,
         data: order,
-        message: `Order ${order.orderNumber} placed successfully`,
+        message: "Checkout started — complete the payment to place the order",
       });
     } catch (error) {
       if (error instanceof ApiError) throw error;
@@ -69,6 +71,32 @@ export const OrderController = {
       logger.error("Place order endpoint error", { error: error?.message });
 
       throw new ApiError(500, "Failed to place the order");
+    }
+  }),
+
+  /**
+   * Releases a checkout draft the shopper walked away from.
+   *
+   * Open to guests, like placing one — a guest's draft is claimed by its
+   * id. The service refuses anything already paid for.
+   */
+  abandonCheckout: asyncHandler(async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { customerId } = identify(req);
+
+      await OrderService.abandonCheckout(id, { customerId });
+
+      return okResponse({ res, data: null, message: "Checkout released" });
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+
+      logger.error("Abandon checkout endpoint error", {
+        orderId: req.params?.id,
+        error: error?.message,
+      });
+
+      throw new ApiError(500, "Failed to release the checkout");
     }
   }),
 

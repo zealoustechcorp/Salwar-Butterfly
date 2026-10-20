@@ -13,11 +13,16 @@
  * where every other one is; the email is what stops a stranger walking the
  * list. The API fails a wrong number and a wrong email identically, so this
  * page cannot be used to discover which numbers exist.
+ *
+ * The "Track your order" button in the confirmation email links here with
+ * both already filled in — `/track#order=SB-001042&email=…` — and the page
+ * looks the order up as it opens. The details ride in the fragment so they
+ * never reach a server log, and are wiped from the address bar once read.
  */
 
 import { AlertCircle, Loader2, Search } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { trackOrder } from "@/lib/store/orders";
 import {
@@ -29,18 +34,15 @@ import {
   validateOrderNumber,
 } from "@/lib/validate";
 import { cn } from "@/lib/utils";
-import { useAuth } from "./AuthProvider";
 import { OrderCard } from "./OrderSummary";
-import { PayNow } from "./PayNow";
 import { useStoreToast } from "./Toast";
 
 // 16px below `sm`: iOS Safari zooms the page in on focus for anything smaller.
 const FIELD_CLASS =
   "h-11 w-full rounded-xl border border-sb-gold/45 bg-white/70 px-3.5 text-base text-sb-text sm:text-sm placeholder:text-sb-text-muted/60 focus:border-sb-link focus:bg-white focus:outline-none";
 
-export function TrackOrder({ shop }) {
+export function TrackOrder() {
   const toast = useStoreToast();
-  const { isSignedIn } = useAuth();
 
   const [values, setValues] = useState({ orderNumber: "", email: "" });
   const [order, setOrder] = useState(null);
@@ -59,10 +61,15 @@ export function TrackOrder({ shop }) {
     });
   };
 
-  async function onSubmit(event) {
+  function onSubmit(event) {
     event.preventDefault();
+    lookUp(values);
+  }
+
+  async function lookUp(input) {
     if (pending) return;
 
+    setValues(input);
     setError(null);
 
     // Both fields are checked because both are required, and required for
@@ -71,8 +78,8 @@ export function TrackOrder({ shop }) {
     // arriving as a lookup the API answers "not found" — that reads as a
     // missing order rather than a missing field.
     const invalid = collect([
-      ["orderNumber", validateOrderNumber(values.orderNumber)],
-      ["email", validateEmail(values.email)],
+      ["orderNumber", validateOrderNumber(input.orderNumber)],
+      ["email", validateEmail(input.email)],
     ]);
 
     if (hasErrors(invalid)) {
@@ -89,8 +96,8 @@ export function TrackOrder({ shop }) {
       // confirmation. Somebody reading a number off a screen types the
       // digits, and refusing that would be the form being difficult about
       // a number it understood perfectly well.
-      orderNumber: normalizeOrderNumber(values.orderNumber),
-      email: values.email.trim(),
+      orderNumber: normalizeOrderNumber(input.orderNumber),
+      email: input.email.trim(),
     });
 
     setPending(false);
@@ -108,6 +115,33 @@ export function TrackOrder({ shop }) {
       "It is shown below with everything on it.",
     );
   }
+
+  /**
+   * `/track#order=…&email=…`, from the confirmation email: fill the form and
+   * look the order up straight away. Read once, then removed from the URL so
+   * the email address does not sit in the address bar or the history entry.
+   */
+  const prefilled = useRef(false);
+
+  useEffect(() => {
+    if (prefilled.current) return;
+    prefilled.current = true;
+
+    const params = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const linked = {
+      orderNumber: params.get("order")?.trim() ?? "",
+      email: params.get("email")?.trim() ?? "",
+    };
+
+    if (!linked.orderNumber && !linked.email) return;
+
+    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+
+    lookUp(linked);
+    // Once, on arrival — `lookUp` is recreated every render and must not
+    // re-run this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <section className="mx-auto max-w-3xl px-4 py-9 sm:px-6 sm:py-13 lg:px-8">
@@ -193,37 +227,7 @@ export function TrackOrder({ shop }) {
 
       {order ? (
         <div className="mt-8">
-          <OrderCard
-            order={order}
-            defaultOpen
-            actions={
-              // The way back to paying for a guest. The confirmation page
-              // only lives as long as the tab it was opened in, so this —
-              // number plus email — is where an order left unpaid is
-              // finished. Payment sessions are open to anyone for a guest
-              // order (payment.service.js assertPayableBy); one placed from
-              // an account still needs that account, which the line under
-              // the button says.
-              order.status === "pending_payment" ? (
-                <div>
-                  <PayNow
-                    order={order}
-                    shop={shop}
-                    compact
-                    onPaid={(paid) => {
-                      if (paid) setOrder(paid);
-                    }}
-                  />
-                  {!isSignedIn ? (
-                    <p className="mt-2 text-xs leading-relaxed text-sb-text-muted">
-                      Placed while signed in? Sign in first to pay for it from
-                      your account.
-                    </p>
-                  ) : null}
-                </div>
-              ) : null
-            }
-          />
+          <OrderCard order={order} defaultOpen />
         </div>
       ) : null}
 

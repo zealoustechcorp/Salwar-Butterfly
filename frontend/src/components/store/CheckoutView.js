@@ -23,11 +23,16 @@
  * were checking out" arrives as a 409 with the piece named, and it is shown as
  * a sentence the shopper can act on, with the bag still intact behind it.
  *
- * Paying is not part of this form, and deliberately not. Placing the order is
- * what reserves the stock, so it has to succeed on its own before money is
- * asked for; the payment sheet opens on /checkout/done, from the same button
- * that offers it again to anyone who closed it the first time. One code path
- * for the first attempt and the retry — see <PayNow>.
+ * No order is placed until it is paid for. "Pay & place order" does three
+ * things in a row: it asks the API to hold the sizes (a checkout draft, with
+ * no order number), opens the Razorpay sheet on that draft, and hands the
+ * sheet's answer back to be verified. Only a verified payment places the
+ * order — and only then is the bag emptied and the confirmation shown. A
+ * shopper who closes the sheet, or whose card is declined, is left right here
+ * with their bag intact and nothing charged; pressing the button again reuses
+ * the same hold if nothing in the form changed. The hold lasts a few minutes
+ * (CHECKOUT_HOLD_MINUTES on the API) and the sheet closes itself before it
+ * runs out.
  *
  * A signed-in shopper picks a saved address instead of typing one (F-08.01,
  * F-08.05), and the fields below stay exactly where they were — choosing a
@@ -39,7 +44,7 @@
 import { AlertCircle, Check, Loader2, Lock, MapPin, ShoppingBag } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { compactPhone, money } from "@/lib/format";
 import { orderableQty } from "@/lib/stock";
@@ -49,7 +54,9 @@ import {
   fetchAddresses,
   isSameAddress,
 } from "@/lib/store/addresses";
-import { placeOrder } from "@/lib/store/orders";
+import { abandonCheckout, placeOrder } from "@/lib/store/orders";
+import { createPaymentSession, fetchPaymentConfig, verifyPayment } from "@/lib/store/payments";
+import { openCheckout, PAYMENT_RESULT } from "@/lib/store/razorpay";
 import { describeChoice } from "@/lib/store/variants";
 import {
   collect,
@@ -77,6 +84,33 @@ const FIELD_CLASS =
 
 /** Where the confirmation is handed off, so a refresh does not lose it. */
 export const LAST_ORDER_KEY = "sb.lastOrder";
+
+/**
+ * Verify answers whose message is shown as sent. Every other verify failure
+ * is read as "the money was taken and the shop is confirming it", which is
+ * right for a network blip and for PAYMENT_PROCESSING but wrong for these.
+ */
+const SAY_WHAT_THE_SHOP_SAID = new Set([
+  "PAYMENT_REFUND_DUE",
+  "PAYMENT_MISMATCH",
+  "PAYMENT_SIGNATURE_INVALID",
+]);
+
+/**
+ * The sheet closes this long before the hold runs out, so a payment made in
+ * its last seconds still lands while the sizes are held.
+ */
+const SHEET_MARGIN_SECONDS = 30;
+
+/** Less time than this left on a hold, and it is replaced with a fresh one. */
+const MIN_SHEET_SECONDS = 90;
+
+/** What the button says while each step runs. */
+const STAGE_LABEL = {
+  holding: "Holding your sizes…",
+  paying: "Waiting for payment…",
+  confirming: "Confirming your payment…",
+};
 
 /**
  * The form fields that make up the address, as opposed to the contact details
@@ -167,7 +201,7 @@ function validateCheckout(values) {
   };
 }
 
-export function CheckoutView({ products = null }) {
+export function CheckoutView({ products = null, shop = null }) {
   const { bag, bagTotal, bagCount, clearBag, syncStock } = useStore();
   const { user, isSignedIn, token, openAuth } = useAuth();
   const toast = useStoreToast();
@@ -238,12 +272,62 @@ export function CheckoutView({ products = null }) {
   /** A refusal with no field at fault: sold out, or the API is down. */
   const [banner, setBanner] = useState(null);
 
+  /** Not an error: the sheet was closed, nothing was charged. */
+  const [notice, setNotice] = useState(null);
+
   const [pending, setPending] = useState(false);
+
+  /** Which step of "Pay & place order" is running, for the button. */
+  const [stage, setStage] = useState(null);
 
   // Set the moment an order is placed. The bag is emptied before the
   // navigation lands, and without this the "Your bag is empty" screen
   // below flashed up between the two.
   const [placed, setPlaced] = useState(false);
+
+  /**
+   * The checkout draft holding this form's sizes, if one is open:
+   * `{ id, key, order }`, where `key` is the exact request that made it.
+   * Pressing the button again with nothing changed pays for the same draft;
+   * anything changed — a quantity, the address — releases it and holds anew,
+   * so the order placed is always the one on the screen.
+   */
+  const draft = useRef(null);
+
+  // Leaving checkout with a hold open — back to the bag to change a size —
+  // releases it, or the shopper's own hold could refuse their next attempt.
+  // A paid draft is cleared before the navigation, so is never released.
+  const tokenRef = useRef(token);
+
+  useEffect(() => {
+    tokenRef.current = token;
+  }, [token]);
+
+  useEffect(
+    () => () => {
+      if (draft.current) abandonCheckout(draft.current.id, tokenRef.current);
+    },
+    [],
+  );
+
+  /**
+   * Whether the shop can take a payment at all. `null` while asking. Orders
+   * are only placed by paying for them, so with no gateway there is nothing
+   * this form can do, and it says so rather than offering a button that fails.
+   */
+  const [paymentsEnabled, setPaymentsEnabled] = useState(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    fetchPaymentConfig({ signal: controller.signal })
+      .then((config) => setPaymentsEnabled(Boolean(config?.enabled)))
+      .catch(() => {
+        /* aborted on unmount */
+      });
+
+    return () => controller.abort();
+  }, []);
 
   // --------------------------------------------------------
   // SAVED ADDRESSES (F-08.01, F-08.05)
@@ -402,83 +486,106 @@ export function CheckoutView({ products = null }) {
     Boolean(values.line1.trim() && values.line2.trim() && values.city.trim() && values.postalCode.trim()) &&
     !saved.some((address) => isSameAddress(address, values));
 
-  async function onSubmit(event) {
-    event.preventDefault();
-    if (pending) return;
+  /** Ends a "Pay & place order" that did not place one. The bag is untouched. */
+  function stop({ error = null, quiet = null } = {}) {
+    setPending(false);
+    setStage(null);
+    setBanner(error);
+    setNotice(quiet);
+  }
 
-    setBanner(null);
+  /**
+   * Holds the sizes for this form, or reuses the hold already open for it.
+   *
+   * @returns {Promise<{ok: true} | {ok: false}>} on failure the form has
+   *          already been told why
+   */
+  async function holdSizes(request, key) {
+    if (draft.current?.key === key) return { ok: true };
 
-    // Checked before anything is sent, and every bad field named at once.
-    // This is the form where that matters most: a shopper who has typed
-    // eleven fields and pressed "Place order" should not learn about their
-    // PIN code, then their phone number, then their landmark, one refused
-    // request at a time.
-    const invalid = validateCheckout(values);
-
-    if (hasErrors(invalid)) {
-      setErrors(invalid);
-      toast.error("Check your details", summarizeErrors(invalid));
-      return;
+    // A hold for a different bag or address. Released first, and waited for,
+    // because the new hold may need the very pieces the old one has.
+    if (draft.current) {
+      await abandonCheckout(draft.current.id, token);
+      draft.current = null;
     }
 
-    setErrors({});
-    setPending(true);
+    const result = await placeOrder(request, token);
 
-    const result = await placeOrder(
-      {
-        contact: {
-          name: values.name.trim(),
-          email: values.email.trim(),
-          // Spaces and hyphens out: the page's check ignores them, the
-          // API's does not. See compactPhone.
-          phone: compactPhone(values.phone),
-        },
-        shippingAddress: {
-          line1: values.line1.trim(),
-          // Required on both sides (the "Area" field), so never omitted.
-          line2: values.line2.trim(),
-          landmark: values.landmark.trim() || undefined,
-          city: values.city.trim(),
-          state: values.state.trim(),
-          postalCode: values.postalCode.trim(),
-          country: "India",
-        },
-        items: bag
-          .filter((line) => line.variant_id)
-          .map((line) => ({ variantId: line.variant_id, quantity: line.qty })),
-        customerNote: values.customerNote.trim(),
-        whatsappOptIn: values.whatsappOptIn,
-      },
-      token,
+    if (result.ok) {
+      draft.current = { id: result.order.id, key, order: result.order };
+      return { ok: true };
+    }
+
+    // The API names its fields as `contact.email` or
+    // `shippingAddress.city`; the inputs here are flat, so the last
+    // segment is what identifies one. Keys with no input behind them —
+    // `items[2].variantId`, say — fall through to the banner, because
+    // there is no field on this page for them to sit under.
+    const named = collect(
+      Object.entries(result.fields ?? {}).map(([field, message]) => {
+        const flat = field.split(".").pop();
+
+        return [flat, KNOWN_FIELDS.has(flat) ? message : null];
+      }),
     );
 
-    if (!result.ok) {
-      setPending(false);
-
-      // The API names its fields as `contact.email` or
-      // `shippingAddress.city`; the inputs here are flat, so the last
-      // segment is what identifies one. Keys with no input behind them —
-      // `items[2].variantId`, say — fall through to the banner, because
-      // there is no field on this page for them to sit under.
-      const named = collect(
-        Object.entries(result.fields ?? {}).map(([field, message]) => {
-          const flat = field.split(".").pop();
-
-          return [flat, KNOWN_FIELDS.has(flat) ? message : null];
-        }),
-      );
-
-      if (hasErrors(named)) setErrors(named);
-      else setBanner(result.error);
-
-      toast.error("Your order was not placed", result.error);
-
-      return;
+    if (hasErrors(named)) {
+      setErrors(named);
+      stop();
+    } else {
+      stop({ error: result.error });
     }
 
-    // The order exists on the server now. Everything below is presentation,
-    // and none of it may throw the shopper back onto a checkout form for an
-    // order that already went through.
+    toast.error("Your order was not placed", result.error);
+
+    return { ok: false };
+  }
+
+  /**
+   * A payment session on the held sizes, with enough time left on the hold
+   * to pay in. A hold that has run out, or nearly, is replaced once with a
+   * fresh one — the shopper should not have to press the button twice
+   * because they took a while over the address.
+   */
+  async function openSession(request, key) {
+    for (let round = 0; round < 2; round += 1) {
+      const held = await holdSizes(request, key);
+      if (!held.ok) return null;
+
+      const opened = await createPaymentSession(draft.current.id, token);
+
+      if (opened.ok) {
+        const left = opened.session.holdSecondsLeft;
+        if (left === null || left === undefined || left >= MIN_SHEET_SECONDS) {
+          return opened.session;
+        }
+
+        await abandonCheckout(draft.current.id, token);
+      } else if (opened.code !== "CHECKOUT_EXPIRED") {
+        stop({ error: opened.error });
+        return null;
+      }
+
+      draft.current = null;
+    }
+
+    stop({ error: "The payment could not be started. Please try again." });
+    return null;
+  }
+
+  /**
+   * The order is placed and paid for. Everything below is presentation, and
+   * none of it may throw the shopper back onto a checkout form for an order
+   * that already went through.
+   *
+   * `order` is what the verify call returned — confirmed, with its number —
+   * or, when the money was taken but the verify call did not come back, the
+   * draft marked `confirming`: the webhook confirms it server-side in
+   * moments, and the confirmation page says exactly that.
+   */
+  async function finish(order) {
+    draft.current = null;
 
     // Saving the address is a convenience bolted onto a sale that has already
     // happened, so it runs here rather than before the order and its failure
@@ -498,7 +605,7 @@ export function CheckoutView({ products = null }) {
     }
 
     try {
-      window.sessionStorage.setItem(LAST_ORDER_KEY, JSON.stringify(result.order));
+      window.sessionStorage.setItem(LAST_ORDER_KEY, JSON.stringify(order));
     } catch {
       /* the confirmation page falls back to asking them to look it up */
     }
@@ -509,11 +616,133 @@ export function CheckoutView({ products = null }) {
     // about a purchase that just succeeded.
     setPlaced(true);
     clearBag({ silent: true });
-    toast.success(
-      `Order ${result.order.orderNumber} placed`,
-      "Your sizes are held for you. Pay on the next screen to confirm it.",
-    );
+
+    if (order.orderNumber) {
+      toast.success(`Order ${order.orderNumber} placed`, "Payment received. Thank you!");
+    }
+
     router.replace("/checkout/done");
+  }
+
+  async function onSubmit(event) {
+    event.preventDefault();
+    if (pending || !paymentsEnabled) return;
+
+    setBanner(null);
+    setNotice(null);
+
+    // Checked before anything is sent, and every bad field named at once.
+    // This is the form where that matters most: a shopper who has typed
+    // eleven fields and pressed the button should not learn about their
+    // PIN code, then their phone number, then their landmark, one refused
+    // request at a time.
+    const invalid = validateCheckout(values);
+
+    if (hasErrors(invalid)) {
+      setErrors(invalid);
+      toast.error("Check your details", summarizeErrors(invalid));
+      return;
+    }
+
+    setErrors({});
+    setPending(true);
+    setStage("holding");
+
+    const request = {
+      contact: {
+        name: values.name.trim(),
+        email: values.email.trim(),
+        // Spaces and hyphens out: the page's check ignores them, the
+        // API's does not. See compactPhone.
+        phone: compactPhone(values.phone),
+      },
+      shippingAddress: {
+        line1: values.line1.trim(),
+        // Required on both sides (the "Area" field), so never omitted.
+        line2: values.line2.trim(),
+        landmark: values.landmark.trim() || undefined,
+        city: values.city.trim(),
+        state: values.state.trim(),
+        postalCode: values.postalCode.trim(),
+        country: "India",
+      },
+      items: bag
+        .filter((line) => line.variant_id)
+        .map((line) => ({ variantId: line.variant_id, quantity: line.qty })),
+      customerNote: values.customerNote.trim(),
+      whatsappOptIn: values.whatsappOptIn,
+    };
+
+    // ---- 1. hold the sizes and open a payment on them ------------
+
+    const session = await openSession(request, JSON.stringify(request));
+    if (!session) return;
+
+    // ---- 2. the sheet ---------------------------------------------
+
+    setStage("paying");
+
+    const hold = session.holdSecondsLeft;
+    const sheetSeconds = hold ? Math.max(hold - SHEET_MARGIN_SECONDS, 60) : null;
+    const closesAt = sheetSeconds ? Date.now() + sheetSeconds * 1000 : null;
+
+    const result = await openCheckout(session, shop, { sheetSeconds });
+
+    if (result.status === PAYMENT_RESULT.DISMISSED) {
+      // Closed by its own timeout: the hold is all but gone, so the next
+      // press starts a fresh one rather than reusing it.
+      if (closesAt && Date.now() >= closesAt - 2000) {
+        draft.current = null;
+        stop({
+          quiet:
+            "The payment window timed out. Nothing was charged and no order was placed — " +
+            "your bag is still here. Press the button to try again.",
+        });
+        return;
+      }
+
+      stop({
+        quiet:
+          "Payment cancelled. Nothing was charged and no order was placed — your bag is " +
+          "still here, and your sizes are held for a few minutes if you want to try again.",
+      });
+      return;
+    }
+
+    if (result.status !== PAYMENT_RESULT.SUCCESS) {
+      stop({ error: `${result.error} No order was placed.` });
+      return;
+    }
+
+    // ---- 3. verify -------------------------------------------------
+    //
+    // Still `pending` on purpose. The money has moved; the button must
+    // not become pressable again while we are finding out whether the
+    // server agrees.
+
+    setStage("confirming");
+
+    const verified = await verifyPayment(result.payment);
+
+    if (verified.ok) {
+      await finish(verified.order);
+      return;
+    }
+
+    if (SAY_WHAT_THE_SHOP_SAID.has(verified.code)) {
+      // The server knows exactly what happened to this money — the checkout
+      // timed out and a piece sold meanwhile (a refund is owed), or the
+      // payment could not be matched — and the sentence it sent says so.
+      draft.current = null;
+      stop({ error: verified.error });
+      return;
+    }
+
+    // The one case that must not read as a failure. Razorpay has taken the
+    // money and told us so; only our own confirmation call did not land (or
+    // the capture is still a few seconds behind). The webhook settles the
+    // same payment server-side, so the order places itself shortly.
+    await finish({ ...draft.current.order, confirming: true });
   }
 
   // --------------------------------------------------------
@@ -1043,6 +1272,26 @@ export function CheckoutView({ products = null }) {
               </p>
             ) : null}
 
+            {notice ? (
+              <p
+                role="status"
+                className="mt-4 rounded-xl border border-sb-gold/45 bg-sb-surface/40 px-3.5 py-2.5 text-xs leading-relaxed text-sb-text-muted"
+              >
+                {notice}
+              </p>
+            ) : null}
+
+            {paymentsEnabled === false ? (
+              <p
+                role="alert"
+                className="mt-4 flex gap-2 rounded-xl border border-sb-link/40 bg-sb-link/5 px-3.5 py-2.5 text-xs leading-relaxed font-medium text-sb-link"
+              >
+                <AlertCircle className="mt-px size-3.5 shrink-0" aria-hidden="true" />
+                Online payment is unavailable right now, so orders cannot be placed. Please
+                try again in a little while.
+              </p>
+            ) : null}
+
             {/* Fields did fail, but they are up the page and out of sight
                 from a sticky summary. Said here so the button does not look
                 like it simply did nothing. */}
@@ -1058,7 +1307,12 @@ export function CheckoutView({ products = null }) {
 
             <button
               type="submit"
-              disabled={pending || unorderable.length > 0 || oversold.length > 0}
+              disabled={
+                pending ||
+                !paymentsEnabled ||
+                unorderable.length > 0 ||
+                oversold.length > 0
+              }
               className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-sb-btn-primary px-5 py-3.5 text-sm font-semibold text-sb-bg transition-colors hover:bg-sb-btn-rose disabled:cursor-not-allowed disabled:bg-sb-text-muted/40"
             >
               {pending ? (
@@ -1066,12 +1320,12 @@ export function CheckoutView({ products = null }) {
               ) : (
                 <Lock className="size-4" aria-hidden="true" />
               )}
-              {pending ? "Placing your order…" : "Place order"}
+              {pending ? (STAGE_LABEL[stage] ?? "Please wait…") : "Pay & place order"}
             </button>
 
             <p className="mt-3 text-xs leading-relaxed text-sb-text-muted">
-              Placing the order holds your sizes; you pay on the next screen —
-              GPay, PhonePe, Paytm, cards or net banking. No cash on delivery.
+              Pay with GPay, PhonePe, Paytm, cards or net banking. Your order is
+              placed only once the payment goes through. No cash on delivery.
             </p>
 
             <div className="mt-4 border-t border-sb-gold/30 pt-3.5">
@@ -1085,7 +1339,7 @@ export function CheckoutView({ products = null }) {
           </div>
 
           <p className="mt-4 px-1 text-xs leading-relaxed text-sb-text-muted">
-            Your sizes are held for you the moment this order is placed. Delivery
+            Your sizes are held for you for a few minutes while you pay. Delivery
             takes 5 to 10 working days.
           </p>
         </aside>

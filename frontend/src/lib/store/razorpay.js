@@ -29,7 +29,7 @@ export const PAYMENT_RESULT = {
   /** Razorpay says it went through. Unverified until the API says so. */
   SUCCESS: "success",
 
-  /** The shopper closed the sheet. Not an error — their order is still there. */
+  /** The shopper closed the sheet. Not an error — nothing was charged. */
   DISMISSED: "dismissed",
 
   /** Razorpay reported a failure: a declined card, a timed-out UPI request. */
@@ -80,9 +80,11 @@ export function loadCheckoutScript() {
  * @param {object} session   the API's payment session — see
  *                           PaymentMapper.toSessionDTO on the server
  * @param {object} shop      for the sheet's title and logo
+ * @param {object} [options]
+ * @param {number} [options.sheetSeconds]  close the sheet after this long
  * @returns {Promise<{status: string, payment?: object, error?: string}>}
  */
-export async function openCheckout(session, shop) {
+export async function openCheckout(session, shop, { sheetSeconds = null } = {}) {
   const ready = await loadCheckoutScript();
 
   if (!ready) {
@@ -124,7 +126,8 @@ export async function openCheckout(session, shop) {
       currency: session.currency,
 
       name: shop?.name ?? "Salwar Butterfly",
-      description: `Order ${session.orderNumber}`,
+      // A checkout has no order number until it is paid for.
+      description: session.orderNumber ? `Order ${session.orderNumber}` : "Your order",
       image: shop?.logo ?? undefined,
 
       // Saves retyping what checkout just asked for.
@@ -134,7 +137,13 @@ export async function openCheckout(session, shop) {
         contact: session.prefill?.contact ?? "",
       },
 
-      notes: { order_number: session.orderNumber },
+      notes: session.orderNumber ? { order_number: session.orderNumber } : {},
+
+      // The sizes are held only for so long (the API's CHECKOUT_HOLD_MINUTES).
+      // The sheet closes itself before the hold runs out, so nobody is still
+      // paying for pieces that have gone back on the shelf. Razorpay calls
+      // `ondismiss` when it does.
+      ...(sheetSeconds ? { timeout: sheetSeconds } : {}),
 
       // The storefront's gold, so the sheet does not arrive in
       // Razorpay's default blue on a cream page.
@@ -151,9 +160,9 @@ export async function openCheckout(session, shop) {
         }),
 
       modal: {
-        // Fires when the shopper closes the sheet without paying. Their
-        // order still exists and their stock is still held, so this is a
-        // pause rather than a failure, and the copy above says so — unless
+        // Fires when the shopper closes the sheet without paying, or when
+        // its timeout runs out. Nothing was charged and no order was
+        // placed, so this is a pause rather than a failure — unless
         // an attempt failed before they gave up, in which case its reason
         // is the more useful thing to show.
         ondismiss: () =>
