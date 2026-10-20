@@ -1,6 +1,17 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, LayoutGrid, List, Search, SearchX } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  LayoutGrid,
+  List,
+  Percent,
+  Search,
+  SearchX,
+  Trash2,
+} from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -585,25 +596,30 @@ function PageHeader() {
 
 function BulkBar({ count, onClear, onActivate, onDeactivate, onDiscount, onDelete }) {
   return (
-    <div className="sb-enter flex flex-wrap items-center gap-2 border-b border-ink-200 bg-ink-900 px-4 py-2.5 text-white">
-      <span className="text-sm font-medium">
+    // Same strip as the inventory screen's selection bar, so bulk actions
+    // look alike across the admin.
+    <div className="sb-enter flex flex-wrap items-center gap-3 border-b border-brand-200 bg-brand-50/70 px-3 py-2">
+      <span className="text-sm font-medium text-brand-800">
         {count} product{count === 1 ? "" : "s"} selected
       </span>
-      <div className="ml-auto flex flex-wrap items-center gap-1.5">
-        <Button size="sm" variant="ghost" className="text-white hover:bg-white/15" onClick={onDiscount}>
+      <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto">
+        <Button size="sm" variant="secondary" onClick={onDiscount}>
+          <Percent className="size-3.5" aria-hidden="true" />
           Discount…
         </Button>
-        <Button size="sm" variant="ghost" className="text-white hover:bg-white/15" onClick={onActivate}>
+        <Button size="sm" variant="secondary" onClick={onActivate}>
+          <Eye className="size-3.5" aria-hidden="true" />
           Activate
         </Button>
-        <Button size="sm" variant="ghost" className="text-white hover:bg-white/15" onClick={onDeactivate}>
+        <Button size="sm" variant="secondary" onClick={onDeactivate}>
+          <EyeOff className="size-3.5" aria-hidden="true" />
           Deactivate
         </Button>
-        <Button size="sm" variant="ghost" className="text-red-200 hover:bg-red-500/25" onClick={onDelete}>
+        <Button size="sm" variant="danger" onClick={onDelete}>
+          <Trash2 className="size-3.5" aria-hidden="true" />
           Delete…
         </Button>
-        <span className="mx-1 h-4 w-px bg-white/20" />
-        <Button size="sm" variant="ghost" className="text-white/70 hover:bg-white/15" onClick={onClear}>
+        <Button size="sm" variant="ghost" onClick={onClear}>
           Clear
         </Button>
       </div>
