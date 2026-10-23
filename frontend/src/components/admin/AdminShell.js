@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { useAdminAuth } from "./AdminAuthProvider";
 import { Button, cx, ToastProvider } from "./ui";
+import { UploadDialog } from "./UploadDialog";
 
 /**
  * Admin nav: one list of navigable entries, each carrying its own sub-links.
@@ -450,6 +451,8 @@ export function AdminShell({ children }) {
             <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
           </div>
         </div>
+
+        <UploadDialog />
       </ToastProvider>
     </MotionConfig>
   );
