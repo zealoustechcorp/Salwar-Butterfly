@@ -31,6 +31,7 @@ import {
   renew as renewCustomer,
 } from "@/lib/store/session";
 import { expireSession, isSessionEnded } from "./expiry";
+import { beginUpload, carriesFile } from "./uploads";
 
 // ============================================================
 // CONFIG
@@ -129,6 +130,76 @@ function supersededToken(bearer, explicitToken) {
 }
 
 // ============================================================
+// UPLOAD TRANSPORT
+// ============================================================
+
+/**
+ * fetch() for a request carrying a file, over XMLHttpRequest.
+ *
+ * fetch cannot report how much of a request body has been sent, and an
+ * upload of twenty 5 MB photographs is long enough that the shop needs
+ * to see it moving, and to be told not to close the tab. So these go out
+ * over XHR, reporting to ./uploads.js, and resolve to the small slice of
+ * a Response that request() reads, so nothing below has to know which
+ * transport was used.
+ */
+function sendWithProgress(url, { method, headers, body, signal }) {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException("Aborted", "AbortError"));
+      return;
+    }
+
+    const xhr = new XMLHttpRequest();
+    const tracker = beginUpload();
+
+    const onAbort = () => xhr.abort();
+
+    const settle = () => {
+      tracker.end();
+      signal?.removeEventListener("abort", onAbort);
+    };
+
+    xhr.open(method, url);
+    // The equivalent of credentials: "include" (see request() below).
+    xhr.withCredentials = true;
+
+    Object.entries(headers).forEach(([name, value]) => {
+      xhr.setRequestHeader(name, value);
+    });
+
+    xhr.upload.onprogress = (event) => {
+      tracker.progress(event.loaded, event.lengthComputable ? event.total : 0);
+    };
+
+    xhr.onload = () => {
+      settle();
+      const text = xhr.responseText;
+
+      resolve({
+        status: xhr.status,
+        ok: xhr.status >= 200 && xhr.status < 300,
+        json: async () => JSON.parse(text),
+      });
+    };
+
+    // Shaped like fetch's failures, so request() treats them the same.
+    xhr.onerror = () => {
+      settle();
+      reject(new TypeError("Network request failed"));
+    };
+
+    xhr.onabort = () => {
+      settle();
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+
+    signal?.addEventListener("abort", onAbort);
+    xhr.send(body);
+  });
+}
+
+// ============================================================
 // REQUEST
 // ============================================================
 
@@ -181,7 +252,11 @@ export async function request(path, options = {}) {
   let response;
 
   try {
-    response = await fetch(`${BASE_URL}${path}`, {
+    // A file goes over XHR so its progress can be shown; everything
+    // else, including a multipart form with no file in it, stays on fetch.
+    const send = carriesFile(body) ? sendWithProgress : fetch;
+
+    response = await send(`${BASE_URL}${path}`, {
       method,
       headers,
       body:
