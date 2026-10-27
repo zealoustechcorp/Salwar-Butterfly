@@ -390,6 +390,41 @@ export const PaymentRepository = {
   },
 
   /**
+   * The still-unsettled attempts behind a set of Razorpay order ids.
+   *
+   * For the payment reconciler: of the payments Razorpay says it
+   * captured, which ones belong to an attempt of ours that was never
+   * marked paid. `created` and `failed` are exactly the statuses
+   * `settle` accepts, so anything returned here is something settle can
+   * still act on, and anything it has already settled drops out.
+   */
+  async findUnsettledByProviderOrderIds(providerOrderIds, provider = DEFAULT_PROVIDER) {
+    if (!providerOrderIds?.length) return [];
+
+    try {
+      const result = await query(
+        `SELECT ${COLUMNS}
+         FROM payments
+         WHERE provider = $1
+           AND provider_order_id = ANY($2::text[])
+           AND status IN ($3, $4)`,
+        [
+          provider,
+          providerOrderIds,
+          PAYMENT_ATTEMPT_STATUS.CREATED,
+          PAYMENT_ATTEMPT_STATUS.FAILED,
+        ],
+      );
+
+      return result.rows;
+    } catch (error) {
+      throw handleDatabaseError(error, "findUnsettledByProviderOrderIds", {
+        count: providerOrderIds.length,
+      });
+    }
+  },
+
+  /**
    * The attempt a refund notification is talking about.
    *
    * A refund entity names the payment it reverses, never the order, so
@@ -558,7 +593,7 @@ export const PaymentRepository = {
             unmatched = lapsedDraft ? "lapsed" : "cancelled";
 
             // A cancelled order carrying `paid` is exactly what refund-due
-            // means; markRefunded moves it on once the money goes back.
+            // means; recordRefund moves it on once the money goes back.
             // Numbered, so that a lapsed draft somebody paid for shows up
             // on the admin queue and in the shopper's history — money the
             // shop owes back must never sit on a row no screen lists.
@@ -712,69 +747,114 @@ export const PaymentRepository = {
   // ==========================================================
 
   /**
-   * Records that money went back.
+   * Records one refund against a payment, and moves the payment and its
+   * order to match what has now been refunded in total.
    *
-   * Guarded on `paid`, because refunding an attempt that never paid is
-   * not a state — it is a bug somewhere upstream, and it should fail
-   * loudly here rather than leave a row claiming a refund that no bank
-   * ever made.
+   * Called for every refund.processed webhook. Each refund is a row in
+   * payment_refunds keyed by Razorpay's refund id, so a redelivered
+   * webhook finds its row already there and changes nothing. The totals
+   * are then re-added from those rows rather than incremented, so they
+   * cannot drift.
    *
-   * `orders.payment_status` is moved with it, in the same transaction
-   * and for the same reason `settle` does: the order's one-word answer
-   * to "has this been paid for" must not survive the money leaving.
-   * The order's *status* is left alone — whether a refunded order is
-   * also cancelled is a decision the shop makes, and it has its own
-   * route with its own stock consequences.
+   *   refunds < amount paid   payment stays `paid`; order becomes
+   *                           `partially_refunded`
+   *   refunds >= amount paid  payment `refunded`; order `refunded`
+   *
+   * Only when this is the order's only standing payment. Refunding the
+   * duplicate of a double payment must leave the order reading `paid`:
+   * the other payment still stands, and the shop kept that money.
+   *
+   * @param {string} paymentId
+   * @param {{ providerRefundId: string, amount: number|null }} refund
+   *        amount in rupees; null (an entity without one) means in full
+   * @returns {Promise<{ payment: object|null, alreadyRecorded: boolean, refundedTotal?: number }>}
    */
-  async markRefunded(paymentId) {
+  async recordRefund(paymentId, { providerRefundId, amount = null }) {
     try {
       return await withTransaction(async (client) => {
-        const refunded = await client.query(
-          `UPDATE payments
-           SET status = $2,
-               updated_at = NOW()
-           WHERE id = $1::uuid
-             AND status = $3
-           RETURNING ${COLUMNS}`,
-          [paymentId, PAYMENT_ATTEMPT_STATUS.REFUNDED, PAYMENT_ATTEMPT_STATUS.PAID],
+        const locked = await client.query(
+          `SELECT ${COLUMNS} FROM payments WHERE id = $1::uuid FOR UPDATE`,
+          [paymentId],
+        );
+        const payment = locked.rows[0];
+
+        if (!payment) return { payment: null, alreadyRecorded: false };
+
+        const paid = Number(payment.amount);
+        const refundAmount = amount === null ? paid : Math.min(Number(amount), paid);
+
+        const inserted = await client.query(
+          `INSERT INTO payment_refunds (payment_id, provider, provider_refund_id, amount)
+           VALUES ($1::uuid, $2, $3, $4)
+           ON CONFLICT (provider, provider_refund_id) DO NOTHING
+           RETURNING id`,
+          [paymentId, payment.provider, providerRefundId, refundAmount],
         );
 
-        if (refunded.rowCount === 0) {
-          return { payment: null, alreadyRefunded: true };
+        if (inserted.rowCount === 0) {
+          return { payment, alreadyRecorded: true };
         }
 
-        const payment = refunded.rows[0];
+        const { rows: totals } = await client.query(
+          `SELECT COALESCE(SUM(amount), 0)::NUMERIC(12,2) AS refunded
+             FROM payment_refunds WHERE payment_id = $1::uuid`,
+          [paymentId],
+        );
+        const refundedTotal = Math.min(Number(totals[0].refunded), paid);
+        const fullyRefunded = refundedTotal >= paid;
 
-        // Only once nothing else paid for it. Refunding the duplicate of a
-        // double payment must leave the order reading `paid`: the other
-        // payment still stands.
-        await client.query(
+        let updated = payment;
+
+        if (fullyRefunded) {
+          const result = await client.query(
+            `UPDATE payments
+                SET status = $2, updated_at = NOW()
+              WHERE id = $1::uuid AND status = $3
+              RETURNING ${COLUMNS}`,
+            [paymentId, PAYMENT_ATTEMPT_STATUS.REFUNDED, PAYMENT_ATTEMPT_STATUS.PAID],
+          );
+          updated = result.rows[0] ?? payment;
+        }
+
+        // The order follows only when no other payment on it still stands.
+        const orderResult = await client.query(
           `UPDATE orders
-           SET payment_status = $2,
-               updated_at = NOW()
-           WHERE id = $1::uuid
-             AND payment_status = $3
-             AND NOT EXISTS (
-               SELECT 1 FROM payments p
-               WHERE p.order_id = $1::uuid AND p.status = $4
-             )`,
+              SET refunded_amount = LEAST($2::numeric, total),
+                  payment_status = $3,
+                  updated_at = NOW()
+            WHERE id = $1::uuid
+              AND payment_status IN ($4, $5)
+              AND NOT EXISTS (
+                SELECT 1 FROM payments p
+                 WHERE p.order_id = $1::uuid
+                   AND p.status = $6
+                   AND p.id <> $7::uuid
+              )
+            RETURNING id`,
           [
             payment.order_id,
-            PAYMENT_STATUS.REFUNDED,
+            refundedTotal,
+            fullyRefunded ? PAYMENT_STATUS.REFUNDED : PAYMENT_STATUS.PARTIALLY_REFUNDED,
             PAYMENT_STATUS.PAID,
+            PAYMENT_STATUS.PARTIALLY_REFUNDED,
             PAYMENT_ATTEMPT_STATUS.PAID,
+            paymentId,
           ],
         );
 
-        logger.info("Payment refunded", {
+        logger.info(fullyRefunded ? "Payment refunded" : "Payment partially refunded", {
           paymentId,
           orderId: payment.order_id,
+          providerRefundId,
+          refundAmount,
+          refundedTotal,
+          orderUpdated: orderResult.rowCount > 0,
         });
 
-        return { payment, alreadyRefunded: false };
+        return { payment: updated, alreadyRecorded: false, refundedTotal };
       });
     } catch (error) {
-      throw handleDatabaseError(error, "markRefunded", { paymentId });
+      throw handleDatabaseError(error, "recordRefund", { paymentId, providerRefundId });
     }
   },
 };

@@ -30,6 +30,7 @@
  * the API can sell.
  */
 
+import { connection } from "next/server";
 import { cache } from "react";
 
 import { STOCK_STATUS, stockStatusFor } from "@/lib/stock";
@@ -85,20 +86,43 @@ const EMPTY = {
  * which is exactly what stale-while-revalidate is for.
  */
 const loadCatalogue = cache(async () => {
-  const response = await fetch(`${API_BASE}/storefront/getCatalogue`, {
-    next: { revalidate: REVALIDATE_SECONDS, tags: ["catalogue"] },
-  });
+  let failure;
 
-  if (!response.ok) {
-    throw new Error(
+  try {
+    const response = await fetch(`${API_BASE}/storefront/getCatalogue`, {
+      next: { revalidate: REVALIDATE_SECONDS, tags: ["catalogue"] },
+    });
+
+    if (response.ok) {
+      const payload = await response.json();
+      return payload?.data ?? EMPTY;
+    }
+
+    failure = new Error(
       `Could not load the catalogue: the API answered ${response.status}. ` +
+        `Check that the backend is running at ${API_BASE}.`,
+    );
+  } catch (error) {
+    failure = new Error(
+      `Could not load the catalogue: ${error?.message ?? error}. ` +
         `Check that the backend is running at ${API_BASE}.`,
     );
   }
 
-  const payload = await response.json();
+  // During `next build` there is no last good page to fall back on, so
+  // throwing failed the whole build whenever the API was unreachable from
+  // the build machine. Instead the route stops prerendering here and is
+  // rendered per request once deployed: `connection()` does exactly that
+  // during a prerender. The deploy goes through, pages fill in as soon as
+  // the API answers, and the build log says why they are not static.
+  // At runtime the throw below still applies, which is what keeps the
+  // last good page in front of shoppers during an outage.
+  if (process.env.NEXT_PHASE === "phase-production-build") {
+    console.warn(`[catalogue] ${failure.message} — rendering this route on request instead.`);
+    await connection();
+  }
 
-  return payload?.data ?? EMPTY;
+  throw failure;
 });
 
 // --- presentation lookups ---------------------------------------------------

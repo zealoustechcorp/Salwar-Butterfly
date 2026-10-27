@@ -50,10 +50,31 @@ export const SHOP = Object.freeze({
   instagram: "https://www.instagram.com/salwar_butterfly/",
   whatsapp: "https://wa.me/918778921938",
 
+  // The business behind the shop, as the Contact and Terms pages print it.
+  // Razorpay's website review and Indian e-commerce rules both expect a
+  // registered name and a physical address on the site; a GSTIN is printed
+  // wherever it is set. Each field that is null is simply left off the
+  // page — and none of them is optional for go-live except the GSTIN.
+  legal: Object.freeze({
+    // TODO(go-live): the registered business or proprietor name.
+    businessName: null,
+    // TODO(go-live): one line per row, e.g. ["12, Main Road", "Tiruppur, Tamil Nadu 641601"].
+    address: null,
+    // TODO(go-live): the 15-character GSTIN, if it is to be shown.
+    gstin: null,
+    // TODO(go-live): the Consumer Protection (E-Commerce) Rules, 2020 ask a
+    // seller to name a grievance officer. Usually the owner. Their phone
+    // and email are taken to be the shop's own above.
+    grievanceOfficer: null,
+    // The city whose courts hear any dispute under the Terms. Defaults to
+    // none, which leaves the Terms saying "the courts of India".
+    jurisdiction: null,
+  }),
+
   // The shop's own words, kept as the shop wrote them.
   features: Object.freeze([
     {
-      title: "Delivery time 10 working days",
+      title: "Delivery time 7 to 10 working days",
       detail: "Freeshipping all over India",
     },
     {

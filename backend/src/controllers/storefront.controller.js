@@ -24,7 +24,14 @@ export const StorefrontController = {
   getCatalogue: asyncHandler(async (req, res) => {
     const catalogue = await StorefrontService.getCatalogue();
 
-    res.set("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
+    // A stale catalogue (served from memory while the database is down)
+    // is cached for seconds, not a minute, so recovery shows up quickly.
+    res.set(
+      "Cache-Control",
+      catalogue.stale
+        ? "public, max-age=5"
+        : "public, max-age=60, stale-while-revalidate=300",
+    );
 
     return okResponse({
       res,

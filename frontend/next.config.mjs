@@ -1,7 +1,72 @@
 import { withSentryConfig } from "@sentry/nextjs/config";
 
+/**
+ * Security headers for every page (the API sets its own, through helmet).
+ *
+ * The Content-Security-Policy lists the only places a page may load
+ * from: this site, the API, the image hosts, Razorpay's payment sheet and
+ * Microsoft Clarity. Anything else — an injected script from some other
+ * domain, the shop framed inside a phishing page — is refused by the
+ * browser. Errors to Sentry go through /monitoring on this origin (the
+ * tunnel below), so Sentry needs no entry.
+ *
+ * 'unsafe-inline' for scripts is Next's documented setup without nonces
+ * (node_modules/next/dist/docs/01-app/02-guides/content-security-policy.md):
+ * nonces would make every page render per request and lose the static
+ * pages and the catalogue cache. Inline code still cannot pull in a
+ * script from a host not listed here.
+ *
+ * Add a host here before using a new third party, or the browser will
+ * block it — the console names the directive that refused it.
+ */
+const API_ORIGIN = (() => {
+  try {
+    return new URL(process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000/api").origin;
+  } catch {
+    return "";
+  }
+})();
+
+const IMAGE_HOSTS = "https://images.salwarbutterfly.in https://res.cloudinary.com";
+const RAZORPAY = "https://*.razorpay.com";
+const CLARITY = "https://*.clarity.ms https://c.bing.com";
+
+const contentSecurityPolicy = [
+  "default-src 'self'",
+  `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""} ${RAZORPAY} ${CLARITY}`,
+  "style-src 'self' 'unsafe-inline'",
+  `img-src 'self' data: blob: ${IMAGE_HOSTS} ${RAZORPAY} ${CLARITY}`,
+  "font-src 'self'",
+  `connect-src 'self' ${API_ORIGIN} ${RAZORPAY} ${CLARITY}`,
+  `frame-src ${RAZORPAY}`,
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+  // Only once the API itself is on https — on a laptop it would rewrite
+  // http://localhost requests to https and break them.
+  ...(API_ORIGIN.startsWith("https:") ? ["upgrade-insecure-requests"] : []),
+].join("; ");
+
+const SECURITY_HEADERS = [
+  { key: "Content-Security-Policy", value: contentSecurityPolicy },
+  // Browsers ignore this over plain http, so it is harmless locally; on
+  // the live https site it stops a downgrade to http on hostile wifi.
+  { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  // Payment is allowed for Razorpay's sheet; nothing here needs a camera,
+  // microphone or location.
+  { key: "Permissions-Policy", value: `camera=(), microphone=(), geolocation=(), payment=(self "https://checkout.razorpay.com" "https://api.razorpay.com")` },
+];
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  async headers() {
+    return [{ source: "/:path*", headers: SECURITY_HEADERS }];
+  },
+
   images: {
     remotePatterns: [
       // Cloudflare R2, through the bucket's custom domain. Everything the

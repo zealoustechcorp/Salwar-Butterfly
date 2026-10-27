@@ -1340,7 +1340,7 @@ export function CheckoutView({ products = null, shop = null }) {
 
           <p className="mt-4 px-1 text-xs leading-relaxed text-sb-text-muted">
             Your sizes are held for you for a few minutes while you pay. Delivery
-            takes 5 to 10 working days.
+            takes 7 to 10 working days.
           </p>
         </aside>
       </form>

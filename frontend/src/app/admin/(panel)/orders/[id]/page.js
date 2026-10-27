@@ -213,6 +213,11 @@ export default function OrderDetailPage() {
           </h1>
           <Badge tone={orderStatus.tone}>{orderStatus.label}</Badge>
           <Badge tone={payment.tone}>{payment.label}</Badge>
+          {order.refundedAmount > 0 ? (
+            <span className="text-sm text-ink-500 tabular">
+              {money(order.refundedAmount)} of {money(order.total)} refunded
+            </span>
+          ) : null}
         </div>
 
         <p className="mt-1.5 text-sm text-ink-500">

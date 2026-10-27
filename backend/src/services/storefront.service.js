@@ -44,6 +44,20 @@ import { logger } from "../utils/logger.js";
 const CACHE_TTL_MS = 10_000;
 
 /**
+ * How old a catalogue may be and still be served when the database is
+ * down. The stress test (MED-3, 2026-10-09) found a Postgres outage took
+ * the whole storefront down with it, because a failed read was a 500
+ * even with a perfectly good catalogue from seconds earlier in memory.
+ * Now that copy is served — prices and stock as they were — until the
+ * database answers again, for up to a day. Checkout still re-reads stock
+ * inside its own transaction, so a stale shelf can never oversell.
+ */
+const STALE_LIMIT_MS = 24 * 60 * 60 * 1000;
+
+const OUTAGE_LOG_INTERVAL_MS = 60_000;
+let lastOutageLogAt = 0;
+
+/**
  * The most reviews one product page is served.
  *
  * A boutique piece collects a handful, not a thread. The count comes
@@ -191,11 +205,27 @@ export const StorefrontService = {
     } catch (error) {
       if (error instanceof ApiError) throw error;
 
-      logger.error("StorefrontService.getCatalogue failed", {
-        error: error?.message,
-      });
+      const staleFor = cache ? Date.now() - cache.at : null;
 
-      throw new ApiError(500, "Failed to load the catalogue");
+      // One line a minute during an outage, not one per page view.
+      if (Date.now() - lastOutageLogAt >= OUTAGE_LOG_INTERVAL_MS) {
+        logger.error("StorefrontService.getCatalogue failed", {
+          error: error?.message,
+          servingStaleForMs: staleFor !== null && staleFor < STALE_LIMIT_MS ? staleFor : null,
+        });
+        lastOutageLogAt = Date.now();
+      }
+
+      if (staleFor !== null && staleFor < STALE_LIMIT_MS) {
+        // A copy, flagged, so the controller can tell caches not to keep
+        // it long — the next request should try the database again.
+        return { ...cache.value, stale: true };
+      }
+
+      throw ApiError.serviceUnavailable(
+        "The shop is briefly unavailable. Please try again in a minute.",
+        "CATALOGUE_UNAVAILABLE",
+      );
     }
   },
 

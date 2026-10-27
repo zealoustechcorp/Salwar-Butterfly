@@ -640,4 +640,32 @@ export const RazorpayGateway = {
   async fetchPayment(paymentId) {
     return call(`/payments/${encodeURIComponent(paymentId)}`);
   },
+
+  /**
+   * The account's payments created inside a time window, newest first.
+   *
+   * What the payment reconciler reads (queues/payment.reconciler.js):
+   * one page of every payment Razorpay holds, rather than a call per
+   * attempt of ours, so its cost stays flat however many checkouts were
+   * abandoned that day. Razorpay caps a page at 100.
+   *
+   * @param {object} window
+   * @param {number} window.from   unix seconds
+   * @param {number} window.to     unix seconds
+   * @param {number} [window.count]
+   * @param {number} [window.skip]
+   * @returns {Promise<object[]>} payment entities
+   */
+  async listPayments({ from, to, count = 100, skip = 0 }) {
+    const search = new URLSearchParams({
+      from: String(Math.floor(from)),
+      to: String(Math.floor(to)),
+      count: String(count),
+      skip: String(skip),
+    });
+
+    const payload = await call(`/payments?${search}`);
+
+    return Array.isArray(payload?.items) ? payload.items : [];
+  },
 };

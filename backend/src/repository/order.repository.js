@@ -74,7 +74,8 @@ const handleDatabaseError = (error, operation, context = {}) => {
  * The values are interpolated from the policy modules, never from input.
  */
 const REFUND_DUE_SQL = `(
-  (o.status = '${ORDER_STATUS.CANCELLED}' AND o.payment_status = '${PAYMENT_STATUS.PAID}')
+  (o.status = '${ORDER_STATUS.CANCELLED}'
+     AND o.payment_status IN ('${PAYMENT_STATUS.PAID}', '${PAYMENT_STATUS.PARTIALLY_REFUNDED}'))
   OR (
     SELECT COUNT(*) FROM payments p
     WHERE p.order_id = o.id AND p.status = '${PAYMENT_ATTEMPT_STATUS.PAID}'

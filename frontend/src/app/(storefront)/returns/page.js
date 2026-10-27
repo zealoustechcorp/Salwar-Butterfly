@@ -53,6 +53,9 @@ const SECTIONS = [
     body: [
       "If a return is approved, the refund will be processed after the returned product has been received and inspected.",
       "Refunds will be issued through the original payment method or, where applicable, another payment method mutually agreed upon by both parties.",
+      // TODO(go-live): confirm the 7-working-day commitment with the shop.
+      "Approved refunds are initiated within 7 working days of the returned product reaching us. Once initiated, your bank or payment provider usually takes a further 5 to 7 working days to credit the amount.",
+      "If we cancel an order you have already paid for — for example because a product became unavailable — we refund the full amount to your original payment method, on the same timeline.",
     ],
   },
   {
@@ -83,7 +86,7 @@ export default function ReturnsPage() {
     <LegalPage
       eyebrow="Return & Refund Policy"
       title="What we take back, and when"
-      updated="August 31, 2026"
+      updated="October 27, 2026"
       intro="At Salwar Butterfly, we carefully inspect every product before dispatch. We are committed to ensuring that you receive your order in good condition and as described on our website."
       sections={SECTIONS}
       shop={shop}

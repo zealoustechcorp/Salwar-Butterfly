@@ -62,6 +62,9 @@ export const ORDER_STATUSES = Object.values(ORDER_STATUS);
 export const PAYMENT_STATUS = {
   PENDING: "pending",
   PAID: "paid",
+  // Some of the money has gone back; the rest is still the shop's.
+  // orders.refunded_amount says how much (migration 032).
+  PARTIALLY_REFUNDED: "partially_refunded",
   FAILED: "failed",
   REFUNDED: "refunded",
 };

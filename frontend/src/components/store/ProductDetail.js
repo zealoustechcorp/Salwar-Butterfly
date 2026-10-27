@@ -421,7 +421,7 @@ export function ProductDetail({ product, shop }) {
         {/* What ordering it involves — the shop's own terms */}
         <ul className="mt-6 space-y-2 rounded-2xl border border-sb-gold/35 bg-sb-surface/25 p-4 text-[13px] text-sb-text sm:p-5">
           {[
-            "Free shipping all over India, delivered in 5–10 working days.",
+            "Free shipping all over India, delivered in 7–10 working days.",
             "Online payment only — GPay, PhonePe, Paytm. No cash on delivery.",
           ].map((line) => (
             <li key={line} className="flex gap-2.5">
