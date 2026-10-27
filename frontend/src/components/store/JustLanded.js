@@ -132,8 +132,11 @@ export function JustLanded({ products }) {
                       <span
                         aria-hidden="true"
                         className={cn(
-                          "grid size-7 shrink-0 place-items-center rounded-full bg-sb-bg text-sb-heading transition-[transform,opacity] duration-500",
-                          "[@media(hover:hover)]:translate-x-2 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:translate-x-0 [@media(hover:hover)]:group-hover:opacity-100 group-focus-visible:translate-x-0 group-focus-visible:opacity-100",
+                          // Fades in on hover without sliding: it used to start
+                          // offset to the right and glide into place, which read
+                          // as the arrow jumping when the card was pointed at.
+                          "grid size-7 shrink-0 place-items-center rounded-full bg-sb-bg text-sb-heading transition-opacity duration-500",
+                          "[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 group-focus-visible:opacity-100",
                           EASE,
                         )}
                       >

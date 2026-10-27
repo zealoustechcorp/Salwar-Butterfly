@@ -165,7 +165,7 @@ export function OrderConfirmation() {
           <p className="mt-3 max-w-xl text-sm leading-relaxed text-sb-text-muted">
             {confirming
               ? "Your payment went through and the shop is confirming it. This takes a moment — your order number will arrive by email and WhatsApp as soon as it is confirmed."
-              : "Payment received. Your pieces are being picked, and the shop will send them within 5 to 10 working days."}
+              : "Payment received. Your pieces are being picked, and the shop will send them within 7 to 10 working days."}
           </p>
 
           {/* The number, given its own block. It is the one thing on this page
@@ -204,7 +204,7 @@ export function OrderConfirmation() {
           <div className="mt-5 flex items-start gap-2.5 rounded-xl bg-sb-surface/40 px-4 py-3.5">
             <Package className="mt-0.5 size-4 shrink-0 text-sb-gold-text" aria-hidden="true" />
             <p className="text-xs leading-relaxed text-sb-text-muted">
-              Delivery takes 5 to 10 working days, free all over India, and every
+              Delivery takes 7 to 10 working days, free all over India, and every
               piece is QC-checked before it is dispatched.
             </p>
           </div>

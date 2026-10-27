@@ -1,9 +1,14 @@
 // src/middlewares/rateLimiter.js
 
-import rateLimit from "express-rate-limit";
+import { createHash } from "node:crypto";
+
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { RedisStore } from "rate-limit-redis";
+import { TOKEN_USE } from "../config/auth.policy.js";
 import { env } from "../config/env.js";
 import { getRedisClient } from "../config/redis.js";
+import { ADMIN_TOKEN_TYPE } from "../services/admin.auth.service.js";
+import { verifyToken } from "../utils/jwt.js";
 import { logger } from "../utils/logger.js";
 
 /**
@@ -84,10 +89,23 @@ const failOpen = (limiter, name) => {
     });
 };
 
-const createLimiter = ({ windowMs, limit, message, name, prefix, skip = null }) => {
+const createLimiter = ({
+  windowMs,
+  limit,
+  message,
+  name,
+  prefix,
+  skip = null,
+  keyGenerator,
+  skipSuccessfulRequests = false,
+}) => {
   const limiter = rateLimit({
     windowMs,
     limit,
+    ...(keyGenerator ? { keyGenerator } : {}),
+    // Count only requests answered with an error status — for a sign-in,
+    // only the wrong guesses.
+    skipSuccessfulRequests,
 
     store: createStore(prefix),
 
@@ -119,11 +137,63 @@ const createLimiter = ({ windowMs, limit, message, name, prefix, skip = null }) 
 
 const WEBHOOK_PATHS = ["/api/payments/webhook", "/api/whatsapp/webhook"];
 
+export const GLOBAL_LIMIT = 300;
+export const ADMIN_GLOBAL_LIMIT = 3000;
+
+/**
+ * The admin id behind a request's bearer token, when that token is a
+ * validly signed admin *access* token — otherwise null.
+ *
+ * The global limiter runs before authentication, so on its own it sees
+ * only an IP. That put the shop owner's admin panel in the same 300 per
+ * 15 minutes as every shopper on the shop's wifi, and a bulk upload of a
+ * few dresses' photographs after a normal morning in the panel was
+ * answered 429 — photos silently missing on 2 of 3 dresses (2026-10-19).
+ *
+ * Only the signature and claims are checked here: an HMAC, no database.
+ * requireAdmin still re-checks the account on every route, so a token
+ * for a deactivated admin buys a bigger budget for requests that are all
+ * refused anyway. A forged or expired token fails verification and is
+ * counted by IP like any other request. Memoised on the request because
+ * the limiter asks twice (its key and its limit).
+ */
+const adminIdOf = (req) => {
+  if (req._rateLimitAdminId !== undefined) return req._rateLimitAdminId;
+
+  let adminId = null;
+  const [scheme, token] = String(req.headers.authorization ?? "").trim().split(/\s+/);
+
+  if (scheme?.toLowerCase() === "bearer" && token) {
+    try {
+      const decoded = verifyToken(token);
+
+      if (decoded?.tok === TOKEN_USE.ACCESS && decoded.typ === ADMIN_TOKEN_TYPE && decoded.sub) {
+        adminId = String(decoded.sub);
+      }
+    } catch {
+      // Not a valid token — counted by IP.
+    }
+  }
+
+  req._rateLimitAdminId = adminId;
+  return adminId;
+};
+
 export const globalRateLimiter = createLimiter({
   name: "global",
   prefix: "rl:global:",
   windowMs: 15 * 60 * 1000,
-  limit: 300,
+
+  // A signed-in admin gets a budget of their own, keyed by account rather
+  // than IP and ten times the size: the panel is many requests per
+  // screen, and a bulk upload is one request per product. Everyone else
+  // shares the per-IP 300.
+  limit: (req) => (adminIdOf(req) ? ADMIN_GLOBAL_LIMIT : GLOBAL_LIMIT),
+  keyGenerator: (req) => {
+    const adminId = adminIdOf(req);
+    return adminId ? `admin:${adminId}` : ipKeyGenerator(req.ip);
+  },
+
   message: "Too many requests. Please try again later.",
 
   // Server-to-server deliveries, signed with an HMAC checked before
@@ -165,6 +235,42 @@ export const adminAuthRateLimiter = createLimiter({
   windowMs: 15 * 60 * 1000,
   limit: 10,
   message: "Too many authentication attempts. Please try again later.",
+});
+
+export const ADMIN_ACCOUNT_FAILURE_LIMIT = 5;
+
+/**
+ * Admin sign-in, per account rather than per IP.
+ *
+ * adminAuthRateLimiter above slows one address; it does nothing against
+ * guesses spread across many, each staying under ten. This counts the
+ * *failed* sign-ins against the account being tried, wherever they come
+ * from: five wrong passwords in fifteen minutes and that account refuses
+ * further attempts until the window has passed. A successful sign-in is
+ * not counted, so the owner mistyping once costs nothing.
+ *
+ * The trade-off, accepted knowingly: someone who knows the admin email
+ * can keep the account locked by guessing on purpose. Fifteen minutes is
+ * short enough that this is a nuisance rather than an outage, and the
+ * alternative — unlimited distributed guessing — is worse.
+ *
+ * Keyed by a hash of the email so no address is written into Redis.
+ */
+export const adminAccountLockout = createLimiter({
+  name: "admin-account-lockout",
+  prefix: "rl:auth-admin-account:",
+  windowMs: 15 * 60 * 1000,
+  limit: ADMIN_ACCOUNT_FAILURE_LIMIT,
+  skipSuccessfulRequests: true,
+  message:
+    "Too many failed sign-ins for this account. Please wait 15 minutes and try again.",
+  keyGenerator: (req) => {
+    const email = String(req.body?.email ?? "").trim().toLowerCase();
+
+    return email
+      ? `account:${createHash("sha256").update(email).digest("hex").slice(0, 32)}`
+      : ipKeyGenerator(req.ip);
+  },
 });
 
 /**

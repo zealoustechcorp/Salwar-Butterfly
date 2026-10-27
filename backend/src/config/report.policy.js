@@ -109,9 +109,16 @@ export const MAX_REPORT_YEAR = 2100;
 // until it is refunded — the money is in the account, and the refund is
 // its own event with its own payment status.
 
-/** Orders whose money has arrived. */
+/**
+ * Orders whose money has arrived — including those partly refunded,
+ * which still hold the rest. Sum revenueAmountSql over these, not
+ * `total`, so what went back is not counted.
+ */
 export const revenueFilterSql = (alias = "o") =>
-  `${alias}.payment_status = '${PAYMENT_STATUS.PAID}'`;
+  `${alias}.payment_status IN ('${PAYMENT_STATUS.PAID}', '${PAYMENT_STATUS.PARTIALLY_REFUNDED}')`;
+
+/** What an order contributes to revenue: its total, less any refund. */
+export const revenueAmountSql = (alias = "o") => `(${alias}.total - ${alias}.refunded_amount)`;
 
 /** Orders placed, not yet paid, and not abandoned. */
 export const pipelineFilterSql = (alias = "o") =>

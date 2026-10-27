@@ -1,3 +1,5 @@
+import { unstable_rethrow } from "next/navigation";
+
 import { getProductSlugs } from "@/lib/store/catalogue";
 import { productPath } from "@/lib/store/links";
 import { SITE_URL } from "@/lib/site";
@@ -27,6 +29,9 @@ export default async function sitemap() {
   try {
     productSlugs = await getProductSlugs();
   } catch (error) {
+    // A build that cannot reach the API renders the sitemap on request
+    // instead (see loadCatalogue); that signal must not be swallowed here.
+    unstable_rethrow(error);
     console.warn(`[sitemap] could not list products: ${error.message}`);
   }
 

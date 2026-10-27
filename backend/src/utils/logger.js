@@ -16,20 +16,30 @@ const __dirname = path.dirname(__filename);
 const logDir = path.resolve(__dirname, "../../logs");
 
 // ============================================================
-// CREATE LOG DIRECTORY
-// ============================================================
-
-if (!fs.existsSync(logDir)) {
-  fs.mkdirSync(logDir, {
-    recursive: true,
-  });
-}
-
-// ============================================================
 // ENVIRONMENT
 // ============================================================
 
 const NODE_ENV = process.env.NODE_ENV || "development";
+
+/**
+ * Whether to write log files at all.
+ *
+ * Off in production by default. A host's disk is wiped on every deploy
+ * or restart, so files there were never the record they looked like; the
+ * process logs JSON lines to stdout instead, which every host captures
+ * and keeps (and can forward to a log service). Off in tests, whose
+ * short-lived, force-exited processes were the main thing breaking the
+ * files. On for local development. LOG_TO_FILES=on|off overrides.
+ */
+const LOG_TO_FILES = process.env.LOG_TO_FILES
+  ? process.env.LOG_TO_FILES === "on"
+  : NODE_ENV === "development";
+
+if (LOG_TO_FILES && !fs.existsSync(logDir)) {
+  fs.mkdirSync(logDir, {
+    recursive: true,
+  });
+}
 
 const LOG_LEVEL =
   process.env.LOG_LEVEL || (NODE_ENV === "production" ? "info" : "debug");
@@ -37,6 +47,34 @@ const LOG_LEVEL =
 // ============================================================
 // LOG FORMAT
 // ============================================================
+
+/**
+ * Applies SENSITIVE_FIELDS (below) to a JSON log line.
+ *
+ * The console format always redacted, through safeStringify; the JSON
+ * format did not, so a password or token passed in a log call's meta was
+ * written to the log files in clear. JSON is now what production logs
+ * (to stdout, for the host to keep), so it redacts the same way. Winston
+ * keeps its own bookkeeping under Symbol keys, which Object.keys skips,
+ * so those are left untouched.
+ */
+const redactFormat = winston.format((info) => {
+  for (const key of Object.keys(info)) {
+    if (key === "level" || key === "message" || key === "timestamp") continue;
+
+    if (SENSITIVE_FIELDS.has(key.toLowerCase())) {
+      info[key] = "[REDACTED]";
+    } else if (typeof info[key] === "object" && info[key] !== null) {
+      try {
+        info[key] = JSON.parse(safeStringify(info[key]));
+      } catch {
+        info[key] = "[Unserializable]";
+      }
+    }
+  }
+
+  return info;
+});
 
 const jsonFormat = winston.format.combine(
   winston.format.timestamp({
@@ -46,6 +84,8 @@ const jsonFormat = winston.format.combine(
   winston.format.errors({
     stack: true,
   }),
+
+  redactFormat(),
 
   winston.format.json(),
 );
@@ -180,7 +220,14 @@ const createRotateTransport = ({
 
     datePattern: "YYYY-MM-DD",
 
-    zippedArchive: true,
+    // Not compressed. Every process that opens these files — the dev
+    // server, each test run, every one-off script — gzips the previous
+    // day's file when it notices the date has changed, then deletes the
+    // original. A process that exits mid-way (tests force-exit; scripts
+    // finish in a second) left an empty .gz and no original: 83 of 171
+    // archives were empty, the 2026-10-19 bulk-upload logs among them.
+    // Uncompressed files cost disk, which maxSize/maxFiles already cap.
+    zippedArchive: false,
 
     maxSize,
 
@@ -194,7 +241,7 @@ const createRotateTransport = ({
 // TRANSPORTS
 // ============================================================
 
-const transports = [
+const fileTransports = () => [
   // ----------------------------------------------------------
   // ALL APPLICATION LOGS
   // ----------------------------------------------------------
@@ -266,14 +313,20 @@ const transports = [
   }),
 ];
 
+const transports = LOG_TO_FILES ? fileTransports() : [];
+
 // ============================================================
 // CONSOLE
 // ============================================================
+//
+// In production the console is the log: one redacted JSON object per
+// line, which the host's log viewer can search and filter. Elsewhere it
+// is the coloured, human-readable line.
 
 transports.push(
   new winston.transports.Console({
     level: LOG_LEVEL,
-    format: consoleFormat,
+    format: NODE_ENV === "production" ? jsonFormat : consoleFormat,
   }),
 );
 

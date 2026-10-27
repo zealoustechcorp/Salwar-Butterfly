@@ -1,4 +1,4 @@
-import { Mail, Phone } from "lucide-react";
+import { Mail, MapPin, Phone } from "lucide-react";
 
 import { Butterfly, WhatsAppGlyph } from "./Ornaments";
 
@@ -103,7 +103,35 @@ export function LegalPage({ eyebrow, title, updated, intro, sections, shop }) {
             </a>
           </li>
         </ul>
+        <BusinessIdentity shop={shop} className="mt-4 border-t border-sb-gold/25 pt-4" />
       </div>
     </section>
+  );
+}
+
+/**
+ * The registered name, postal address and GSTIN from SHOP.legal — whichever
+ * of them are set.
+ */
+export function BusinessIdentity({ shop, className = "" }) {
+  const { businessName, address, gstin } = shop.legal ?? {};
+
+  if (!businessName && !address?.length && !gstin) {
+    return null;
+  }
+
+  return (
+    <div className={`flex gap-2.5 text-sm leading-relaxed text-sb-text ${className}`}>
+      <MapPin className="mt-0.5 size-4 shrink-0 text-sb-gold-text" aria-hidden="true" />
+      <address className="not-italic">
+        {businessName ? <span className="block font-semibold">{businessName}</span> : null}
+        {address?.map((line) => (
+          <span key={line} className="block">
+            {line}
+          </span>
+        ))}
+        {gstin ? <span className="mt-1 block text-sb-text-muted tabular">GSTIN: {gstin}</span> : null}
+      </address>
+    </div>
   );
 }

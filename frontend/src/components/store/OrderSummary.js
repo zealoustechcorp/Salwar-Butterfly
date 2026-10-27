@@ -147,7 +147,7 @@ export function OrderAddress({ order }) {
  * confirmation offers nothing, tracking is read-only.
  */
 export function OrderCard({ order, actions = null, defaultOpen = false }) {
-  const copy = statusCopy(order.status);
+  const copy = statusCopy(order.status, order.paymentStatus);
 
   return (
     <article className="rounded-2xl border border-sb-gold/35 bg-sb-bg p-5">

@@ -733,8 +733,12 @@ export const PaymentService = {
    * it does not prove the capture was for the right order, and a
    * mismatch at this point is something the shop must see rather than
    * something to bank quietly.
+   *
+   * Also the payment reconciler's way in, with `source: "reconcile"`, so a
+   * capture the webhook never delivered is checked and settled by exactly
+   * the same code as one it did.
    */
-  async onPaymentCaptured(entity) {
+  async onPaymentCaptured(entity, { source = "webhook" } = {}) {
     if (!entity?.order_id || !entity?.id) {
       return { handled: false, reason: "missing ids" };
     }
@@ -775,7 +779,7 @@ export const PaymentService = {
     const result = await PaymentService.settleAttempt(attempt, {
       providerPaymentId: entity.id,
       method: entity.method ?? null,
-      source: "webhook",
+      source,
     });
 
     return {
@@ -828,9 +832,15 @@ export const PaymentService = {
       return { handled: false, reason: "unknown attempt" };
     }
 
-    const { alreadyRefunded } = await PaymentRepository.markRefunded(attempt.id);
+    // Razorpay sends the refund in paise. A refund entity always carries
+    // its own id; without one there is nothing to de-duplicate on, so the
+    // payment id stands in (at most one such "refund" per payment).
+    const { alreadyRecorded, refundedTotal } = await PaymentRepository.recordRefund(attempt.id, {
+      providerRefundId: entity.id ?? `whole:${entity.payment_id}`,
+      amount: entity.amount == null ? null : fromMinorUnits(entity.amount),
+    });
 
-    return { handled: true, alreadyRefunded };
+    return { handled: true, alreadyRefunded: alreadyRecorded, refundedTotal };
   },
 
   // ==========================================================

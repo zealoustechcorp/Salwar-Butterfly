@@ -42,7 +42,7 @@ export default function AccountPage() {
       id: "delivery",
       icon: Truck,
       title: "Shipping & delivery",
-      body: "Shipping is free all over India. Orders reach you in 5 to 10 working days once payment is confirmed. Every outfit is QC-checked before it is dispatched.",
+      body: "Shipping is free all over India. Orders reach you in 7 to 10 working days once payment is confirmed. Every outfit is QC-checked before it is dispatched.",
     },
     {
       id: "sizes",

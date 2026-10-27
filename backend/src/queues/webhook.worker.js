@@ -103,9 +103,10 @@ export function startWebhookWorker() {
 
     // The one log line in this feature that must never be missed: a
     // verified payment event that this system has given up on. The order
-    // is, most likely, paid and still unconfirmed. Razorpay's own
-    // redelivery may yet save it; nobody should be relying on that
-    // without knowing it happened.
+    // is, most likely, paid and still unconfirmed. The payment
+    // reconciler (payment.reconciler.js) settles it from Razorpay's side
+    // within minutes of the database coming back, but this is still
+    // something a person should know happened.
     logger.error("Webhook job failed permanently — payment event dropped", {
       ...jobContext(job),
       attempts: job?.attemptsMade,

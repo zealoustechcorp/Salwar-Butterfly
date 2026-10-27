@@ -83,7 +83,7 @@ function ShopButton({ className, onClick }) {
 // The shop's own trust badges, in its own words (spelling normalised).
 const ANNOUNCEMENTS = [
   "Free shipping all over India",
-  "Delivery in 5–10 working days",
+  "Delivery in 7–10 working days",
   "GST registered brand · trusted seller",
   "Limited edition — book fast before stock out",
   "WhatsApp support · online payment only",

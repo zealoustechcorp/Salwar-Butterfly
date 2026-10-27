@@ -2,7 +2,7 @@
 
 import { ArrowLeft, ImagePlus, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   Badge,
@@ -25,6 +25,7 @@ import { AttributeFields } from "@/components/admin/ProductFields";
 import { StagedGallery } from "@/components/admin/ProductGallery";
 import { SizeStockEditor } from "@/components/admin/SizeStockEditor";
 import { listAttributeValues, listColours } from "@/lib/api/attributes";
+import { NETWORK_ERROR } from "@/lib/api/client";
 import { uploadImages } from "@/lib/api/images";
 import { bulkCreateProducts, getReference, listAllProducts } from "@/lib/api/products";
 import { listFits } from "@/lib/api/sizeCharts";
@@ -81,6 +82,48 @@ const DEFAULT_SIZES = ["36", "38", "40", "42"].map((size) => ({
   active: true,
 }));
 
+/** Where each product's sizes and photographs stand after the batch insert. */
+const STEP = Object.freeze({
+  PENDING: "pending",
+  DONE: "done",
+  FAILED: "failed",
+  SKIPPED: "skipped",
+});
+
+const isOpen = (status) => status === STEP.PENDING || status === STEP.FAILED;
+
+// Pauses before retrying a "busy" answer. Two retries over ~8 seconds
+// rides out a burst without leaving the admin staring at a spinner.
+const RETRY_DELAYS_MS = [2_000, 6_000];
+
+/**
+ * Runs a request, retrying it after a pause when the API says it is busy
+ * (429 rate-limited, 503 unavailable). Those answers mean the request was
+ * not processed, so sending it again cannot duplicate anything. Any other
+ * failure is final and is reported as it is.
+ */
+async function withRetry(request) {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await request();
+    } catch (err) {
+      const delay = RETRY_DELAYS_MS[attempt];
+      const busy = err?.status === 429 || err?.status === 503;
+
+      if (!busy || delay === undefined) throw err;
+
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+}
+
+/** A failure in words the admin can act on. */
+function reasonFor(err) {
+  if (err?.status === 429) return "The server was busy (too many requests). Wait a minute, then retry.";
+  if (err?.code === NETWORK_ERROR) return "Could not reach the server. Check the connection, then retry.";
+  return err?.message || "Something went wrong.";
+}
+
 let rowCounter = 0;
 const makeRow = () => ({
   key: `row-${++rowCounter}`,
@@ -104,6 +147,21 @@ export default function BulkUploadPage() {
   const [rows, setRows] = useState(() => [makeRow(), makeRow(), makeRow()]);
   const [failure, setFailure] = useState(null);
   const [busy, setBusy] = useState(false);
+
+  // While sizes and photographs are being sent: which product is in hand.
+  const [progress, setProgress] = useState(null);
+  // Set once the products exist but some of them still lack their sizes
+  // or photographs — the batch must not be sent again (it would try to
+  // create the products a second time), only the failed steps retried.
+  const [finishing, setFinishing] = useState(null);
+  const finishingRef = useRef(null);
+
+  // The list of what still needs doing is at the top of the page, and the
+  // admin is at the bottom, by the button they just pressed — bring it
+  // into view each time it is (re)shown.
+  useEffect(() => {
+    if (finishing) finishingRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [finishing]);
 
   // Which row's gallery is open. A modal rather than a gallery inside
   // the cell: eight thumbnails do not belong in a table row, and the
@@ -276,6 +334,112 @@ export default function BulkUploadPage() {
 
   const ready = !batchProblem;
 
+  /**
+   * Finishes each product's sizes and photographs, one product at a time.
+   *
+   * These used to go out all at once, in parallel. On 2026-10-19 a batch
+   * of three dresses lost the photographs of two: the parallel POSTs met
+   * the API's rate limit, two were answered 429, and the screen reported
+   * only a count and navigated away — taking the chosen files with it.
+   * Now the requests go one after another, a "busy" answer is retried
+   * after a pause (see withRetry), and whatever still fails is listed by
+   * name with the files kept, so "Retry failed" can send exactly those.
+   *
+   * Only steps that are pending or failed are run, so a retry never
+   * re-sends a gallery that already landed. Photographs are read from
+   * the current rows, which lets the admin swap a bad file before retrying.
+   */
+  async function runSteps(steps, sizesToSend) {
+    const next = steps.map((step) => ({ ...step }));
+    const todo = next.filter((step) => isOpen(step.sizes) || isOpen(step.photos));
+
+    for (const [index, step] of todo.entries()) {
+      setProgress(`Finishing ${step.name} — ${index + 1} of ${todo.length}…`);
+
+      if (!step.productId) {
+        const reason = "The server did not return this product. Check the products list.";
+        if (isOpen(step.sizes)) Object.assign(step, { sizes: STEP.FAILED, sizeError: reason });
+        if (isOpen(step.photos)) Object.assign(step, { photos: STEP.FAILED, photoError: reason });
+        continue;
+      }
+
+      if (isOpen(step.sizes)) {
+        try {
+          // A replace, so sending it again after a failure is harmless.
+          await withRetry(() => replaceVariants(step.productId, sizesToSend));
+          Object.assign(step, { sizes: STEP.DONE, sizeError: null });
+        } catch (err) {
+          Object.assign(step, { sizes: STEP.FAILED, sizeError: reasonFor(err) });
+        }
+      }
+
+      if (isOpen(step.photos)) {
+        const photos = rows.find((row) => row.key === step.key)?.photos ?? [];
+
+        try {
+          await withRetry(() => uploadImages(step.productId, photos));
+          Object.assign(step, { photos: STEP.DONE, photoError: null });
+        } catch (err) {
+          Object.assign(step, { photos: STEP.FAILED, photoError: reasonFor(err) });
+        }
+      }
+    }
+
+    setProgress(null);
+    return next;
+  }
+
+  /**
+   * Leaves the page when everything landed; otherwise stays, with the
+   * products that still need something listed by name.
+   */
+  function settle(createdCount, steps, sizesSent) {
+    const failed = steps.filter((step) => step.sizes === STEP.FAILED || step.photos === STEP.FAILED);
+
+    if (failed.length === 0) {
+      const photoCount = steps.reduce(
+        (sum, step) =>
+          step.photos === STEP.DONE
+            ? sum + (rows.find((row) => row.key === step.key)?.photos.length ?? 0)
+            : sum,
+        0,
+      );
+      const notes = [
+        sizesSent.length ? `${sizesSent.length} sellable row${sizesSent.length === 1 ? "" : "s"} each` : null,
+        photoCount ? `${number(photoCount)} photographs` : null,
+      ].filter(Boolean);
+
+      toast.success(
+        `${createdCount} product${createdCount === 1 ? "" : "s"} created.`,
+        notes.join(", ") || undefined,
+      );
+      router.push("/admin/products");
+      return;
+    }
+
+    // The products themselves exist either way, so this is a list of
+    // what still needs doing, not an error about what was lost.
+    setFinishing({ createdCount, steps, sizes: sizesSent });
+    setBusy(false);
+    toast.error(
+      `${failed.length} of ${createdCount} product${createdCount === 1 ? "" : "s"} still need attention.`,
+      "They are listed at the top of the page. Your photographs are still here — use Retry failed.",
+    );
+  }
+
+  async function retryFailed() {
+    if (!finishing) return;
+
+    setBusy(true);
+    const steps = finishing.steps.map((step) => ({
+      ...step,
+      sizes: step.sizes === STEP.FAILED ? STEP.PENDING : step.sizes,
+      photos: step.photos === STEP.FAILED ? STEP.PENDING : step.photos,
+    }));
+
+    settle(finishing.createdCount, await runSteps(steps, finishing.sizes), finishing.sizes);
+  }
+
   async function submit() {
     // `ready` already gates the button, so this is the belt to its braces
     // — and the thing that says *why* if the button is ever reached with
@@ -302,73 +466,31 @@ export default function BulkUploadPage() {
         })),
       );
 
-      // Sizes are per-product rows in another table, so the batch insert
-      // above cannot carry them — each new product gets the shared size
-      // run in its own request.
-      let sizeFailures = 0;
-
-      if (sizes.length) {
-        const results = await Promise.allSettled(
-          created.map((product) => replaceVariants(product.id, sizes)),
-        );
-        sizeFailures = results.filter((r) => r.status === "rejected").length;
-      }
-
-      // Photographs need an id to hang from, so they upload now.
+      // Sizes and photographs are per-product requests that need the new
+      // ids, so each product becomes a "step" finished one at a time.
       //
       // Matched back to their row by slug rather than by array position:
       // slugs are unique across the catalogue and the screen has already
       // refused duplicates, whereas the order of a multi-row INSERT ...
       // RETURNING is not something to hang a photograph on.
       const bySlug = new Map(created.map((product) => [product.slug, product]));
-      const withPhotos = filled.filter((row) => row.photos.length > 0);
+      const sizesSent = sizes;
 
-      let photoFailures = 0;
+      const steps = filled.map((row) => {
+        const product = bySlug.get(row.slug.trim() || autoSlug(row.name));
 
-      if (withPhotos.length) {
-        const results = await Promise.allSettled(
-          withPhotos.map((row) => {
-            const product = bySlug.get(row.slug.trim() || autoSlug(row.name));
+        return {
+          key: row.key,
+          name: row.name.trim(),
+          productId: product?.id ?? null,
+          sizes: sizesSent.length ? STEP.PENDING : STEP.SKIPPED,
+          photos: row.photos.length ? STEP.PENDING : STEP.SKIPPED,
+          sizeError: null,
+          photoError: null,
+        };
+      });
 
-            if (!product) {
-              return Promise.reject(new Error(`No product came back for "${row.name}"`));
-            }
-
-            return uploadImages(product.id, row.photos);
-          }),
-        );
-
-        photoFailures = results.filter((r) => r.status === "rejected").length;
-      }
-
-      // The products themselves are created either way, so a failure
-      // here is a warning about what still needs doing, not an error
-      // about what was lost.
-      const shortfalls = [
-        sizeFailures ? `${sizeFailures} did not get their sizes` : null,
-        photoFailures ? `${photoFailures} did not get their photographs` : null,
-      ].filter(Boolean);
-
-      if (shortfalls.length) {
-        toast.error(
-          `${created.length} product${created.length === 1 ? "" : "s"} created, but ${shortfalls.join(" and ")}.`,
-          "Open those products and finish them from the edit screen.",
-        );
-      } else {
-        const notes = [
-          sizes.length ? `${sizes.length} sellable row${sizes.length === 1 ? "" : "s"} each` : null,
-          withPhotos.length
-            ? `${number(withPhotos.reduce((sum, row) => sum + row.photos.length, 0))} photographs`
-            : null,
-        ].filter(Boolean);
-
-        toast.success(
-          `${created.length} product${created.length === 1 ? "" : "s"} created.`,
-          notes.join(", ") || undefined,
-        );
-      }
-
-      router.push("/admin/products");
+      settle(created.length, await runSteps(steps, sizesSent), sizesSent);
     } catch (err) {
       setFailure(err);
       toast.error(err.message || "Bulk upload failed.", rowProblems(err.fields) ?? undefined);
@@ -413,6 +535,19 @@ export default function BulkUploadPage() {
       </div>
 
       {failure ? <ErrorNotice error={failure} /> : null}
+
+      {finishing ? (
+        <div ref={finishingRef} className="scroll-mt-20">
+          <FinishingPanel
+            finishing={finishing}
+            busy={busy}
+            onEditPhotos={(key) => {
+              const index = rows.findIndex((row) => row.key === key);
+              if (index !== -1) setPhotoRow(index);
+            }}
+          />
+        </div>
+      ) : null}
 
       <Card>
         <CardHeader title="Shared details" description="Applies to every product in this upload." />
@@ -746,14 +881,19 @@ export default function BulkUploadPage() {
               explanation — the row at fault can be off-screen in a batch
               of forty. */}
           <p
+            role="status"
             className={cx(
               "w-full min-w-0 text-xs break-words sm:w-auto sm:flex-1",
-              batchProblem ? "text-red-600" : "text-ink-500",
+              batchProblem && !finishing && !progress ? "text-red-600" : "text-ink-500",
             )}
           >
-            {batchProblem
-              ? batchProblem
-              : `Will create ${filled.length} product${filled.length === 1 ? "" : "s"} in one request.`}
+            {progress
+              ? progress
+              : finishing
+                ? `${finishing.createdCount} product${finishing.createdCount === 1 ? "" : "s"} created — ${failedCount(finishing.steps)} still need${failedCount(finishing.steps) === 1 ? "s" : ""} attention.`
+                : batchProblem
+                  ? batchProblem
+                  : `Will create ${filled.length} product${filled.length === 1 ? "" : "s"} in one request.`}
           </p>
           <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
             <LinkButton
@@ -761,18 +901,30 @@ export default function BulkUploadPage() {
               href="/admin/products"
               className="h-11 flex-1 sm:h-9 sm:flex-none"
             >
-              Cancel
+              {finishing ? "Go to products" : "Cancel"}
             </LinkButton>
-            <Button
-              variant="primary"
-              size="lg"
-              className="flex-1 sm:flex-none"
-              busy={busy}
-              disabled={!ready}
-              onClick={submit}
-            >
-              Upload {filled.length || ""} product{filled.length === 1 ? "" : "s"}
-            </Button>
+            {finishing ? (
+              <Button
+                variant="primary"
+                size="lg"
+                className="flex-1 sm:flex-none"
+                busy={busy}
+                onClick={retryFailed}
+              >
+                Retry failed
+              </Button>
+            ) : (
+              <Button
+                variant="primary"
+                size="lg"
+                className="flex-1 sm:flex-none"
+                busy={busy}
+                disabled={!ready}
+                onClick={submit}
+              >
+                Upload {filled.length || ""} product{filled.length === 1 ? "" : "s"}
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -861,6 +1013,50 @@ function RowPhotos({ files, onOpen, label }) {
         : `${files.length} photo${files.length === 1 ? "" : "s"} · Edit`}
       <span className="sr-only">for {label}</span>
     </button>
+  );
+}
+
+const failedCount = (steps) =>
+  steps.filter((step) => step.sizes === STEP.FAILED || step.photos === STEP.FAILED).length;
+
+/**
+ * What still needs doing after the products were created: one line per
+ * product whose sizes or photographs did not land, with the reason, so
+ * the admin knows exactly which dresses to look at instead of a count.
+ */
+function FinishingPanel({ finishing, busy, onEditPhotos }) {
+  const failed = finishing.steps.filter(
+    (step) => step.sizes === STEP.FAILED || step.photos === STEP.FAILED,
+  );
+
+  return (
+    <Card className="ring-amber-300">
+      <CardHeader
+        title={`${failed.length} product${failed.length === 1 ? "" : "s"} still need${failed.length === 1 ? "s" : ""} attention`}
+        description={`All ${finishing.createdCount} products were created. The steps below did not finish — your photographs are still selected, so Retry failed sends just these.`}
+      />
+      <ul className="divide-y divide-ink-100 border-t border-ink-100">
+        {failed.map((step) => (
+          <li key={step.key} className="flex flex-wrap items-start gap-x-4 gap-y-2 px-4 py-3 sm:px-5">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-ink-900">{step.name}</p>
+              {step.sizes === STEP.FAILED ? (
+                <p className="mt-0.5 text-xs text-red-700">Sizes not saved: {step.sizeError}</p>
+              ) : null}
+              {step.photos === STEP.FAILED ? (
+                <p className="mt-0.5 text-xs text-red-700">Photographs not uploaded: {step.photoError}</p>
+              ) : null}
+            </div>
+            {step.photos === STEP.FAILED ? (
+              <Button size="sm" variant="ghost" disabled={busy} onClick={() => onEditPhotos(step.key)}>
+                <ImagePlus className="size-3.5" aria-hidden="true" />
+                Check photos
+              </Button>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }
 

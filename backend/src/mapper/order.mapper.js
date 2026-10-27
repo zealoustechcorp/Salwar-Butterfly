@@ -60,6 +60,8 @@ export const OrderMapper = {
 
       status: row.status,
       paymentStatus: row.payment_status,
+      // How much has gone back to the shopper so far (migration 032).
+      refundedAmount: Number(row.refunded_amount ?? 0),
 
       // Null for a guest checkout. Its presence is what an "is this
       // mine?" check on the storefront reads.

@@ -40,6 +40,7 @@ export const ORDER_STATUS = {
 export const PAYMENT_STATUS = {
   PENDING: "pending",
   PAID: "paid",
+  PARTIALLY_REFUNDED: "partially_refunded",
   FAILED: "failed",
   REFUNDED: "refunded",
 };
@@ -90,6 +91,7 @@ export const ORDER_STATUS_META = {
 export const PAYMENT_STATUS_META = {
   [PAYMENT_STATUS.PENDING]: { label: "Unpaid", tone: "amber" },
   [PAYMENT_STATUS.PAID]: { label: "Paid", tone: "green" },
+  [PAYMENT_STATUS.PARTIALLY_REFUNDED]: { label: "Partly refunded", tone: "gold" },
   [PAYMENT_STATUS.FAILED]: { label: "Payment failed", tone: "red" },
   [PAYMENT_STATUS.REFUNDED]: { label: "Refunded", tone: "slate" },
 };
@@ -278,6 +280,8 @@ export function toOrder(dto) {
 
     status: dto.status ?? ORDER_STATUS.PENDING_PAYMENT,
     paymentStatus: dto.paymentStatus ?? PAYMENT_STATUS.PENDING,
+    // Rupees returned to the shopper so far; 0 when nothing has been.
+    refundedAmount: Number(dto.refundedAmount ?? 0),
 
     // Null for a guest checkout. Its presence is what decides whether
     // the customer's name links anywhere.

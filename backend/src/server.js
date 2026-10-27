@@ -15,6 +15,10 @@ import {
   startUnpaidOrderSweeper,
   stopUnpaidOrderSweeper,
 } from './queues/unpaid_order.sweeper.js';
+import {
+  startPaymentReconciler,
+  stopPaymentReconciler,
+} from './queues/payment.reconciler.js';
 import { RefreshTokenRepository } from './repository/refresh_token.repository.js';
 
 const server = http.createServer(app);
@@ -61,6 +65,9 @@ async function start() {
   // Releases checkouts left unpaid past CHECKOUT_HOLD_MINUTES, so an
   // abandoned checkout cannot hold stock.
   startUnpaidOrderSweeper();
+  // Settles payments Razorpay captured but neither the webhook nor the
+  // checkout return ever confirmed — the safety net under both.
+  startPaymentReconciler();
   sweepExpiredSessions();
   server.listen(env.port, () => {
     console.log(`[server] Listening on http://localhost:${env.port} (${env.nodeEnv})`);
@@ -79,6 +86,7 @@ async function shutdown(signal) {
     stopNotificationSweeper();
     stopEmailSweeper();
     stopUnpaidOrderSweeper();
+    stopPaymentReconciler();
     await stopWebhookWorker();
     await closeWebhookQueue();
     await closeDb();

@@ -1,3 +1,5 @@
+import { unstable_rethrow } from "next/navigation";
+
 import { getStorefrontProducts } from "@/lib/store/catalogue";
 
 /**
@@ -39,6 +41,9 @@ export async function GET() {
       })),
     );
   } catch (error) {
+    // Let Next's own "render this on request" signal through (thrown during
+    // a build that cannot reach the API) instead of answering 503 for it.
+    unstable_rethrow(error);
     console.warn(`[search-index] ${error.message}`);
     // The dropdown degrades to collections and fabrics without pieces; the
     // short max-age lets the next visitor try again soon.

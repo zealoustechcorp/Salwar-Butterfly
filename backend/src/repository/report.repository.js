@@ -31,6 +31,7 @@ import {
   cancelledFilterSql,
   pipelineFilterSql,
   REPORT_TIMEZONE,
+  revenueAmountSql,
   revenueFilterSql,
   soldFilterSql,
   topProductsSortSql,
@@ -114,7 +115,7 @@ const windowColumns = ({ key, since }) => {
       AS ${key}_paid_orders,
 
     COALESCE(
-      SUM(o.total) FILTER (WHERE ${within} AND ${revenueFilterSql("o")}),
+      SUM(${revenueAmountSql("o")}) FILTER (WHERE ${within} AND ${revenueFilterSql("o")}),
       0
     )::NUMERIC(12,2) AS ${key}_revenue
   `;
@@ -328,7 +329,7 @@ export const ReportRepository = {
             AS paid_orders,
 
           COALESCE(
-            SUM(o.total) FILTER (WHERE ${revenueFilterSql("o")}),
+            SUM(${revenueAmountSql("o")}) FILTER (WHERE ${revenueFilterSql("o")}),
             0
           )::NUMERIC(12,2) AS revenue
 
@@ -376,7 +377,7 @@ export const ReportRepository = {
         COUNT(*) FILTER (WHERE ${revenueFilterSql("o")})::INTEGER
           AS paid_orders,
 
-        COALESCE(SUM(o.total) FILTER (WHERE ${revenueFilterSql("o")}), 0)::NUMERIC(12,2)
+        COALESCE(SUM(${revenueAmountSql("o")}) FILTER (WHERE ${revenueFilterSql("o")}), 0)::NUMERIC(12,2)
           AS revenue,
 
         -- Pieces, not lines: two of one size is two pieces. Read from a

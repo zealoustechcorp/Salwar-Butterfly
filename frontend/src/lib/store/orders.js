@@ -188,7 +188,7 @@ export const ORDER_STATUS_COPY = {
   shipped: {
     label: "On its way",
     tone: "good",
-    detail: "Handed to the courier. 5 to 10 working days.",
+    detail: "Handed to the courier. 7 to 10 working days.",
   },
   delivered: {
     label: "Delivered",
@@ -202,5 +202,27 @@ export const ORDER_STATUS_COPY = {
   },
 };
 
-export const statusCopy = (status) =>
-  ORDER_STATUS_COPY[status] ?? { label: status, tone: "wait", detail: "" };
+/**
+ * What a cancelled order says depends on whether money was taken.
+ *
+ * It used to say "nothing was charged" for every cancellation — untrue
+ * for an order the shop cancelled after payment, which is exactly the
+ * shopper most likely to read it closely. Keyed on payment_status, which
+ * the shop's refund flow moves from paid to refunded.
+ */
+const CANCELLED_DETAIL = {
+  paid: "This order was cancelled. Your payment will be refunded to the account you paid from.",
+  partially_refunded:
+    "This order was cancelled. Part of your payment has been refunded; the shop will contact you about the rest.",
+  refunded: "This order was cancelled and your payment has been refunded.",
+};
+
+export const statusCopy = (status, paymentStatus = null) => {
+  const copy = ORDER_STATUS_COPY[status] ?? { label: status, tone: "wait", detail: "" };
+
+  if (status === "cancelled" && CANCELLED_DETAIL[paymentStatus]) {
+    return { ...copy, detail: CANCELLED_DETAIL[paymentStatus] };
+  }
+
+  return copy;
+};

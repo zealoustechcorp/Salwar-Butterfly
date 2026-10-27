@@ -400,7 +400,7 @@ export function BagView({ products, shop }) {
           ) : null}
 
           <p className="mt-4 px-1 text-xs leading-relaxed text-sb-text-muted">
-            Delivery takes 5 to 10 working days. Every run is limited, so nothing here is reserved
+            Delivery takes 7 to 10 working days. Every run is limited, so nothing here is reserved
             until the shop confirms it.
           </p>
         </aside>

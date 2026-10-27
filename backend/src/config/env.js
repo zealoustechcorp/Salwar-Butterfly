@@ -546,6 +546,13 @@ export const env = Object.freeze({
     process.env.UNPAID_ORDER_SWEEP === "on" ||
     (nodeEnv === "production" && process.env.UNPAID_ORDER_SWEEP !== "off"),
 
+  // The payment reconciler (queues/payment.reconciler.js). Same rule as
+  // the sweeper above: it writes to orders, so it runs in production and
+  // nowhere else unless asked — every dev machine shares one database.
+  paymentReconcileEnabled:
+    process.env.PAYMENT_RECONCILE === "on" ||
+    (nodeEnv === "production" && process.env.PAYMENT_RECONCILE !== "off"),
+
   // ==========================================================
   // DATABASE
   // ==========================================================

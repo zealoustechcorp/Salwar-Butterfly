@@ -22,7 +22,7 @@ const PROMISES = [
     title: "Fast delivery",
     // The phone strip's label: it shows titles only, so this one carries "free".
     short: "Free delivery",
-    detail: "5–10 working days to your door, free all over India.",
+    detail: "7–10 working days to your door, free all over India.",
   },
   {
     icon: ShieldCheck,
