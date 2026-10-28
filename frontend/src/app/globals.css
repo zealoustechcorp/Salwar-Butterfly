@@ -473,3 +473,33 @@ body {
   }
 }
 
+/* The product page's buy buttons, splitting and merging.
+
+   Before a size is chosen there is one wide disabled pill; choosing one
+   widens a second column out of its right edge, so the same pill visibly
+   makes room for Add to bag rather than being swapped for two new buttons.
+   The column itself is what moves — `grid-template-columns` and the gap
+   interpolate between `0fr` and `1fr` — and going back runs the same path in
+   reverse, so a colour switch that clears the size closes it just as
+   smoothly. `minmax(0, …)` lets the second column reach true zero; the
+   button inside also drops its padding and fades, so nothing is left poking
+   out of a collapsed column. One long ease-out with no overshoot: it starts
+   quick and settles, rather than bouncing. */
+.sb-buy-split {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0fr);
+  column-gap: 0;
+  transition:
+    grid-template-columns 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    column-gap 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sb-buy-split[data-open="true"] {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 0.75rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sb-buy-split {
+    transition: none;
+  }
+}

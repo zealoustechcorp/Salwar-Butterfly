@@ -374,8 +374,13 @@ export function StoreProvider({ children }) {
      * this add came from. Kept on the line so the bag's stepper and checkout
      * have a ceiling without re-reading the catalogue, and refreshed by
      * `syncStock`.
+     *
+     * Returns true when the bag ends up holding the piece — including when it
+     * already held all the shop can sell — so "Buy now" knows whether there
+     * is anything to take to checkout. `quiet` drops the success toast, for a
+     * caller that is about to navigate away from it anyway.
      */
-    const addToBag = (product, { size, colour = null, qty = 1 } = {}) => {
+    const addToBag = (product, { size, colour = null, qty = 1, quiet = false } = {}) => {
       const pickedSize = size || product.available_sizes[0] || null;
       const pickedColour = soldByColour(product) ? colour : null;
 
@@ -385,7 +390,7 @@ export function StoreProvider({ children }) {
       // shopper did not choose.
       if (soldByColour(product) && !pickedColour) {
         toast.info("Pick a colour", `${product.name} comes in more than one colour.`);
-        return;
+        return false;
       }
 
       const variant = variantFor(product, pickedSize, pickedColour);
@@ -410,7 +415,7 @@ export function StoreProvider({ children }) {
             `or order what is in the bag first.`,
           { action: { href: "/bag", label: "View bag" } },
         );
-        return;
+        return false;
       }
 
       const shelf = Math.max(0, Math.trunc(Number(variant?.stock) || 0));
@@ -424,7 +429,7 @@ export function StoreProvider({ children }) {
           "Sold out",
           `${describe(product.name, pickedSize, pickedColour)} — there are none left to add.`,
         );
-        return;
+        return false;
       }
 
       const wanted = Math.max(1, Math.trunc(Number(qty)) || 1);
@@ -435,10 +440,12 @@ export function StoreProvider({ children }) {
       // Already holding everything the shop can sell them. Said plainly
       // rather than silently doing nothing, which reads as a broken button.
       if (added <= 0) {
-        toast.info("That is all of it already", ceilingReason(shelf), {
-          action: { href: "/bag", label: "View bag" },
-        });
-        return;
+        if (!quiet) {
+          toast.info("That is all of it already", ceilingReason(shelf), {
+            action: { href: "/bag", label: "View bag" },
+          });
+        }
+        return true;
       }
 
       commit({
@@ -474,6 +481,9 @@ export function StoreProvider({ children }) {
             ],
       });
 
+      // A partial add is still news on the way to checkout; a full one is not.
+      if (quiet && added === wanted) return true;
+
       toast.success(
         added < wanted ? "Added what was left" : "Added to bag",
         added < wanted
@@ -483,6 +493,7 @@ export function StoreProvider({ children }) {
               .join(" · "),
         { action: { href: "/bag", label: "View bag" } },
       );
+      return true;
     };
 
     /**
