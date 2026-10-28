@@ -1,7 +1,8 @@
 "use client";
 
-import { Check, Heart, Minus, Plus, Share2, ShoppingBag, X } from "lucide-react";
+import { Check, Heart, Minus, Plus, Share2, ShoppingBag, X, Zap } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { money, shortDate } from "@/lib/format";
@@ -47,6 +48,7 @@ import { useStoreToast } from "./Toast";
  */
 export function ProductDetail({ product, shop }) {
   const { addToBag, bag, toggleWish, wishlist } = useStore();
+  const router = useRouter();
   const byColour = soldByColour(product);
   // Opens on the first colourway that still has something on the shelf, so
   // the size row below it is never a row of struck-through chips on arrival.
@@ -90,6 +92,9 @@ export function ProductDetail({ product, shop }) {
   const chosen = sizeRows.find((row) => row.size === size) ?? null;
   const remaining = remainingFor(chosen);
   const canAdd = product.in_stock && remaining > 0;
+  // Buy now stays live when the bag already holds all of the chosen size:
+  // there is nothing more to add, but there is still an order to place.
+  const canBuy = product.in_stock && Boolean(chosen);
 
   // The stepper never shows a number the shop cannot fill. Derived rather than
   // written back into state, so an add that shrinks what is left re-clamps on
@@ -114,6 +119,17 @@ export function ProductDetail({ product, shop }) {
     setColour(name);
     const row = sizesInColour(product, name).find((entry) => entry.size === size);
     if (!row?.stock) setSize(null);
+  };
+
+  /**
+   * Buy now is the bag and checkout in one tap: the piece goes into the bag
+   * exactly as "Add to bag" would put it there, then the shopper is taken
+   * straight to checkout. Checkout orders the whole bag, so anything already
+   * in it comes along — the same order they would have placed from /bag.
+   */
+  const buyNow = () => {
+    if (addToBag(product, { size, colour, qty: wanted, quiet: true }))
+      router.push("/checkout");
   };
 
   /** "in Maroon, size 40" / "in size 40" for the stock line under the chips. */
@@ -368,31 +384,83 @@ export function ProductDetail({ product, shop }) {
         </div>
 
         {/* Actions */}
-        <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+        {/* Until there is something to buy, one wide disabled button says
+            what is missing; a size choice splits it into the two ways of
+            buying. Two greyed-out buttons repeating the same hint would be
+            noise. Both buttons stay mounted throughout — the left one changes
+            colour and label in place while the right one's column widens out
+            of it (see .sb-buy-split) — so the split is one continuous motion. */}
+        <div className="sb-buy-split mt-5 grid" data-open={canBuy}>
           <button
             type="button"
-            disabled={!canAdd}
-            onClick={() => addToBag(product, { size, colour, qty: wanted })}
-            className="flex flex-1 items-center justify-center gap-2 rounded-full bg-sb-btn-primary px-6 py-3.5 text-sm font-semibold text-sb-bg transition-colors hover:bg-sb-btn-rose disabled:cursor-not-allowed disabled:bg-sb-text-muted/40"
+            disabled={!canBuy}
+            onClick={buyNow}
+            className={cn(
+              "group/buy flex min-w-0 items-center justify-center gap-2 overflow-hidden rounded-full px-4 py-3.5 text-sm font-semibold whitespace-nowrap text-sb-bg transition-[background-color,box-shadow,translate,scale] duration-300 ease-out sm:px-6",
+              canBuy
+                ? "bg-sb-btn-rose shadow-sm hover:-translate-y-0.5 hover:bg-sb-btn-primary hover:shadow-md active:translate-y-0 active:scale-[0.97] motion-reduce:hover:translate-y-0 motion-reduce:active:scale-100"
+                : "cursor-not-allowed bg-sb-text-muted/40",
+            )}
           >
-            <ShoppingBag className="size-4 shrink-0" aria-hidden="true" />
-            {!product.in_stock
-              ? "Sold out"
-              : !chosen
-                ? "Select a size"
-                : // Disabled with a size chosen means the bag already holds
-                  // everything of it the shop can sell — say which, rather
-                  // than leaving a greyed-out "Add to bag" to be puzzled over.
-                  remaining === 0
-                  ? "All of it is in your bag"
-                  : "Add to bag"}
+            {/* Keyed so the new icon and label fade up in place as the
+                button changes job, instead of the text snapping over. */}
+            <span
+              key={canBuy ? "buy" : "locked"}
+              className="sb-enter flex min-w-0 items-center gap-2"
+            >
+              {canBuy ? (
+                <Zap
+                  className="size-4 shrink-0 transition-transform duration-300 group-hover/buy:scale-125 group-hover/buy:-rotate-12 motion-reduce:transition-none"
+                  aria-hidden="true"
+                />
+              ) : (
+                <ShoppingBag className="size-4 shrink-0" aria-hidden="true" />
+              )}
+              <span className="truncate">
+                {canBuy
+                  ? "Buy now"
+                  : !product.in_stock
+                    ? "Sold out"
+                    : byColour && colourLeft === 0
+                      ? "Select another colour"
+                      : "Select a size"}
+              </span>
+            </span>
           </button>
 
           <button
             type="button"
+            disabled={!canBuy || !canAdd}
+            aria-hidden={!canBuy}
+            onClick={() => addToBag(product, { size, colour, qty: wanted })}
+            className={cn(
+              "group/add flex min-w-0 items-center justify-center gap-2 overflow-hidden rounded-full bg-sb-btn-primary py-3.5 text-sm font-semibold whitespace-nowrap text-sb-bg shadow-sm transition-[opacity,padding,translate,scale,background-color,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] enabled:hover:-translate-y-0.5 enabled:hover:bg-sb-btn-rose enabled:hover:shadow-md enabled:active:translate-y-0 enabled:active:scale-[0.97] disabled:cursor-not-allowed motion-reduce:transition-none motion-reduce:hover:translate-y-0 motion-reduce:active:scale-100",
+              canBuy
+                ? // Fades in a beat after the column starts opening, once
+                  // there is room for the label to be read.
+                  "px-4 opacity-100 delay-75 disabled:bg-sb-text-muted/40 disabled:shadow-none sm:px-6"
+                : "pointer-events-none -translate-x-3 px-0 opacity-0 shadow-none",
+            )}
+          >
+            <ShoppingBag
+              className="size-4 shrink-0 transition-transform duration-300 group-enabled/add:group-hover/add:-translate-y-0.5 group-enabled/add:group-hover/add:-rotate-6 motion-reduce:transition-none"
+              aria-hidden="true"
+            />
+            {/* Disabled with a size chosen means the bag already holds
+                everything of it the shop can sell — say which, rather
+                than leaving a greyed-out "Add to bag" to be puzzled over. */}
+            <span className="truncate">
+              {remaining === 0 ? "All in your bag" : "Add to bag"}
+            </span>
+          </button>
+        </div>
+
+        <div className="mt-3 flex flex-col gap-3 sm:flex-row">
+          <button
+            type="button"
             onClick={() => toggleWish(product)}
             aria-pressed={wished}
-            className="flex items-center justify-center gap-2 rounded-full border border-sb-heading px-6 py-3.5 text-sm font-semibold text-sb-heading transition-colors hover:bg-sb-surface/60"
+            className="flex flex-1 items-center justify-center gap-2 rounded-full border border-sb-heading px-6 py-3.5 text-sm font-semibold text-sb-heading transition-colors hover:bg-sb-surface/60"
           >
             <Heart
               className={cn("size-4 shrink-0", wished && "fill-sb-btn-rose text-sb-btn-rose")}
