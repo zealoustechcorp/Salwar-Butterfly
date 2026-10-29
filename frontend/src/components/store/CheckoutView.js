@@ -1221,7 +1221,7 @@ export function CheckoutView({ products = null, shop = null }) {
               </div>
               <div className="flex justify-between border-t border-sb-gold/30 pt-2">
                 <dt className="font-display text-lg font-semibold text-sb-heading">Total</dt>
-                <dd className="font-display text-lg font-semibold text-sb-heading tabular">
+                <dd className="font-body text-lg font-semibold text-sb-heading tabular">
                   {money(bagTotal)}
                 </dd>
               </div>
