@@ -178,7 +178,7 @@ export function ProductDetail({ product, shop }) {
 
         {/* Price */}
         <div className="mt-5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <span className="font-display text-4xl font-semibold text-sb-text tabular">
+          <span className="font-body text-4xl font-semibold text-sb-text tabular">
             {money(product.price)}
           </span>
           {product.mrp ? (

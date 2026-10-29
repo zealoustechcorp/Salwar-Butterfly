@@ -135,17 +135,17 @@ export const OrderController = {
   /**
    * Tracking without an account.
    *
-   * A POST rather than a GET despite reading nothing, because the email
-   * is a credential here — in a query string it lands in access logs,
+   * A POST rather than a GET despite reading nothing, because the phone
+   * or email is a credential here — in a query string it lands in access logs,
    * browser history and any proxy in between.
    */
   track: asyncHandler(async (req, res) => {
     try {
-      const { orderNumber, email } = req.body;
+      const { orderNumber, email, phone } = req.body;
 
       logger.info("Track order endpoint called", { orderNumber });
 
-      const order = await OrderService.trackOrder({ orderNumber, email });
+      const order = await OrderService.trackOrder({ orderNumber, email, phone });
 
       return okResponse({
         res,

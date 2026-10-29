@@ -137,15 +137,16 @@ export async function fetchMyOrders(token, { signal, limit = 20, page = 1 } = {}
  * Tracking without an account (F-07.02).
  *
  * The number alone is not enough — order numbers run in sequence, so knowing
- * one is knowing roughly where the others are. The email that placed it is
- * the second factor, and a wrong number and a wrong email fail identically so
- * this cannot be used to test whether an order exists.
+ * one is knowing roughly where the others are. The mobile number or email it
+ * was placed with is the second factor — pass one of them — and a wrong number
+ * and a wrong contact fail identically so this cannot be used to test whether
+ * an order exists.
  */
-export async function trackOrder({ orderNumber, email }) {
+export async function trackOrder({ orderNumber, email, phone }) {
   try {
     const order = await api.post(
       "/orders/trackOrder",
-      { orderNumber, email },
+      { orderNumber, email: email || undefined, phone: phone || undefined },
       { token: null },
     );
 

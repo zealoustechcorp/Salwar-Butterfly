@@ -475,13 +475,20 @@ export default function OrderDetailPage() {
                 {order.contact.name || "—"}
               </p>
 
-              <a
-                href={`mailto:${order.contact.email}`}
-                className="flex items-center gap-2 break-all text-ink-600 hover:text-brand-700 hover:underline"
-              >
-                <Mail className="size-3.5 shrink-0 text-ink-400" aria-hidden="true" />
-                {order.contact.email}
-              </a>
+              {order.contact.email ? (
+                <a
+                  href={`mailto:${order.contact.email}`}
+                  className="flex items-center gap-2 break-all text-ink-600 hover:text-brand-700 hover:underline"
+                >
+                  <Mail className="size-3.5 shrink-0 text-ink-400" aria-hidden="true" />
+                  {order.contact.email}
+                </a>
+              ) : (
+                <p className="flex items-center gap-2 text-ink-400">
+                  <Mail className="size-3.5 shrink-0" aria-hidden="true" />
+                  No email given
+                </p>
+              )}
 
               <a
                 href={`tel:${order.contact.phone}`}
@@ -830,7 +837,7 @@ function PackOrderDialog({ open, order, onClose, onDone, onConflict }) {
       open={open}
       onClose={onClose}
       title="Mark this order packed?"
-      description={`${order.orderNumber} · ${order.contact.name} · ${order.contact.email}`}
+      description={[order.orderNumber, order.contact.name, order.contact.email].filter(Boolean).join(" · ")}
       size="sm"
       footer={
         <>

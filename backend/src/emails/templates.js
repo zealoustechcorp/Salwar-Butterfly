@@ -368,7 +368,7 @@ ${tile("Payment", "Paid")}
     sectionTitle("Ordered"),
     itemsTable(order),
     sectionTitle("Customer"),
-    `<p style="margin:0;font-size:14px;line-height:1.7;"><strong>${esc(order.contact_name)}</strong><br><a href="mailto:${esc(order.contact_email)}" style="color:${C.link};">${esc(order.contact_email)}</a><br><a href="tel:${esc(order.contact_phone)}" style="color:${C.link};">${esc(order.contact_phone)}</a></p>`,
+    `<p style="margin:0;font-size:14px;line-height:1.7;"><strong>${esc(order.contact_name)}</strong><br>${order.contact_email ? `<a href="mailto:${esc(order.contact_email)}" style="color:${C.link};">${esc(order.contact_email)}</a><br>` : ""}<a href="tel:${esc(order.contact_phone)}" style="color:${C.link};">${esc(order.contact_phone)}</a></p>`,
     sectionTitle("Ship to"),
     addressBlock(order),
     order.customer_note
@@ -382,7 +382,7 @@ ${tile("Payment", "Paid")}
     "",
     itemsText(order),
     "",
-    `Customer: ${order.contact_name}, ${order.contact_email}, ${order.contact_phone}`,
+    `Customer: ${[order.contact_name, order.contact_email, order.contact_phone].filter(Boolean).join(", ")}`,
     "Ship to:",
     addressLines(order).join("\n"),
     order.customer_note ? `\nNote: ${order.customer_note}` : null,

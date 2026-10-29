@@ -110,7 +110,7 @@ export function OrderLines({ order, compact = false }) {
         </div>
         <div className="flex justify-between border-t border-sb-gold/30 pt-2">
           <dt className="font-display text-base font-semibold text-sb-heading">Total</dt>
-          <dd className="font-display text-base font-semibold text-sb-heading tabular">
+          <dd className="font-body text-base font-semibold text-sb-heading tabular">
             {money(order.total)}
           </dd>
         </div>
@@ -134,7 +134,7 @@ export function OrderAddress({ order }) {
       </p>
       <p>{address.country}</p>
       <p className="mt-2 tabular">{contact.phone}</p>
-      <p className="break-all">{contact.email}</p>
+      {contact.email ? <p className="break-all">{contact.email}</p> : null}
     </div>
   );
 }
@@ -164,7 +164,7 @@ export function OrderCard({ order, actions = null, defaultOpen = false }) {
 
         <div className="text-right">
           <OrderStatusBadge status={order.status} />
-          <p className="mt-1.5 font-display text-lg font-semibold text-sb-heading tabular">
+          <p className="mt-1.5 font-body text-lg font-semibold text-sb-heading tabular">
             {money(order.total)}
           </p>
         </div>
