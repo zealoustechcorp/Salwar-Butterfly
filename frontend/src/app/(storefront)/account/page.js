@@ -36,7 +36,7 @@ export default function AccountPage() {
       id: "orders",
       icon: PackageSearch,
       title: "Track your order",
-      body: "Signed in, every order you have placed is listed above. Ordered as a guest? Use the order number from your confirmation and the email you placed it with on the tracking page — no account needed.",
+      body: "Signed in, every order you have placed is listed above. Ordered as a guest? Use the order number from your confirmation and the mobile number (or email) you placed it with on the tracking page — no account needed.",
     },
     {
       id: "delivery",

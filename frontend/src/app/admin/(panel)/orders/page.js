@@ -724,7 +724,7 @@ function OrderCard({ order, selected, onSelect }) {
             {order.contact.name || "—"}
           </p>
           <p className="mt-0.5 text-xs break-all text-ink-500">
-            {order.contact.email}
+            {order.contact.email || order.contact.phone}
             {order.customerId ? null : " · guest"}
           </p>
         </div>
@@ -784,10 +784,10 @@ function OrderRow({ order, selected, onSelect }) {
         <p className="font-medium text-ink-800">{order.contact.name || "—"}</p>
         <p className="mt-0.5 text-xs text-ink-500">
           {order.customerId ? (
-            order.contact.email
+            order.contact.email || order.contact.phone
           ) : (
             <span title="Checked out without an account">
-              {order.contact.email} · guest
+              {order.contact.email || order.contact.phone} · guest
             </span>
           )}
         </p>

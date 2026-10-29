@@ -186,8 +186,8 @@ export function OrderConfirmation() {
               <p className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-sb-text-muted">
                 <Mail className="mt-0.5 size-3.5 shrink-0 text-sb-gold-text" aria-hidden="true" />
                 <span>
-                  Keep this number. With it and{" "}
-                  <span className="break-all font-semibold text-sb-text">{order.contact.email}</span>{" "}
+                  Keep this number. With it and your mobile number{" "}
+                  <span className="font-semibold text-sb-text tabular">{order.contact.phone}</span>{" "}
                   you can{" "}
                   <Link
                     href="/track"

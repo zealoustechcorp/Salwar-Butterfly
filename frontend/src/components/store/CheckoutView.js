@@ -157,11 +157,16 @@ const addressToValues = (address) => ({
   postalCode: address.postalCode ?? "",
 });
 
-function Field({ id, label, error, hint, children, className }) {
+function Field({ id, label, error, hint, children, className, required = false }) {
   return (
     <div className={className}>
       <label id={`${id}-label`} htmlFor={id} className="block text-xs font-semibold text-sb-text">
         {label}
+        {required ? (
+          <span className="ml-0.5 text-sb-link" aria-hidden="true">
+            *
+          </span>
+        ) : null}
       </label>
       <div className="mt-1.5">{children}</div>
       {error ? (
@@ -193,7 +198,7 @@ function validateCheckout(values) {
   return {
     ...collect([
       ["name", validateName(values.name)],
-      ["email", validateEmail(values.email)],
+      ["email", validateEmail(values.email, false)],
       ["phone", validatePhone(values.phone)],
       ["customerNote", validateNote(values.customerNote)],
     ]),
@@ -220,10 +225,6 @@ export function CheckoutView({ products = null, shop = null }) {
     state: "Tamil Nadu",
     postalCode: "",
     customerNote: "",
-
-    // A boolean, so it is not in KNOWN_FIELDS and has no validator —
-    // there is no way for a checkbox to be filled in wrongly.
-    whatsappOptIn: true,
   });
 
   /**
@@ -372,17 +373,6 @@ export function CheckoutView({ products = null, shop = null }) {
 
     return () => controller.abort();
   }, [token]);
-
-  /**
-   * The same thing as `set`, for an input whose answer is `checked`
-   * rather than `value`. Its own helper because reading `.value` off a
-   * checkbox yields the string "on" whether it is ticked or not, which
-   * is a bug that looks like it works.
-   */
-  const setChecked = (key) => (event) => {
-    const { checked } = event.target;
-    setValues((current) => ({ ...current, [key]: checked }));
-  };
 
   // --------------------------------------------------------
   // PIN CODE LOOKUP (F-08.05)
@@ -651,7 +641,8 @@ export function CheckoutView({ products = null, shop = null }) {
     const request = {
       contact: {
         name: values.name.trim(),
-        email: values.email.trim(),
+        // Optional — left out entirely when blank.
+        email: values.email.trim() || undefined,
         // Spaces and hyphens out: the page's check ignores them, the
         // API's does not. See compactPhone.
         phone: compactPhone(values.phone),
@@ -670,7 +661,6 @@ export function CheckoutView({ products = null, shop = null }) {
         .filter((line) => line.variant_id)
         .map((line) => ({ variantId: line.variant_id, quantity: line.qty })),
       customerNote: values.customerNote.trim(),
-      whatsappOptIn: values.whatsappOptIn,
     };
 
     // ---- 1. hold the sizes and open a payment on them ------------
@@ -806,7 +796,7 @@ export function CheckoutView({ products = null, shop = null }) {
             Sign in
           </button>{" "}
           only if you want it kept under your account — otherwise your order
-          number and email are all you need to track it.
+          number and mobile number are all you need to track it.
         </p>
       ) : null}
 
@@ -899,7 +889,7 @@ export function CheckoutView({ products = null, shop = null }) {
             <h2 className="sb-eyebrow text-[10px] text-sb-gold-text">Contact</h2>
 
             <div className="mt-3 grid gap-4 sm:grid-cols-2">
-              <Field id="co-name" label="Full name" error={errorFor("name")}>
+              <Field id="co-name" label="Full name" required error={errorFor("name")}>
                 <input
                   id="co-name"
                   value={values.name}
@@ -913,6 +903,7 @@ export function CheckoutView({ products = null, shop = null }) {
               <Field
                 id="co-phone"
                 label="Phone"
+                required
                 error={errorFor("phone")}
                 hint="The courier calls this number."
               >
@@ -927,37 +918,11 @@ export function CheckoutView({ products = null, shop = null }) {
                 />
               </Field>
 
-              {/*
-                Beside the number it consents to, rather than down by the
-                note field where it would read as an afterthought.
-
-                Ticked by default: this is about updates on an order the
-                shopper is in the middle of placing, and the alternative
-                is that most people never hear that their parcel shipped.
-                It is not consent for anything else, and nothing in the
-                shop treats it as such.
-              */}
-              <label className="flex cursor-pointer items-start gap-2.5 text-sm text-sb-text sm:col-span-2">
-                <input
-                  type="checkbox"
-                  checked={values.whatsappOptIn}
-                  onChange={setChecked("whatsappOptIn")}
-                  className="mt-0.5 size-4 shrink-0 rounded border-sb-gold/50 accent-sb-btn-primary"
-                />
-                <span>
-                  WhatsApp me updates about this order
-                  <span className="mt-0.5 block text-xs text-sb-text-muted">
-                    On the number above. Confirmed, packed, shipped, delivered —
-                    nothing else.
-                  </span>
-                </span>
-              </label>
-
               <Field
                 id="co-email"
-                label="Email"
+                label="Email (optional)"
                 error={errorFor("email")}
-                hint="Your order number is tied to this address."
+                hint="Add one to get order updates by email."
                 className="sm:col-span-2"
               >
                 <input
@@ -1050,6 +1015,7 @@ export function CheckoutView({ products = null, shop = null }) {
               <Field
                 id="co-line1"
                 label="Address"
+                required
                 error={errorFor("line1")}
                 className="col-span-2"
               >
@@ -1072,6 +1038,7 @@ export function CheckoutView({ products = null, shop = null }) {
               <Field
                 id="co-postal"
                 label="PIN code"
+                required
                 error={errorFor("postalCode")}
                 hint={pincodeHint(lookup)}
               >
@@ -1087,7 +1054,7 @@ export function CheckoutView({ products = null, shop = null }) {
                 />
               </Field>
 
-              <Field id="co-city" label="City" error={errorFor("city")}>
+              <Field id="co-city" label="City" required error={errorFor("city")}>
                 <input
                   id="co-city"
                   value={values.city}
@@ -1101,6 +1068,7 @@ export function CheckoutView({ products = null, shop = null }) {
               <Field
                 id="co-line2"
                 label="Area"
+                required
                 error={errorFor("line2")}
                 hint={areas.length ? "Pick one from the list, or type your own." : undefined}
                 className="col-span-2 sm:col-span-1"
@@ -1130,7 +1098,7 @@ export function CheckoutView({ products = null, shop = null }) {
                 />
               </Field>
 
-              <Field id="co-state" label="State" error={errorFor("state")} className="col-span-2">
+              <Field id="co-state" label="State" required error={errorFor("state")} className="col-span-2">
                 <StateSelect
                   id="co-state"
                   value={values.state}

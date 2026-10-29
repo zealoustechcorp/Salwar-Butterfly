@@ -134,7 +134,7 @@ export function OrderAddress({ order }) {
       </p>
       <p>{address.country}</p>
       <p className="mt-2 tabular">{contact.phone}</p>
-      <p className="break-all">{contact.email}</p>
+      {contact.email ? <p className="break-all">{contact.email}</p> : null}
     </div>
   );
 }

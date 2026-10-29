@@ -38,6 +38,16 @@ const trimOrNull = (value) => {
   return trimmed || null;
 };
 
+/**
+ * The ten-digit Indian mobile number inside whatever was typed:
+ * "+91 98765-43210", "919876543210" and "9876543210" all compare equal.
+ * Null when there are fewer than ten digits.
+ */
+const lastTenDigits = (value) => {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  return digits.length >= 10 ? digits.slice(-10) : null;
+};
+
 const normalizeSearch = (value) => {
   const search = String(value ?? "").trim();
   if (!search) return null;
@@ -184,8 +194,9 @@ export const OrderService = {
           name: String(contact.name).trim(),
           // Lower-cased to match how customers are stored and how the
           // guest lookup searches — a shopper who typed a capital at
-          // checkout must still find their order later.
-          email: String(contact.email).trim().toLowerCase(),
+          // checkout must still find their order later. Optional — NULL
+          // when the shopper left it blank.
+          email: trimOrNull(contact.email)?.toLowerCase() ?? null,
           phone: String(contact.phone).trim(),
         },
 
@@ -387,29 +398,42 @@ export const OrderService = {
    * Tracking an order without an account.
    *
    * The number alone is not enough — they run in sequence, so knowing
-   * one is knowing roughly where the others are. The email that placed
-   * it is the second factor, and both must match.
+   * one is knowing roughly where the others are. The second factor is the
+   * mobile number or the email the order was placed with; whichever is
+   * given must match. Email is optional at checkout, so the phone is the
+   * one every order has.
    *
-   * Both misses return the same 404 on purpose. Distinguishing "no such
-   * order" from "wrong email" turns this into a way to test whether an
+   * Every miss returns the same 404 on purpose. Distinguishing "no such
+   * order" from "wrong phone" turns this into a way to test whether an
    * order number exists.
    */
-  async trackOrder({ orderNumber, email }) {
+  async trackOrder({ orderNumber, email, phone }) {
     try {
       const number = String(orderNumber ?? "").trim();
       const contactEmail = String(email ?? "").trim().toLowerCase();
+      const contactPhone = lastTenDigits(phone);
 
-      if (!number || !contactEmail) {
-        throw new ApiError(400, "An order number and an email are required");
+      if (!number || (!contactEmail && !contactPhone)) {
+        throw new ApiError(
+          400,
+          "An order number and a mobile number or email are required",
+        );
       }
 
       const order = await OrderRepository.findByOrderNumber(number);
 
-      if (!order || String(order.contact_email).toLowerCase() !== contactEmail) {
+      const matches =
+        order &&
+        (contactPhone
+          ? lastTenDigits(order.contact_phone) === contactPhone
+          : Boolean(order.contact_email) &&
+            String(order.contact_email).toLowerCase() === contactEmail);
+
+      if (!matches) {
         logger.warn("Order tracking lookup failed", { orderNumber: number });
 
         throw ApiError.notFound(
-          "No order found with that number and email",
+          "No order found with that number and contact",
           "ORDER_NOT_FOUND",
         );
       }

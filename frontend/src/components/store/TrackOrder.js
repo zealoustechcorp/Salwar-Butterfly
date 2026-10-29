@@ -5,17 +5,19 @@
  *
  * The shop's promise has always been that you can buy without signing up, and
  * that promise is only kept if a guest can also find their order afterwards.
- * Two fields do it: the number from the confirmation, and the email it was
- * placed with.
+ * Two fields do it: the number from the confirmation, and the mobile number
+ * (or email) it was placed with. One box takes either — anything with an "@"
+ * is read as an email. The phone is the one every order has; email is optional
+ * at checkout.
  *
  * Both are required, and that is a security decision rather than a form
  * design one. Order numbers run in sequence, so knowing one is knowing roughly
- * where every other one is; the email is what stops a stranger walking the
- * list. The API fails a wrong number and a wrong email identically, so this
+ * where every other one is; the phone or email is what stops a stranger walking
+ * the list. The API fails a wrong number and a wrong contact identically, so this
  * page cannot be used to discover which numbers exist.
  *
  * The "Track your order" button in the confirmation email links here with
- * both already filled in — `/track#order=SB-001042&email=…` — and the page
+ * both already filled in — `/track#order=SB-001042&email=…` (or `&phone=…`) — and the page
  * looks the order up as it opens. The details ride in the fragment so they
  * never reach a server log, and are wiped from the address bar once read.
  */
@@ -32,19 +34,23 @@ import {
   summarizeErrors,
   validateEmail,
   validateOrderNumber,
+  validatePhone,
 } from "@/lib/validate";
 import { cn } from "@/lib/utils";
 import { OrderCard } from "./OrderSummary";
 import { useStoreToast } from "./Toast";
 
 // 16px below `sm`: iOS Safari zooms the page in on focus for anything smaller.
+/** Anything with an "@" in it is an email; everything else a phone number. */
+const isEmail = (value) => value.includes("@");
+
 const FIELD_CLASS =
   "h-11 w-full rounded-xl border border-sb-gold/45 bg-white/70 px-3.5 text-base text-sb-text sm:text-sm placeholder:text-sb-text-muted/60 focus:border-sb-link focus:bg-white focus:outline-none";
 
 export function TrackOrder() {
   const toast = useStoreToast();
 
-  const [values, setValues] = useState({ orderNumber: "", email: "" });
+  const [values, setValues] = useState({ orderNumber: "", contact: "" });
   const [order, setOrder] = useState(null);
   const [errors, setErrors] = useState({});
   const [error, setError] = useState(null);
@@ -73,13 +79,20 @@ export function TrackOrder() {
     setError(null);
 
     // Both fields are checked because both are required, and required for
-    // the same reason: order numbers run in sequence, so the email is what
+    // the same reason: order numbers run in sequence, so the contact is what
     // stops the page being walked. A blank one has to fail here rather than
     // arriving as a lookup the API answers "not found" — that reads as a
     // missing order rather than a missing field.
     const invalid = collect([
       ["orderNumber", validateOrderNumber(input.orderNumber)],
-      ["email", validateEmail(input.email)],
+      [
+        "contact",
+        input.contact.trim()
+          ? isEmail(input.contact)
+            ? validateEmail(input.contact)
+            : validatePhone(input.contact)
+          : "Enter your mobile number or email",
+      ],
     ]);
 
     if (hasErrors(invalid)) {
@@ -97,7 +110,9 @@ export function TrackOrder() {
       // digits, and refusing that would be the form being difficult about
       // a number it understood perfectly well.
       orderNumber: normalizeOrderNumber(input.orderNumber),
-      email: input.email.trim(),
+      ...(isEmail(input.contact)
+        ? { email: input.contact.trim() }
+        : { phone: input.contact.trim() }),
     });
 
     setPending(false);
@@ -105,7 +120,7 @@ export function TrackOrder() {
     if (!result.ok) {
       setOrder(null);
       setError(result.error);
-      toast.error("No order found", "Check the number and the email it was placed with.");
+      toast.error("No order found", "Check the order number and the mobile number or email it was placed with.");
       return;
     }
 
@@ -130,10 +145,10 @@ export function TrackOrder() {
     const params = new URLSearchParams(window.location.hash.replace(/^#/, ""));
     const linked = {
       orderNumber: params.get("order")?.trim() ?? "",
-      email: params.get("email")?.trim() ?? "",
+      contact: (params.get("email") || params.get("phone"))?.trim() ?? "",
     };
 
-    if (!linked.orderNumber && !linked.email) return;
+    if (!linked.orderNumber && !linked.contact) return;
 
     window.history.replaceState(null, "", window.location.pathname + window.location.search);
 
@@ -150,8 +165,8 @@ export function TrackOrder() {
         Where is my parcel?
       </h1>
       <p className="mt-3 max-w-xl text-sm leading-relaxed text-sb-text-muted">
-        Enter the order number from your confirmation and the email you used.
-        No account needed.
+        Enter the order number from your confirmation and the mobile number
+        (or email) you used at checkout. No account needed.
       </p>
 
       <form onSubmit={onSubmit} noValidate className="mt-6">
@@ -179,23 +194,22 @@ export function TrackOrder() {
           </div>
 
           <div>
-            <label htmlFor="track-email" className="block text-xs font-semibold text-sb-text">
-              Email
+            <label htmlFor="track-contact" className="block text-xs font-semibold text-sb-text">
+              Mobile number or email
             </label>
             <input
-              id="track-email"
-              type="email"
-              value={values.email}
-              onChange={set("email")}
-              placeholder="you@example.com"
-              autoComplete="email"
-              aria-invalid={Boolean(errors.email)}
-              aria-describedby={errors.email ? "track-email-error" : undefined}
-              className={cn(FIELD_CLASS, "mt-1.5", errors.email && "border-sb-link")}
+              id="track-contact"
+              value={values.contact}
+              onChange={set("contact")}
+              placeholder="9876543210"
+              autoComplete="tel"
+              aria-invalid={Boolean(errors.contact)}
+              aria-describedby={errors.contact ? "track-contact-error" : undefined}
+              className={cn(FIELD_CLASS, "mt-1.5", errors.contact && "border-sb-link")}
             />
-            {errors.email ? (
-              <p id="track-email-error" className="mt-1.5 text-xs font-medium text-sb-link">
-                {errors.email}
+            {errors.contact ? (
+              <p id="track-contact-error" className="mt-1.5 text-xs font-medium text-sb-link">
+                {errors.contact}
               </p>
             ) : null}
           </div>

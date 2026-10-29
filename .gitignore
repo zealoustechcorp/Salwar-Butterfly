@@ -20,3 +20,6 @@ Thumbs.db
 
 # Old -> new image URL mapping written by backend images:migrate-r2
 r2-migration-*.json
+
+# Manual test scenarios — kept locally, not in git
+Docs/Manual-Test-Scenarios.md
