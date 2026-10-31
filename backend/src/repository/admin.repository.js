@@ -20,6 +20,7 @@ const PG_ERROR_CODES = Object.freeze({
   CHECK_VIOLATION: "23514",
   INVALID_TEXT_REPRESENTATION: "22P02",
   UNDEFINED_TABLE: "42P01",
+  UNDEFINED_COLUMN: "42703",
   CONNECTION_EXCEPTION: "08000",
   CONNECTION_FAILURE: "08006",
 });
@@ -224,15 +225,19 @@ export const AdminRepository = {
    * @param {import('pg').PoolClient} [options.client] run on this
    *        transaction's connection — SessionService.renew passes its own
    *        so the lookup does not take a second pool connection (HIGH-1).
+   * @param {boolean} [options.withPasswordChangedAt] also read
+   *        password_changed_at, for requireAdmin. Off by default so no
+   *        other caller depends on migration 034 having run.
    */
-  async findById(id, { client } = {}) {
-    const text = `
+  async findById(id, { client, withPasswordChangedAt = false } = {}) {
+    const select = (withPasswordChangedAt) => `
       SELECT
         id,
         name,
         email,
         role,
         active,
+        ${withPasswordChangedAt ? "password_changed_at," : ""}
         last_login_at,
         created_at,
         updated_at
@@ -242,13 +247,36 @@ export const AdminRepository = {
       LIMIT 1
     `;
 
+    const run = (text) => (client ? client.query(text, [id]) : query(text, [id]));
+
     try {
-      const result = client
-        ? await client.query(text, [id])
-        : await query(text, [id]);
+      const result = await run(select(withPasswordChangedAt));
 
       return result.rows[0] ?? null;
     } catch (error) {
+      // Before 034 has run there is no password_changed_at. Every admin
+      // request comes through requireAdmin, so a missing column must not
+      // take the panel down — read without it and log that the migration
+      // is due. Never on a transaction client: the failed statement has
+      // already aborted that transaction, so a retry there cannot work.
+      if (
+        withPasswordChangedAt &&
+        !client &&
+        error?.code === PG_ERROR_CODES.UNDEFINED_COLUMN
+      ) {
+        logger.warn(
+          "admins.password_changed_at is missing — run 034_create_admin_password_reset_tokens.sql",
+        );
+
+        try {
+          const result = await run(select(false));
+
+          return result.rows[0] ?? null;
+        } catch (retryError) {
+          throw handleDatabaseError(retryError, "findById", { adminId: id });
+        }
+      }
+
       throw handleDatabaseError(error, "findById", { adminId: id });
     }
   },

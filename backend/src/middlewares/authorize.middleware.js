@@ -15,6 +15,9 @@ import { logger } from "../utils/logger.js";
  * token is genuine — it says nothing about what the bearer may do.
  */
 
+/** See "Issued before the last password reset" in requireAdmin. */
+const PASSWORD_CHANGE_GRACE_MS = 5_000;
+
 // ============================================================
 // REQUIRE ADMIN
 // ============================================================
@@ -85,7 +88,7 @@ export const requireAdmin = async (req, res, next) => {
   //
   // ----------------------------------------------------------
 
-  const admin = await AdminRepository.findById(user.id);
+  const admin = await AdminRepository.findById(user.id, { withPasswordChangedAt: true });
 
   if (!admin || !admin.active) {
     logger.warn("Admin token for an account that may no longer sign in", {
@@ -98,6 +101,39 @@ export const requireAdmin = async (req, res, next) => {
       "Your session is no longer valid",
       "SESSION_INVALID",
     );
+  }
+
+  // ----------------------------------------------------------
+  // Issued before the last password reset
+  // ----------------------------------------------------------
+  //
+  // A reset revokes every refresh token, but an access token already
+  // handed out would otherwise keep working for the rest of its fifteen
+  // minutes — and the person whose password was just taken away is
+  // exactly who might be holding one.
+  //
+  // password_changed_at is stamped by Postgres, whose clock runs a
+  // couple of seconds ahead of this host (see PasswordResetRepository),
+  // so a few seconds' grace keeps the admin's own first sign-in after
+  // the reset from being refused.
+  //
+  // ----------------------------------------------------------
+
+  if (admin.password_changed_at && user.iat) {
+    const changedAtMs = new Date(admin.password_changed_at).getTime();
+
+    if (user.iat * 1000 < changedAtMs - PASSWORD_CHANGE_GRACE_MS) {
+      logger.warn("Admin token issued before the last password reset", {
+        userId: user.id,
+        method: req.method,
+        path: req.originalUrl,
+      });
+
+      throw ApiError.unauthorized(
+        "Your session is no longer valid",
+        "SESSION_INVALID",
+      );
+    }
   }
 
   req.user.role = admin.role;

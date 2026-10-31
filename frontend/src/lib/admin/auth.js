@@ -53,6 +53,51 @@ export async function login(email, password) {
 }
 
 // ============================================================
+// FORGOT / RESET PASSWORD
+// ============================================================
+
+const toFailure = (error) => {
+  if (error instanceof ApiError) {
+    return {
+      ok: false,
+      code: error.code,
+      error: error.message,
+      fields: error.fields ?? {},
+    };
+  }
+
+  throw error;
+};
+
+/**
+ * Ask for a reset link. The API answers the same whether or not the
+ * address is an admin's, so `ok` says only that the request was taken.
+ */
+export async function requestPasswordReset(email) {
+  try {
+    await api.post("/admin/auth/forgot-password", { email }, { token: null });
+
+    return { ok: true };
+  } catch (error) {
+    return toFailure(error);
+  }
+}
+
+/**
+ * Set a new password from the emailed link. The API ends every admin
+ * session on the account, so the admin signs in again afterwards.
+ */
+export async function resetPassword({ token, password }) {
+  try {
+    await api.post("/admin/auth/reset-password", { token, password }, { token: null });
+
+    return { ok: true };
+  } catch (error) {
+    return toFailure(error);
+  }
+}
+
+// ============================================================
 // CURRENT ADMIN
 // ============================================================
 

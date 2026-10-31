@@ -106,6 +106,24 @@ export function validatePassword(password, required = true) {
 }
 
 /**
+ * An admin's new password, as set by a reset. Mirrors
+ * validateAdminPassword in backend/src/validators/admin.rules.js — the
+ * same rules `npm run admin:create` applies, stricter than a shopper's.
+ */
+export function validateAdminPassword(password) {
+  const value = String(password ?? "");
+
+  if (!value) return "Password is required";
+  if (value.length < 10) return "Password must be at least 10 characters";
+  if (value.length > 72) return "Password must not exceed 72 characters";
+  if (!/[a-z]/.test(value)) return "Password must contain a lowercase letter";
+  if (!/[A-Z]/.test(value)) return "Password must contain an uppercase letter";
+  if (!/\d/.test(value)) return "Password must contain a number";
+
+  return null;
+}
+
+/**
  * A password being *checked*, which is a different question.
  *
  * Only presence and the bcrypt ceiling, matching admin.rules.js. Applying

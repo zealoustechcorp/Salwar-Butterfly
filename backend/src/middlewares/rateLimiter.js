@@ -132,7 +132,14 @@ const createLimiter = ({
     skip: (req) => env.isTest || Boolean(skip?.(req)),
   });
 
-  return failOpen(limiter, name);
+  const middleware = failOpen(limiter, name);
+
+  // Forget one key's count — what a password reset uses to lift the
+  // per-account lockout. Passed through from express-rate-limit, which
+  // hands it on to whichever store is in use.
+  middleware.resetKey = (key) => limiter.resetKey(key);
+
+  return middleware;
 };
 
 const WEBHOOK_PATHS = ["/api/payments/webhook", "/api/whatsapp/webhook"];
@@ -239,6 +246,10 @@ export const adminAuthRateLimiter = createLimiter({
 
 export const ADMIN_ACCOUNT_FAILURE_LIMIT = 5;
 
+/** The lockout's key for one admin email: a hash, so no address is in Redis. */
+const adminAccountKey = (email) =>
+  `account:${createHash("sha256").update(email).digest("hex").slice(0, 32)}`;
+
 /**
  * Admin sign-in, per account rather than per IP.
  *
@@ -267,10 +278,57 @@ export const adminAccountLockout = createLimiter({
   keyGenerator: (req) => {
     const email = String(req.body?.email ?? "").trim().toLowerCase();
 
-    return email
-      ? `account:${createHash("sha256").update(email).digest("hex").slice(0, 32)}`
-      : ipKeyGenerator(req.ip);
+    return email ? adminAccountKey(email) : ipKeyGenerator(req.ip);
   },
+});
+
+/**
+ * Lift the lockout above for one admin, after their password has been
+ * reset by email. Whoever was guessing is now guessing at a password
+ * that no longer exists, and the owner should not sit out the rest of
+ * the fifteen minutes before using the one they just chose.
+ *
+ * Best-effort: a store that cannot be reached leaves the count to expire
+ * by itself, which is where it would have ended anyway.
+ */
+export async function clearAdminAccountLockout(email) {
+  const normalized = String(email ?? "").trim().toLowerCase();
+  if (!normalized) return;
+
+  try {
+    await adminAccountLockout.resetKey(adminAccountKey(normalized));
+  } catch (error) {
+    logger.warn("Could not clear the admin account lockout", {
+      message: error?.message,
+    });
+  }
+}
+
+/**
+ * Admin "forgot password".
+ *
+ * Its own bucket, apart from the shoppers' — an admin on the shop's wifi
+ * must not find it spent by customers on the same IP — and the same
+ * five per fifteen minutes, since every accepted request can send email.
+ */
+export const adminPasswordResetRateLimiter = createLimiter({
+  name: "admin-password-reset",
+  prefix: "rl:pwreset-admin:",
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  message: "Too many password reset requests. Please try again in a few minutes.",
+});
+
+/**
+ * Completing an admin password reset from the emailed link. Same sizing
+ * and reasoning as resetPasswordRateLimiter.
+ */
+export const adminResetPasswordRateLimiter = createLimiter({
+  name: "admin-reset-password",
+  prefix: "rl:pwreset-admin-confirm:",
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  message: "Too many password reset attempts. Please try again in a few minutes.",
 });
 
 /**

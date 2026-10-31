@@ -90,3 +90,10 @@ export const PASSWORD_RESET_TTL_MINUTES = 30;
  * so the form cannot be used to flood somebody's inbox.
  */
 export const PASSWORD_RESET_COOLDOWN_SECONDS = 60;
+
+/**
+ * How long an admin reset link works for. Half the shopper's: an admin
+ * account reaches every order, refund and customer, so a link sitting in
+ * a mailbox is worth more to whoever opens it.
+ */
+export const ADMIN_PASSWORD_RESET_TTL_MINUTES = 15;
