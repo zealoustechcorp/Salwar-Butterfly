@@ -1,6 +1,10 @@
 // src/controllers/admin.auth.controller.js
 
 import { AdminAuthService } from "../services/admin.auth.service.js";
+import {
+  ADMIN_RESET_REQUESTED_MESSAGE,
+  AdminPasswordResetService,
+} from "../services/admin_password_reset.service.js";
 import { AUTH_AUDIENCE } from "../config/auth.policy.js";
 import {
   clearRefreshCookie,
@@ -30,6 +34,40 @@ const sendSession = (res, session) => {
 };
 
 export const AdminAuthController = {
+  // ==========================================================
+  // POST /api/admin/auth/forgot-password
+  // ==========================================================
+
+  forgotPassword: asyncHandler(async (req, res) => {
+    await AdminPasswordResetService.requestReset(req.body.email, { ip: req.ip });
+
+    // The same answer for every address — see admin_password_reset.service.js.
+    return okResponse({
+      res,
+      data: null,
+      message: ADMIN_RESET_REQUESTED_MESSAGE,
+    });
+  }),
+
+  // ==========================================================
+  // POST /api/admin/auth/reset-password
+  // ==========================================================
+
+  resetPassword: asyncHandler(async (req, res) => {
+    const { token, password } = req.body;
+
+    await AdminPasswordResetService.resetPassword(token, password, { ip: req.ip });
+
+    // Every session was ended, including any this browser holds.
+    clearRefreshCookie(res, AUDIENCE);
+
+    return okResponse({
+      res,
+      data: null,
+      message: "Your password has been changed. Please sign in with the new one.",
+    });
+  }),
+
   // ==========================================================
   // POST /api/admin/auth/login
   // ==========================================================

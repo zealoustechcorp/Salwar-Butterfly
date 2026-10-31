@@ -311,12 +311,23 @@ export function AdminLoginForm() {
             </Field>
           </div>
 
+          {/* Outside the Field: Field is a <label>, and a link inside one
+              would also focus the password input. */}
+          <div className="mt-2 text-right">
+            <Link
+              href="/admin/forgot-password"
+              className="text-xs font-medium text-brand-700 underline-offset-2 hover:underline"
+            >
+              Forgot password?
+            </Link>
+          </div>
+
           <Button
             type="submit"
             variant="primary"
             size="lg"
             busy={pending}
-            className="mt-6 w-full"
+            className="mt-4 w-full"
           >
             {pending ? "Signing in…" : "Sign in"}
           </Button>

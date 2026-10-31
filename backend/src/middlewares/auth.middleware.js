@@ -121,6 +121,9 @@ export const authenticate = (req, res, next) => {
       // minutes). Read by change-password to keep the caller's own
       // session while ending every other one.
       fam: decoded.fam ?? null,
+      // Issued-at, in seconds. requireAdmin refuses an admin token
+      // issued before that account's last password reset.
+      iat: decoded.iat ?? null,
     };
 
     next();

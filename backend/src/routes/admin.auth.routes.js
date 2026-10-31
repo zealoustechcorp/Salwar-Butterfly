@@ -1,12 +1,18 @@
 import express from "express";
 
 import { AdminAuthController } from "../controllers/admin.auth.controller.js";
-import { validateAdminLogin } from "../validators/admin.validator.js";
+import {
+  validateAdminForgotPassword,
+  validateAdminLogin,
+  validateAdminResetPassword,
+} from "../validators/admin.validator.js";
 import { authenticate } from "../middlewares/auth.middleware.js";
 import { requireAdmin } from "../middlewares/authorize.middleware.js";
 import {
   adminAccountLockout,
   adminAuthRateLimiter,
+  adminPasswordResetRateLimiter,
+  adminResetPasswordRateLimiter,
   refreshRateLimiter,
 } from "../middlewares/rateLimiter.js";
 
@@ -31,6 +37,26 @@ router.post(
   adminAccountLockout,
   validateAdminLogin,
   AdminAuthController.login,
+);
+
+// "Forgot password": emails a single-use, 15-minute link. Answers the
+// same whether or not the address is an admin's — see
+// admin_password_reset.service.js.
+router.post(
+  "/forgot-password",
+  adminPasswordResetRateLimiter,
+  validateAdminForgotPassword,
+  AdminAuthController.forgotPassword,
+);
+
+// Finishing the reset from the emailed link. Its own bucket, apart from
+// sign-in: an admin who has just been locked out for wrong guesses is
+// exactly the person who resets next.
+router.post(
+  "/reset-password",
+  adminResetPasswordRateLimiter,
+  validateAdminResetPassword,
+  AdminAuthController.resetPassword,
 );
 
 // ============================================================

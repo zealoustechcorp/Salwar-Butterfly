@@ -448,3 +448,103 @@ export function passwordResetEmail({ name, resetUrl, ttlMinutes }) {
     text,
   };
 }
+
+// ============================================================
+// ADMIN: PASSWORD RESET
+// ============================================================
+
+export function adminPasswordResetEmail({ name, resetUrl, ttlMinutes }) {
+  const subject = "Reset your Salwar Butterfly admin password";
+
+  const body = [
+    p(`Hi ${esc(firstName(name))},`),
+    p(`We received a request to reset the password for your Salwar Butterfly <strong>admin</strong> account. Tap the button below to choose a new one.`),
+    button(resetUrl, "Choose a new password"),
+    panel(
+      `<div style="font-size:14px;color:${C.text};">This link works <strong>once</strong> and expires in <strong>${esc(ttlMinutes)} minutes</strong>. Changing the password signs you out of the admin panel on every device.</div>`,
+    ),
+    `<div style="height:18px;line-height:18px;font-size:0;">&nbsp;</div>`,
+    small(`If you did not ask for this, ignore this email — your password will not change. If it keeps happening, tell the shop owner: somebody may be trying to get into your account.`),
+    small(`<span style="word-break:break-all;">If the button does not work, paste this link into your browser:<br><a href="${esc(resetUrl)}" style="color:${C.link};">${esc(resetUrl)}</a></span>`),
+  ].join("\n");
+
+  const text = [
+    `Hi ${firstName(name)},`,
+    "",
+    "We received a request to reset the password for your admin account. Choose a new one here:",
+    resetUrl,
+    "",
+    `This link works once and expires in ${ttlMinutes} minutes.`,
+    "If you did not ask for this, ignore this email — your password will not change.",
+    "If it keeps happening, tell the shop owner.",
+    "",
+    `— ${BRAND}`,
+  ].join("\n");
+
+  return {
+    subject,
+    html: layout({
+      preheader: `Use this link to choose a new admin password. It expires in ${ttlMinutes} minutes.`,
+      title: subject,
+      eyebrow: "Admin account",
+      heading: "Reset your password",
+      body,
+    }),
+    text,
+  };
+}
+
+/**
+ * Sent after an admin password has been reset, to the same address.
+ *
+ * The one defence against a reset nobody asked for: whoever has the
+ * mailbox can change the password, but the owner hears about it the
+ * moment they do.
+ */
+export function adminPasswordChangedEmail({ name, changedAt, ip }) {
+  const subject = "Your Salwar Butterfly admin password was changed";
+
+  const when = new Date(changedAt).toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+
+  const body = [
+    p(`Hi ${esc(firstName(name))},`),
+    p(`The password for your Salwar Butterfly admin account was changed using a reset link, and every admin session on the account was signed out.`),
+    panel(
+      `<div style="font-size:14px;color:${C.text};line-height:1.7;"><strong>When:</strong> ${esc(when)} IST${ip ? `<br><strong>From IP:</strong> ${esc(ip)}` : ""}</div>`,
+    ),
+    `<div style="height:18px;line-height:18px;font-size:0;">&nbsp;</div>`,
+    p(`If this was you, there is nothing more to do.`),
+    p(`<strong>If it was not you</strong>, tell the shop owner straight away so the account can be disabled, and secure this email account — whoever reset the password had access to it.`),
+  ].join("\n");
+
+  const text = [
+    `Hi ${firstName(name)},`,
+    "",
+    "The password for your admin account was changed using a reset link, and every admin session was signed out.",
+    `When: ${when} IST`,
+    ip ? `From IP: ${ip}` : null,
+    "",
+    "If this was you, there is nothing more to do.",
+    "If it was not you, tell the shop owner straight away and secure this email account.",
+    "",
+    `— ${BRAND}`,
+  ]
+    .filter((line) => line !== null)
+    .join("\n");
+
+  return {
+    subject,
+    html: layout({
+      preheader: "Your admin password was just changed. If this was not you, act now.",
+      title: subject,
+      eyebrow: "Admin account",
+      heading: "Your password was changed",
+      body,
+    }),
+    text,
+  };
+}
