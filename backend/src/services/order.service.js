@@ -194,9 +194,8 @@ export const OrderService = {
           name: String(contact.name).trim(),
           // Lower-cased to match how customers are stored and how the
           // guest lookup searches — a shopper who typed a capital at
-          // checkout must still find their order later. Optional — NULL
-          // when the shopper left it blank.
-          email: trimOrNull(contact.email)?.toLowerCase() ?? null,
+          // checkout must still find their order later.
+          email: String(contact.email).trim().toLowerCase(),
           phone: String(contact.phone).trim(),
         },
 

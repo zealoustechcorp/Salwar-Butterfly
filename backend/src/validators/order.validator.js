@@ -102,13 +102,8 @@ export const validateCreateOrder = (req, res, next) => {
     const nameError = validateName(contact.name, true);
     if (nameError) errors["contact.name"] = nameError;
 
-    // Optional: the phone is the contact that matters. Blank counts as
-    // not given; anything typed still has to be a real address.
-    const email = typeof contact.email === "string" ? contact.email.trim() : contact.email;
-    if (email !== undefined && email !== null && email !== "") {
-      const emailError = validateEmail(contact.email, false);
-      if (emailError) errors["contact.email"] = emailError;
-    }
+    const emailError = validateEmail(contact.email, true);
+    if (emailError) errors["contact.email"] = emailError;
 
     const phoneError = validatePhone(contact.phone, true);
     if (phoneError) errors["contact.phone"] = phoneError;

@@ -198,7 +198,7 @@ function validateCheckout(values) {
   return {
     ...collect([
       ["name", validateName(values.name)],
-      ["email", validateEmail(values.email, false)],
+      ["email", validateEmail(values.email)],
       ["phone", validatePhone(values.phone)],
       ["customerNote", validateNote(values.customerNote)],
     ]),
@@ -641,8 +641,7 @@ export function CheckoutView({ products = null, shop = null }) {
     const request = {
       contact: {
         name: values.name.trim(),
-        // Optional — left out entirely when blank.
-        email: values.email.trim() || undefined,
+        email: values.email.trim(),
         // Spaces and hyphens out: the page's check ignores them, the
         // API's does not. See compactPhone.
         phone: compactPhone(values.phone),
@@ -920,9 +919,10 @@ export function CheckoutView({ products = null, shop = null }) {
 
               <Field
                 id="co-email"
-                label="Email (optional)"
+                label="Email"
+                required
                 error={errorFor("email")}
-                hint="Add one to get order updates by email."
+                hint="Your order number is tied to this address."
                 className="sm:col-span-2"
               >
                 <input
