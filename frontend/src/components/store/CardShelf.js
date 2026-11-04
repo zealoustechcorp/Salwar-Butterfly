@@ -258,16 +258,20 @@ function ShelfCard({ product, priority }) {
             keyboard-reachable link to the same page. */}
         <Link href={href} aria-hidden="true" tabIndex={-1} draggable={false} className="absolute inset-0 z-0" />
 
-        {product.off > 0 ? (
-          <span className="absolute top-4 left-4 z-20 bg-sb-gold px-2 py-0.5 text-[10px] font-extrabold tracking-wider text-sb-footer uppercase">
-            {product.off}% off
-          </span>
-        ) : null}
-
-        {!product.in_stock ? (
-          <span className="absolute bottom-4 left-4 z-20 bg-sb-bg px-2.5 py-1 text-[10px] font-bold text-sb-footer">
-            Sold out
-          </span>
+        {/* Badges sit along the bottom edge, inside the frame. */}
+        {product.off > 0 || !product.in_stock ? (
+          <div className="pointer-events-none absolute bottom-4 left-4 z-20 flex flex-wrap items-center gap-1.5">
+            {product.off > 0 ? (
+              <span className="bg-sb-gold px-2 py-0.5 text-[10px] font-extrabold tracking-wider text-sb-footer uppercase">
+                {product.off}% off
+              </span>
+            ) : null}
+            {!product.in_stock ? (
+              <span className="bg-sb-bg px-2.5 py-1 text-[10px] font-bold text-sb-footer">
+                Sold out
+              </span>
+            ) : null}
+          </div>
         ) : null}
       </div>
 
