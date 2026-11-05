@@ -179,7 +179,7 @@ export const ORDER_STATUS_COPY = {
   confirmed: {
     label: "Confirmed",
     tone: "good",
-    detail: "Payment received. Your pieces are being picked.",
+    detail: "Payment received. Your pieces are being picked. Tracking details are sent within 7 working days.",
   },
   packed: {
     label: "Packed",
@@ -189,7 +189,7 @@ export const ORDER_STATUS_COPY = {
   shipped: {
     label: "On its way",
     tone: "good",
-    detail: "Handed to the courier. 7 to 10 working days.",
+    detail: "Handed to the courier. Delivery within 10 working days.",
   },
   delivered: {
     label: "Delivered",
