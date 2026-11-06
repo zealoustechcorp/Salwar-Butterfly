@@ -157,17 +157,10 @@ const SENSITIVE_FIELDS = new Set([
   "cvv",
   "otp",
 
-  // WhatsApp (F-WA). The access token is a permanent system-user
-  // credential that can send messages as the shop, and the app secret
-  // signs Meta's inbound webhooks — leaking either is leaking the
-  // channel itself.
-  "whatsapptoken",
-  "whatsappaccesstoken",
+  // Webhook credentials in general. URLs are scrubbed separately — see
+  // utils/redactUrl.js.
   "appsecret",
-  "whatsappappsecret",
   "verifytoken",
-  // The handshake's own spelling, should req.query ever be logged whole.
-  // URLs are scrubbed separately — see utils/redactUrl.js.
   "hub.verify_token",
 ]);
 

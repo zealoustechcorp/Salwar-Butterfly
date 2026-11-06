@@ -21,9 +21,41 @@
 // `<script>` must arrive as text.
 
 import { env } from "../config/env.js";
-import { formatMoney } from "../config/whatsapp.policy.js";
 
 const BRAND = "Salwar Butterfly";
+
+/**
+ * Money as a person reads it, not as DECIMAL(10,2) prints it.
+ *
+ * `1234.5` off the driver becomes "₹1,234.50". Indian digit grouping
+ * (1,23,456) via en-IN, because the shop and its customers are in India.
+ */
+export const formatMoney = (amount, currency = "INR") => {
+  // Number(null), Number("") and Number("  ") are all 0, not NaN — so a
+  // Number.isFinite check alone would render a missing total as "₹0.00"
+  // and tell a shopper their order was free. Absent and zero are
+  // different facts and must not print the same.
+  if (amount === null || amount === undefined) return "—";
+  if (typeof amount === "string" && amount.trim() === "") return "—";
+  if (typeof amount === "boolean") return "—";
+
+  const value = Number(amount);
+
+  if (!Number.isFinite(value)) return "—";
+
+  try {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value);
+  } catch {
+    // An unknown currency code would throw. Not worth failing an email
+    // over; fall back to the number and the code beside it.
+    return `${value.toFixed(2)} ${currency}`;
+  }
+};
 
 /** The palette, by role. Text-safe pairs only — see the design doc. */
 const C = Object.freeze({
@@ -295,7 +327,7 @@ export function orderPackedEmail(order) {
 
   const body = [
     p(`Hi ${esc(firstName(order.contact_name))},`),
-    p(`Good news — your order <strong style="color:${C.heading};">${esc(order.order_number)}</strong> is packed and handed over for delivery.`),
+    p(`Good news — your order <strong style="color:${C.heading};">${esc(order.order_number)}</strong> is packed and will be handed to the courier shortly. Here are its tracking details.`),
     sectionTitle("Tracking details"),
     panel(
       facts([
@@ -315,7 +347,7 @@ export function orderPackedEmail(order) {
   const text = [
     `Hi ${firstName(order.contact_name)},`,
     "",
-    `Your order ${order.order_number} is packed and handed over for delivery.`,
+    `Your order ${order.order_number} is packed and will be handed to the courier shortly.`,
     "",
     order.courier_name ? `Courier: ${order.courier_name}` : null,
     order.tracking_number ? `Tracking number: ${order.tracking_number}` : null,
@@ -333,10 +365,180 @@ export function orderPackedEmail(order) {
     html: layout({
       preheader: order.tracking_number
         ? `${order.courier_name ? `${order.courier_name} · ` : ""}Tracking number ${order.tracking_number}`
+        : `Your order ${order.order_number} is packed.`,
+      title: subject,
+      eyebrow: `Order ${order.order_number}`,
+      heading: "Your order is packed",
+      body,
+    }),
+    text,
+  };
+}
+
+// ============================================================
+// CUSTOMER: ORDER SHIPPED
+// ============================================================
+
+export function orderShippedEmail(order) {
+  const subject = `Your order has shipped — ${order.order_number}`;
+  const link = safeUrl(order.tracking_url);
+  const hasTracking = Boolean(order.courier_name || order.tracking_number);
+
+  const body = [
+    p(`Hi ${esc(firstName(order.contact_name))},`),
+    p(`Your order <strong style="color:${C.heading};">${esc(order.order_number)}</strong> is with the courier and on its way to you.`),
+    hasTracking
+      ? sectionTitle("Tracking details") +
+        panel(
+          facts([
+            ["Courier", order.courier_name],
+            ["Tracking number", order.tracking_number],
+          ]),
+        )
+      : "",
+    link
+      ? button(link, "Track your parcel")
+      : button(trackUrl(order), "Track your order"),
+    sectionTitle("Delivering to"),
+    addressBlock(order),
+  ].join("\n");
+
+  const text = [
+    `Hi ${firstName(order.contact_name)},`,
+    "",
+    `Your order ${order.order_number} is with the courier and on its way to you.`,
+    "",
+    order.courier_name ? `Courier: ${order.courier_name}` : null,
+    order.tracking_number ? `Tracking number: ${order.tracking_number}` : null,
+    link ? `Track your parcel: ${link}` : `Track your order: ${trackUrl(order)}`,
+    "",
+    "Delivering to:",
+    [order.contact_name, ...addressLines(order)].join("\n"),
+    "",
+    `— ${BRAND}`,
+  ]
+    .filter((line) => line !== null)
+    .join("\n");
+
+  return {
+    subject,
+    html: layout({
+      preheader: order.tracking_number
+        ? `${order.courier_name ? `${order.courier_name} · ` : ""}Tracking number ${order.tracking_number}`
         : `Your order ${order.order_number} is on its way.`,
       title: subject,
       eyebrow: `Order ${order.order_number}`,
       heading: "Your order is on its way",
+      body,
+    }),
+    text,
+  };
+}
+
+// ============================================================
+// CUSTOMER: ORDER DELIVERED
+// ============================================================
+
+export function orderDeliveredEmail(order) {
+  const subject = `Your order has been delivered — ${order.order_number}`;
+  const returnsUrl = `${env.email.storefrontUrl}/returns`;
+
+  const body = [
+    p(`Hi ${esc(firstName(order.contact_name))},`),
+    p(`Your order <strong style="color:${C.heading};">${esc(order.order_number)}</strong> has been delivered. We hope you love your new pieces — thank you for shopping with us.`),
+    sectionTitle("What was delivered"),
+    itemsTable(order),
+    `<div style="height:18px;line-height:18px;font-size:0;">&nbsp;</div>`,
+    panel(
+      `<div style="font-size:14px;color:${C.text};">Something not right? Let us know within <strong>48 hours</strong> of delivery — our returns policy explains what to send.</div>`,
+    ),
+    button(returnsUrl, "Returns policy"),
+  ].join("\n");
+
+  const text = [
+    `Hi ${firstName(order.contact_name)},`,
+    "",
+    `Your order ${order.order_number} has been delivered. We hope you love your new pieces.`,
+    "",
+    itemsText(order),
+    "",
+    "Something not right? Let us know within 48 hours of delivery.",
+    `Returns policy: ${returnsUrl}`,
+    "",
+    `— ${BRAND}`,
+  ].join("\n");
+
+  return {
+    subject,
+    html: layout({
+      preheader: `Your order ${order.order_number} has arrived. We hope you love it.`,
+      title: subject,
+      eyebrow: `Order ${order.order_number}`,
+      heading: "Your order has arrived",
+      body,
+    }),
+    text,
+  };
+}
+
+// ============================================================
+// CUSTOMER: ORDER CANCELLED
+// ============================================================
+
+/**
+ * What the shopper is told about their money, by payment status. Nothing
+ * for an order that was never paid — there is nothing to give back.
+ */
+const REFUND_LINE = Object.freeze({
+  paid: "As you paid for this order, the amount will be refunded to your original payment method.",
+  partially_refunded:
+    "Part of your payment has already been refunded; the rest will be refunded to your original payment method.",
+  refunded: "Your payment has been refunded to your original payment method.",
+});
+
+/**
+ * Sent only for a placed order: a draft has no order number, and the
+ * cancel path does not announce one. The cancellation reason is an admin
+ * field and is deliberately not shown to the shopper.
+ */
+export function orderCancelledEmail(order) {
+  const subject = `Your order has been cancelled — ${order.order_number}`;
+  const refundLine = REFUND_LINE[order.payment_status] ?? null;
+
+  const body = [
+    p(`Hi ${esc(firstName(order.contact_name))},`),
+    p(`We are sorry — your order <strong style="color:${C.heading};">${esc(order.order_number)}</strong> has been cancelled.`),
+    refundLine ? panel(`<div style="font-size:14px;color:${C.text};">${esc(refundLine)}</div>`) : "",
+    sectionTitle("Cancelled order"),
+    itemsTable(order),
+    `<div style="height:18px;line-height:18px;font-size:0;">&nbsp;</div>`,
+    small(`If you have any questions about this cancellation, please contact the shop.`),
+  ].join("\n");
+
+  const text = [
+    `Hi ${firstName(order.contact_name)},`,
+    "",
+    `We are sorry — your order ${order.order_number} has been cancelled.`,
+    refundLine,
+    "",
+    itemsText(order),
+    "",
+    "If you have any questions about this cancellation, please contact the shop.",
+    "",
+    `— ${BRAND}`,
+  ]
+    .filter((line) => line !== null)
+    .join("\n");
+
+  return {
+    subject,
+    html: layout({
+      preheader: refundLine
+        ? `Order ${order.order_number} was cancelled. ${refundLine}`
+        : `Order ${order.order_number} was cancelled.`,
+      title: subject,
+      eyebrow: `Order ${order.order_number}`,
+      heading: "Your order was cancelled",
       body,
     }),
     text,

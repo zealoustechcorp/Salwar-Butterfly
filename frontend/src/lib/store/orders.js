@@ -62,14 +62,10 @@ function toFailure(error, fallbackField = null) {
  * @param {object} input.shippingAddress
  * @param {Array<{variantId: string, quantity: number}>} input.items
  * @param {string} [input.customerNote]
- * @param {boolean} [input.whatsappOptIn]  the "WhatsApp me updates" tick. The
- *        API refuses anything but a real boolean, and the notification service
- *        sends nothing for an order without it — so dropping it here silently
- *        unsubscribed every shopper who left it ticked.
  * @param {string|null} [token]
  */
 export async function placeOrder(
-  { contact, shippingAddress, items, customerNote, whatsappOptIn },
+  { contact, shippingAddress, items, customerNote },
   token = null,
 ) {
   try {
@@ -80,7 +76,6 @@ export async function placeOrder(
         shippingAddress,
         items,
         customerNote: customerNote || undefined,
-        whatsappOptIn: typeof whatsappOptIn === "boolean" ? whatsappOptIn : undefined,
       },
       { token },
     );

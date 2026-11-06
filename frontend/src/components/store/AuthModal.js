@@ -241,16 +241,16 @@ function AuthForm({ intent, signIn, signUp, closeAuth }) {
         </Field>
 
         {/*
-          Required, not optional. The shop confirms orders on WhatsApp,
-          so a number is how a customer actually gets told their parcel
-          has gone out — and the API stores it NOT NULL for that reason.
+          Required, not optional. The courier and the shop need a number
+          to reach the customer about a delivery — and the API stores it
+          NOT NULL for that reason.
         */}
         {isSignUp ? (
           <Field
             id="auth-phone"
             label="Phone"
             error={errorFor("phone")}
-            hint={errorFor("phone") ? undefined : "Where the shop confirms your order on WhatsApp."}
+            hint={errorFor("phone") ? undefined : "So the courier and the shop can reach you about your order."}
           >
             <input
               id="auth-phone"

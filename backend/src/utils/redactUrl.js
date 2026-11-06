@@ -4,13 +4,12 @@
 //
 // The logger already scrubs sensitive *fields* (see SENSITIVE_FIELDS in
 // logger.js), but a URL is one string, and a secret in its query string
-// went straight past that: Meta's webhook handshake arrives as
+// went straight past that: a webhook handshake such as
 //
-//   GET /api/whatsapp/webhook?hub.mode=subscribe&hub.verify_token=…&hub.challenge=…
+//   GET /api/…/webhook?hub.mode=subscribe&hub.verify_token=…&hub.challenge=…
 //
-// and the request log, the 404 message and the error log all wrote the
-// verify token out in full. Anyone with the log files could then answer
-// Meta's handshake for a callback URL of their own choosing.
+// would have the request log, the 404 message and the error log all
+// write the verify token out in full.
 //
 // The rule is by parameter name, not by route, so that the next
 // integration to put a credential in a query string is caught without

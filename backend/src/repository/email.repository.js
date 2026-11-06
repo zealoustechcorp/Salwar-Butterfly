@@ -1,10 +1,9 @@
 // src/repository/email.repository.js
 //
-// The email outbox. The same shape as the WhatsApp half of
-// notification.repository.js, for the same reasons: `emitTx` takes the
-// caller's transaction client so the promise to send commits with the
-// order change, and `claim` is guarded so the immediate dispatch and the
-// sweeper never send one row twice.
+// The email outbox. `emitTx` takes the caller's transaction client so
+// the promise to send commits with the order change, and `claim` is
+// guarded so the immediate dispatch and the sweeper never send one row
+// twice.
 
 import { query, withTransaction } from "../config/db.js";
 import { EMAIL_STATUS } from "../config/email.policy.js";

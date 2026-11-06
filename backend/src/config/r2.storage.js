@@ -94,10 +94,7 @@ export const cacheControlFor = (key) => {
 /** The address a browser loads an object from. */
 export const publicUrlFor = (key) => `${env.r2.publicUrl}/${key}`;
 
-/**
- * Write one object. Shared with the Cloudinary migration script, which
- * already has a key and a type and must not invent new ones.
- */
+/** Write one object under a key and content type the caller has already chosen. */
 export const putObject = (key, body, contentType) =>
   client.send(
     new PutObjectCommand({

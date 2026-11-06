@@ -13,9 +13,7 @@
     "db:migrate": "node --env-file=.env src/scripts/migrate.js",
     "db:import-catalogue": "node --env-file=.env src/scripts/importCatalogue.js",
     "data:pincodes": "node src/scripts/buildPincodes.js",
-    "images:migrate-r2": "node --env-file=.env src/scripts/migrateImagesToR2.js",
-    "admin:create": "node --env-file=.env src/scripts/createAdmin.js",
-    "wa:check": "node --env-file=.env src/scripts/whatsappCheck.js"
+    "admin:create": "node --env-file=.env src/scripts/createAdmin.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1148.0",

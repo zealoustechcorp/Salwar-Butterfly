@@ -96,21 +96,6 @@ const keepRawBody = [
 
 app.use("/api/payments/webhook", keepRawBody);
 
-/**
- * Meta's delivery receipts, for the same reason and with a different
- * secret (F-12).
- *
- * X-Hub-Signature-256 is an HMAC over the exact bytes Meta sent, keyed
- * with the app secret. Unmounted routes still pass through here — the
- * router itself is mounted only when receipts are configured — which
- * costs nothing: express.raw on a path that 404s is one buffer that is
- * never read.
- *
- * The handshake is a GET and carries no body, so it falls through this
- * untouched.
- */
-app.use("/api/whatsapp/webhook", keepRawBody);
-
 app.use(
   express.json({
     limit: "1mb",

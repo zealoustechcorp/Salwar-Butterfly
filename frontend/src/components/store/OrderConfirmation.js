@@ -112,7 +112,7 @@ export function OrderConfirmation() {
         <p className="mt-4 max-w-lg text-sm leading-relaxed text-sb-text-muted">
           This page shows the confirmation for an order placed in this tab. If
           you have closed it, your order is safe — look it up with the number
-          from your confirmation email or WhatsApp and the email you used.
+          from your confirmation email and the email you used.
         </p>
         <div className="mt-6 flex flex-wrap gap-3">
           <Link
@@ -164,7 +164,7 @@ export function OrderConfirmation() {
 
           <p className="mt-3 max-w-xl text-sm leading-relaxed text-sb-text-muted">
             {confirming
-              ? "Your payment went through and the shop is confirming it. This takes a moment — your order number will arrive by email and WhatsApp as soon as it is confirmed."
+              ? "Your payment went through and the shop is confirming it. This takes a moment — your order number will arrive by email as soon as it is confirmed."
               : "Payment received. Your pieces are being picked, and they will reach you within 10 working days. Tracking details follow within 7 working days."}
           </p>
 

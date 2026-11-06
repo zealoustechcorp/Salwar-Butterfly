@@ -6,10 +6,6 @@ import { connectDb, closeDb } from './config/db.js';
 import { closeRedis } from './config/redis.js';
 import { closeWebhookQueue } from './queues/webhook.queue.js';
 import { startWebhookWorker, stopWebhookWorker } from './queues/webhook.worker.js';
-import {
-  startNotificationSweeper,
-  stopNotificationSweeper,
-} from './queues/notification.sweeper.js';
 import { startEmailSweeper, stopEmailSweeper } from './queues/email.sweeper.js';
 import {
   startUnpaidOrderSweeper,
@@ -57,10 +53,7 @@ async function start() {
   startWebhookWorker();
   // Runs with or without Redis, unlike the worker above: the outbox
   // lives in Postgres, so this is the one thing that guarantees a
-  // committed notification eventually goes out. A no-op when WhatsApp is
-  // not configured.
-  startNotificationSweeper();
-  // The same floor under the email outbox. A no-op without RESEND_API_KEY.
+  // committed email eventually goes out. A no-op without RESEND_API_KEY.
   startEmailSweeper();
   // Releases checkouts left unpaid past CHECKOUT_HOLD_MINUTES, so an
   // abandoned checkout cannot hold stock.
@@ -83,7 +76,6 @@ async function shutdown(signal) {
     // it early means no new sweep starts against a pool that is about to
     // drain. A send already in flight finishes or is picked up by the
     // next process — the outbox row is still there either way.
-    stopNotificationSweeper();
     stopEmailSweeper();
     stopUnpaidOrderSweeper();
     stopPaymentReconciler();

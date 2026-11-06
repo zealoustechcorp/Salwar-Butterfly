@@ -179,7 +179,6 @@ export const OrderService = {
     shippingAddress,
     items,
     customerNote = null,
-    whatsappOptIn = undefined,
   }) {
     try {
       const normalizedLines = items.map((item) => ({
@@ -216,12 +215,6 @@ export const OrderService = {
         shippingFee: SHIPPING_FEE,
 
         customerNote: trimOrNull(customerNote),
-
-        // undefined is left as undefined rather than defaulted here, so
-        // that "the client did not say" reaches the INSERT and the
-        // column's own DEFAULT decides. Defaulting in two places is how
-        // the two eventually disagree.
-        whatsappOptIn,
       });
 
       // Re-read through the full shape so the response carries the

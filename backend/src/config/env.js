@@ -7,13 +7,6 @@
  * See package.json scripts.
  */
 
-// The only import in this file, and it earns its place:
-// WHATSAPP_TEST_RECIPIENT below is a phone number, and a phone number
-// that has not been through toE164 is exactly the kind of value that
-// fails silently at the far end. utils/phone.js imports nothing, so
-// this cannot become a cycle.
-import { maskPhone, toE164 } from "../utils/phone.js";
-
 // ============================================================
 // REQUIRED ENVIRONMENT VARIABLES
 // ============================================================
@@ -328,121 +321,12 @@ if (!redisEnabled && nodeEnv === "production") {
 }
 
 // ============================================================
-// WHATSAPP (META CLOUD API)
-// ============================================================
-//
-// Order notifications: the shop is told when money lands, the shopper is
-// told what happened to the parcel.
-//
-// Optional in exactly the way Razorpay is. With no token and no phone
-// number id the feature turns itself off and every other path — placing
-// an order, taking payment, moving it through the queue — behaves as it
-// did before. A shop that has not finished Meta's business verification
-// is a shop that runs fine and sends nothing.
-//
-// Four separate credentials, which is easy to confuse and expensive to
-// confuse, so they are named apart here rather than in the caller:
-//
-//   ACCESS_TOKEN   sends messages. A System User token from Business
-//                  Settings, which never expires. The one the Graph API
-//                  explorer hands you looks identical and dies in 24
-//                  hours, taking every message with it — see the note
-//                  on error 190 in whatsapp.gateway.js.
-//   PHONE_NUMBER_ID  which of the business's numbers to send *from*.
-//                  A numeric id, not a phone number.
-//   APP_SECRET     verifies Meta's inbound delivery receipts. Not the
-//                  access token, though both are secrets on the same
-//                  app.
-//   VERIFY_TOKEN   a string we invent, echoed back once during the
-//                  webhook handshake. It proves nothing after that.
-//
-// Only the first two are needed to send. The last two are the inbound
-// half, which is why their absence is a quieter warning.
-
-// `||`, not `??`, for every one: .env.example ships these present and
-// empty, the same convention REDIS_URL uses above.
-const whatsappAccessToken = process.env.WHATSAPP_ACCESS_TOKEN || null;
-const whatsappPhoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID || null;
-const whatsappBusinessAccountId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || null;
-const whatsappAppSecret = process.env.WHATSAPP_APP_SECRET || null;
-const whatsappVerifyToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || null;
-
-// Pinned rather than defaulted to "latest", because Meta's versions
-// expire on a published schedule and a silent bump is a template
-// payload that stops being accepted on a date nobody wrote down.
-const whatsappApiVersion = process.env.WHATSAPP_API_VERSION || "v21.0";
-
-const whatsappEnabled = Boolean(whatsappAccessToken && whatsappPhoneNumberId);
-
-// ---- TEST MODE ------------------------------------------------
-//
-// One number that every outbound message is redirected to, whoever it
-// was addressed to.
-//
-// Meta's own test sending number may only message handsets registered
-// as recipients on the app, so an order placed with any other phone
-// fails at the gateway anyway. More to the point: a test order carries
-// a real number typed into a real checkout box, and the admin
-// recipients are real staff phones. Neither should receive "your order
-// has shipped" because somebody was exercising the queue.
-//
-// Enforced in whatsapp.gateway.js — the single point a message leaves
-// this process — rather than while planning the send. The outbox row
-// therefore keeps the number the message was *for*, which is the
-// honest record of what the system decided, and there is no path
-// around the override.
-const whatsappTestRecipientRaw = process.env.WHATSAPP_TEST_RECIPIENT || null;
-
-const whatsappTestRecipient = whatsappTestRecipientRaw
-  ? toE164(whatsappTestRecipientRaw)
-  : null;
-
-// Refuse to boot rather than fall back to "no redirect". A value that
-// was meant to be a safety net and quietly is not one is worse than
-// not having set it: the whole reason it exists is that the person
-// running the test believes nothing can escape.
-if (whatsappTestRecipientRaw && !whatsappTestRecipient) {
-  throw new Error(
-    `WHATSAPP_TEST_RECIPIENT is not a number that can be routed: ` +
-      `"${whatsappTestRecipientRaw}". Expected something toE164 accepts, ` +
-      `e.g. 6374406703 or +916374406703.`,
-  );
-}
-
-// The same refusal as CORS_ORIGIN above, for the
-// same reason. A redirect left in a production .env sends every
-// customer's order updates to one handset and tells nobody it did.
-if (whatsappTestRecipient && nodeEnv === "production") {
-  throw new Error(
-    "WHATSAPP_TEST_RECIPIENT must not be set in production — it would " +
-      "redirect every customer and admin notification to one number.",
-  );
-}
-
-if (whatsappTestRecipient) {
-  console.warn(
-    `[env] WhatsApp TEST MODE — every message is redirected to ` +
-      `${maskPhone(whatsappTestRecipient)}, whoever it was addressed to`,
-  );
-}
-
-// console, not the logger — same cycle as the warnings above.
-//
-// Not configured at all is an ordinary deployment, not a problem, so it
-// says nothing. Half-configured is worth one line: messages send, but
-// every one of them stays at `sent` forever because a delivery receipt
-// that cannot be verified is not accepted.
-if (whatsappEnabled && !(whatsappAppSecret && whatsappVerifyToken)) {
-  console.warn("[env] WhatsApp receipts disabled (APP_SECRET/VERIFY_TOKEN missing)");
-}
-
-// ============================================================
 // EMAIL (RESEND)
 // ============================================================
 //
 // Order emails and password reset.
 //
-// Optional in the same way WhatsApp is. With no API key every order
+// Optional in the same way Razorpay is. With no API key every order
 // email is recorded as `skipped` and nothing else changes — except that
 // "forgot password" cannot work, which the reset endpoint says plainly.
 //
@@ -456,7 +340,7 @@ if (whatsappEnabled && !(whatsappAppSecret && whatsappVerifyToken)) {
 //   STOREFRONT_URL      the shop's public origin, for the links inside
 //                       the emails (reset link, order page).
 
-// `||`, not `??`, matching the WhatsApp block: .env.example ships these
+// `||`, not `??`, matching REDIS_URL: .env.example ships these
 // present and empty.
 const resendApiKey = process.env.RESEND_API_KEY || null;
 
@@ -492,8 +376,8 @@ const emailLogoUrl =
 
 // ---- TEST MODE ------------------------------------------------
 //
-// The email counterpart to WHATSAPP_TEST_RECIPIENT: every outbound
-// email, customer and admin alike, goes to this one address instead.
+// Every outbound email, customer and admin alike, goes to this one
+// address instead.
 //
 // Needed in practice while Resend has no verified domain, because Resend
 // refuses to send to anyone but the account owner until one is — and a
@@ -618,28 +502,6 @@ export const env = Object.freeze({
   redis: Object.freeze({
     enabled: redisEnabled,
     url: redisUrl,
-  }),
-
-  // ==========================================================
-  // WHATSAPP
-  // ==========================================================
-
-  whatsapp: Object.freeze({
-    enabled: whatsappEnabled,
-    accessToken: whatsappAccessToken,
-    phoneNumberId: whatsappPhoneNumberId,
-    businessAccountId: whatsappBusinessAccountId,
-    appSecret: whatsappAppSecret,
-    verifyToken: whatsappVerifyToken,
-    apiVersion: whatsappApiVersion,
-
-    // Whether an inbound delivery receipt can be trusted, and so
-    // whether the webhook route should be mounted at all.
-    receiptsEnabled: Boolean(whatsappAppSecret && whatsappVerifyToken),
-
-    // null in every ordinary deployment. Non-null means every send is
-    // redirected here — see the TEST MODE note above.
-    testRecipient: whatsappTestRecipient,
   }),
 
   // ==========================================================

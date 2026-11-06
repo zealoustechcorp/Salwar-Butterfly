@@ -1,7 +1,6 @@
 // src/services/email.service.js
 //
-// Order emails, built on exactly the split notification.service.js uses
-// for WhatsApp — read its header for the full reasoning:
+// Order emails, built on an outbox split in two:
 //
 //   emitTx    inside the order's transaction, behind a SAVEPOINT. Writes
 //             which emails are owed and nothing else. Cannot fail the
@@ -29,8 +28,11 @@ import {
 } from "../config/email.policy.js";
 import {
   adminNewOrderEmail,
+  orderCancelledEmail,
   orderConfirmedEmail,
+  orderDeliveredEmail,
   orderPackedEmail,
+  orderShippedEmail,
 } from "../emails/templates.js";
 import { EmailRepository } from "../repository/email.repository.js";
 import { OrderRepository } from "../repository/order.repository.js";
@@ -45,6 +47,9 @@ const MAX_ATTEMPTS = 6;
 const RENDERERS = Object.freeze({
   [EMAIL_KIND.ORDER_CONFIRMED]: orderConfirmedEmail,
   [EMAIL_KIND.ORDER_PACKED]: orderPackedEmail,
+  [EMAIL_KIND.ORDER_SHIPPED]: orderShippedEmail,
+  [EMAIL_KIND.ORDER_DELIVERED]: orderDeliveredEmail,
+  [EMAIL_KIND.ORDER_CANCELLED]: orderCancelledEmail,
   [EMAIL_KIND.ADMIN_NEW_ORDER]: adminNewOrderEmail,
 });
 
@@ -63,7 +68,7 @@ function planOrderEvent(order, event) {
 
   for (const { kind, audience } of emailsForEvent(event)) {
     // The shopper: the address typed into this checkout, not the
-    // account's — the same choice the WhatsApp side makes for the phone.
+    // account's, because it is the one the shopper chose for this order.
     const recipients =
       audience === EMAIL_AUDIENCE.CUSTOMER
         ? [String(order.contact_email ?? "").trim().toLowerCase()].filter(Boolean)
