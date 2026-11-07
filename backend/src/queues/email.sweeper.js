@@ -1,7 +1,6 @@
 // src/queues/email.sweeper.js
 //
-// The floor under the email outbox — the counterpart to
-// notification.sweeper.js, and there for the same failures: a process
+// The floor under the email outbox, there for three failures: a process
 // killed between the commit and the dispatch, one killed mid-send, and a
 // retryable failure whose backoff has expired.
 

@@ -28,8 +28,7 @@ import {
   PAYMENT_ATTEMPT_STATUS,
   PAYMENT_PROVIDER,
 } from "../config/payment.policy.js";
-import { NOTIFY_EVENT, eventForStatus } from "../config/whatsapp.policy.js";
-import { NotificationService } from "../services/notification.service.js";
+import { NOTIFY_EVENT, eventForStatus } from "../config/email.policy.js";
 import { EmailService } from "../services/email.service.js";
 
 /**
@@ -250,7 +249,6 @@ export const OrderRepository = {
     lines,
     shippingFee = 0,
     customerNote = null,
-    whatsappOptIn = undefined,
   }) {
     try {
       return await withTransaction(async (client) => {
@@ -409,8 +407,7 @@ export const OrderRepository = {
              shipping_country,
              status, payment_status,
              subtotal, shipping_fee, total, currency,
-             customer_note,
-             whatsapp_opt_in, whatsapp_opt_in_at
+             customer_note
            ) VALUES (
              $1::uuid,
              $2, $3, $4,
@@ -419,14 +416,7 @@ export const OrderRepository = {
              $11,
              $12, $13,
              $14, $15, $16, $17,
-             $18,
-             -- COALESCE so that a client which said nothing gets the
-             -- column's own DEFAULT rather than a NULL that would
-             -- violate NOT NULL. The timestamp is only stamped when the
-             -- answer was yes, because there is no consent to date
-             -- otherwise.
-             COALESCE($19::boolean, TRUE),
-             CASE WHEN COALESCE($19::boolean, TRUE) THEN NOW() ELSE NULL END
+             $18
            )
            RETURNING *`,
           [
@@ -448,7 +438,6 @@ export const OrderRepository = {
             total,
             CURRENCY,
             customerNote,
-            whatsappOptIn ?? null,
           ],
         );
 
@@ -711,7 +700,7 @@ export const OrderRepository = {
       // changes nothing about its semantics — it was already atomic —
       // and gives the notification emit a SAVEPOINT to live in, so the
       // transition and the promise to announce it commit together.
-      const { row, notificationIds, emailIds } = await withTransaction(async (client) => {
+      const { row, emailIds } = await withTransaction(async (client) => {
         const result = await client.query(text, [
           id,
           expectedStatus,
@@ -722,7 +711,7 @@ export const OrderRepository = {
           shipment?.trackingUrl ?? null,
         ]);
 
-        if (result.rowCount === 0) return { row: null, notificationIds: [], emailIds: [] };
+        if (result.rowCount === 0) return { row: null, emailIds: [] };
 
         const updated = result.rows[0];
 
@@ -734,19 +723,12 @@ export const OrderRepository = {
 
         // rowCount > 0 means *this* call made the move, which is what
         // makes the emit exactly-once even with two admins in two tabs.
-        const ids = await NotificationService.emitTx(
-          client,
-          updated,
-          eventForStatus(nextStatus),
-        );
-
         // Packed carries the tracking number written by this same UPDATE.
         const emails = await EmailService.emitTx(client, updated, eventForStatus(nextStatus));
 
-        return { row: updated, notificationIds: ids, emailIds: emails };
+        return { row: updated, emailIds: emails };
       });
 
-      NotificationService.dispatch(notificationIds);
       EmailService.dispatch(emailIds);
 
       return row;
@@ -789,7 +771,7 @@ export const OrderRepository = {
     `;
 
     try {
-      const { row, notificationIds, emailIds } = await withTransaction(async (client) => {
+      const { row, emailIds } = await withTransaction(async (client) => {
         const result = await client.query(text, [
           id,
           ORDER_STATUS.CONFIRMED,
@@ -798,7 +780,7 @@ export const OrderRepository = {
           ORDER_STATUS.PENDING_PAYMENT,
         ]);
 
-        if (result.rowCount === 0) return { row: null, notificationIds: [], emailIds: [] };
+        if (result.rowCount === 0) return { row: null, emailIds: [] };
 
         const confirmed = result.rows[0];
 
@@ -836,26 +818,11 @@ export const OrderRepository = {
         // were somehow wrong, the two would produce the same dedupe_key
         // and collapse into one row anyway. Belt and braces, on the one
         // path that moves money.
-        const { rows: counts } = await client.query(
-          `SELECT COALESCE(SUM(quantity), 0)::int AS units
-             FROM order_items
-            WHERE order_id = $1::uuid`,
-          [confirmed.id],
-        );
-
-        const ids = await NotificationService.emitTx(
-          client,
-          confirmed,
-          NOTIFY_EVENT.ORDER_PAID,
-          { unitCount: counts[0]?.units ?? null },
-        );
-
         const emails = await EmailService.emitTx(client, confirmed, NOTIFY_EVENT.ORDER_PAID);
 
-        return { row: confirmed, notificationIds: ids, emailIds: emails };
+        return { row: confirmed, emailIds: emails };
       });
 
-      NotificationService.dispatch(notificationIds);
       EmailService.dispatch(emailIds);
 
       return row;
@@ -934,7 +901,7 @@ export const OrderRepository = {
    */
   async cancel(id, { reason = null, cancellableFrom = [], draftOnly = false } = {}) {
     try {
-      const { row, notificationIds } = await withTransaction(async (client) => {
+      const { row, emailIds } = await withTransaction(async (client) => {
         const cancelled = await client.query(
           `UPDATE orders
            SET status = $2,
@@ -948,7 +915,7 @@ export const OrderRepository = {
           [id, ORDER_STATUS.CANCELLED, reason, cancellableFrom],
         );
 
-        if (cancelled.rowCount === 0) return { row: null, notificationIds: [] };
+        if (cancelled.rowCount === 0) return { row: null, emailIds: [] };
 
         // One statement rather than a loop: the lines of one order touch
         // distinct variants (enforced by uq_order_items_order_variant),
@@ -969,21 +936,21 @@ export const OrderRepository = {
           variantsRestored: restored.rowCount,
         });
 
-        // After the stock is back on the shelf, so that a message
+        // After the stock is back on the shelf, so that an email
         // promising a cancellation cannot outlive a rollback of it. Not
         // for a draft: there was never an order to cancel.
-        const ids = cancelled.rows[0].order_number
-          ? await NotificationService.emitTx(
+        const emails = cancelled.rows[0].order_number
+          ? await EmailService.emitTx(
               client,
               cancelled.rows[0],
               NOTIFY_EVENT.ORDER_CANCELLED,
             )
           : [];
 
-        return { row: cancelled.rows[0], notificationIds: ids };
+        return { row: cancelled.rows[0], emailIds: emails };
       });
 
-      NotificationService.dispatch(notificationIds);
+      EmailService.dispatch(emailIds);
 
       return row;
     } catch (error) {

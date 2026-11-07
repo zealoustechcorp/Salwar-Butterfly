@@ -74,7 +74,7 @@ export const SHOP = Object.freeze({
   // The shop's own words, kept as the shop wrote them.
   features: Object.freeze([
     {
-      title: "Delivery time 7 to 10 working days",
+      title: "Delivery time 10 working days",
       detail: "Freeshipping all over India",
     },
     {

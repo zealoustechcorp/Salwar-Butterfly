@@ -27,8 +27,7 @@ import {
   ORDER_STATUS,
   PAYMENT_STATUS,
 } from "../config/order.policy.js";
-import { NOTIFY_EVENT } from "../config/whatsapp.policy.js";
-import { NotificationService } from "../services/notification.service.js";
+import { NOTIFY_EVENT } from "../config/email.policy.js";
 import { EmailService } from "../services/email.service.js";
 
 const handleDatabaseError = (error, operation, context = {}) => {
@@ -536,7 +535,7 @@ export const PaymentRepository = {
         );
 
         if (paid.rowCount === 0) {
-          return { payment: null, order: null, alreadyPaid: true, notificationIds: [], emailIds: [] };
+          return { payment: null, order: null, alreadyPaid: true, emailIds: [] };
         }
 
         const payment = paid.rows[0];
@@ -634,25 +633,10 @@ export const PaymentRepository = {
         //
         // Inside the transaction, so that the confirmation and the
         // promise to announce it commit together. emitTx cannot throw
-        // and cannot reach the network; see notification.service.js.
-        let notificationIds = [];
+        // and cannot reach the network; see email.service.js.
         let emailIds = [];
 
         if (confirmed) {
-          const { rows: counts } = await client.query(
-            `SELECT COALESCE(SUM(quantity), 0)::int AS units
-               FROM order_items
-              WHERE order_id = $1::uuid`,
-            [confirmed.id],
-          );
-
-          notificationIds = await NotificationService.emitTx(
-            client,
-            confirmed,
-            NOTIFY_EVENT.ORDER_PAID,
-            { unitCount: counts[0]?.units ?? null },
-          );
-
           // Order confirmation to the shopper, new-order alert to the shop.
           emailIds = await EmailService.emitTx(client, confirmed, NOTIFY_EVENT.ORDER_PAID);
         }
@@ -662,7 +646,6 @@ export const PaymentRepository = {
           order: confirmed,
           alreadyPaid: false,
           unmatched,
-          notificationIds,
           emailIds,
         };
       });
@@ -672,9 +655,8 @@ export const PaymentRepository = {
       // payment — and if the transaction then rolled back, it would have
       // told a shopper about a confirmation that never happened.
       //
-      // Detached and non-throwing, so a WhatsApp cannot fail a payment
+      // Detached and non-throwing, so an email cannot fail a payment
       // that has already been banked.
-      NotificationService.dispatch(result.notificationIds);
       EmailService.dispatch(result.emailIds);
 
       if (result.unmatched) {

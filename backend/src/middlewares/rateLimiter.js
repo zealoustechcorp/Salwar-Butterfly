@@ -142,7 +142,7 @@ const createLimiter = ({
   return middleware;
 };
 
-const WEBHOOK_PATHS = ["/api/payments/webhook", "/api/whatsapp/webhook"];
+const WEBHOOK_PATHS = ["/api/payments/webhook"];
 
 export const GLOBAL_LIMIT = 300;
 export const ADMIN_GLOBAL_LIMIT = 3000;

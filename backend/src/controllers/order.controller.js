@@ -41,7 +41,7 @@ export const OrderController = {
    */
   place: asyncHandler(async (req, res) => {
     try {
-      const { contact, shippingAddress, items, customerNote, whatsappOptIn } = req.body;
+      const { contact, shippingAddress, items, customerNote } = req.body;
       const { customerId } = identify(req);
 
       logger.info("Place order endpoint called", {
@@ -55,7 +55,6 @@ export const OrderController = {
         shippingAddress,
         items,
         customerNote,
-        whatsappOptIn,
       });
 
       // Not "placed": this is the checkout draft the payment sheet opens

@@ -5,9 +5,10 @@
 // what the status-change validator demands before an order is packed.
 //
 // env.js reads process.env once and freezes it, so the email settings
-// are fixed here, before the import — see whatsapp.testmode.test.js.
+// are fixed here, before the import.
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { afterEach, describe, it, mock } from "node:test";
 
 process.env.NODE_ENV = "test";
@@ -28,10 +29,8 @@ process.env.EMAIL_TEST_RECIPIENT = "";
 
 const { env } = await import("../src/config/env.js");
 const { EmailGateway, EmailSendError } = await import("../src/config/email.gateway.js");
-const { EMAIL_KIND, EMAIL_STATUS, emailDedupeKey, emailsForEvent } = await import(
-  "../src/config/email.policy.js"
-);
-const { NOTIFY_EVENT } = await import("../src/config/whatsapp.policy.js");
+const { EMAIL_KIND, EMAIL_STATUS, NOTIFY_EVENT, emailDedupeKey, emailsForEvent, eventForStatus } =
+  await import("../src/config/email.policy.js");
 const templates = await import("../src/emails/templates.js");
 const { EmailService } = await import("../src/services/email.service.js");
 const { EmailRepository } = await import("../src/repository/email.repository.js");
@@ -55,6 +54,7 @@ const ORDER = Object.freeze({
   total: "2400.00",
   currency: "INR",
   customer_note: null,
+  payment_status: "paid",
   courier_name: "Delhivery",
   tracking_number: "DLV123456",
   tracking_url: "https://track.example.test/DLV123456",
@@ -102,10 +102,33 @@ describe("emailsForEvent", () => {
     );
   });
 
-  it("sends nothing for shipped, delivered or cancelled", () => {
-    for (const event of [NOTIFY_EVENT.ORDER_SHIPPED, NOTIFY_EVENT.ORDER_DELIVERED, NOTIFY_EVENT.ORDER_CANCELLED]) {
-      assert.deepEqual(emailsForEvent(event), []);
+  it("sends the shopper one email each when an order ships, arrives or is cancelled", () => {
+    for (const [event, kind] of [
+      [NOTIFY_EVENT.ORDER_SHIPPED, EMAIL_KIND.ORDER_SHIPPED],
+      [NOTIFY_EVENT.ORDER_DELIVERED, EMAIL_KIND.ORDER_DELIVERED],
+      [NOTIFY_EVENT.ORDER_CANCELLED, EMAIL_KIND.ORDER_CANCELLED],
+    ]) {
+      assert.deepEqual(
+        emailsForEvent(event).map((e) => [e.kind, e.audience]),
+        [[kind, "customer"]],
+      );
     }
+  });
+
+  it("announces nothing while an order is awaiting payment", () => {
+    assert.equal(eventForStatus("pending_payment"), null);
+    assert.equal(eventForStatus("shipped"), NOTIFY_EVENT.ORDER_SHIPPED);
+  });
+
+  it("allows every email kind in the outbox CHECK constraint", () => {
+    const sql = readFileSync(
+      new URL("../src/migrations/035_drop_whatsapp_notifications.sql", import.meta.url),
+      "utf8",
+    );
+    const check = sql.match(/email_messages_kind_check\s+CHECK \(kind IN \(([^)]*)\)\)/);
+    assert.ok(check, "kind CHECK not found in 035");
+    const allowed = [...check[1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]).sort();
+    assert.deepEqual(allowed, Object.values(EMAIL_KIND).sort());
   });
 
   it("builds a case-insensitive dedupe key", () => {
@@ -164,7 +187,7 @@ describe("EmailService.emitTx", () => {
 
   it("does not touch the transaction for an event with no emails", async () => {
     const client = fakeClient();
-    assert.deepEqual(await EmailService.emitTx(client, ORDER, NOTIFY_EVENT.ORDER_SHIPPED), []);
+    assert.deepEqual(await EmailService.emitTx(client, ORDER, "order_refunded"), []);
     assert.equal(client.statements.length, 0);
   });
 });
@@ -172,6 +195,29 @@ describe("EmailService.emitTx", () => {
 // ============================================================
 // TEMPLATES
 // ============================================================
+
+describe("formatMoney", () => {
+  const { formatMoney } = templates;
+
+  it("formats rupees the way an Indian reader expects", () => {
+    // en-IN uses a non-breaking space after the symbol in some Node
+    // builds, so assert on the parts rather than an exact string.
+    const formatted = formatMoney("2499.00", "INR");
+
+    assert.ok(formatted.includes("2,499.00"), formatted);
+    assert.ok(formatted.includes("₹"), formatted);
+  });
+
+  it("groups lakhs the Indian way", () => {
+    assert.ok(formatMoney(123456, "INR").includes("1,23,456.00"));
+  });
+
+  it("does not throw on a bad amount or a bad currency", () => {
+    assert.equal(formatMoney(null), "—");
+    assert.equal(formatMoney("not a number"), "—");
+    assert.equal(typeof formatMoney(10, "XYZ"), "string");
+  });
+});
 
 describe("templates", () => {
   it("escapes everything a person typed", () => {
@@ -205,6 +251,47 @@ describe("templates", () => {
     assert.match(subject, /^New order SB-1042/);
     assert.match(text, new RegExp(`/admin/orders/${ORDER.id}`));
     assert.match(text, /\+919876543210/);
+  });
+
+  it("puts the tracking details in the shipped email", () => {
+    const { subject, html, text } = templates.orderShippedEmail(ORDER);
+    assert.equal(subject, "Your order has shipped — SB-1042");
+    assert.match(text, /Tracking number: DLV123456/);
+    assert.ok(html.includes('href="https://track.example.test/DLV123456"'));
+  });
+
+  it("falls back to the track-order page when a shipped order has no tracking link", () => {
+    const { text } = templates.orderShippedEmail({ ...ORDER, tracking_url: null });
+    assert.match(text, /Track your order: https:\/\/shop\.example\.test\/track#/);
+  });
+
+  it("points the delivered email at the returns policy", () => {
+    const { subject, text } = templates.orderDeliveredEmail(ORDER);
+    assert.equal(subject, "Your order has been delivered — SB-1042");
+    assert.match(text, /https:\/\/shop\.example\.test\/returns/);
+    assert.match(text, /48 hours/);
+  });
+
+  it("promises a refund only on a cancelled order that was paid for", () => {
+    const paid = templates.orderCancelledEmail(ORDER);
+    assert.equal(paid.subject, "Your order has been cancelled — SB-1042");
+    assert.match(paid.text, /will be refunded/);
+
+    const refunded = templates.orderCancelledEmail({ ...ORDER, payment_status: "refunded" });
+    assert.match(refunded.text, /has been refunded/);
+
+    const unpaid = templates.orderCancelledEmail({ ...ORDER, payment_status: "pending" });
+    assert.doesNotMatch(unpaid.text, /refund/i);
+    assert.doesNotMatch(unpaid.html, /refund/i);
+  });
+
+  it("never shows the shopper the admin's cancellation reason", () => {
+    const { html, text } = templates.orderCancelledEmail({
+      ...ORDER,
+      cancellation_reason: "internal: customer was rude",
+    });
+    assert.ok(!html.includes("internal:"));
+    assert.ok(!text.includes("internal:"));
   });
 
   it("puts the reset link and its expiry in the reset email", () => {

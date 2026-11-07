@@ -4,12 +4,11 @@
 //
 // Resend's REST API over fetch rather than their SDK: it is a single
 // POST, and owning the call means owning its timeout and its error
-// classification, the same reasons whatsapp.gateway.js gives.
+// classification.
 //
-// Unlike Meta's /messages, Resend accepts an Idempotency-Key. Every send
-// carries one, so a retry after a timeout — the case WhatsApp has to
-// treat as "maybe delivered, never retry" — is safe here: Resend collapses
-// the repeat into the original for 24 hours.
+// Resend accepts an Idempotency-Key. Every send carries one, so a retry
+// after a timeout — when the email may already have gone — is safe:
+// Resend collapses the repeat into the original for 24 hours.
 
 import { env } from "./env.js";
 

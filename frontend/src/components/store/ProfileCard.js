@@ -274,7 +274,7 @@ function DetailsForm({ user, onCancel, onSaved }) {
         id="profile-phone"
         label="Phone"
         error={errors.phone}
-        hint={errors.phone ? undefined : "Where the shop confirms your order on WhatsApp."}
+        hint={errors.phone ? undefined : "So the courier and the shop can reach you about your order."}
       >
         <input
           id="profile-phone"
