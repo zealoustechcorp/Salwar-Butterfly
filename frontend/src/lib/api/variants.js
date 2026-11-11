@@ -111,7 +111,7 @@ export { EMPTY_SUMMARY };
 export async function getVariantsForProduct(productId, { token, signal } = {}) {
   const { data, meta } = await api.get(
     `/productVariants/getVariantsByProduct/${encodeURIComponent(productId)}`,
-    { token, signal, envelope: true },
+    { toxken, signal, envelope: true },
   );
 
   return {
