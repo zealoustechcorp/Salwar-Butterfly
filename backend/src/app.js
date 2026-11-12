@@ -34,9 +34,33 @@ app.use(
   }),
 );
 
+// ============================================================
+// CORS CONFIGURATION
+// ============================================================
+
+const allowedOrigins = (
+  Array.isArray(env.corsOrigin)
+    ? env.corsOrigin
+    : String(env.corsOrigin || "").split(",")
+)
+  .map((origin) => origin.trim().replace(/\/$/, ""))
+  .filter(Boolean);
+
 app.use(
   cors({
-    origin: env.corsOrigin,
+    origin: (origin, callback) => {
+      // Allow requests without an Origin header (e.g. server-to-server)
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      console.warn(`[CORS] Blocked origin: ${origin}`);
+      return callback(null, false);
+    },
     credentials: true,
   }),
 );
