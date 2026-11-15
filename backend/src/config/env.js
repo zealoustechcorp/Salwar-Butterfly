@@ -107,14 +107,35 @@ if (pgCaCert && !pgCaCert.includes("-----BEGIN CERTIFICATE-----")) {
 // CORS
 // ============================================================
 
-const corsOrigin =
+// Comma-separated, so the shop can be served from both the apex and www
+// hosts: CORS_ORIGIN=https://salwarbutterfly.in,https://www.salwarbutterfly.in
+// Each entry is normalised to a bare origin — a browser's Origin header
+// never has a path or trailing slash, so "https://x.in/" would never match.
+const corsOrigins = (
   process.env.CORS_ORIGIN ??
-  (nodeEnv === "production" ? "" : "http://localhost:3000");
+  (nodeEnv === "production" ? "" : "http://localhost:3000")
+)
+  .split(",")
+  .map((entry) => entry.trim())
+  .filter(Boolean)
+  .map((entry) => {
+    try {
+      return new URL(entry).origin;
+    } catch {
+      throw new Error(
+        `CORS_ORIGIN entry is not a valid URL: "${entry}". ` +
+          "Expected e.g. https://salwarbutterfly.in",
+      );
+    }
+  });
 
 // Never silently allow all origins in production.
-if (nodeEnv === "production" && !corsOrigin) {
+if (nodeEnv === "production" && corsOrigins.length === 0) {
   throw new Error("CORS_ORIGIN must be configured in production");
 }
+
+// Kept for STOREFRONT_URL's fallback: the first entry is the canonical one.
+const corsOrigin = corsOrigins[0] ?? "";
 
 // ============================================================
 // TOKEN LIFETIMES
@@ -449,7 +470,7 @@ export const env = Object.freeze({
   // CORS
   // ==========================================================
 
-  corsOrigin,
+  corsOrigins,
 
   // ==========================================================
   // JWT

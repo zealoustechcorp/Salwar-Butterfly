@@ -23,6 +23,8 @@ import { BannerMapper } from "../mapper/banner.mapper.js";
 import { CustomerStoryMapper } from "../mapper/customer_story.mapper.js";
 import { MAX_STORIES_ON_HOME } from "../config/customer_story.policy.js";
 import { HomeSectionMapper } from "../mapper/home_section.mapper.js";
+import { RecentOrderPopupMapper } from "../mapper/recent_order_popup.mapper.js";
+import { MAX_POPUP_ORDERS } from "../config/recent_order_popup.policy.js";
 import { ApiError } from "../utils/ApiError.js";
 import { logger } from "../utils/logger.js";
 
@@ -95,6 +97,9 @@ let storiesCache = null;
 /** The hand-picked home page shelves, memoed on the same terms. */
 let sectionsCache = null;
 
+/** The recent-order pop-up (F-09.09), memoed on the same terms. */
+let popupCache = null;
+
 const readCache = () => {
   if (cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.value;
   return null;
@@ -107,6 +112,7 @@ export const clearStorefrontCache = () => {
   bannersCache = null;
   storiesCache = null;
   sectionsCache = null;
+  popupCache = null;
 };
 
 // ============================================================
@@ -444,6 +450,61 @@ export const StorefrontService = {
       });
 
       throw new ApiError(500, "Failed to load reviews for this piece");
+    }
+  },
+
+  /**
+   * The "Someone from Chennai just bought…" pop-up (F-09.09).
+   *
+   * The shop's switch and timing, and the recent paid orders to cycle
+   * through — a city and a piece each, nothing else about the customer.
+   *
+   * Switched off, or on but with nothing in the window, is a real answer
+   * and not a failure: `orders` is empty and the storefront draws nothing.
+   * A database that has not run migration 036 reads as switched off too,
+   * so deploying this code ahead of the migration changes nothing a
+   * shopper sees.
+   */
+  async getRecentOrders() {
+    if (popupCache && Date.now() - popupCache.at < CACHE_TTL_MS) {
+      return popupCache.value;
+    }
+
+    try {
+      let settingsRow = null;
+
+      try {
+        settingsRow = await StorefrontRepository.popupSettings();
+      } catch (error) {
+        // 42P01 undefined_table: 036 not run yet. Off, not broken.
+        if (error?.code !== "42P01") throw error;
+      }
+
+      const settings = RecentOrderPopupMapper.toSettings(settingsRow);
+
+      const rows = settings.enabled
+        ? await StorefrontRepository.recentOrders(settings.lookbackDays, MAX_POPUP_ORDERS)
+        : [];
+
+      const value = {
+        fetched_at: new Date().toISOString(),
+        enabled: settings.enabled,
+        visibleSeconds: settings.visibleSeconds,
+        intervalSeconds: settings.intervalSeconds,
+        orders: rows.map((row) => RecentOrderPopupMapper.toPublicOrder(row)),
+      };
+
+      popupCache = { at: Date.now(), value };
+
+      return value;
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+
+      logger.error("StorefrontService.getRecentOrders failed", {
+        error: error?.message,
+      });
+
+      throw new ApiError(500, "Failed to load recent orders");
     }
   },
 };

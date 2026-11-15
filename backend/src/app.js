@@ -36,7 +36,9 @@ app.use(
 
 app.use(
   cors({
-    origin: env.corsOrigin,
+    // An array: the cors package echoes back whichever listed origin the
+    // request came from (credentials forbid a wildcard or a list header).
+    origin: env.corsOrigins,
     credentials: true,
   }),
 );
