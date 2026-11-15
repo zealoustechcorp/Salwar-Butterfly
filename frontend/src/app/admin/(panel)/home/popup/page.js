@@ -156,6 +156,7 @@ export default function RecentOrderPopupPage() {
 
   async function submit(event) {
     event.preventDefault();
+    if (!saved?.enabled) return;
     const result = await save({ ...form, enabled: saved.enabled });
     if (result) toast.success("Pop-up settings saved");
   }
@@ -169,6 +170,10 @@ export default function RecentOrderPopupPage() {
       String(form.lookbackDays) !== String(saved.lookbackDays));
 
   const timerMode = form?.displayMode === DISPLAY_MODE.TIMER;
+
+  // The settings below the switch only open up once the pop-up is on.
+  const enabled = Boolean(saved?.enabled);
+  const locked = busy || !enabled;
 
   const setField = (name) => (event) => {
     const value = event.target.value;
@@ -208,7 +213,7 @@ export default function RecentOrderPopupPage() {
             value={form[name]}
             onChange={setField(name)}
             invalid={Boolean(errors[name])}
-            disabled={busy}
+            disabled={locked}
             aria-describedby={hint ? hintId : undefined}
             className="w-20 text-center tabular-nums"
           />
@@ -265,6 +270,17 @@ export default function RecentOrderPopupPage() {
             </div>
 
             <form onSubmit={submit} className="px-4 py-4 sm:px-5" noValidate>
+              {!enabled ? (
+                <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-inset ring-amber-200">
+                  Turn the pop-up on to change these settings.
+                </p>
+              ) : null}
+
+              <fieldset
+                disabled={locked}
+                aria-disabled={!enabled}
+                className={cx("min-w-0 transition-opacity", !enabled && "pointer-events-none opacity-50 select-none")}
+              >
               <div className="flex flex-col gap-2 pb-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                 <p className="text-sm font-medium text-ink-900">How it closes</p>
                 <div
@@ -280,7 +296,7 @@ export default function RecentOrderPopupPage() {
                         type="button"
                         role="radio"
                         aria-checked={selected}
-                        disabled={busy}
+                        disabled={locked}
                         onClick={() => setForm((current) => ({ ...current, displayMode: mode.value }))}
                         className={cx(
                           "inline-flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-center text-sm leading-tight font-medium transition-colors sm:px-3 sm:whitespace-nowrap",
@@ -329,6 +345,7 @@ export default function RecentOrderPopupPage() {
                   {summary(form)}
                 </p>
               ) : null}
+              </fieldset>
 
               <div className="mt-4 flex justify-end">
                 <Button
@@ -336,7 +353,7 @@ export default function RecentOrderPopupPage() {
                   variant="primary"
                   size="sm"
                   busy={busy}
-                  disabled={busy || !dirty}
+                  disabled={locked || !dirty}
                   className="w-full sm:w-auto"
                 >
                   Save
