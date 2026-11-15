@@ -2,15 +2,17 @@
 //
 // The recent-order pop-up's settings (F-09.09). A full replace:
 //
-//   { enabled, lookbackDays, visibleSeconds, intervalSeconds }
+//   { enabled, lookbackDays, displayMode, visibleSeconds, gapSeconds }
 //
-// The gap between pop-ups must be longer than the time each stays up.
+// visibleSeconds is only used in timer mode, but is always sent and kept,
+// so switching back to the timer restores what the shop last chose.
 //
 // Normalised in place, so the service sees booleans and integers only.
 
 import { ApiError } from "../utils/ApiError.js";
 import {
-  INTERVAL_SECONDS,
+  DISPLAY_MODES,
+  GAP_SECONDS,
   LOOKBACK_DAYS,
   VISIBLE_SECONDS,
 } from "../config/recent_order_popup.policy.js";
@@ -19,6 +21,8 @@ const wholeNumberIn = (value, { min, max }) => {
   const number = typeof value === "string" && value.trim() !== "" ? Number(value) : value;
   return Number.isInteger(number) && number >= min && number <= max ? number : null;
 };
+
+const secondsMessage = ({ min, max }) => `Enter a whole number of seconds from ${min} to ${max}`;
 
 export const validatePopupSettings = (req, res, next) => {
   const body = req.body ?? {};
@@ -33,17 +37,15 @@ export const validatePopupSettings = (req, res, next) => {
     errors.lookbackDays = `Enter a whole number of days from ${LOOKBACK_DAYS.min} to ${LOOKBACK_DAYS.max}`;
   }
 
-  const visibleSeconds = wholeNumberIn(body.visibleSeconds, VISIBLE_SECONDS);
-  if (visibleSeconds === null) {
-    errors.visibleSeconds = `Enter a whole number of seconds from ${VISIBLE_SECONDS.min} to ${VISIBLE_SECONDS.max}`;
+  if (!DISPLAY_MODES.includes(body.displayMode)) {
+    errors.displayMode = `Choose one of: ${DISPLAY_MODES.join(", ")}`;
   }
 
-  const intervalSeconds = wholeNumberIn(body.intervalSeconds, INTERVAL_SECONDS);
-  if (intervalSeconds === null) {
-    errors.intervalSeconds = `Enter a whole number of seconds from ${INTERVAL_SECONDS.min} to ${INTERVAL_SECONDS.max}`;
-  } else if (visibleSeconds !== null && intervalSeconds <= visibleSeconds) {
-    errors.intervalSeconds = `Must be longer than the ${visibleSeconds} seconds each pop-up stays on screen`;
-  }
+  const visibleSeconds = wholeNumberIn(body.visibleSeconds, VISIBLE_SECONDS);
+  if (visibleSeconds === null) errors.visibleSeconds = secondsMessage(VISIBLE_SECONDS);
+
+  const gapSeconds = wholeNumberIn(body.gapSeconds, GAP_SECONDS);
+  if (gapSeconds === null) errors.gapSeconds = secondsMessage(GAP_SECONDS);
 
   if (Object.keys(errors).length) {
     throw new ApiError(400, "Validation failed", errors);
@@ -52,8 +54,9 @@ export const validatePopupSettings = (req, res, next) => {
   req.body = {
     enabled: body.enabled,
     lookbackDays,
+    displayMode: body.displayMode,
     visibleSeconds,
-    intervalSeconds,
+    gapSeconds,
   };
 
   next();

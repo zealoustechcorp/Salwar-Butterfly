@@ -476,8 +476,9 @@ export const StorefrontService = {
       try {
         settingsRow = await StorefrontRepository.popupSettings();
       } catch (error) {
-        // 42P01 undefined_table: 036 not run yet. Off, not broken.
-        if (error?.code !== "42P01") throw error;
+        // 42P01 undefined_table / 42703 undefined_column: a pop-up
+        // migration (036, 040) not run yet. Off, not broken.
+        if (error?.code !== "42P01" && error?.code !== "42703") throw error;
       }
 
       const settings = RecentOrderPopupMapper.toSettings(settingsRow);
@@ -489,8 +490,9 @@ export const StorefrontService = {
       const value = {
         fetched_at: new Date().toISOString(),
         enabled: settings.enabled,
+        displayMode: settings.displayMode,
         visibleSeconds: settings.visibleSeconds,
-        intervalSeconds: settings.intervalSeconds,
+        gapSeconds: settings.gapSeconds,
         orders: rows.map((row) => RecentOrderPopupMapper.toPublicOrder(row)),
       };
 

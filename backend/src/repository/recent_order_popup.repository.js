@@ -2,7 +2,7 @@
 //
 // The recent-order pop-up's settings (F-09.09), admin side.
 //
-// One row, id = 1 (036). The orders the pop-up shows are not read here —
+// One row, id = 1 (036/040). The orders the pop-up shows are not read here —
 // that is a public read and lives in storefront.repository.js with the
 // other columns the world may see.
 
@@ -23,13 +23,14 @@ const handleDatabaseError = (error, operation) => {
 const COLUMNS = `
   enabled,
   lookback_days,
+  display_mode,
   visible_seconds,
-  interval_seconds,
+  gap_seconds,
   updated_at
 `;
 
 export const RecentOrderPopupRepository = {
-  /** The settings row, or null if migration 036 has not been run. */
+  /** The settings row, or null if the migrations have not been run. */
   async get() {
     try {
       const result = await query(
@@ -42,23 +43,24 @@ export const RecentOrderPopupRepository = {
   },
 
   /**
-   * A full replace of the four settings. An upsert so a database whose
-   * seed row was deleted by hand heals itself on the next save.
+   * A full replace of the settings. An upsert so a database whose seed row
+   * was deleted by hand heals itself on the next save.
    */
-  async save({ enabled, lookbackDays, visibleSeconds, intervalSeconds }) {
+  async save({ enabled, lookbackDays, displayMode, visibleSeconds, gapSeconds }) {
     try {
       const result = await query(
         `INSERT INTO recent_order_popup_settings
-           (id, enabled, lookback_days, visible_seconds, interval_seconds, updated_at)
-         VALUES (1, $1, $2, $3, $4, NOW())
+           (id, enabled, lookback_days, display_mode, visible_seconds, gap_seconds, updated_at)
+         VALUES (1, $1, $2, $3, $4, $5, NOW())
          ON CONFLICT (id) DO UPDATE SET
-           enabled             = EXCLUDED.enabled,
-           lookback_days       = EXCLUDED.lookback_days,
-           visible_seconds     = EXCLUDED.visible_seconds,
-           interval_seconds    = EXCLUDED.interval_seconds,
-           updated_at          = NOW()
+           enabled         = EXCLUDED.enabled,
+           lookback_days   = EXCLUDED.lookback_days,
+           display_mode    = EXCLUDED.display_mode,
+           visible_seconds = EXCLUDED.visible_seconds,
+           gap_seconds     = EXCLUDED.gap_seconds,
+           updated_at      = NOW()
          RETURNING ${COLUMNS}`,
-        [enabled, lookbackDays, visibleSeconds, intervalSeconds],
+        [enabled, lookbackDays, displayMode, visibleSeconds, gapSeconds],
       );
       return result.rows[0];
     } catch (error) {

@@ -5,13 +5,18 @@
  *
  * A small card in the bottom-left corner that cycles through recent paid
  * orders. The whole card is a link to that piece's page. The ✕ closes the
- * card on screen only: the next order arrives 5 seconds later and the
- * cycle carries on, so the shop's switch in the admin panel is the one way
- * to turn it off.
+ * card on screen only and the cycle carries on, so the shop's switch in the
+ * admin panel is the one way to turn it off.
  *
- * Timing comes from the shop's settings: how long each card stays on
- * screen, and the gap from one card appearing to the next. The first card
- * always comes 5 seconds after a page loads.
+ * Two display modes, chosen by the shop:
+ *
+ *   until_closed  a card stays until the shopper clicks the ✕;
+ *   timer         a card hides itself after the shop's "show for" seconds
+ *                 (or sooner, if the shopper clicks the ✕).
+ *
+ * One gap for everything else: whenever a card goes — timer or ✕ — the
+ * next comes the shop's "next pop-up after" seconds later, and the first
+ * card after a page loads waits the same.
  *
  * Motion (keyframes in globals.css): a card rises in, sinks out when its
  * time is up, and slides off to the left when closed. A thin bar along its
@@ -42,12 +47,6 @@ import { cn } from "@/lib/utils";
 const API_BASE = (
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000/api"
 ).replace(/\/+$/, "");
-
-/**
- * How long after a page loads — or after the shopper closes a card — the
- * next card appears. Fixed, not a setting.
- */
-const FIRST_DELAY_MS = 5000;
 
 /** The length of the leave animations (.sb-popup-out / .sb-popup-dismiss). */
 const EXIT_MS = 300;
@@ -90,7 +89,7 @@ export function RecentOrderPopup() {
   const [current, setCurrent] = useState(null);
   const [phase, setPhase] = useState("in");
   // Bumped once a closed card has slid away. A new value restarts the
-  // cycle below, so the next card comes FIRST_DELAY_MS after the close.
+  // cycle below, so the next card comes the shop's gap after the close.
   const [restart, setRestart] = useState(0);
 
   const indexRef = useRef(0);
@@ -116,12 +115,11 @@ export function RecentOrderPopup() {
       .then((payload) => {
         const data = payload?.data;
         if (data?.enabled && Array.isArray(data.orders) && data.orders.length) {
-          const visibleMs = Math.max(3, Number(data.visibleSeconds ?? 6)) * 1000;
           setFeed({
+            untilClosed: data.displayMode === "until_closed",
             orders: data.orders.filter((order) => order?.product?.slug && order?.city),
-            visibleMs,
-            // Never let a card arrive before the last one has left.
-            intervalMs: Math.max(visibleMs + EXIT_MS, Number(data.intervalSeconds ?? 20) * 1000),
+            visibleMs: Math.max(3, Number(data.visibleSeconds ?? 6)) * 1000,
+            gapMs: Math.max(1, Number(data.gapSeconds ?? 5)) * 1000,
           });
         }
       })
@@ -132,10 +130,10 @@ export function RecentOrderPopup() {
     return () => controller.abort();
   }, []);
 
-  // The cycle: wait 5 seconds, rise in, stay for the shop's on-screen time,
-  // sink out, wait out the rest of the interval, show the next. Closing a
-  // card restarts it from the 5-second wait, moving on to the next order.
-  // Paused (and the card hidden) on the pages it stays off.
+  // The cycle: wait the gap, rise in, then either stay (until closed) or
+  // sink out after the shop's on-screen time (timer). Whenever a card goes —
+  // timer or ✕ — the next comes one gap later. The first card after a page
+  // loads waits the same gap. Paused (and hidden) on the pages it stays off.
   useEffect(() => {
     if (!feed?.orders.length || hidden) return undefined;
 
@@ -147,12 +145,18 @@ export function RecentOrderPopup() {
       setPhase("in");
       setCurrent({ order, key: shownRef.current });
 
+      // Stay-until-closed: nothing more to schedule. The ✕ restarts the
+      // cycle, which brings the next card one gap later.
+      if (feed.untilClosed) return;
+
       later(() => setPhase("out"), feed.visibleMs);
-      later(() => setCurrent(null), feed.visibleMs + EXIT_MS);
-      later(showNext, feed.intervalMs);
+      later(() => {
+        setCurrent(null);
+        later(showNext, feed.gapMs);
+      }, feed.visibleMs + EXIT_MS);
     };
 
-    later(showNext, FIRST_DELAY_MS);
+    later(showNext, feed.gapMs);
 
     return () => {
       clearTimers();
@@ -215,12 +219,15 @@ export function RecentOrderPopup() {
           <X className="size-3.5" aria-hidden="true" />
         </button>
 
-        {/* Time left on screen. Decorative: the card leaves by itself. */}
-        <span
-          aria-hidden="true"
-          className="sb-popup-progress absolute inset-x-0 bottom-0 h-0.5 bg-sb-gold"
-          style={{ animationDuration: `${feed.visibleMs}ms` }}
-        />
+        {/* Time left on screen, in timer mode only. Decorative: the card
+            leaves by itself. */}
+        {feed.untilClosed ? null : (
+          <span
+            aria-hidden="true"
+            className="sb-popup-progress absolute inset-x-0 bottom-0 h-0.5 bg-sb-gold"
+            style={{ animationDuration: `${feed.visibleMs}ms` }}
+          />
+        )}
       </div>
     </div>
   );

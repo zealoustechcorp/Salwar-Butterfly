@@ -7,7 +7,7 @@ import { ProductCard } from "@/components/store/ProductCard";
 import { ProductDetail } from "@/components/store/ProductDetail";
 import { ProductReviews } from "@/components/store/ProductReviews";
 import { money } from "@/lib/format";
-import { SHARE_LOGO, SITE_URL } from "@/lib/site";
+import { SHARE_CARD, SHARE_LOGO, SITE_URL } from "@/lib/site";
 import {
   getProductSlugs,
   getRelatedProducts,
@@ -94,13 +94,16 @@ export async function generateMetadata({ params }) {
   // height and type are stated so a crawler can lay the card out without
   // downloading it first.
   const url = productPath(product);
+  // Versioned so WhatsApp, which caches previews by image URL, fetches the
+  // current card design rather than one it unfurled before.
+  const shareImage = `${url}/share-image?v=${SHARE_CARD.version}`;
   const images = product.image
     ? [
         {
-          url: `${url}/share-image`,
-          secureUrl: `${SITE_URL}${url}/share-image`,
-          width: 1200,
-          height: 630,
+          url: shareImage,
+          secureUrl: `${SITE_URL}${shareImage}`,
+          width: SHARE_CARD.width,
+          height: SHARE_CARD.height,
           type: "image/jpeg",
           alt: product.name,
         },
