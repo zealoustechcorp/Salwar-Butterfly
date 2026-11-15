@@ -2,7 +2,7 @@
 //
 // The recent-order pop-up's settings (F-09.09). A full replace:
 //
-//   { enabled, lookbackDays, visibleSeconds, intervalSeconds }
+//   { enabled, lookbackDays, displayMode, visibleSeconds, intervalSeconds, closeDelaySeconds }
 //
 // The gap between pop-ups must be longer than the time each stays up.
 //
@@ -10,6 +10,8 @@
 
 import { ApiError } from "../utils/ApiError.js";
 import {
+  CLOSE_DELAY_SECONDS,
+  DISPLAY_MODES,
   INTERVAL_SECONDS,
   LOOKBACK_DAYS,
   VISIBLE_SECONDS,
@@ -33,6 +35,10 @@ export const validatePopupSettings = (req, res, next) => {
     errors.lookbackDays = `Enter a whole number of days from ${LOOKBACK_DAYS.min} to ${LOOKBACK_DAYS.max}`;
   }
 
+  if (!DISPLAY_MODES.includes(body.displayMode)) {
+    errors.displayMode = `Choose one of: ${DISPLAY_MODES.join(", ")}`;
+  }
+
   const visibleSeconds = wholeNumberIn(body.visibleSeconds, VISIBLE_SECONDS);
   if (visibleSeconds === null) {
     errors.visibleSeconds = `Enter a whole number of seconds from ${VISIBLE_SECONDS.min} to ${VISIBLE_SECONDS.max}`;
@@ -45,6 +51,11 @@ export const validatePopupSettings = (req, res, next) => {
     errors.intervalSeconds = `Must be longer than the ${visibleSeconds} seconds each pop-up stays on screen`;
   }
 
+  const closeDelaySeconds = wholeNumberIn(body.closeDelaySeconds, CLOSE_DELAY_SECONDS);
+  if (closeDelaySeconds === null) {
+    errors.closeDelaySeconds = `Enter a whole number of seconds from ${CLOSE_DELAY_SECONDS.min} to ${CLOSE_DELAY_SECONDS.max}`;
+  }
+
   if (Object.keys(errors).length) {
     throw new ApiError(400, "Validation failed", errors);
   }
@@ -52,8 +63,10 @@ export const validatePopupSettings = (req, res, next) => {
   req.body = {
     enabled: body.enabled,
     lookbackDays,
+    displayMode: body.displayMode,
     visibleSeconds,
     intervalSeconds,
+    closeDelaySeconds,
   };
 
   next();

@@ -5,13 +5,18 @@
  *
  * A small card in the bottom-left corner that cycles through recent paid
  * orders. The whole card is a link to that piece's page. The ✕ closes the
- * card on screen only: the next order arrives 5 seconds later and the
+ * card on screen only: the next order arrives after the shop's closing delay and the
  * cycle carries on, so the shop's switch in the admin panel is the one way
  * to turn it off.
  *
- * Timing comes from the shop's settings: how long each card stays on
- * screen, and the gap from one card appearing to the next. The first card
- * always comes 5 seconds after a page loads.
+ * Two display modes, chosen by the shop:
+ *
+ *   timer         each card hides itself after the shop's on-screen time,
+ *                 and the next comes on the shop's interval;
+ *   until_closed  a card stays until the shopper clicks the ✕.
+ *
+ * In both, the first card comes 5 seconds after a page loads, and closing
+ * one brings the next after the shop's closing delay.
  *
  * Motion (keyframes in globals.css): a card rises in, sinks out when its
  * time is up, and slides off to the left when closed. A thin bar along its
@@ -44,8 +49,8 @@ const API_BASE = (
 ).replace(/\/+$/, "");
 
 /**
- * How long after a page loads — or after the shopper closes a card — the
- * next card appears. Fixed, not a setting.
+ * How long after a page loads the first card appears. Fixed, not a
+ * setting. (After a close, the shop's closing delay is used instead.)
  */
 const FIRST_DELAY_MS = 5000;
 
@@ -90,8 +95,11 @@ export function RecentOrderPopup() {
   const [current, setCurrent] = useState(null);
   const [phase, setPhase] = useState("in");
   // Bumped once a closed card has slid away. A new value restarts the
-  // cycle below, so the next card comes FIRST_DELAY_MS after the close.
+  // cycle below, so the next card comes the closing delay after the close.
   const [restart, setRestart] = useState(0);
+  // Whether the next restart of the cycle is because of a close, so it
+  // waits the closing delay rather than the first-load 5 seconds.
+  const afterCloseRef = useRef(false);
 
   const indexRef = useRef(0);
   const shownRef = useRef(0);
@@ -118,10 +126,12 @@ export function RecentOrderPopup() {
         if (data?.enabled && Array.isArray(data.orders) && data.orders.length) {
           const visibleMs = Math.max(3, Number(data.visibleSeconds ?? 6)) * 1000;
           setFeed({
+            untilClosed: data.displayMode === "until_closed",
             orders: data.orders.filter((order) => order?.product?.slug && order?.city),
             visibleMs,
             // Never let a card arrive before the last one has left.
             intervalMs: Math.max(visibleMs + EXIT_MS, Number(data.intervalSeconds ?? 20) * 1000),
+            closeDelayMs: Math.max(1, Number(data.closeDelaySeconds ?? 5)) * 1000,
           });
         }
       })
@@ -147,12 +157,18 @@ export function RecentOrderPopup() {
       setPhase("in");
       setCurrent({ order, key: shownRef.current });
 
+      // Stay-until-closed: nothing more to schedule. The ✕ restarts the
+      // cycle, which brings the next card the closing delay later.
+      if (feed.untilClosed) return;
+
       later(() => setPhase("out"), feed.visibleMs);
       later(() => setCurrent(null), feed.visibleMs + EXIT_MS);
       later(showNext, feed.intervalMs);
     };
 
-    later(showNext, FIRST_DELAY_MS);
+    const firstDelay = afterCloseRef.current ? feed.closeDelayMs : FIRST_DELAY_MS;
+    afterCloseRef.current = false;
+    later(showNext, firstDelay);
 
     return () => {
       clearTimers();
@@ -164,7 +180,10 @@ export function RecentOrderPopup() {
   const dismiss = useCallback(() => {
     clearTimers();
     setPhase("dismiss");
-    later(() => setRestart((n) => n + 1), EXIT_MS);
+    later(() => {
+      afterCloseRef.current = true;
+      setRestart((n) => n + 1);
+    }, EXIT_MS);
   }, [clearTimers, later]);
 
   if (!current || hidden) return null;
@@ -215,12 +234,15 @@ export function RecentOrderPopup() {
           <X className="size-3.5" aria-hidden="true" />
         </button>
 
-        {/* Time left on screen. Decorative: the card leaves by itself. */}
-        <span
-          aria-hidden="true"
-          className="sb-popup-progress absolute inset-x-0 bottom-0 h-0.5 bg-sb-gold"
-          style={{ animationDuration: `${feed.visibleMs}ms` }}
-        />
+        {/* Time left on screen, in timer mode only. Decorative: the card
+            leaves by itself. */}
+        {feed.untilClosed ? null : (
+          <span
+            aria-hidden="true"
+            className="sb-popup-progress absolute inset-x-0 bottom-0 h-0.5 bg-sb-gold"
+            style={{ animationDuration: `${feed.visibleMs}ms` }}
+          />
+        )}
       </div>
     </div>
   );

@@ -12,6 +12,9 @@
 //               in storefront.repository.js is what enforces it.
 
 import {
+  CLOSE_DELAY_SECONDS,
+  DEFAULT_DISPLAY_MODE,
+  DISPLAY_MODES,
   INTERVAL_SECONDS,
   LOOKBACK_DAYS,
   VISIBLE_SECONDS,
@@ -23,8 +26,12 @@ export const RecentOrderPopupMapper = {
     return {
       enabled: Boolean(row?.enabled),
       lookbackDays: Number(row?.lookback_days ?? LOOKBACK_DAYS.default),
+      displayMode: DISPLAY_MODES.includes(row?.display_mode)
+        ? row.display_mode
+        : DEFAULT_DISPLAY_MODE,
       visibleSeconds: Number(row?.visible_seconds ?? VISIBLE_SECONDS.default),
       intervalSeconds: Number(row?.interval_seconds ?? INTERVAL_SECONDS.default),
+      closeDelaySeconds: Number(row?.close_delay_seconds ?? CLOSE_DELAY_SECONDS.default),
       updatedAt: row?.updated_at ?? null,
     };
   },

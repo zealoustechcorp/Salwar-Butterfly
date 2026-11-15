@@ -16,7 +16,7 @@ const router = express.Router();
 
 router.get("/getSettings", RecentOrderPopupController.getSettings);
 
-// A full replace of the four settings.
+// A full replace of the six settings.
 router.put("/updateSettings", validatePopupSettings, RecentOrderPopupController.updateSettings);
 
 export default router;

@@ -26,9 +26,12 @@ import {
   Input,
   SkeletonRows,
   Toggle,
+  cx,
   useToast,
 } from "@/components/admin/ui";
 import {
+  CLOSE_DELAY_SECONDS,
+  DISPLAY_MODE,
   INTERVAL_SECONDS,
   LOOKBACK_DAYS,
   MAX_POPUP_ORDERS,
@@ -41,6 +44,7 @@ const RANGES = {
   lookbackDays: LOOKBACK_DAYS,
   visibleSeconds: VISIBLE_SECONDS,
   intervalSeconds: INTERVAL_SECONDS,
+  closeDelaySeconds: CLOSE_DELAY_SECONDS,
 };
 
 /** The no-overlap rule, mirrored from the validator and the CHECK in 036. */
@@ -51,13 +55,34 @@ function overlapError(next) {
   return null;
 }
 
+/** The two ways a card can leave the screen, as the radio cards show them. */
+const MODE_OPTIONS = [
+  {
+    value: DISPLAY_MODE.TIMER,
+    label: "Timer",
+    description: "Each pop-up hides itself after a few seconds, and the next one follows on its own.",
+  },
+  {
+    value: DISPLAY_MODE.UNTIL_CLOSED,
+    label: "Stay until closed",
+    description: "A pop-up stays on screen until the shopper clicks ✕. The next one comes after the delay you set below.",
+  },
+];
+
 /** The timing as a sentence, so the shop can read what the numbers mean. */
-function timeline({ visibleSeconds, intervalSeconds }) {
+function timeline({ displayMode, visibleSeconds, intervalSeconds, closeDelaySeconds }) {
+  const closeDelay = Number(closeDelaySeconds);
+  if (!Number.isInteger(closeDelay) || closeDelay < 1) return null;
+
+  if (displayMode === DISPLAY_MODE.UNTIL_CLOSED) {
+    return `First pop-up 5s after a page loads. It stays until the shopper clicks ✕, then the next one comes ${closeDelay}s later, and so on.`;
+  }
+
   const visible = Number(visibleSeconds);
   const interval = Number(intervalSeconds);
   if (!Number.isInteger(visible) || !Number.isInteger(interval) || interval <= visible) return null;
 
-  return `First pop-up 5s after a page loads, on screen for ${visible}s, then ${interval - visible}s empty, next pop-up at ${5 + interval}s, and so on. Closing one brings the next 5s later.`;
+  return `First pop-up 5s after a page loads, on screen for ${visible}s, then ${interval - visible}s empty, next pop-up at ${5 + interval}s, and so on. Closing one brings the next ${closeDelay}s later.`;
 }
 
 /** A field's own error, checked here before the server is asked. */
@@ -116,6 +141,8 @@ export default function RecentOrderPopupPage() {
       if (message) fieldErrors[name] = message;
     }
     if (!fieldErrors.visibleSeconds && !fieldErrors.intervalSeconds) {
+      // Checked in both modes: the numbers are kept for when the shop
+      // switches back to Timer, and the server holds them to the same rule.
       const message = overlapError(next);
       if (message) fieldErrors.intervalSeconds = message;
     }
@@ -160,9 +187,13 @@ export default function RecentOrderPopupPage() {
   const dirty =
     form &&
     saved &&
-    (String(form.lookbackDays) !== String(saved.lookbackDays) ||
+    (form.displayMode !== saved.displayMode ||
+      String(form.lookbackDays) !== String(saved.lookbackDays) ||
       String(form.visibleSeconds) !== String(saved.visibleSeconds) ||
-      String(form.intervalSeconds) !== String(saved.intervalSeconds));
+      String(form.intervalSeconds) !== String(saved.intervalSeconds) ||
+      String(form.closeDelaySeconds) !== String(saved.closeDelaySeconds));
+
+  const timerMode = form?.displayMode !== DISPLAY_MODE.UNTIL_CLOSED;
 
   const setField = (name) => (event) => {
     const value = event.target.value;
@@ -222,7 +253,44 @@ export default function RecentOrderPopupPage() {
             </div>
 
             <form onSubmit={saveNumbers} className="space-y-4 px-4 py-4 sm:px-5" noValidate>
-              <div className="grid gap-4 sm:grid-cols-3">
+              <fieldset disabled={busy}>
+                <legend className="mb-1.5 text-xs font-semibold text-ink-700">Display mode</legend>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {MODE_OPTIONS.map((option) => {
+                    const selected = form.displayMode === option.value;
+                    return (
+                      <label
+                        key={option.value}
+                        className={cx(
+                          "flex cursor-pointer items-start gap-3 rounded-lg p-3 ring-1 ring-inset transition-colors",
+                          selected ? "bg-brand-50 ring-brand-600" : "ring-ink-200 hover:bg-ink-50",
+                        )}
+                      >
+                        <input
+                          type="radio"
+                          name="displayMode"
+                          value={option.value}
+                          checked={selected}
+                          onChange={() => {
+                            setForm((current) => ({ ...current, displayMode: option.value }));
+                            setErrors((current) => ({ ...current, displayMode: undefined }));
+                          }}
+                          className="mt-0.5 accent-brand-600"
+                        />
+                        <span className="min-w-0">
+                          <span className="block text-sm font-medium text-ink-900">{option.label}</span>
+                          <span className="mt-0.5 block text-xs text-ink-500">{option.description}</span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+                {errors.displayMode ? (
+                  <p className="mt-1 text-xs text-red-600">{errors.displayMode}</p>
+                ) : null}
+              </fieldset>
+
+              <div className="grid gap-4 sm:grid-cols-2">
                 <Field
                   label="Look-back window (days)"
                   hint={`Orders paid in the last ${LOOKBACK_DAYS.min}–${LOOKBACK_DAYS.max} days.`}
@@ -243,7 +311,11 @@ export default function RecentOrderPopupPage() {
 
                 <Field
                   label="Each pop-up stays (seconds)"
-                  hint={`How long one is on screen, ${VISIBLE_SECONDS.min}–${VISIBLE_SECONDS.max}.`}
+                  hint={
+                    timerMode
+                      ? `How long one is on screen, ${VISIBLE_SECONDS.min}–${VISIBLE_SECONDS.max}.`
+                      : "Not used: each pop-up stays until it is closed."
+                  }
                   error={errors.visibleSeconds}
                 >
                   <Input
@@ -255,13 +327,17 @@ export default function RecentOrderPopupPage() {
                     value={form.visibleSeconds}
                     onChange={setField("visibleSeconds")}
                     invalid={Boolean(errors.visibleSeconds)}
-                    disabled={busy}
+                    disabled={busy || !timerMode}
                   />
                 </Field>
 
                 <Field
                   label="Time between pop-ups (seconds)"
-                  hint={`From one appearing to the next. ${INTERVAL_SECONDS.min}–${INTERVAL_SECONDS.max}, and longer than the time each stays.`}
+                  hint={
+                    timerMode
+                      ? `From one appearing to the next. ${INTERVAL_SECONDS.min}–${INTERVAL_SECONDS.max}, and longer than the time each stays.`
+                      : "Not used: the next comes after the closing delay."
+                  }
                   error={errors.intervalSeconds}
                 >
                   <Input
@@ -273,6 +349,24 @@ export default function RecentOrderPopupPage() {
                     value={form.intervalSeconds}
                     onChange={setField("intervalSeconds")}
                     invalid={Boolean(errors.intervalSeconds)}
+                    disabled={busy || !timerMode}
+                  />
+                </Field>
+
+                <Field
+                  label="After closing, next pop-up in (seconds)"
+                  hint={`When a shopper clicks ✕, in either mode. ${CLOSE_DELAY_SECONDS.min}–${CLOSE_DELAY_SECONDS.max}.`}
+                  error={errors.closeDelaySeconds}
+                >
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    min={CLOSE_DELAY_SECONDS.min}
+                    max={CLOSE_DELAY_SECONDS.max}
+                    step={1}
+                    value={form.closeDelaySeconds}
+                    onChange={setField("closeDelaySeconds")}
+                    invalid={Boolean(errors.closeDelaySeconds)}
                     disabled={busy}
                   />
                 </Field>

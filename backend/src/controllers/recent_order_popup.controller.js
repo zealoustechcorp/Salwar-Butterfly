@@ -17,7 +17,7 @@ export const RecentOrderPopupController = {
     return okResponse({ res, data: settings, message: "Pop-up settings fetched successfully" });
   }),
 
-  /** PUT /api/recentOrderPopup/updateSettings — { enabled, lookbackDays, visibleSeconds, intervalSeconds } */
+  /** PUT /api/recentOrderPopup/updateSettings — { enabled, lookbackDays, displayMode, visibleSeconds, intervalSeconds, closeDelaySeconds } */
   updateSettings: asyncHandler(async (req, res) => {
     const settings = await RecentOrderPopupService.updateSettings(req.body);
 

@@ -23,8 +23,10 @@ const handleDatabaseError = (error, operation) => {
 const COLUMNS = `
   enabled,
   lookback_days,
+  display_mode,
   visible_seconds,
   interval_seconds,
+  close_delay_seconds,
   updated_at
 `;
 
@@ -42,23 +44,25 @@ export const RecentOrderPopupRepository = {
   },
 
   /**
-   * A full replace of the four settings. An upsert so a database whose
+   * A full replace of the six settings. An upsert so a database whose
    * seed row was deleted by hand heals itself on the next save.
    */
-  async save({ enabled, lookbackDays, visibleSeconds, intervalSeconds }) {
+  async save({ enabled, lookbackDays, displayMode, visibleSeconds, intervalSeconds, closeDelaySeconds }) {
     try {
       const result = await query(
         `INSERT INTO recent_order_popup_settings
-           (id, enabled, lookback_days, visible_seconds, interval_seconds, updated_at)
-         VALUES (1, $1, $2, $3, $4, NOW())
+           (id, enabled, lookback_days, display_mode, visible_seconds, interval_seconds, close_delay_seconds, updated_at)
+         VALUES (1, $1, $2, $3, $4, $5, $6, NOW())
          ON CONFLICT (id) DO UPDATE SET
            enabled             = EXCLUDED.enabled,
            lookback_days       = EXCLUDED.lookback_days,
+           display_mode        = EXCLUDED.display_mode,
            visible_seconds     = EXCLUDED.visible_seconds,
            interval_seconds    = EXCLUDED.interval_seconds,
+           close_delay_seconds = EXCLUDED.close_delay_seconds,
            updated_at          = NOW()
          RETURNING ${COLUMNS}`,
-        [enabled, lookbackDays, visibleSeconds, intervalSeconds],
+        [enabled, lookbackDays, displayMode, visibleSeconds, intervalSeconds, closeDelaySeconds],
       );
       return result.rows[0];
     } catch (error) {

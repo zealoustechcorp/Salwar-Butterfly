@@ -18,6 +18,12 @@ import { api } from "./client";
 
 /** Mirrors backend/src/config/recent_order_popup.policy.js and the CHECKs in 036. */
 export const LOOKBACK_DAYS = { min: 1, max: 90, default: 7 };
+/** Mirrors DISPLAY_MODE in the policy and the CHECK in 038. */
+export const DISPLAY_MODE = { TIMER: "timer", UNTIL_CLOSED: "until_closed" };
+
+/** Mirrors CLOSE_DELAY_SECONDS and the CHECK in 039. */
+export const CLOSE_DELAY_SECONDS = { min: 1, max: 600, default: 5 };
+
 export const VISIBLE_SECONDS = { min: 3, max: 30, default: 6 };
 export const INTERVAL_SECONDS = { min: 10, max: 600, default: 20 };
 
@@ -28,8 +34,10 @@ export function toSettings(dto) {
   return {
     enabled: Boolean(dto?.enabled),
     lookbackDays: Number(dto?.lookbackDays ?? LOOKBACK_DAYS.default),
+    displayMode: dto?.displayMode === DISPLAY_MODE.UNTIL_CLOSED ? DISPLAY_MODE.UNTIL_CLOSED : DISPLAY_MODE.TIMER,
     visibleSeconds: Number(dto?.visibleSeconds ?? VISIBLE_SECONDS.default),
     intervalSeconds: Number(dto?.intervalSeconds ?? INTERVAL_SECONDS.default),
+    closeDelaySeconds: Number(dto?.closeDelaySeconds ?? CLOSE_DELAY_SECONDS.default),
     updatedAt: dto?.updatedAt ?? null,
   };
 }
@@ -38,13 +46,22 @@ export async function getPopupSettings({ signal } = {}) {
   return toSettings(await api.get("/recentOrderPopup/getSettings", { signal }));
 }
 
-/** A full replace of the four settings; returns what was saved. */
-export async function updatePopupSettings({ enabled, lookbackDays, visibleSeconds, intervalSeconds }) {
+/** A full replace of the six settings; returns what was saved. */
+export async function updatePopupSettings({
+  enabled,
+  lookbackDays,
+  displayMode,
+  visibleSeconds,
+  intervalSeconds,
+  closeDelaySeconds,
+}) {
   const data = await api.put("/recentOrderPopup/updateSettings", {
     enabled: Boolean(enabled),
     lookbackDays: Number(lookbackDays),
+    displayMode,
     visibleSeconds: Number(visibleSeconds),
     intervalSeconds: Number(intervalSeconds),
+    closeDelaySeconds: Number(closeDelaySeconds),
   });
 
   return toSettings(data);

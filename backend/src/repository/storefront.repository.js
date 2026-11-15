@@ -536,7 +536,8 @@ const RECENT_ORDERS_SQL = `
 
 /** The pop-up's switch and timing (036). The public half of a settings row. */
 const POPUP_SETTINGS_SQL = `
-  SELECT enabled, lookback_days, visible_seconds, interval_seconds
+  SELECT enabled, lookback_days, display_mode, visible_seconds, interval_seconds,
+         close_delay_seconds
   FROM recent_order_popup_settings
   WHERE id = 1
 `;
