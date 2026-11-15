@@ -76,6 +76,7 @@ const FEATURES = [
       { href: "/admin/home/carousel", label: "Carousel" },
       { href: "/admin/home/sections/custom", label: "Custom section" },
       { href: "/admin/home/stories", label: "Customer stories" },
+      { href: "/admin/home/popup", label: "Recent orders pop-up" },
     ],
   },
   { label: "Reports", name: "Reports", href: "/admin/reports" },

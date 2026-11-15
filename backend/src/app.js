@@ -38,16 +38,17 @@ app.use(
 // CORS CONFIGURATION
 // ============================================================
 
-const allowedOrigins = (
-  Array.isArray(env.corsOrigin)
-    ? env.corsOrigin
-    : String(env.corsOrigin || "").split(",")
-)
-  .map((origin) => origin.trim().replace(/\/$/, ""))
-  .filter(Boolean);
+// CORS_ORIGIN is a comma-separated list, parsed and validated once in
+// config/env.js: each entry reduced to its origin (scheme + host + port, no
+// trailing slash), so it compares exactly against the browser's Origin header.
+const allowedOrigins = env.corsOrigins;
 
 app.use(
   cors({
+    // A callback rather than the bare array so a refused origin is logged —
+    // a misconfigured CORS_ORIGIN otherwise fails silently in the browser.
+    // The cors package echoes back the matched origin (credentials forbid a
+    // wildcard or a list header).
     origin: (origin, callback) => {
       // Allow requests without an Origin header (e.g. server-to-server)
       if (!origin) {

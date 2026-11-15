@@ -22,6 +22,7 @@ import sizeChartRoutes from './size_chart.routes.js';
 import bannerRoutes from './banner.routes.js';
 import customerStoryRoutes from './customer_story.routes.js';
 import homeSectionRoutes from './home_section.routes.js';
+import recentOrderPopupRoutes from './recent_order_popup.routes.js';
 
 import { authenticate } from '../middlewares/auth.middleware.js';
 import { requireAdmin } from '../middlewares/authorize.middleware.js';
@@ -162,5 +163,10 @@ router.use('/customerStories', adminOnly, customerStoryRoutes);
 // festival sales (F-06). Every endpoint changes what shoppers see first.
 // What they read is /storefront/getHomeSections.
 router.use('/homeSections', adminOnly, homeSectionRoutes);
+
+// The "someone just bought this" pop-up (F-09.09): its switch, look-back
+// window and timing. What shoppers read is /storefront/getRecentOrders,
+// which publishes a city and a piece and nothing else about the order.
+router.use('/recentOrderPopup', adminOnly, recentOrderPopupRoutes);
 
 export default router;

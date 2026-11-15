@@ -478,7 +478,90 @@ const HOME_SECTIONS_SQL = `
   ORDER BY s.position ASC, s.created_at ASC, s.id ASC
 `;
 
+// ============================================================
+// RECENT ORDERS POP-UP (F-09.09)
+// ============================================================
+//
+// The orders behind the "Someone from Chennai just bought…" pop-up.
+//
+// The column list is the privacy decision, so read it twice: the shipping
+// CITY and nothing else about the customer. No name, phone, email, street,
+// PIN code, order number, amount or id. The shop chose "Someone from
+// <city>", and a reader that selected `o.*` would publish the address book
+// the first time somebody mapped one more field.
+//
+// Eligible orders: paid (not pending, failed, refunded or partly refunded)
+// and not cancelled, paid within the shop's look-back window ($1 days).
+// One piece per order — its first line whose product is still on sale in
+// a visible category, so the link on the pop-up never opens a dead page.
+// An order whose every piece has since been taken down is skipped.
+//
+// The product's name, slug and photograph are read live from the
+// catalogue rather than from the order line's snapshot, so the pop-up
+// matches the page it links to.
+
+const RECENT_ORDERS_SQL = `
+  SELECT
+    INITCAP(TRIM(o.shipping_city))  AS city,
+    COALESCE(o.paid_at, o.placed_at) AS ordered_at,
+    p.name                           AS product_name,
+    p.slug                           AS product_slug,
+    photo.image_url                  AS product_image
+  FROM orders o
+  CROSS JOIN LATERAL (
+    SELECT oi.product_id
+    FROM order_items oi
+    JOIN products p ON p.id = oi.product_id
+    WHERE oi.order_id = o.id
+      AND p.active = TRUE
+      AND ${PRODUCT_CATEGORY_VISIBLE}
+    ORDER BY oi.created_at ASC, oi.id ASC
+    LIMIT 1
+  ) item
+  JOIN products p ON p.id = item.product_id
+  LEFT JOIN LATERAL (
+    SELECT pi.image_url
+    FROM product_images pi
+    WHERE pi.product_id = p.id
+    ORDER BY pi.position ASC, pi.created_at ASC
+    LIMIT 1
+  ) photo ON TRUE
+  WHERE o.payment_status = 'paid'
+    AND o.status <> 'cancelled'
+    AND COALESCE(o.paid_at, o.placed_at) >= NOW() - make_interval(days => $1::int)
+    AND NULLIF(TRIM(o.shipping_city), '') IS NOT NULL
+  ORDER BY COALESCE(o.paid_at, o.placed_at) DESC, o.id DESC
+  LIMIT $2
+`;
+
+/** The pop-up's switch and timing (036). The public half of a settings row. */
+const POPUP_SETTINGS_SQL = `
+  SELECT enabled, lookback_days, visible_seconds, interval_seconds
+  FROM recent_order_popup_settings
+  WHERE id = 1
+`;
+
 export const StorefrontRepository = {
+  /** The pop-up's settings row, or null where 036 left none. */
+  async popupSettings() {
+    try {
+      const result = await query(POPUP_SETTINGS_SQL);
+      return result.rows[0] ?? null;
+    } catch (error) {
+      throw handleDatabaseError(error, "popupSettings");
+    }
+  },
+
+  /** Recent paid orders for the pop-up, newest first: a city and a piece each. */
+  async recentOrders(lookbackDays, limit) {
+    try {
+      const result = await query(RECENT_ORDERS_SQL, [lookbackDays, limit]);
+      return result.rows;
+    } catch (error) {
+      throw handleDatabaseError(error, "recentOrders");
+    }
+  },
+
   /** The live hand-picked shelves, in the shop's order. */
   async homeSections() {
     try {

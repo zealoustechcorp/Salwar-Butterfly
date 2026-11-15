@@ -1,6 +1,7 @@
 import { AuthProvider } from "@/components/store/AuthProvider";
 import { BrowseProvider } from "@/components/store/BrowseProvider";
 import { Clarity } from "@/components/store/Clarity";
+import { RecentOrderPopup } from "@/components/store/RecentOrderPopup";
 import { SizeChartProvider } from "@/components/store/SizeChart";
 import { StoreFooter } from "@/components/store/StoreFooter";
 import { StoreHeader } from "@/components/store/StoreHeader";
@@ -71,6 +72,11 @@ export default async function StorefrontLayout({ children }) {
                 />
                 <main className="flex-1">{children}</main>
                 <StoreFooter shop={shop} />
+                {/* "Someone from Chennai just bought…" (F-09.09). Off until
+                    the shop switches it on in Admin > Home page; it reads its
+                    own data in the browser and hides itself on bag, checkout
+                    and account. */}
+                <RecentOrderPopup />
               </SizeChartProvider>
             </BrowseProvider>
           </StoreProvider>

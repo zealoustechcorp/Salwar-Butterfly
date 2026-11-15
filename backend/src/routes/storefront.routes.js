@@ -81,4 +81,13 @@ router.get("/getHomeSections", StorefrontController.getHomeSections);
 // already published by the Department of Posts.
 router.get("/getPincode/:pincode", StorefrontController.getPincode);
 
+// The "Someone from Chennai just bought…" pop-up (F-09.09).
+//
+// The seventh public read, and the first that touches `orders`, so its
+// column list in storefront.repository.js is the one to read twice: the
+// shipping city, the piece's name, slug and photograph, and when it was
+// paid. No name, contact, street, PIN code, amount or order number. When
+// the shop has the pop-up switched off, this returns no orders at all.
+router.get("/getRecentOrders", StorefrontController.getRecentOrders);
+
 export default router;

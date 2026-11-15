@@ -188,4 +188,27 @@ export const StorefrontController = {
       message: "PIN code found",
     });
   }),
+
+  /**
+   * GET /api/storefront/getRecentOrders
+   *
+   * The recent-order pop-up (F-09.09): the shop's switch and timing, and
+   * the recent paid orders as a city and a piece each.
+   *
+   * Thirty seconds in front of it. Short enough that the shop switching it
+   * off from the admin panel takes effect within a minute, long enough that
+   * every page view is not a query on `orders`.
+   */
+  getRecentOrders: asyncHandler(async (req, res) => {
+    const popup = await StorefrontService.getRecentOrders();
+
+    res.set("Cache-Control", "public, max-age=30, stale-while-revalidate=60");
+
+    return okResponse({
+      res,
+      data: popup,
+      message: "Recent orders fetched successfully",
+      meta: { counts: { orders: popup.orders.length } },
+    });
+  }),
 };

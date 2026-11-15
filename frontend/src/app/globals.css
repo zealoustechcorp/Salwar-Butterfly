@@ -467,9 +467,44 @@ body {
   animation: sb-fade-up 0.18s ease-out both;
 }
 
+/* The recent-order pop-up (F-09.09): rises in, sinks out when its time is
+   up, slides off to the left when closed with the ✕. The bar along its
+   foot empties over the time it stays on screen. */
+@keyframes sb-popup-in {
+  from { opacity: 0; transform: translateY(18px) scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes sb-popup-out {
+  from { opacity: 1; transform: none; }
+  to   { opacity: 0; transform: translateY(14px) scale(0.97); }
+}
+@keyframes sb-popup-dismiss {
+  from { opacity: 1; transform: none; }
+  to   { opacity: 0; transform: translateX(-110%); }
+}
+@keyframes sb-popup-progress {
+  from { transform: scaleX(1); }
+  to   { transform: scaleX(0); }
+}
+.sb-popup-in      { animation: sb-popup-in 0.4s cubic-bezier(0.2, 0.9, 0.3, 1.15) both; }
+.sb-popup-out     { animation: sb-popup-out 0.3s ease-in both; }
+.sb-popup-dismiss { animation: sb-popup-dismiss 0.3s ease-in both; }
+.sb-popup-progress {
+  transform-origin: left;
+  animation-name: sb-popup-progress;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .sb-enter {
+  .sb-enter,
+  .sb-popup-in,
+  .sb-popup-out,
+  .sb-popup-dismiss {
     animation: none;
+  }
+  .sb-popup-progress {
+    display: none;
   }
 }
 
