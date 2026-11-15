@@ -9,7 +9,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { logger } from "../utils/logger.js";
 
 // 42P01 undefined_table / 42703 undefined_column: one of the pop-up
-// migrations (036–039) has not been run on this database yet.
+// migrations (036, 040) has not been run on this database yet.
 const notMigrated = (error) => error?.code === "42P01" || error?.code === "42703";
 
 const notMigratedError = () =>

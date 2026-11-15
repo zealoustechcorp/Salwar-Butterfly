@@ -3,7 +3,7 @@
 // The recent-order pop-up (F-09.09). Two shapes, for two readers.
 //
 //   toSettings  the admin screen, and the timing half of the public read:
-//               the switch and the three numbers.
+//               the switch, look-back, mode and two timings.
 //
 //   toPublicOrder  one entry the storefront cycles through: the city, the
 //               piece (name, slug for the link, photograph) and when it
@@ -12,10 +12,9 @@
 //               in storefront.repository.js is what enforces it.
 
 import {
-  CLOSE_DELAY_SECONDS,
   DEFAULT_DISPLAY_MODE,
   DISPLAY_MODES,
-  INTERVAL_SECONDS,
+  GAP_SECONDS,
   LOOKBACK_DAYS,
   VISIBLE_SECONDS,
 } from "../config/recent_order_popup.policy.js";
@@ -30,8 +29,7 @@ export const RecentOrderPopupMapper = {
         ? row.display_mode
         : DEFAULT_DISPLAY_MODE,
       visibleSeconds: Number(row?.visible_seconds ?? VISIBLE_SECONDS.default),
-      intervalSeconds: Number(row?.interval_seconds ?? INTERVAL_SECONDS.default),
-      closeDelaySeconds: Number(row?.close_delay_seconds ?? CLOSE_DELAY_SECONDS.default),
+      gapSeconds: Number(row?.gap_seconds ?? GAP_SECONDS.default),
       updatedAt: row?.updated_at ?? null,
     };
   },
