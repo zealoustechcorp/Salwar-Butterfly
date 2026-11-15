@@ -2,21 +2,39 @@
  * The storefront's public origin — what search engines, link previews and
  * the sitemap call this site.
  *
- * Inlined at build time like every NEXT_PUBLIC_ variable, so it has to be
- * set in the build environment, not only at runtime.
+ * Set by NEXT_PUBLIC_SITE_URL. Inlined at build time like every
+ * NEXT_PUBLIC_ variable, so it has to be set in the build environment
+ * (Hostinger's environment variables), not only at runtime.
  *
- * Unset, it falls back to `URL`, which Netlify sets on every build to the
- * site's main address (the custom domain once one is attached, otherwise
- * the *.netlify.app one). Without that the production build fell through
- * to localhost, and every canonical URL and og:image pointed there — a
- * shared product link unfurled with no picture. Only server code reads
- * this, which is where `URL` is visible; localhost is left for a laptop.
+ * The site and API are both hosted on Hostinger. Its build does not see
+ * .env.production (gitignored), so a production build there baked in
+ * localhost, and every og:image, og:url and canonical pointed at
+ * http://localhost:3000: shared links unfurled with no picture at all
+ * (seen live 2026-11-15). A production build therefore never uses a
+ * localhost origin, whether the variable is unset or was copied off
+ * .env.example; it falls back to the live address. Localhost is left for
+ * a laptop running `next dev`.
  */
-export const SITE_URL = (
-  process.env.NEXT_PUBLIC_SITE_URL ||
-  process.env.URL ||
-  "http://localhost:3000"
-).replace(/\/+$/, "");
+const PRODUCTION_ORIGIN = "https://salwarbutterfly.in";
+
+function resolveSiteUrl() {
+  const configured = (process.env.NEXT_PUBLIC_SITE_URL || "").trim();
+
+  if (process.env.NODE_ENV !== "production") {
+    return configured || "http://localhost:3000";
+  }
+
+  let host = "";
+  try {
+    host = new URL(configured).hostname;
+  } catch {
+    // Unset or not a URL — fall through to the live address.
+  }
+  const isLocal = !host || host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0";
+  return isLocal ? PRODUCTION_ORIGIN : configured;
+}
+
+export const SITE_URL = resolveSiteUrl().replace(/\/+$/, "");
 
 /**
  * The logo as a link preview's og:image / twitter:image — what any shared
