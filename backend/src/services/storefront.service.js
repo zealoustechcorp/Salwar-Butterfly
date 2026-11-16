@@ -24,7 +24,10 @@ import { CustomerStoryMapper } from "../mapper/customer_story.mapper.js";
 import { MAX_STORIES_ON_HOME } from "../config/customer_story.policy.js";
 import { HomeSectionMapper } from "../mapper/home_section.mapper.js";
 import { RecentOrderPopupMapper } from "../mapper/recent_order_popup.mapper.js";
-import { MAX_POPUP_ORDERS } from "../config/recent_order_popup.policy.js";
+import {
+  MAX_POPUP_MORE_ITEMS,
+  MAX_POPUP_ORDERS,
+} from "../config/recent_order_popup.policy.js";
 import { ApiError } from "../utils/ApiError.js";
 import { logger } from "../utils/logger.js";
 
@@ -484,7 +487,11 @@ export const StorefrontService = {
       const settings = RecentOrderPopupMapper.toSettings(settingsRow);
 
       const rows = settings.enabled
-        ? await StorefrontRepository.recentOrders(settings.lookbackDays, MAX_POPUP_ORDERS)
+        ? await StorefrontRepository.recentOrders(
+            settings.lookbackDays,
+            MAX_POPUP_ORDERS,
+            MAX_POPUP_MORE_ITEMS,
+          )
         : [];
 
       const value = {
@@ -493,7 +500,9 @@ export const StorefrontService = {
         displayMode: settings.displayMode,
         visibleSeconds: settings.visibleSeconds,
         gapSeconds: settings.gapSeconds,
-        orders: rows.map((row) => RecentOrderPopupMapper.toPublicOrder(row)),
+        orders: RecentOrderPopupMapper.spreadCities(
+          rows.map((row) => RecentOrderPopupMapper.toPublicOrder(row)),
+        ),
       };
 
       popupCache = { at: Date.now(), value };

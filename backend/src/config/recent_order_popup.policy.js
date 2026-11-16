@@ -30,3 +30,10 @@ export const GAP_SECONDS = { min: 1, max: 600, default: 5 };
 
 /** The most orders the pop-up cycles through. Fixed, not a setting. */
 export const MAX_POPUP_ORDERS = 10;
+
+/**
+ * An order with several pieces is still one card: it names the first and
+ * adds "+ N more". Opening that lists at most this many of the others; the
+ * card counts the rest ("and 2 more pieces in this order"). Fixed.
+ */
+export const MAX_POPUP_MORE_ITEMS = 3;

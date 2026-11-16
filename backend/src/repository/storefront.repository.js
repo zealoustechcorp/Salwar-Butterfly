@@ -492,13 +492,22 @@ const HOME_SECTIONS_SQL = `
 //
 // Eligible orders: paid (not pending, failed, refunded or partly refunded)
 // and not cancelled, paid within the shop's look-back window ($1 days).
-// One piece per order — its first line whose product is still on sale in
-// a visible category, so the link on the pop-up never opens a dead page.
+//
+// One card per order, however many pieces it holds. Only pieces still on
+// sale in a visible category count, so no link on the pop-up opens a dead
+// page, and a product counts once however many lines it has (two sizes,
+// quantity 2): "+1 more" must never point back at the same page.
+//
+//   the piece    the first of those products the customer added;
+//   more_count   how many others there are;
+//   more         the next $3 of them, in the order they were added, each
+//                with its name, slug and first photograph.
+//
 // An order whose every piece has since been taken down is skipped.
 //
-// The product's name, slug and photograph are read live from the
-// catalogue rather than from the order line's snapshot, so the pop-up
-// matches the page it links to.
+// Names, slugs and photographs are read live from the catalogue rather
+// than from the order line's snapshot, so the pop-up matches the page it
+// links to.
 
 const RECENT_ORDERS_SQL = `
   SELECT
@@ -506,17 +515,25 @@ const RECENT_ORDERS_SQL = `
     COALESCE(o.paid_at, o.placed_at) AS ordered_at,
     p.name                           AS product_name,
     p.slug                           AS product_slug,
-    photo.image_url                  AS product_image
+    photo.image_url                  AS product_image,
+    item.more_count                  AS more_count,
+    more.items                       AS more
   FROM orders o
   CROSS JOIN LATERAL (
-    SELECT oi.product_id
-    FROM order_items oi
-    JOIN products p ON p.id = oi.product_id
-    WHERE oi.order_id = o.id
-      AND p.active = TRUE
-      AND ${PRODUCT_CATEGORY_VISIBLE}
-    ORDER BY oi.created_at ASC, oi.id ASC
-    LIMIT 1
+    SELECT
+      (ARRAY_AGG(line.product_id ORDER BY line.created_at, line.id))[1] AS product_id,
+      (ARRAY_AGG(line.product_id ORDER BY line.created_at, line.id))[2:$3::int + 1] AS more_ids,
+      GREATEST(COUNT(*)::int - 1, 0) AS more_count
+    FROM (
+      -- Each on-sale product once, at the first line it appears on.
+      SELECT DISTINCT ON (oi.product_id) oi.product_id, oi.created_at, oi.id
+      FROM order_items oi
+      JOIN products p ON p.id = oi.product_id
+      WHERE oi.order_id = o.id
+        AND p.active = TRUE
+        AND ${PRODUCT_CATEGORY_VISIBLE}
+      ORDER BY oi.product_id, oi.created_at ASC, oi.id ASC
+    ) line
   ) item
   JOIN products p ON p.id = item.product_id
   LEFT JOIN LATERAL (
@@ -526,6 +543,24 @@ const RECENT_ORDERS_SQL = `
     ORDER BY pi.position ASC, pi.created_at ASC
     LIMIT 1
   ) photo ON TRUE
+  CROSS JOIN LATERAL (
+    SELECT COALESCE(
+      JSON_AGG(
+        JSON_BUILD_OBJECT('name', mp.name, 'slug', mp.slug, 'image', mphoto.image_url)
+        ORDER BY m.ord
+      ),
+      '[]'::json
+    ) AS items
+    FROM UNNEST(item.more_ids) WITH ORDINALITY AS m(product_id, ord)
+    JOIN products mp ON mp.id = m.product_id
+    LEFT JOIN LATERAL (
+      SELECT pi.image_url
+      FROM product_images pi
+      WHERE pi.product_id = mp.id
+      ORDER BY pi.position ASC, pi.created_at ASC
+      LIMIT 1
+    ) mphoto ON TRUE
+  ) more
   WHERE o.payment_status = 'paid'
     AND o.status <> 'cancelled'
     AND COALESCE(o.paid_at, o.placed_at) >= NOW() - make_interval(days => $1::int)
@@ -552,10 +587,13 @@ export const StorefrontRepository = {
     }
   },
 
-  /** Recent paid orders for the pop-up, newest first: a city and a piece each. */
-  async recentOrders(lookbackDays, limit) {
+  /**
+   * Recent paid orders for the pop-up, newest first: a city, a piece, and
+   * up to `moreLimit` of the order's other pieces with a count of them all.
+   */
+  async recentOrders(lookbackDays, limit, moreLimit) {
     try {
-      const result = await query(RECENT_ORDERS_SQL, [lookbackDays, limit]);
+      const result = await query(RECENT_ORDERS_SQL, [lookbackDays, limit, moreLimit]);
       return result.rows;
     } catch (error) {
       throw handleDatabaseError(error, "recentOrders");
