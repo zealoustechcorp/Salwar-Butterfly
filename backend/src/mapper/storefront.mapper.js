@@ -47,6 +47,13 @@ export const StorefrontMapper = {
       // across the catalogue, so it identifies the piece as well as the id.
       slug: row.slug,
       name: row.name,
+      // The shop's own words about the piece, line breaks intact, or null
+      // where none was written. Blank text is folded to null so the page has
+      // one test to make before drawing a Description section.
+      description:
+        typeof row.description === "string" && row.description.trim()
+          ? row.description.trim()
+          : null,
       price,
       mrp,
       off: discountPercent(price, mrp),
