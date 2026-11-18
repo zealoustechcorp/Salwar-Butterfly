@@ -6,7 +6,6 @@ import { PolicySection } from "@/components/store/HomeSections";
 import { ProductCard } from "@/components/store/ProductCard";
 import { ProductDetail } from "@/components/store/ProductDetail";
 import { ProductReviews } from "@/components/store/ProductReviews";
-import { money } from "@/lib/format";
 import { SHARE_CARD, SHARE_LOGO, SITE_URL } from "@/lib/site";
 import {
   getProductSlugs,
@@ -66,23 +65,36 @@ async function productFor(params) {
   return null;
 }
 
+/** How much of a description a link preview carries. */
+const PREVIEW_LENGTH = 200;
+
+/**
+ * The admin's description flattened to one line and cut at a word, for meta
+ * tags. Line breaks mean nothing in a preview, and WhatsApp and Google show
+ * only the first couple of lines anyway, so a 5,000-character description is
+ * trimmed here rather than sent whole in every page's head.
+ */
+function previewText(text) {
+  const flat = text.replace(/\s+/g, " ").trim();
+  if (flat.length <= PREVIEW_LENGTH) return flat;
+
+  const cut = flat.slice(0, PREVIEW_LENGTH);
+  const lastSpace = cut.lastIndexOf(" ");
+  return `${(lastSpace > 0 ? cut.slice(0, lastSpace) : cut).replace(/[\s,.;:—-]+$/, "")}…`;
+}
+
 export async function generateMetadata({ params }) {
   const product = await productFor(params);
 
   if (!product) return { title: "Piece not found" };
 
-  const price = product.mrp
-    ? `${money(product.price)} (was ${money(product.mrp)}, ${product.off}% off)`
-    : money(product.price);
-
-  const description = [
-    `${product.name} — ${product.fabric ? `${product.fabric}, ` : ""}${product.category_name.toLowerCase()} from Salwar Butterfly.`,
-    `${price}.`,
-    product.available_sizes.length
-      ? `Sizes ${product.available_sizes.join(", ")} in stock.`
-      : "This run has sold out.",
-    "Free shipping all over India.",
-  ].join(" ");
+  // The preview is the piece and the shop's own description of it, nothing
+  // else — no price, sizes or shipping terms, by the shop's choice. A piece
+  // with no description yet falls back to one line saying what it is, so the
+  // preview is never just a title.
+  const description = product.description
+    ? previewText(product.description)
+    : `${product.name} — ${product.fabric ? `${product.fabric}, ` : ""}${product.category_name.toLowerCase()} from Salwar Butterfly.`;
 
   // Everything below is what a shared link unfurls into (see <ShareButton>):
   // WhatsApp, Instagram and Facebook read `og:*`, X reads `twitter:*`. The
@@ -116,7 +128,7 @@ export async function generateMetadata({ params }) {
     description,
     alternates: { canonical: url },
     openGraph: {
-      title: `${product.name} · ${money(product.price)}`,
+      title: product.name,
       description,
       url,
       siteName: "Salwar Butterfly",
@@ -126,7 +138,7 @@ export async function generateMetadata({ params }) {
     },
     twitter: {
       card: product.image ? "summary_large_image" : "summary",
-      title: `${product.name} · ${money(product.price)}`,
+      title: product.name,
       description,
       images,
     },

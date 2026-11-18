@@ -91,6 +91,10 @@ const PRODUCTS_SQL = `
     p.id,
     p.slug,
     p.name,
+    -- The admin's own copy about the piece, printed on the product page.
+    -- Written to be public, like the name, so it belongs here. NULL where
+    -- the shop has not written one, and the page then shows no section.
+    p.description,
     p.current_price,
     p.base_price,
     p.category_id,

@@ -37,9 +37,11 @@ import { useStoreToast } from "./Toast";
  * that is the row checkout will take the piece from. A piece entered without
  * colours shows no picker at all and behaves exactly as it always has.
  *
- * There is no description or care label, because the shop publishes neither —
- * a detail page padded with invented copy about a real garment would be worse
- * than a short one.
+ * The description is the shop's own, written in the admin product form, and
+ * appears only on a piece that has one. Nothing is filled in where it is
+ * missing — a detail page padded with invented copy about a real garment
+ * would be worse than a short one. There is still no care label, because the
+ * shop does not publish one.
  *
  * Reviews (F-06.08) are the one thing that rule used to exclude and no longer
  * does, now that the shop has an admin page to publish them from. They live in
@@ -498,6 +500,23 @@ export function ProductDetail({ product, shop }) {
             </li>
           ))}
         </ul>
+
+        {/* The shop's own words, only where it wrote some. pre-line keeps
+            the line breaks typed in the admin form without letting stray
+            runs of spaces push the text sideways. */}
+        {product.description ? (
+          <section className="mt-8" aria-labelledby="product-description">
+            <h2
+              id="product-description"
+              className="font-display text-2xl font-semibold text-sb-heading"
+            >
+              Description
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed break-words whitespace-pre-line text-sb-text">
+              {product.description}
+            </p>
+          </section>
+        ) : null}
 
         <Spec product={product} />
       </div>
