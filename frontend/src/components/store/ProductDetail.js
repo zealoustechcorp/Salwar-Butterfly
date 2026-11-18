@@ -540,10 +540,9 @@ function ShareButton({ product }) {
 
   const share = async () => {
     const url = `${window.location.origin}${productPath(product)}`;
-    const price = product.mrp
-      ? `${money(product.price)} (${product.off}% off)`
-      : money(product.price);
-    const text = `${product.name} — ${price} at Salwar Butterfly`;
+    // No price in the message, by the shop's choice — the same rule as the
+    // link preview. The price is on the page the link opens.
+    const text = `${product.name} at Salwar Butterfly`;
 
     if (navigator.share) {
       try {
