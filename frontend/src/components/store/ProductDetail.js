@@ -540,9 +540,9 @@ function ShareButton({ product }) {
 
   const share = async () => {
     const url = `${window.location.origin}${productPath(product)}`;
-    // No price in the message, by the shop's choice — the same rule as the
-    // link preview. The price is on the page the link opens.
-    const text = `${product.name} at Salwar Butterfly`;
+    // The dress name and nothing else, by the shop's choice: no price, no
+    // shop name. The link's own preview card says the rest.
+    const text = product.name;
 
     if (navigator.share) {
       try {

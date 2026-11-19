@@ -65,36 +65,10 @@ async function productFor(params) {
   return null;
 }
 
-/** How much of a description a link preview carries. */
-const PREVIEW_LENGTH = 200;
-
-/**
- * The admin's description flattened to one line and cut at a word, for meta
- * tags. Line breaks mean nothing in a preview, and WhatsApp and Google show
- * only the first couple of lines anyway, so a 5,000-character description is
- * trimmed here rather than sent whole in every page's head.
- */
-function previewText(text) {
-  const flat = text.replace(/\s+/g, " ").trim();
-  if (flat.length <= PREVIEW_LENGTH) return flat;
-
-  const cut = flat.slice(0, PREVIEW_LENGTH);
-  const lastSpace = cut.lastIndexOf(" ");
-  return `${(lastSpace > 0 ? cut.slice(0, lastSpace) : cut).replace(/[\s,.;:—-]+$/, "")}…`;
-}
-
 export async function generateMetadata({ params }) {
   const product = await productFor(params);
 
   if (!product) return { title: "Piece not found" };
-
-  // The preview is the piece and the shop's own description of it, nothing
-  // else — no price, sizes or shipping terms, by the shop's choice. A piece
-  // with no description yet falls back to one line saying what it is, so the
-  // preview is never just a title.
-  const description = product.description
-    ? previewText(product.description)
-    : `${product.name} — ${product.fabric ? `${product.fabric}, ` : ""}${product.category_name.toLowerCase()} from Salwar Butterfly.`;
 
   // Everything below is what a shared link unfurls into (see <ShareButton>):
   // WhatsApp, Instagram and Facebook read `og:*`, X reads `twitter:*`. The
@@ -123,13 +97,20 @@ export async function generateMetadata({ params }) {
     : // No photo yet: the logo, since this object replaces the root layout's.
       [SHARE_LOGO];
 
+  // A shared link previews as the photo and the dress name, nothing else —
+  // no description, price, sizes or shipping, by the shop's choice.
+  //
+  // `description: null` is deliberate, not an omission. Left out, the page
+  // would inherit the storefront layout's description ("…Free shipping all
+  // over India."), and WhatsApp reads a plain meta description when there is
+  // no og:description. Null clears it, and with it the og:/twitter: copies
+  // Next would otherwise fill in from it.
   return {
     title: product.name,
-    description,
+    description: null,
     alternates: { canonical: url },
     openGraph: {
       title: product.name,
-      description,
       url,
       siteName: "Salwar Butterfly",
       type: "website",
@@ -139,7 +120,6 @@ export async function generateMetadata({ params }) {
     twitter: {
       card: product.image ? "summary_large_image" : "summary",
       title: product.name,
-      description,
       images,
     },
     other: {
