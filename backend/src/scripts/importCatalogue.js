@@ -1,5 +1,5 @@
 /**
- * Load a catalogue export into Postgres (F-06):
+ * Load a catalogue export into the database (F-06):
  *
  *   npm run db:import-catalogue -- ./some-export.json
  *
@@ -105,9 +105,10 @@ const run = async () => {
     // CATEGORIES
     // ----------------------------------------------------------
     //
-    // ON CONFLICT against the partial unique index the schema already
-    // has — `categories_slug_unique WHERE deleted_at IS NULL`. Naming
-    // the index's predicate is what lets Postgres match it.
+    // Upsert against `categories_slug_unique`, which covers live rows
+    // only (it is on slug_live, NULL once deleted_at is set), so a
+    // soft-deleted category with the same slug is not revived. ON
+    // DUPLICATE KEY … RETURNING returns the existing row's id.
 
     const categoryIdBySourceId = new Map();
 
@@ -117,12 +118,11 @@ const run = async () => {
       const result = await client.query(
         `INSERT INTO categories (name, slug, image, active)
          VALUES ($1, $2, $3, TRUE)
-         ON CONFLICT (slug) WHERE deleted_at IS NULL
-         DO UPDATE SET
-           name       = EXCLUDED.name,
-           image      = COALESCE(EXCLUDED.image, categories.image),
+         ON DUPLICATE KEY UPDATE
+           name       = VALUES(name),
+           image      = COALESCE(VALUES(image), image),
            active     = TRUE,
-           updated_at = NOW()
+           updated_at = NOW(6)
          RETURNING id`,
         [String(category.name).trim(), slug, category.image ?? null],
       );
@@ -168,15 +168,15 @@ const run = async () => {
            category_id, name, slug, base_price,
            discount_percentage, current_price, active
          )
-         VALUES ($1::uuid, $2, $3, $4, $5, $6, TRUE)
-         ON CONFLICT (slug) DO UPDATE SET
-           category_id         = EXCLUDED.category_id,
-           name                = EXCLUDED.name,
-           base_price          = EXCLUDED.base_price,
-           discount_percentage = EXCLUDED.discount_percentage,
-           current_price       = EXCLUDED.current_price,
+         VALUES ($1, $2, $3, $4, $5, $6, TRUE)
+         ON DUPLICATE KEY UPDATE
+           category_id         = VALUES(category_id),
+           name                = VALUES(name),
+           base_price          = VALUES(base_price),
+           discount_percentage = VALUES(discount_percentage),
+           current_price       = VALUES(current_price),
            active              = TRUE,
-           updated_at          = NOW()
+           updated_at          = NOW(6)
          RETURNING id`,
         [categoryId, String(product.name).trim(), slug, basePrice, discount, price],
       );
@@ -193,17 +193,21 @@ const run = async () => {
       // record now: an order placed here has already decremented a
       // size, and re-importing an older snapshot would undo that and
       // put sold pieces back on the shelf.
+      //
+      // The unique key is (product_id, size, colour); the export has no
+      // colours, so these rows take colour '' and a re-run matches the
+      // colourless size it created last time.
 
       const sizes = Array.isArray(product.sizes) ? product.sizes : [];
 
       for (const [position, size] of sizes.entries()) {
         await client.query(
           `INSERT INTO product_variants (product_id, size, stock_quantity, position, active)
-           VALUES ($1::uuid, $2, $3, $4, TRUE)
-           ON CONFLICT (product_id, size) DO UPDATE SET
-             position   = EXCLUDED.position,
+           VALUES ($1, $2, $3, $4, TRUE)
+           ON DUPLICATE KEY UPDATE
+             position   = VALUES(position),
              active     = TRUE,
-             updated_at = NOW()
+             updated_at = NOW(6)
            RETURNING id`,
           [productId, String(size.size).trim(), Number(size.stock) || 0, position],
         );
@@ -221,10 +225,11 @@ const run = async () => {
       for (const [position, url] of photos.entries()) {
         const inserted = await client.query(
           `INSERT INTO product_images (product_id, image_url, image_public_id, alt_text, position)
-           SELECT $1::uuid, $2, $3, $4, $5
+           SELECT $1, $2, $3, $4, $5
+           FROM DUAL
            WHERE NOT EXISTS (
              SELECT 1 FROM product_images
-             WHERE product_id = $1::uuid AND image_url = $2
+             WHERE product_id = $1 AND image_url = $2
            )`,
           [productId, url, publicIdFrom(url), String(product.name).trim(), position],
         );
@@ -242,15 +247,17 @@ const run = async () => {
     // an order line may point at it, and the receipt has to keep
     // working. Matched by the `-<upstream id>` slug suffix so the
     // admin's own test products are not caught by it.
+    //
+    // An empty list is left out rather than bound: NOT IN (NULL) is never
+    // true, whereas Postgres's `<> ALL('{}')` matched every row.
 
     const withdrawn = await client.query(
       `UPDATE products
-       SET active = FALSE, updated_at = NOW()
-       WHERE slug ~ '-[0-9]+$'
-         AND slug <> ALL($1::text[])
-         AND active = TRUE
-       RETURNING slug`,
-      [importedSlugs],
+       SET active = FALSE, updated_at = NOW(6)
+       WHERE slug REGEXP '-[0-9]+$'
+         ${importedSlugs.length ? "AND slug NOT IN ($1)" : ""}
+         AND active = TRUE`,
+      importedSlugs.length ? [importedSlugs] : [],
     );
 
     counts.deactivated = withdrawn.rowCount;

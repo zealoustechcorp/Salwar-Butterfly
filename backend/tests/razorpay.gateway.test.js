@@ -16,7 +16,10 @@ import assert from "node:assert/strict";
 // env.js validates at import time and razorpay.gateway.js pulls it in, so
 // the variables have to exist before the dynamic import below.
 process.env.NODE_ENV = "test";
-process.env.DATABASE_URL ??= "postgres://user:pass@localhost:5432/test";
+process.env.MYSQL_HOST ??= "127.0.0.1";
+process.env.MYSQL_USER ??= "test";
+process.env.MYSQL_PASSWORD ??= "test";
+process.env.MYSQL_DATABASE ??= "test";
 process.env.JWT_SECRET ??= "test-secret-that-is-long-enough-32+";
 process.env.R2_ACCOUNT_ID ??= "test";
 process.env.R2_ACCESS_KEY_ID ??= "test";

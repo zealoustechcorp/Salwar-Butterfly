@@ -1,42 +1,66 @@
 /**
- * Apply every SQL file in src/migrations, in filename order:
+ * Apply every SQL file in src/migrations-mysql, in filename order:
  *
  *   npm run db:migrate
  *
- * This project had no migration runner — the .sql files were applied
- * by hand. This is deliberately the smallest thing that works: it
- * tracks what it has already run in a `schema_migrations` table, and
- * wraps each file in a transaction so a failure leaves nothing half
- * applied.
+ * Tracks what it has already run in `schema_migrations` (created by
+ * 001_baseline.sql itself). src/migrations holds the Postgres history up to
+ * the move to MariaDB and is no longer applied.
  *
- * Every existing migration is written with IF NOT EXISTS, so running
- * this against a database that was set up by hand is safe.
+ * Two differences from the Postgres runner, both MariaDB's:
+ *
+ *  - DDL is not transactional. CREATE/ALTER/DROP commit as they run, so a
+ *    file that fails halfway leaves its earlier statements applied and is
+ *    NOT recorded. Fix the file (or the database) and run again; write
+ *    migrations so that re-running them is safe (IF NOT EXISTS / IF EXISTS).
+ *
+ *  - A migration file holds several statements, which the application's
+ *    pool deliberately refuses (multipleStatements is off there, as a guard
+ *    against SQL injection). This runner opens its own connection with it on.
  */
 
 import { readdir, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
-import { pool, closeDb } from "../config/db.js";
+import mysql from "mysql2/promise";
 
-const MIGRATIONS_DIR = fileURLToPath(new URL("../migrations/", import.meta.url));
+import { env } from "../config/env.js";
 
-const TRACKING_TABLE = `
-  CREATE TABLE IF NOT EXISTS schema_migrations (
-    filename   TEXT PRIMARY KEY,
-    applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  )
-`;
+const MIGRATIONS_DIR = fileURLToPath(new URL("../migrations-mysql/", import.meta.url));
 
 const run = async () => {
-  const client = await pool.connect();
+  const conn = await mysql.createConnection({
+    host: env.mysqlHost,
+    port: env.mysqlPort,
+    user: env.mysqlUser,
+    password: env.mysqlPassword,
+    database: env.mysqlDatabase,
+    ssl: env.mysqlSsl
+      ? env.mysqlCaCert
+        ? { rejectUnauthorized: true, ca: env.mysqlCaCert }
+        : { rejectUnauthorized: true }
+      : undefined,
+    charset: "utf8mb4",
+    timezone: "Z",
+    multipleStatements: true,
+  });
 
   try {
-    await client.query(TRACKING_TABLE);
+    await conn.query("SET time_zone = '+00:00'");
+    await conn.query(
+      "SET SESSION sql_mode = 'STRICT_ALL_TABLES,ANSI_QUOTES,PIPES_AS_CONCAT,NO_ZERO_DATE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'",
+    );
 
-    const applied = await client.query("SELECT filename FROM schema_migrations");
+    const [tracking] = await conn.query(
+      "SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'schema_migrations'",
+    );
 
-    const done = new Set(applied.rows.map((row) => row.filename));
+    const done = new Set();
+    if (Number(tracking[0].n) > 0) {
+      const [rows] = await conn.query("SELECT filename FROM schema_migrations");
+      for (const row of rows) done.add(row.filename);
+    }
 
     const files = (await readdir(MIGRATIONS_DIR))
       .filter((name) => name.endsWith(".sql"))
@@ -58,21 +82,17 @@ const run = async () => {
       const sql = await readFile(path.join(MIGRATIONS_DIR, filename), "utf8");
 
       try {
-        await client.query("BEGIN");
-        await client.query(sql);
-        await client.query(
-          "INSERT INTO schema_migrations (filename) VALUES ($1)",
-          [filename],
-        );
-        await client.query("COMMIT");
+        await conn.query(sql);
+        await conn.query("INSERT INTO schema_migrations (filename) VALUES (?)", [filename]);
 
         console.log(`[db:migrate] applied ${filename}`);
         ran += 1;
       } catch (error) {
-        await client.query("ROLLBACK");
-
         console.error(`[db:migrate] FAILED  ${filename}`);
         console.error(`             ${error.message}`);
+        console.error(
+          "             MariaDB DDL is not transactional: statements before the failure may have been applied.",
+        );
 
         throw error;
       }
@@ -84,7 +104,7 @@ const run = async () => {
         : `[db:migrate] OK — ${ran} migration(s) applied`,
     );
   } finally {
-    client.release();
+    await conn.end();
   }
 };
 
@@ -92,6 +112,4 @@ try {
   await run();
 } catch {
   process.exitCode = 1;
-} finally {
-  await closeDb();
 }

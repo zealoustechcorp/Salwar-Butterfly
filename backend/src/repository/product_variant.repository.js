@@ -119,7 +119,7 @@ export const ProductVariantRepository = {
   async findByProductId(productId) {
     const text = `
       ${SELECT_VARIANT}
-      WHERE v.product_id = $1::uuid
+      WHERE v.product_id = $1
       ORDER BY ${VARIANT_ORDER}
     `;
 
@@ -134,7 +134,7 @@ export const ProductVariantRepository = {
   async findById(id) {
     const text = `
       ${SELECT_VARIANT}
-      WHERE v.id = $1::uuid
+      WHERE v.id = $1
       LIMIT 1
     `;
 
@@ -162,7 +162,7 @@ export const ProductVariantRepository = {
       SELECT v.product_id, v.size, v.colour, v.stock_quantity, v.active,
              v.position
       FROM product_variants v
-      WHERE v.product_id = ANY($1::uuid[])
+      WHERE v.product_id IN ($1)
       ORDER BY v.product_id, ${VARIANT_ORDER}
     `;
 
@@ -190,7 +190,7 @@ export const ProductVariantRepository = {
     try {
       const result = await query(text, [safeLimit, offset]);
       const countResult = await query(
-        "SELECT COUNT(*)::INTEGER AS count FROM product_variants",
+        "SELECT COUNT(*) AS count FROM product_variants",
       );
 
       return { rows: result.rows, total: countResult.rows[0]?.count ?? 0 };
@@ -212,7 +212,7 @@ export const ProductVariantRepository = {
         product_id, size, colour, stock_quantity, active, position,
         created_at, updated_at
       )
-      VALUES ($1::uuid, $2, $3, $4, $5, $6, NOW(), NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, NOW(6), NOW(6))
       RETURNING *
     `;
 
@@ -268,22 +268,32 @@ export const ProductVariantRepository = {
       throw new Error("No variant fields provided for update");
     }
 
-    fields.push("updated_at = NOW()");
+    fields.push("updated_at = NOW(6)");
     values.push(id);
 
     const text = `
       UPDATE product_variants
       SET ${fields.join(", ")}
-      WHERE id = $${paramIndex}::uuid
-      RETURNING *
+      WHERE id = $${paramIndex}
     `;
 
     try {
-      const result = await query(text, values);
-      if (result.rowCount === 0) return null;
+      // No UPDATE … RETURNING in MariaDB: write, then read the row back in
+      // the same transaction.
+      const row = await withTransaction(async (client) => {
+        const updated = await client.query(text, values);
+        if (updated.rowCount === 0) return null;
+
+        const result = await client.query(
+          "SELECT * FROM product_variants WHERE id = $1",
+          [id],
+        );
+        return result.rows[0] ?? null;
+      });
+      if (!row) return null;
 
       logger.info("Product variant updated", { variantId: id });
-      return result.rows[0];
+      return row;
     } catch (error) {
       throw handleDatabaseError(error, "update", { variantId: id });
     }
@@ -303,13 +313,21 @@ export const ProductVariantRepository = {
   async delete(id, { force = false } = {}) {
     try {
       return await withTransaction(async (client) => {
+        // Lock the variant alone. Postgres had FOR UPDATE OF v on the join;
+        // MariaDB has no OF and would lock the product row as well, holding
+        // up checkouts of every other size of the same product.
+        const locked = await client.query(
+          "SELECT id FROM product_variants WHERE id = $1 FOR UPDATE",
+          [id],
+        );
+        if (locked.rowCount === 0) return { status: "missing" };
+
         const found = await client.query(
           `SELECT v.id, v.product_id, v.size, v.colour, v.stock_quantity,
                   p.name AS product_name
            FROM product_variants v
            JOIN products p ON p.id = v.product_id
-           WHERE v.id = $1::uuid
-           FOR UPDATE OF v`,
+           WHERE v.id = $1`,
           [id],
         );
 
@@ -321,7 +339,7 @@ export const ProductVariantRepository = {
         }
 
         await client.query(
-          "DELETE FROM product_variants WHERE id = $1::uuid",
+          "DELETE FROM product_variants WHERE id = $1",
           [id],
         );
 
@@ -354,7 +372,7 @@ export const ProductVariantRepository = {
       SELECT v.*, p.name AS product_name, p.slug AS product_slug
       FROM product_variants v
       JOIN products p ON p.id = v.product_id
-      WHERE v.id = ANY($1::uuid[])
+      WHERE v.id IN ($1)
       ORDER BY p.name ASC, v.position ASC, v.colour ASC, v.size ASC
     `;
 
@@ -374,22 +392,32 @@ export const ProductVariantRepository = {
    * cannot leave the catalogue in a state nobody asked for.
    */
   async bulkSetActive(ids, active) {
-    const text = `
-      UPDATE product_variants
-      SET active = $2, updated_at = NOW()
-      WHERE id = ANY($1::uuid[])
-      RETURNING *
-    `;
+    if (!Array.isArray(ids) || ids.length === 0) return [];
 
     try {
-      const result = await query(text, [ids, active]);
+      // No UPDATE … RETURNING in MariaDB: update, then read the same rows
+      // back, in one transaction so the answer is what the update produced.
+      const rows = await withTransaction(async (client) => {
+        await client.query(
+          `UPDATE product_variants
+           SET active = $2, updated_at = NOW(6)
+           WHERE id IN ($1)`,
+          [ids, active],
+        );
+
+        const result = await client.query(
+          "SELECT * FROM product_variants WHERE id IN ($1)",
+          [ids],
+        );
+        return result.rows;
+      });
 
       logger.info("Product variants bulk status change", {
-        count: result.rowCount,
+        count: rows.length,
         active,
       });
 
-      return result.rows;
+      return rows;
     } catch (error) {
       throw handleDatabaseError(error, "bulkSetActive", { count: ids.length });
     }
@@ -417,13 +445,24 @@ export const ProductVariantRepository = {
   async bulkDelete(ids, { force = false } = {}) {
     try {
       return await withTransaction(async (client) => {
+        // Lock the variants alone, in id order (see delete() on why not the
+        // join), then read them with their product names. READ COMMITTED
+        // plus the locks held means the read sees the locked rows' current
+        // values.
+        await client.query(
+          `SELECT id FROM product_variants
+           WHERE id IN ($1)
+           ORDER BY id
+           FOR UPDATE`,
+          [ids],
+        );
+
         const found = await client.query(
           `SELECT v.*, p.name AS product_name, p.slug AS product_slug
            FROM product_variants v
            JOIN products p ON p.id = v.product_id
-           WHERE v.id = ANY($1::uuid[])
-           ORDER BY v.id
-           FOR UPDATE OF v`,
+           WHERE v.id IN ($1)
+           ORDER BY v.id`,
           [ids],
         );
 
@@ -446,7 +485,7 @@ export const ProductVariantRepository = {
 
         const deleted = await client.query(
           `DELETE FROM product_variants
-           WHERE id = ANY($1::uuid[])
+           WHERE id IN ($1)
            RETURNING id, product_id, size, colour`,
           [deletableIds],
         );
@@ -463,7 +502,7 @@ export const ProductVariantRepository = {
             : await client.query(
                 `SELECT p.id, p.name, p.slug
                  FROM products p
-                 WHERE p.id = ANY($1::uuid[])
+                 WHERE p.id IN ($1)
                    AND NOT EXISTS (
                      SELECT 1 FROM product_variants v WHERE v.product_id = p.id
                    )`,
@@ -522,7 +561,7 @@ export const ProductVariantRepository = {
         const current = await client.query(
           `SELECT id, size, colour, stock_quantity
            FROM product_variants
-           WHERE product_id = $1::uuid
+           WHERE product_id = $1
            ORDER BY id
            FOR UPDATE`,
           [productId],
@@ -544,38 +583,42 @@ export const ProductVariantRepository = {
         // with the unique constraint on a row that is about to go.
         if (keptSizes.length === 0) {
           await client.query(
-            "DELETE FROM product_variants WHERE product_id = $1::uuid",
+            "DELETE FROM product_variants WHERE product_id = $1",
             [productId],
           );
         } else {
-          // Zipped into pairs rather than matched on two independent
-          // ANY() lists: keeping sizes {S, M} and colours {Maroon, Teal}
+          // Matched as (size, colour) pairs rather than two independent
+          // lists: keeping sizes {S, M} and colours {Maroon, Teal}
           // separately would spare (S, Teal) even when the admin only
-          // listed (S, Maroon) and (M, Teal).
+          // listed (S, Maroon) and (M, Teal). One ($n, $n+1) row
+          // constructor per kept pair.
+          const pairs = keptSizes
+            .map((_, i) => `($${2 + i * 2}, $${3 + i * 2})`)
+            .join(", ");
           await client.query(
             `DELETE FROM product_variants
-             WHERE product_id = $1::uuid
-               AND (size, colour) NOT IN (
-                 SELECT s, c
-                 FROM unnest($2::varchar[], $3::varchar[]) AS kept(s, c)
-               )`,
-            [productId, keptSizes, keptColours],
+             WHERE product_id = $1
+               AND (size, colour) NOT IN (${pairs})`,
+            [productId, ...keptSizes.flatMap((size, i) => [size, keptColours[i]])],
           );
         }
 
         for (const [index, variant] of variants.entries()) {
+          // ON DUPLICATE KEY fires on any unique key; product_variants has
+          // only the primary key (a fresh UUID, never a duplicate) and
+          // uq_product_variants_product_size_colour, so this is the same
+          // upsert Postgres's ON CONFLICT ON CONSTRAINT did.
           await client.query(
             `INSERT INTO product_variants (
                product_id, size, colour, stock_quantity, active, position,
                created_at, updated_at
              )
-             VALUES ($1::uuid, $2, $3, $4, $5, $6, NOW(), NOW())
-             ON CONFLICT ON CONSTRAINT uq_product_variants_product_size_colour
-             DO UPDATE SET
-               stock_quantity = EXCLUDED.stock_quantity,
-               active = EXCLUDED.active,
-               position = EXCLUDED.position,
-               updated_at = NOW()`,
+             VALUES ($1, $2, $3, $4, $5, $6, NOW(6), NOW(6))
+             ON DUPLICATE KEY UPDATE
+               stock_quantity = VALUES(stock_quantity),
+               active = VALUES(active),
+               position = VALUES(position),
+               updated_at = NOW(6)`,
             [
               productId,
               variant.size,
@@ -589,7 +632,7 @@ export const ProductVariantRepository = {
 
         const result = await client.query(
           `${SELECT_VARIANT}
-           WHERE v.product_id = $1::uuid
+           WHERE v.product_id = $1
            ORDER BY ${VARIANT_ORDER}`,
           [productId],
         );
@@ -617,15 +660,15 @@ export const ProductVariantRepository = {
    * register's own transaction, on the client it hands over, so the two
    * halves commit together or not at all.
    *
-   * @param {import('pg').PoolClient} client
+   * @param {{query: Function}} client  the transaction client from withTransaction
    * @returns {Promise<number>} how many variant rows were rewritten
    */
   async renameColourInTransaction(client, from, to) {
+    // rowCount is rows matched, which is what RETURNING id used to count.
     const result = await client.query(
       `UPDATE product_variants
-          SET colour = $2, updated_at = NOW()
-        WHERE colour = $1
-      RETURNING id`,
+          SET colour = $2, updated_at = NOW(6)
+        WHERE colour = $1`,
       [from, to],
     );
 

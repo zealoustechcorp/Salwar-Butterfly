@@ -16,7 +16,7 @@
 
 import * as Sentry from "@sentry/node";
 
-import { withTransaction, query } from "../config/db.js";
+import { withTransaction, query, pool } from "../config/db.js";
 import { logger } from "../utils/logger.js";
 import {
   DEFAULT_PROVIDER,
@@ -54,21 +54,22 @@ const handleDatabaseError = (error, operation, context = {}) => {
 const runner = (client) => (client ? client.query.bind(client) : query);
 
 /**
- * A 60-bit advisory lock key from an order's UUID.
+ * The named-lock key for one order's payment sheet.
  *
- * Postgres advisory locks are keyed by integer, and the thing being
- * serialised is identified by a UUID, so the two have to be bridged
- * somewhere. The first fifteen hex digits are taken: sixty bits, which
- * is always inside a signed bigint and never negative, so no sign
- * handling is needed at either end.
- *
- * Truncating throws away entropy and that is fine here. A collision
- * between two different orders costs one of them a brief wait behind a
- * lock it did not need; at 2^60 keys it will not happen, and if it did,
- * nothing would be wrong — only slightly slower.
+ * MariaDB named locks (GET_LOCK) are server-wide — on shared hosting,
+ * shared with every other database on the server — so the key is
+ * prefixed with this database's name. `<db>:pay:<uuid>` is 61 characters
+ * against GET_LOCK's 64. The UUID is passed as a parameter and joined in
+ * SQL, never interpolated.
  */
-const sessionLockKey = (orderId) =>
-  BigInt(`0x${String(orderId).replace(/-/g, "").slice(0, 15)}`).toString();
+const SESSION_LOCK_NAME_SQL = "CONCAT(DATABASE(), ':pay:', $1)";
+
+/**
+ * How long a second "Pay now" waits for the first to finish before
+ * giving up. The first is doing one Razorpay API call; Postgres's
+ * advisory lock waited indefinitely, which a named lock cannot do.
+ */
+const SESSION_LOCK_TIMEOUT_SECONDS = 60;
 
 const COLUMNS = `
   id,
@@ -114,7 +115,7 @@ const reviveLapsedDraft = async (client, orderId) => {
     const { rows: lines } = await client.query(
       `SELECT variant_id, quantity
          FROM order_items
-        WHERE order_id = $1::uuid
+        WHERE order_id = $1
         ORDER BY variant_id`,
       [orderId],
     );
@@ -127,7 +128,7 @@ const reviveLapsedDraft = async (client, orderId) => {
 
     await client.query(
       `SELECT id FROM product_variants
-        WHERE id = ANY($1::uuid[])
+        WHERE id IN ($1)
         ORDER BY id
         FOR UPDATE`,
       [lines.map((line) => line.variant_id)],
@@ -137,8 +138,8 @@ const reviveLapsedDraft = async (client, orderId) => {
       const taken = await client.query(
         `UPDATE product_variants
             SET stock_quantity = stock_quantity - $2,
-                updated_at = NOW()
-          WHERE id = $1::uuid
+                updated_at = NOW(6)
+          WHERE id = $1
             AND stock_quantity - $2 >= 0`,
         [line.variant_id, line.quantity],
       );
@@ -153,15 +154,14 @@ const reviveLapsedDraft = async (client, orderId) => {
       `UPDATE orders
           SET status = $2,
               payment_status = $3,
-              paid_at = COALESCE(paid_at, NOW()),
+              paid_at = COALESCE(paid_at, NOW(6)),
               cancelled_at = NULL,
               cancellation_reason = NULL,
               order_number = ${ASSIGN_ORDER_NUMBER_SQL},
-              updated_at = NOW()
-        WHERE id = $1::uuid
+              updated_at = NOW(6)
+        WHERE id = $1
           AND status = $4
-          AND order_number IS NULL
-        RETURNING *`,
+          AND order_number IS NULL`,
       [orderId, ORDER_STATUS.CONFIRMED, PAYMENT_STATUS.PAID, ORDER_STATUS.CANCELLED],
     );
 
@@ -170,14 +170,19 @@ const reviveLapsedDraft = async (client, orderId) => {
       return null;
     }
 
+    // Read back by key under the UPDATE's lock (no UPDATE … RETURNING).
+    const revivedRow = (
+      await client.query("SELECT * FROM orders WHERE id = $1", [orderId])
+    ).rows[0];
+
     await client.query("RELEASE SAVEPOINT revive_draft");
 
     logger.warn("Lapsed checkout revived by a late payment", {
       orderId,
-      orderNumber: revived.rows[0].order_number,
+      orderNumber: revivedRow.order_number,
     });
 
-    return revived.rows[0];
+    return revivedRow;
   } catch (error) {
     await client.query("ROLLBACK TO SAVEPOINT revive_draft").catch(() => {});
     throw error;
@@ -200,47 +205,80 @@ export const PaymentRepository = {
    * two different ones. Every duplicate is a live order on the Razorpay
    * dashboard that no settlement will ever match.
    *
-   * A transaction-scoped advisory lock is what makes the second request
-   * *see* what the first did. It is keyed on the order, so two shoppers
-   * paying for different orders never wait for each other; it is held
-   * for the transaction and released by COMMIT or ROLLBACK, including
-   * the rollback of a process that died mid-call, which is the failure
-   * a lock table in the database would have to be swept for.
+   * A lock held until the first request's transaction has COMMITTED is
+   * what makes the second request *see* what the first did. It is keyed
+   * on the order, so two shoppers paying for different orders never wait
+   * for each other.
+   *
+   * On Postgres this was pg_advisory_xact_lock, which COMMIT releases.
+   * MariaDB's named locks (GET_LOCK) belong to a connection, not a
+   * transaction, so the lock is taken on a connection of its own and
+   * released only after withTransaction has committed (or rolled back)
+   * on another. Releasing it inside the transaction would let the second
+   * request read before the first one's insert was visible — the very
+   * duplicate this exists to stop. Locking the order row instead would
+   * also work, but would hold up the payment webhook for that order for
+   * the length of the Razorpay call.
+   *
+   * A process that dies mid-call drops both connections; the server
+   * releases the named lock with the connection and rolls back the
+   * transaction, so nothing has to be swept.
    *
    * `retries: 0`, against the default. `fn` sends an HTTP request to a
    * payment provider — a side effect that lives outside the transaction
    * and cannot be rolled back with it, so re-running the callback could
    * open a second Razorpay order for the attempt that is about to
-   * succeed. The retries exist for deadlocks and serialization
-   * failures, and this shape produces neither: one advisory lock taken
-   * first, two reads and an insert under READ COMMITTED. Trading an
-   * error that will not occur for a duplicate that would be invisible
-   * is the wrong way round.
+   * succeed. The retries exist for deadlocks and lock timeouts, and this
+   * shape produces neither: one named lock taken first, two reads and an
+   * insert under READ COMMITTED. Trading an error that will not occur for
+   * a duplicate that would be invisible is the wrong way round.
    *
    * @template T
    * @param {string} orderId
-   * @param {(client: import('pg').PoolClient) => Promise<T>} fn
+   * @param {(client: {query: Function}) => Promise<T>} fn
    * @returns {Promise<T>}
    */
   async withSessionLock(orderId, fn) {
-    return withTransaction(
-      async (client) => {
-        try {
-          await client.query("SELECT pg_advisory_xact_lock($1::bigint)", [
-            sessionLockKey(orderId),
-          ]);
-        } catch (error) {
-          throw handleDatabaseError(error, "withSessionLock", { orderId });
-        }
+    const lockClient = await pool.connect();
 
-        // Deliberately outside the try: what `fn` throws is the
+    try {
+      try {
+        const { rows } = await lockClient.query(
+          `SELECT GET_LOCK(${SESSION_LOCK_NAME_SQL}, ${SESSION_LOCK_TIMEOUT_SECONDS}) AS got`,
+          [String(orderId)],
+        );
+
+        if (Number(rows[0]?.got) !== 1) {
+          throw Object.assign(
+            new Error("Timed out waiting for the payment-session lock"),
+            { code: "PAYMENT_SESSION_LOCK_TIMEOUT" },
+          );
+        }
+      } catch (error) {
+        throw handleDatabaseError(error, "withSessionLock", { orderId });
+      }
+
+      try {
+        // Deliberately outside the lock's try: what `fn` throws is the
         // service's business — a 409 for an order already paid, a 502
         // from the gateway — and logging those as repository failures
         // would bury the real ones.
-        return fn(client);
-      },
-      { retries: 0 },
-    );
+        return await withTransaction((client) => fn(client), { retries: 0 });
+      } finally {
+        // After the commit. A failed release is logged, not thrown: the
+        // lock dies with the connection, which is released next.
+        await lockClient
+          .query(`SELECT RELEASE_LOCK(${SESSION_LOCK_NAME_SQL})`, [String(orderId)])
+          .catch((error) =>
+            logger.error("Payment-session lock release failed", {
+              orderId,
+              message: error?.message,
+            }),
+          );
+      }
+    } finally {
+      lockClient.release();
+    }
   },
 
   /**
@@ -259,11 +297,11 @@ export const PaymentRepository = {
    * lock and all. Subtracting inside Postgres compares one clock with
    * itself.
    *
-   * `clock_timestamp()` and not `NOW()`: NOW() is frozen at the start of
-   * the transaction, and this runs inside `withSessionLock` after
-   * waiting for the lock — a transaction that began before the one it
-   * queued behind would see that one's row as younger than zero.
-   * GREATEST clamps whatever is left of that to zero.
+   * SYSDATE(6), the moment of execution, as Postgres's clock_timestamp()
+   * was. This runs inside `withSessionLock` after waiting for the lock,
+   * so a clock read earlier could see the row written by the request it
+   * queued behind as younger than zero. GREATEST clamps whatever is left
+   * of that to zero.
    */
   async findLatestOpenAttemptWithAge(
     orderId,
@@ -273,10 +311,10 @@ export const PaymentRepository = {
       SELECT ${COLUMNS},
         GREATEST(
           0,
-          FLOOR(EXTRACT(EPOCH FROM (clock_timestamp() - created_at)) * 1000)
-        )::bigint AS age_ms
+          TIMESTAMPDIFF(MICROSECOND, created_at, SYSDATE(6)) DIV 1000
+        ) AS age_ms
       FROM payments
-      WHERE order_id = $1::uuid
+      WHERE order_id = $1
         AND provider = $2
         AND status = $3
       ORDER BY created_at DESC
@@ -292,7 +330,7 @@ export const PaymentRepository = {
 
       const row = result.rows[0] ?? null;
 
-      // pg hands bigint back as a string.
+      // Already a number from the driver; Number() kept as a guarantee.
       return row ? { ...row, age_ms: Number(row.age_ms) } : null;
     } catch (error) {
       throw handleDatabaseError(error, "findLatestOpenAttemptWithAge", { orderId });
@@ -326,7 +364,7 @@ export const PaymentRepository = {
       INSERT INTO payments (
         order_id, provider, provider_order_id, status, amount, currency
       )
-      VALUES ($1::uuid, $2, $3, $4, $5, $6)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING ${COLUMNS}
     `;
 
@@ -353,7 +391,7 @@ export const PaymentRepository = {
   async findById(id) {
     try {
       const result = await query(
-        `SELECT ${COLUMNS} FROM payments WHERE id = $1::uuid LIMIT 1`,
+        `SELECT ${COLUMNS} FROM payments WHERE id = $1 LIMIT 1`,
         [id],
       );
 
@@ -405,7 +443,7 @@ export const PaymentRepository = {
         `SELECT ${COLUMNS}
          FROM payments
          WHERE provider = $1
-           AND provider_order_id = ANY($2::text[])
+           AND provider_order_id IN ($2)
            AND status IN ($3, $4)`,
         [
           provider,
@@ -458,7 +496,7 @@ export const PaymentRepository = {
       const result = await query(
         `SELECT ${COLUMNS}
          FROM payments
-         WHERE order_id = $1::uuid
+         WHERE order_id = $1
          ORDER BY created_at DESC`,
         [orderId],
       );
@@ -519,11 +557,10 @@ export const PaymentRepository = {
                method = COALESCE($4, method),
                error_code = NULL,
                error_description = NULL,
-               paid_at = COALESCE(paid_at, NOW()),
-               updated_at = NOW()
-           WHERE id = $1::uuid
-             AND status IN ($5, $6)
-           RETURNING ${COLUMNS}`,
+               paid_at = COALESCE(paid_at, NOW(6)),
+               updated_at = NOW(6)
+           WHERE id = $1
+             AND status IN ($5, $6)`,
           [
             paymentId,
             PAYMENT_ATTEMPT_STATUS.PAID,
@@ -538,7 +575,11 @@ export const PaymentRepository = {
           return { payment: null, order: null, alreadyPaid: true, emailIds: [] };
         }
 
-        const payment = paid.rows[0];
+        // No UPDATE … RETURNING in MariaDB: each guarded UPDATE is read
+        // back by its key, under the row lock the UPDATE still holds.
+        const payment = (
+          await client.query(`SELECT ${COLUMNS} FROM payments WHERE id = $1`, [paymentId])
+        ).rows[0];
 
         // Paying is placing: this is where a checkout draft becomes an
         // order and is given its number.
@@ -546,12 +587,11 @@ export const PaymentRepository = {
           `UPDATE orders
            SET status = $2,
                payment_status = $3,
-               paid_at = COALESCE(paid_at, NOW()),
+               paid_at = COALESCE(paid_at, NOW(6)),
                order_number = ${ASSIGN_ORDER_NUMBER_SQL},
-               updated_at = NOW()
-           WHERE id = $1::uuid
-             AND status = $4
-           RETURNING *`,
+               updated_at = NOW(6)
+           WHERE id = $1
+             AND status = $4`,
           [
             payment.order_id,
             ORDER_STATUS.CONFIRMED,
@@ -569,11 +609,18 @@ export const PaymentRepository = {
         // order.repository.js) rather than being quietly reported as a
         // success.
         let unmatched = null;
-        let confirmed = order.rows[0] ?? null;
+        let confirmed =
+          order.rowCount > 0
+            ? (
+                await client.query("SELECT * FROM orders WHERE id = $1", [
+                  payment.order_id,
+                ])
+              ).rows[0] ?? null
+            : null;
 
         if (!confirmed) {
           const { rows } = await client.query(
-            `SELECT status, order_number FROM orders WHERE id = $1::uuid FOR UPDATE`,
+            `SELECT status, order_number FROM orders WHERE id = $1 FOR UPDATE`,
             [payment.order_id],
           );
 
@@ -599,10 +646,10 @@ export const PaymentRepository = {
             await client.query(
               `UPDATE orders
                SET payment_status = $2,
-                   paid_at = COALESCE(paid_at, NOW()),
+                   paid_at = COALESCE(paid_at, NOW(6)),
                    order_number = ${ASSIGN_ORDER_NUMBER_SQL},
-                   updated_at = NOW()
-               WHERE id = $1::uuid
+                   updated_at = NOW(6)
+               WHERE id = $1
                  AND payment_status = $3`,
               [payment.order_id, PAYMENT_STATUS.PAID, PAYMENT_STATUS.PENDING],
             );
@@ -702,23 +749,31 @@ export const PaymentRepository = {
           provider_payment_id = COALESCE($3, provider_payment_id),
           error_code = $4,
           error_description = $5,
-          updated_at = NOW()
-      WHERE id = $1::uuid
+          updated_at = NOW(6)
+      WHERE id = $1
         AND status = $6
-      RETURNING ${COLUMNS}
     `;
 
     try {
-      const result = await query(text, [
-        paymentId,
-        PAYMENT_ATTEMPT_STATUS.FAILED,
-        providerPaymentId,
-        code,
-        description,
-        PAYMENT_ATTEMPT_STATUS.CREATED,
-      ]);
+      // Guarded UPDATE, then read back by key in the same transaction
+      // (no UPDATE … RETURNING in MariaDB).
+      return await withTransaction(async (client) => {
+        const updated = await client.query(text, [
+          paymentId,
+          PAYMENT_ATTEMPT_STATUS.FAILED,
+          providerPaymentId,
+          code,
+          description,
+          PAYMENT_ATTEMPT_STATUS.CREATED,
+        ]);
+        if (updated.rowCount === 0) return null;
 
-      return result.rows[0] ?? null;
+        const result = await client.query(
+          `SELECT ${COLUMNS} FROM payments WHERE id = $1`,
+          [paymentId],
+        );
+        return result.rows[0] ?? null;
+      });
     } catch (error) {
       throw handleDatabaseError(error, "markFailed", { paymentId });
     }
@@ -755,7 +810,7 @@ export const PaymentRepository = {
     try {
       return await withTransaction(async (client) => {
         const locked = await client.query(
-          `SELECT ${COLUMNS} FROM payments WHERE id = $1::uuid FOR UPDATE`,
+          `SELECT ${COLUMNS} FROM payments WHERE id = $1 FOR UPDATE`,
           [paymentId],
         );
         const payment = locked.rows[0];
@@ -765,21 +820,31 @@ export const PaymentRepository = {
         const paid = Number(payment.amount);
         const refundAmount = amount === null ? paid : Math.min(Number(amount), paid);
 
-        const inserted = await client.query(
-          `INSERT INTO payment_refunds (payment_id, provider, provider_refund_id, amount)
-           VALUES ($1::uuid, $2, $3, $4)
-           ON CONFLICT (provider, provider_refund_id) DO NOTHING
-           RETURNING id`,
-          [paymentId, payment.provider, providerRefundId, refundAmount],
-        );
-
-        if (inserted.rowCount === 0) {
-          return { payment, alreadyRecorded: true };
+        // Postgres had ON CONFLICT … DO NOTHING RETURNING id, where zero
+        // rows meant "already recorded". MariaDB's equivalents either
+        // return the row anyway (ON DUPLICATE KEY … RETURNING) or swallow
+        // unrelated errors too (INSERT IGNORE), so the duplicate is caught
+        // by constraint name instead. A failed statement does not abort a
+        // MariaDB transaction, so the transaction carries on unharmed.
+        try {
+          await client.query(
+            `INSERT INTO payment_refunds (payment_id, provider, provider_refund_id, amount)
+             VALUES ($1, $2, $3, $4)`,
+            [paymentId, payment.provider, providerRefundId, refundAmount],
+          );
+        } catch (error) {
+          if (
+            error?.code === "23505" &&
+            error?.constraint === "uq_payment_refunds_provider_refund"
+          ) {
+            return { payment, alreadyRecorded: true };
+          }
+          throw error;
         }
 
         const { rows: totals } = await client.query(
-          `SELECT COALESCE(SUM(amount), 0)::NUMERIC(12,2) AS refunded
-             FROM payment_refunds WHERE payment_id = $1::uuid`,
+          `SELECT CAST(COALESCE(SUM(amount), 0) AS DECIMAL(12,2)) AS refunded
+             FROM payment_refunds WHERE payment_id = $1`,
           [paymentId],
         );
         const refundedTotal = Math.min(Number(totals[0].refunded), paid);
@@ -790,29 +855,37 @@ export const PaymentRepository = {
         if (fullyRefunded) {
           const result = await client.query(
             `UPDATE payments
-                SET status = $2, updated_at = NOW()
-              WHERE id = $1::uuid AND status = $3
-              RETURNING ${COLUMNS}`,
+                SET status = $2, updated_at = NOW(6)
+              WHERE id = $1 AND status = $3`,
             [paymentId, PAYMENT_ATTEMPT_STATUS.REFUNDED, PAYMENT_ATTEMPT_STATUS.PAID],
           );
-          updated = result.rows[0] ?? payment;
+          if (result.rowCount > 0) {
+            updated =
+              (
+                await client.query(`SELECT ${COLUMNS} FROM payments WHERE id = $1`, [
+                  paymentId,
+                ])
+              ).rows[0] ?? payment;
+          }
         }
 
         // The order follows only when no other payment on it still stands.
+        // Both LEAST arguments are non-null (a number, and a NOT NULL
+        // column), so MariaDB's NULL-propagating LEAST behaves as
+        // Postgres's did.
         const orderResult = await client.query(
           `UPDATE orders
-              SET refunded_amount = LEAST($2::numeric, total),
+              SET refunded_amount = LEAST($2, total),
                   payment_status = $3,
-                  updated_at = NOW()
-            WHERE id = $1::uuid
+                  updated_at = NOW(6)
+            WHERE id = $1
               AND payment_status IN ($4, $5)
               AND NOT EXISTS (
                 SELECT 1 FROM payments p
-                 WHERE p.order_id = $1::uuid
+                 WHERE p.order_id = $1
                    AND p.status = $6
-                   AND p.id <> $7::uuid
-              )
-            RETURNING id`,
+                   AND p.id <> $7
+              )`,
           [
             payment.order_id,
             refundedTotal,

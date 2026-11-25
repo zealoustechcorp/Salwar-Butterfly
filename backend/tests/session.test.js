@@ -30,7 +30,10 @@ import { randomUUID } from "node:crypto";
 // when `npm test` loaded a .env — which is what decides whether this
 // suite runs against a database or skips itself.
 process.env.NODE_ENV = "test";
-process.env.DATABASE_URL ??= "postgres://user:pass@localhost:5432/test";
+process.env.MYSQL_HOST ??= "127.0.0.1";
+process.env.MYSQL_USER ??= "test";
+process.env.MYSQL_PASSWORD ??= "test";
+process.env.MYSQL_DATABASE ??= "test";
 process.env.JWT_SECRET ??= "test-secret-that-is-long-enough-32+";
 process.env.R2_ACCOUNT_ID ??= "test";
 process.env.R2_ACCESS_KEY_ID ??= "test";

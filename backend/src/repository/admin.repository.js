@@ -1,4 +1,4 @@
-import { query } from "../config/db.js";
+import { query, withTransaction } from "../config/db.js";
 import { logger } from "../utils/logger.js";
 
 // ============================================================
@@ -324,22 +324,30 @@ export const AdminRepository = {
   // ==========================================================
 
   async touchLastLogin(id) {
+    // MariaDB has no UPDATE … RETURNING: update, then read the row back by
+    // its key in the same transaction.
     const text = `
       UPDATE admins
       SET
-        last_login_at = NOW(),
-        updated_at = NOW()
+        last_login_at = NOW(6),
+        updated_at = NOW(6)
       WHERE id = $1
         AND deleted_at IS NULL
-      RETURNING
-        id,
-        last_login_at
     `;
 
     try {
-      const result = await query(text, [id]);
+      return await withTransaction(async (client) => {
+        const updated = await client.query(text, [id]);
 
-      return result.rows[0] ?? null;
+        if (updated.rowCount === 0) return null;
+
+        const result = await client.query(
+          `SELECT id, last_login_at FROM admins WHERE id = $1`,
+          [id],
+        );
+
+        return result.rows[0] ?? null;
+      });
     } catch (error) {
       throw handleDatabaseError(error, "touchLastLogin", { adminId: id });
     }

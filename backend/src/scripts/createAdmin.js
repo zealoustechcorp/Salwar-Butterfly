@@ -171,7 +171,8 @@ const run = async () => {
 try {
   await run();
 } catch (error) {
-  if (error?.code === "ADMIN_TABLE_MISSING" || error?.code === "42P01") {
+  // 42P01 is Postgres's undefined_table; MariaDB reports a missing table as 42S02.
+  if (error?.code === "ADMIN_TABLE_MISSING" || error?.code === "42P01" || error?.code === "42S02") {
     fail("The admins table does not exist. Run `npm run db:migrate` first.");
   } else {
     fail(error?.message ?? "Failed to create admin");

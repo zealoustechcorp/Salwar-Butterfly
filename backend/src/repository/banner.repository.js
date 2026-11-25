@@ -3,9 +3,9 @@
 // The home page carousel (F-06).
 //
 // A small table read on every home page render and written a few times a
-// season. Every statement names its columns, and every id is cast
-// explicitly — an id arriving as text against a UUID column is a
-// different error on every driver version.
+// season. Every statement names its columns. Ids are bound as plain text:
+// MariaDB compares text against a UUID column directly, and malformed
+// text simply matches nothing.
 
 import { query, withTransaction } from "../config/db.js";
 import { logger } from "../utils/logger.js";
@@ -62,13 +62,16 @@ const FROM = `
  * `created_at` and then `id` break the tie rather than nothing at all.
  * Two banners sharing a position is a state an admin can create by
  * uploading a batch while another screen is mid-reorder, and without a
- * second key Postgres may hand them back in either order — a pair of
+ * second key the database may hand them back in either order — a pair of
  * slides that swap places between page loads.
  *
  * A banner has no name to sort by, which is why this is the timestamp
  * and not the alphabetical fallback the size charts use.
+ *
+ * The id is compared as text: MariaDB sorts its UUID type in a different
+ * byte order from Postgres, and the public reader uses the same key.
  */
-const ORDER = "ORDER BY b.position ASC, b.created_at ASC, b.id ASC";
+const ORDER = "ORDER BY b.position ASC, b.created_at ASC, CAST(b.id AS CHAR) ASC";
 
 export const BannerRepository = {
   // ==========================================================
@@ -89,7 +92,7 @@ export const BannerRepository = {
   async findById(id) {
     try {
       const result = await query(
-        `SELECT ${COLUMNS} ${FROM} WHERE b.id = $1::uuid`,
+        `SELECT ${COLUMNS} ${FROM} WHERE b.id = $1`,
         [id],
       );
 
@@ -108,7 +111,7 @@ export const BannerRepository = {
    */
   async count() {
     try {
-      const result = await query("SELECT COUNT(*)::INTEGER AS total FROM banners");
+      const result = await query("SELECT COUNT(*) AS total FROM banners");
 
       return result.rows[0]?.total ?? 0;
     } catch (error) {
@@ -169,17 +172,16 @@ export const BannerRepository = {
         `UPDATE banners
          SET image           = $2,
              image_public_id = $3,
-             updated_at      = NOW()
-         WHERE id = $1::uuid
-         RETURNING id`,
+             updated_at      = NOW(6)
+         WHERE id = $1`,
         [id, image.imageUrl, image.imagePublicId],
       );
 
-      if (!result.rows[0]) return null;
+      if (result.rowCount === 0) return null;
 
-      // RETURNING cannot reach the joined product name, so the row is
-      // read back rather than returned from the UPDATE. One extra
-      // round trip on a write the shop makes a few times a season.
+      // MariaDB has no UPDATE … RETURNING (and it could not reach the
+      // joined product name anyway), so the row is read back by id. One
+      // extra round trip on a write the shop makes a few times a season.
       return BannerRepository.findById(id);
     } catch (error) {
       throw handleDatabaseError(error, "replaceImage", { id });
@@ -197,13 +199,12 @@ export const BannerRepository = {
     try {
       const result = await query(
         `UPDATE banners
-         SET active = $2, updated_at = NOW()
-         WHERE id = $1::uuid
-         RETURNING id`,
+         SET active = $2, updated_at = NOW(6)
+         WHERE id = $1`,
         [id, active],
       );
 
-      if (!result.rows[0]) return null;
+      if (result.rowCount === 0) return null;
 
       return BannerRepository.findById(id);
     } catch (error) {
@@ -227,13 +228,12 @@ export const BannerRepository = {
     try {
       const result = await query(
         `UPDATE banners
-         SET product_id = $2::uuid, updated_at = NOW()
-         WHERE id = $1::uuid
-         RETURNING id`,
+         SET product_id = $2, updated_at = NOW(6)
+         WHERE id = $1`,
         [id, productId ?? null],
       );
 
-      if (!result.rows[0]) return null;
+      if (result.rowCount === 0) return null;
 
       return BannerRepository.findById(id);
     } catch (error) {
@@ -257,8 +257,8 @@ export const BannerRepository = {
       for (const [index, id] of ids.entries()) {
         await client.query(
           `UPDATE banners
-           SET position = $2, updated_at = NOW()
-           WHERE id = $1::uuid`,
+           SET position = $2, updated_at = NOW(6)
+           WHERE id = $1`,
           [id, index + 1],
         );
       }
@@ -292,7 +292,7 @@ export const BannerRepository = {
       // name on a deleted slide would answer no question.
       const result = await query(
         `DELETE FROM banners
-         WHERE id = $1::uuid
+         WHERE id = $1
          RETURNING id, image, image_public_id, position, active, product_id`,
         [id],
       );

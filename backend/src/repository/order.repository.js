@@ -90,11 +90,16 @@ const REFUND_DUE_SQL = `(
  * row, and an inner join would silently drop exactly the orders that
  * are hardest to chase up.
  *
- * The lines arrive as a JSON array on the header row, from a LATERAL,
- * rather than as a second query per order — a twenty-order admin page
- * would otherwise be twenty-one round trips. COALESCE because an order
- * with no lines should read as `[]`, not null; that state should not
- * exist, but a list screen should not crash if it ever does.
+ * The lines arrive as a JSON array on the header row, from a correlated
+ * subquery, rather than as a second query per order — a twenty-order
+ * admin page would otherwise be twenty-one round trips. COALESCE because
+ * an order with no lines should read as `[]`, not null; that state should
+ * not exist, but a list screen should not crash if it ever does.
+ *
+ * The `__json` / `__bool` alias suffixes tell db.js to parse the JSON and
+ * turn the 0/1 into a boolean; the suffix is dropped, so callers still see
+ * `items` and `refund_due`. Money inside the JSON is a JSON number, as it
+ * was from Postgres's json_build_object.
  */
 const SELECT_ORDER = `
   SELECT
@@ -102,38 +107,48 @@ const SELECT_ORDER = `
     c.name  AS customer_name,
     c.email AS customer_email,
     c.phone AS customer_phone,
-    ${REFUND_DUE_SQL} AS refund_due,
+    ${REFUND_DUE_SQL} AS refund_due__bool,
     -- How long ago the checkout began, by the database's clock. Read for
     -- a draft's hold (PaymentService) — never computed from placed_at on
     -- the API host, whose clock is a different one.
-    FLOOR(EXTRACT(EPOCH FROM (clock_timestamp() - o.placed_at)))::int AS age_seconds,
-    lines.items AS items
+    TIMESTAMPDIFF(SECOND, o.placed_at, NOW(6)) AS age_seconds,
+    (
+      SELECT COALESCE(
+        JSON_ARRAYAGG(
+          JSON_OBJECT(
+            'id',           i.id,
+            'product_id',   i.product_id,
+            'variant_id',   i.variant_id,
+            'product_name', i.product_name,
+            'product_slug', i.product_slug,
+            'size',         i.size,
+            'colour',       i.colour,
+            'image_url',    i.image_url,
+            'unit_price',   i.unit_price,
+            'quantity',     i.quantity,
+            'line_total',   i.line_total
+          )
+          ORDER BY i.product_name ASC, i.size ASC, i.colour ASC
+        ),
+        JSON_ARRAY()
+      )
+      FROM order_items i
+      WHERE i.order_id = o.id
+    ) AS items__json
   FROM orders o
   LEFT JOIN customers c ON c.id = o.customer_id
-  LEFT JOIN LATERAL (
-    SELECT COALESCE(
-      json_agg(
-        json_build_object(
-          'id',           i.id,
-          'product_id',   i.product_id,
-          'variant_id',   i.variant_id,
-          'product_name', i.product_name,
-          'product_slug', i.product_slug,
-          'size',         i.size,
-          'colour',       i.colour,
-          'image_url',    i.image_url,
-          'unit_price',   i.unit_price,
-          'quantity',     i.quantity,
-          'line_total',   i.line_total
-        )
-        ORDER BY i.product_name ASC, i.size ASC, i.colour ASC
-      ),
-      '[]'::json
-    ) AS items
-    FROM order_items i
-    WHERE i.order_id = o.id
-  ) lines ON TRUE
 `;
+
+/**
+ * A date filter value as a Date, so the driver sends it as a UTC DATETIME.
+ * Postgres's ::timestamptz parsed ISO strings with an offset; MariaDB's
+ * DATETIME does not accept the offset, so it is resolved here instead.
+ */
+const toUtcDate = (value) => {
+  if (value instanceof Date) return value;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date;
+};
 
 /**
  * Builds the shared WHERE clause for the list queries.
@@ -159,7 +174,7 @@ const buildFilters = ({
 
   if (customerId) {
     values.push(customerId);
-    conditions.push(`o.customer_id = $${values.length}::uuid`);
+    conditions.push(`o.customer_id = $${values.length}`);
   }
 
   if (status) {
@@ -173,13 +188,13 @@ const buildFilters = ({
   }
 
   if (placedFrom) {
-    values.push(placedFrom);
-    conditions.push(`o.placed_at >= $${values.length}::timestamptz`);
+    values.push(toUtcDate(placedFrom));
+    conditions.push(`o.placed_at >= $${values.length}`);
   }
 
   if (placedTo) {
-    values.push(placedTo);
-    conditions.push(`o.placed_at <= $${values.length}::timestamptz`);
+    values.push(toUtcDate(placedTo));
+    conditions.push(`o.placed_at <= $${values.length}`);
   }
 
   if (search) {
@@ -189,11 +204,12 @@ const buildFilters = ({
     // The order number matches by prefix as well as anywhere, so typing
     // "1042" finds SB-001042. The rest are the three ways a shop
     // identifies a parcel when the customer cannot find their number.
+    // LOWER on both sides stands in for ILIKE (binary collation).
     conditions.push(
-      `(o.order_number ILIKE ${like}
-        OR o.contact_name ILIKE ${like}
-        OR o.contact_email ILIKE ${like}
-        OR o.contact_phone ILIKE ${like})`,
+      `(LOWER(o.order_number) LIKE LOWER(${like})
+        OR LOWER(o.contact_name) LIKE LOWER(${like})
+        OR LOWER(o.contact_email) LIKE LOWER(${like})
+        OR LOWER(o.contact_phone) LIKE LOWER(${like}))`,
     );
   }
 
@@ -256,19 +272,29 @@ export const OrderRepository = {
         // 1 + 2. LOCK AND PRICE
         // ------------------------------------------------------
         //
-        // FOR UPDATE OF v locks the variant rows only. The products
-        // and categories joined alongside are read for their names and
-        // prices and are not being changed, so locking them would block
-        // an admin editing an unrelated field on the same product for
-        // the length of a checkout.
+        // The variant rows are locked on their own, in id order, by a
+        // statement that touches no other table. The products joined
+        // alongside are read for their names and prices and are not
+        // being changed, so locking them would block an admin editing an
+        // unrelated field on the same product for the length of a
+        // checkout. (Postgres scoped this with FOR UPDATE OF v; MariaDB
+        // has no OF and would lock every joined row, hence two statements.)
         //
-        // The cover photo comes from a LATERAL taking the first image.
-        // Postgres will not lock across the nullable side of an outer
-        // join, which is another reason the lock is scoped to `v`.
+        // The pricing read that follows is a plain read. Under READ
+        // COMMITTED it sees the latest committed values, and nobody can
+        // change the locked variants before this transaction ends.
 
         const variantIds = [...lines]
           .map((line) => line.variantId)
           .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+
+        await client.query(
+          `SELECT id FROM product_variants
+           WHERE id IN ($1)
+           ORDER BY id
+           FOR UPDATE`,
+          [variantIds],
+        );
 
         const priced = await client.query(
           `SELECT
@@ -282,19 +308,17 @@ export const OrderRepository = {
              p.slug            AS product_slug,
              p.current_price   AS unit_price,
              p.active          AS product_active,
-             img.image_url     AS image_url
+             (
+               SELECT pi.image_url
+               FROM product_images pi
+               WHERE pi.product_id = p.id
+               ORDER BY pi.position ASC, pi.created_at ASC
+               LIMIT 1
+             )                 AS image_url
            FROM product_variants v
            JOIN products p ON p.id = v.product_id
-           LEFT JOIN LATERAL (
-             SELECT pi.image_url
-             FROM product_images pi
-             WHERE pi.product_id = p.id
-             ORDER BY pi.position ASC, pi.created_at ASC
-             LIMIT 1
-           ) img ON TRUE
-           WHERE v.id = ANY($1::uuid[])
-           ORDER BY v.id
-           FOR UPDATE OF v`,
+           WHERE v.id IN ($1)
+           ORDER BY v.id`,
           [variantIds],
         );
 
@@ -345,10 +369,9 @@ export const OrderRepository = {
           const reserved = await client.query(
             `UPDATE product_variants
              SET stock_quantity = stock_quantity - $2,
-                 updated_at = NOW()
-             WHERE id = $1::uuid
-               AND stock_quantity - $2 >= 0
-             RETURNING stock_quantity`,
+                 updated_at = NOW(6)
+             WHERE id = $1
+               AND stock_quantity - $2 >= 0`,
             [line.variantId, line.quantity],
           );
 
@@ -409,7 +432,7 @@ export const OrderRepository = {
              subtotal, shipping_fee, total, currency,
              customer_note
            ) VALUES (
-             $1::uuid,
+             $1,
              $2, $3, $4,
              $5, $6, $7,
              $8, $9, $10,
@@ -443,40 +466,38 @@ export const OrderRepository = {
 
         const order = orderResult.rows[0];
 
-        // One INSERT for every line rather than one per line. UNNEST
-        // over parallel arrays keeps it to a single round trip whatever
-        // the bag holds.
-        await client.query(
+        // One INSERT for every line rather than one per line: a
+        // multi-row VALUES list keeps it to a single round trip whatever
+        // the bag holds. ($1 is the order id, repeated on every row.)
+        const ITEM_COLUMNS = 9;
+        const rowsSql = items
+          .map((_, i) => {
+            const base = 2 + i * ITEM_COLUMNS;
+            const params = Array.from({ length: ITEM_COLUMNS }, (_, k) => `$${base + k}`);
+            return `($1, ${params.join(", ")})`;
+          })
+          .join(",\n");
+
+        if (items.length > 0) await client.query(
           `INSERT INTO order_items (
              order_id, product_id, variant_id,
              product_name, product_slug, size, colour, image_url,
              unit_price, quantity
            )
-           SELECT
-             $1::uuid,
-             p.product_id, p.variant_id,
-             p.product_name, p.product_slug, p.size, p.colour, p.image_url,
-             p.unit_price, p.quantity
-           FROM UNNEST(
-             $2::uuid[], $3::uuid[],
-             $4::text[], $5::text[], $6::text[], $7::text[], $8::text[],
-             $9::numeric[], $10::int[]
-           ) AS p(
-             product_id, variant_id,
-             product_name, product_slug, size, colour, image_url,
-             unit_price, quantity
-           )`,
+           VALUES ${rowsSql}`,
           [
             order.id,
-            items.map((item) => item.productId),
-            items.map((item) => item.variantId),
-            items.map((item) => item.productName),
-            items.map((item) => item.productSlug),
-            items.map((item) => item.size),
-            items.map((item) => item.colour),
-            items.map((item) => item.imageUrl),
-            items.map((item) => item.unitPrice),
-            items.map((item) => item.quantity),
+            ...items.flatMap((item) => [
+              item.productId,
+              item.variantId,
+              item.productName,
+              item.productSlug,
+              item.size,
+              item.colour,
+              item.imageUrl,
+              item.unitPrice,
+              item.quantity,
+            ]),
           ],
         );
 
@@ -519,7 +540,7 @@ export const OrderRepository = {
   async findById(id, { client = null } = {}) {
     const text = `
       ${SELECT_ORDER}
-      WHERE o.id = $1::uuid
+      WHERE o.id = $1
       LIMIT 1
     `;
 
@@ -596,7 +617,7 @@ export const OrderRepository = {
     `;
 
     const countText = `
-      SELECT COUNT(*)::INTEGER AS count
+      SELECT COUNT(*) AS count
       FROM orders o
       ${clause}
     `;
@@ -628,8 +649,8 @@ export const OrderRepository = {
     const text = `
       SELECT
         o.status,
-        COUNT(*)::INTEGER AS order_count,
-        COALESCE(SUM(o.total), 0)::NUMERIC(12,2) AS revenue
+        COUNT(*) AS order_count,
+        CAST(COALESCE(SUM(o.total), 0) AS DECIMAL(12,2)) AS revenue
       FROM orders o
       ${clause}
       GROUP BY o.status
@@ -638,7 +659,7 @@ export const OrderRepository = {
     // Not a status, so not a GROUP BY bucket: an order can be both
     // cancelled and refund-due, and the status tiles must still add up.
     const refundText = `
-      SELECT COUNT(*)::INTEGER AS count
+      SELECT COUNT(*) AS count
       FROM orders o
       ${clause ? `${clause} AND` : "WHERE"} ${REFUND_DUE_SQL}
     `;
@@ -679,7 +700,7 @@ export const OrderRepository = {
 
     // The column name is looked up from a frozen map keyed by a status
     // the validator has already checked — never caller text.
-    const stampSql = stampColumn ? `, ${stampColumn} = NOW()` : "";
+    const stampSql = stampColumn ? `, ${stampColumn} = NOW(6)` : "";
 
     const text = `
       UPDATE orders
@@ -688,11 +709,10 @@ export const OrderRepository = {
           courier_name = COALESCE($5, courier_name),
           tracking_number = COALESCE($6, tracking_number),
           tracking_url = COALESCE($7, tracking_url),
-          updated_at = NOW()
+          updated_at = NOW(6)
           ${stampSql}
-      WHERE id = $1::uuid
+      WHERE id = $1
         AND status = $2
-      RETURNING *
     `;
 
     try {
@@ -713,7 +733,11 @@ export const OrderRepository = {
 
         if (result.rowCount === 0) return { row: null, emailIds: [] };
 
-        const updated = result.rows[0];
+        // No UPDATE … RETURNING in MariaDB: read the row back by its key,
+        // under the lock the UPDATE still holds.
+        const updated = (
+          await client.query("SELECT * FROM orders WHERE id = $1", [id])
+        ).rows[0];
 
         logger.info("Order status changed", {
           orderId: id,
@@ -759,15 +783,14 @@ export const OrderRepository = {
       UPDATE orders
       SET status = $2,
           payment_status = $3,
-          paid_at = COALESCE(paid_at, NOW()),
+          paid_at = COALESCE(paid_at, NOW(6)),
           admin_note = COALESCE($4, admin_note),
-          updated_at = NOW()
-      WHERE id = $1::uuid
+          updated_at = NOW(6)
+      WHERE id = $1
         AND status = $5
         -- Never a checkout draft: those are placed by their own payment,
         -- not by hand, and no admin screen lists them.
         AND ${isPlacedSql("orders")}
-      RETURNING *
     `;
 
     try {
@@ -782,7 +805,10 @@ export const OrderRepository = {
 
         if (result.rowCount === 0) return { row: null, emailIds: [] };
 
-        const confirmed = result.rows[0];
+        // Read back by key under the UPDATE's lock (no UPDATE … RETURNING).
+        const confirmed = (
+          await client.query("SELECT * FROM orders WHERE id = $1", [id])
+        ).rows[0];
 
         // The payment history row for money the shop saw arrive outside
         // the gateway. Without it the order page shows no payment at all
@@ -796,7 +822,7 @@ export const OrderRepository = {
              order_id, provider, provider_order_id, provider_payment_id,
              status, amount, currency, paid_at
            )
-           VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, NOW())`,
+           VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(6))`,
           [
             confirmed.id,
             PAYMENT_PROVIDER.MANUAL,
@@ -855,16 +881,18 @@ export const OrderRepository = {
       SELECT o.id
       FROM orders o
       WHERE o.status = $1
-        AND o.placed_at < NOW() - make_interval(secs => $2::float8 * 60)
+        AND o.placed_at < NOW(6) - INTERVAL $2 MICROSECOND
       ORDER BY o.placed_at ASC
       LIMIT $3
     `;
 
     try {
+      // The hold may be fractional minutes, so it goes in as whole
+      // microseconds — an INTERVAL takes an integer count.
       const result = await query(text, [
         ORDER_STATUS.PENDING_PAYMENT,
-        holdMinutes,
-        limit,
+        Math.round(Number(holdMinutes) * 60 * 1_000_000),
+        Number(limit),
       ]);
 
       return result.rows.map((row) => row.id);
@@ -902,32 +930,48 @@ export const OrderRepository = {
   async cancel(id, { reason = null, cancellableFrom = [], draftOnly = false } = {}) {
     try {
       const { row, emailIds } = await withTransaction(async (client) => {
+        // An empty cancellableFrom becomes IN (NULL), which matches
+        // nothing — the same answer `= ANY('{}')` gave.
         const cancelled = await client.query(
           `UPDATE orders
            SET status = $2,
                cancellation_reason = $3,
-               cancelled_at = NOW(),
-               updated_at = NOW()
-           WHERE id = $1::uuid
-             AND status = ANY($4::text[])
-             ${draftOnly ? "AND order_number IS NULL" : ""}
-           RETURNING *`,
+               cancelled_at = NOW(6),
+               updated_at = NOW(6)
+           WHERE id = $1
+             AND status IN ($4)
+             ${draftOnly ? "AND order_number IS NULL" : ""}`,
           [id, ORDER_STATUS.CANCELLED, reason, cancellableFrom],
         );
 
         if (cancelled.rowCount === 0) return { row: null, emailIds: [] };
 
+        // Read back by key under the UPDATE's lock (no UPDATE … RETURNING).
+        const cancelledRow = (
+          await client.query("SELECT * FROM orders WHERE id = $1", [id])
+        ).rows[0];
+
+        // Lock the variants being restocked in id order — the order
+        // checkout locks them in — so a cancellation and a checkout that
+        // share pieces queue rather than deadlock.
+        await client.query(
+          `SELECT id FROM product_variants
+           WHERE id IN (SELECT variant_id FROM order_items WHERE order_id = $1)
+           ORDER BY id
+           FOR UPDATE`,
+          [id],
+        );
+
         // One statement rather than a loop: the lines of one order touch
         // distinct variants (enforced by uq_order_items_order_variant),
-        // so there is no line-by-line accumulation to do.
+        // so there is no line-by-line accumulation to do. MariaDB's
+        // multi-table UPDATE in place of Postgres's UPDATE … FROM.
         const restored = await client.query(
           `UPDATE product_variants v
-           SET stock_quantity = v.stock_quantity + i.quantity,
-               updated_at = NOW()
-           FROM order_items i
-           WHERE i.order_id = $1::uuid
-             AND i.variant_id = v.id
-           RETURNING v.id`,
+           JOIN order_items i ON i.variant_id = v.id
+           SET v.stock_quantity = v.stock_quantity + i.quantity,
+               v.updated_at = NOW(6)
+           WHERE i.order_id = $1`,
           [id],
         );
 
@@ -939,15 +983,15 @@ export const OrderRepository = {
         // After the stock is back on the shelf, so that an email
         // promising a cancellation cannot outlive a rollback of it. Not
         // for a draft: there was never an order to cancel.
-        const emails = cancelled.rows[0].order_number
+        const emails = cancelledRow.order_number
           ? await EmailService.emitTx(
               client,
-              cancelled.rows[0],
+              cancelledRow,
               NOTIFY_EVENT.ORDER_CANCELLED,
             )
           : [];
 
-        return { row: cancelled.rows[0], emailIds: emails };
+        return { row: cancelledRow, emailIds: emails };
       });
 
       EmailService.dispatch(emailIds);

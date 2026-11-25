@@ -5,10 +5,8 @@
 // A small table read far more often than it is written: the storefront
 // asks for it on every page that can open the chart dialog, and the shop
 // edits it when a card is reprinted. Every statement here names its
-// columns, and the JSONB pair goes in as text with an explicit ::jsonb
-// cast — node-postgres would otherwise send a JavaScript array as a
-// Postgres array literal, which is a different type and a different
-// error every time.
+// columns, and the JSON pair goes in as JSON.stringify'd text — db.js
+// would otherwise expand a bare JavaScript array into a value list.
 
 import { query, withTransaction } from "../config/db.js";
 import { FIT_GROUP } from "../config/attribute.groups.js";
@@ -79,7 +77,7 @@ export const SizeChartRepository = {
   async findById(id) {
     try {
       const result = await query(
-        `SELECT ${COLUMNS} FROM size_charts WHERE id = $1::uuid`,
+        `SELECT ${COLUMNS} FROM size_charts WHERE id = $1`,
         [id],
       );
 
@@ -102,7 +100,7 @@ export const SizeChartRepository = {
   async findByFit(fit, exceptId = null) {
     const text = exceptId
       ? `SELECT ${COLUMNS} FROM size_charts
-         WHERE lower(fit) = lower($1) AND id <> $2::uuid`
+         WHERE lower(fit) = lower($1) AND id <> $2`
       : `SELECT ${COLUMNS} FROM size_charts WHERE lower(fit) = lower($1)`;
 
     try {
@@ -142,7 +140,7 @@ export const SizeChartRepository = {
         fit, title, unit, column_keys, measurements, position, active
       )
       VALUES (
-        $1, $2, $3, $4::jsonb, $5::jsonb, $6, $7
+        $1, $2, $3, $4, $5, $6, $7
       )
       RETURNING ${COLUMNS}
     `;
@@ -175,33 +173,40 @@ export const SizeChartRepository = {
    * Returns null when the id names nothing.
    */
   async update(id, chart) {
+    // No UPDATE … RETURNING in MariaDB: update, then read back by key.
     const text = `
       UPDATE size_charts
       SET fit          = $2,
           title        = $3,
           unit         = $4,
-          column_keys  = $5::jsonb,
-          measurements = $6::jsonb,
+          column_keys  = $5,
+          measurements = $6,
           position     = $7,
           active       = $8,
-          updated_at   = NOW()
-      WHERE id = $1::uuid
-      RETURNING ${COLUMNS}
+          updated_at   = NOW(6)
+      WHERE id = $1
     `;
 
     try {
-      const result = await query(text, [
-        id,
-        chart.fit,
-        chart.title,
-        chart.unit,
-        JSON.stringify(chart.columns),
-        JSON.stringify(chart.rows),
-        chart.position,
-        chart.active,
-      ]);
+      return await withTransaction(async (client) => {
+        const updated = await client.query(text, [
+          id,
+          chart.fit,
+          chart.title,
+          chart.unit,
+          JSON.stringify(chart.columns),
+          JSON.stringify(chart.rows),
+          chart.position,
+          chart.active,
+        ]);
+        if (updated.rowCount === 0) return null;
 
-      return result.rows[0] ?? null;
+        const result = await client.query(
+          `SELECT ${COLUMNS} FROM size_charts WHERE id = $1`,
+          [id],
+        );
+        return result.rows[0] ?? null;
+      });
     } catch (error) {
       throw handleDatabaseError(error, "update", { id });
     }
@@ -216,15 +221,22 @@ export const SizeChartRepository = {
    */
   async setActive(id, active) {
     try {
-      const result = await query(
-        `UPDATE size_charts
-         SET active = $2, updated_at = NOW()
-         WHERE id = $1::uuid
-         RETURNING ${COLUMNS}`,
-        [id, active],
-      );
+      // No UPDATE … RETURNING in MariaDB: update, then read back by key.
+      return await withTransaction(async (client) => {
+        const updated = await client.query(
+          `UPDATE size_charts
+           SET active = $2, updated_at = NOW(6)
+           WHERE id = $1`,
+          [id, active],
+        );
+        if (updated.rowCount === 0) return null;
 
-      return result.rows[0] ?? null;
+        const result = await client.query(
+          `SELECT ${COLUMNS} FROM size_charts WHERE id = $1`,
+          [id],
+        );
+        return result.rows[0] ?? null;
+      });
     } catch (error) {
       throw handleDatabaseError(error, "setActive", { id });
     }
@@ -245,8 +257,8 @@ export const SizeChartRepository = {
       for (const [index, id] of ids.entries()) {
         await client.query(
           `UPDATE size_charts
-           SET position = $2, updated_at = NOW()
-           WHERE id = $1::uuid`,
+           SET position = $2, updated_at = NOW(6)
+           WHERE id = $1`,
           [id, index + 1],
         );
       }
@@ -267,13 +279,16 @@ export const SizeChartRepository = {
    *
    * There is no foreign key: a product names its chart by the string in
    * `attributes.fit`, matched case-insensitively the way findByFit does.
+   * (JSON_VALUE is re-collated from the JSON column's utf8mb4_bin to the
+   * tables' utf8mb4_nopad_bin, without which MariaDB refuses the
+   * comparison with size_charts.fit.)
    */
   async countProductsWithFit(fit) {
     try {
       const result = await query(
-        `SELECT COUNT(*)::INTEGER AS count
+        `SELECT COUNT(*) AS count
          FROM products
-         WHERE lower(attributes->>'${FIT_GROUP}') = lower($1)`,
+         WHERE lower(JSON_VALUE(attributes, '$."${FIT_GROUP}"') COLLATE utf8mb4_nopad_bin) = lower($1)`,
         [fit],
       );
 
@@ -302,10 +317,10 @@ export const SizeChartRepository = {
     try {
       const result = await query(
         `DELETE FROM size_charts sc
-         WHERE sc.id = $1::uuid
+         WHERE sc.id = $1
            AND NOT EXISTS (
              SELECT 1 FROM products p
-             WHERE lower(p.attributes->>'${FIT_GROUP}') = lower(sc.fit)
+             WHERE lower(JSON_VALUE(p.attributes, '$."${FIT_GROUP}"') COLLATE utf8mb4_nopad_bin) = lower(sc.fit)
            )
          RETURNING sc.id`,
         [id],

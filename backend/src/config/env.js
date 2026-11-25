@@ -12,7 +12,12 @@
 // ============================================================
 
 const required = [
-  "DATABASE_URL",
+  // MariaDB (Hostinger). DATABASE_URL (Neon) is no longer read by the app; it
+  // stays in .env only for scripts/copyNeonToMysql.js until Neon is retired.
+  "MYSQL_HOST",
+  "MYSQL_USER",
+  "MYSQL_PASSWORD",
+  "MYSQL_DATABASE",
   "JWT_SECRET",
 
   // Cloudflare R2 (image storage)
@@ -83,22 +88,34 @@ if (jwtSecret.length < 32) {
 }
 
 // ============================================================
-// DATABASE TLS
+// DATABASE (MariaDB)
 // ============================================================
-//
-// Optional. db.js always verifies the Postgres certificate; without this it
-// verifies against Node's built-in public roots, which is right for Neon.
-// Set it only for a provider that signs with its own private CA (Aiven).
 
-// The PEM itself rather than a path to it, so the cert travels with the rest
-// of the config and no file has to ship alongside the code. Accepts either a
-// quoted multi-line value or a single line with literal \n escapes, which is
-// all some hosting dashboards allow.
-const pgCaCert = process.env.PG_CA_CERT?.replace(/\\n/g, "\n").trim() || null;
+const mysqlPort = Number(process.env.MYSQL_PORT ?? 3306);
 
-if (pgCaCert && !pgCaCert.includes("-----BEGIN CERTIFICATE-----")) {
+if (!Number.isInteger(mysqlPort) || mysqlPort <= 0 || mysqlPort > 65535) {
+  throw new Error("MYSQL_PORT must be a valid port number between 1 and 65535");
+}
+
+// Hostinger's shared plan allows 125 connections per database user; the
+// app, its queue workers and phpMyAdmin all share that. 10 matches what the
+// Postgres pool used.
+const mysqlPoolSize = Number(process.env.MYSQL_POOL_SIZE ?? 10);
+
+if (!Number.isInteger(mysqlPoolSize) || mysqlPoolSize < 1 || mysqlPoolSize > 100) {
+  throw new Error("MYSQL_POOL_SIZE must be an integer between 1 and 100");
+}
+
+// TLS is optional: the backend reaches the database from inside Hostinger.
+// Turn it on (MYSQL_SSL=true) when connecting over the internet. The CA, when
+// given, is the PEM itself — a quoted multi-line value or a single line with
+// literal \n escapes, which is all some hosting dashboards allow.
+const mysqlSsl = process.env.MYSQL_SSL === "true";
+const mysqlCaCert = process.env.MYSQL_CA_CERT?.replace(/\\n/g, "\n").trim() || null;
+
+if (mysqlCaCert && !mysqlCaCert.includes("-----BEGIN CERTIFICATE-----")) {
   throw new Error(
-    "PG_CA_CERT does not look like a PEM certificate — paste the whole file, " +
+    "MYSQL_CA_CERT does not look like a PEM certificate — paste the whole file, " +
       "-----BEGIN CERTIFICATE----- through -----END CERTIFICATE-----.",
   );
 }
@@ -462,9 +479,14 @@ export const env = Object.freeze({
   // DATABASE
   // ==========================================================
 
-  databaseUrl: process.env.DATABASE_URL,
-
-  pgCaCert,
+  mysqlHost: process.env.MYSQL_HOST,
+  mysqlPort,
+  mysqlUser: process.env.MYSQL_USER,
+  mysqlPassword: process.env.MYSQL_PASSWORD,
+  mysqlDatabase: process.env.MYSQL_DATABASE,
+  mysqlPoolSize,
+  mysqlSsl,
+  mysqlCaCert,
 
   // ==========================================================
   // CORS

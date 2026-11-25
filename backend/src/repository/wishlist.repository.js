@@ -3,9 +3,10 @@
 // Saved pieces (F-07).
 //
 // The simplest repository in the project, and it should stay that way.
-// Every write is idempotent by construction — ON CONFLICT DO NOTHING
-// against the unique constraint in 011 — because the thing driving them
-// is a heart icon on a card, and a heart icon gets double-tapped.
+// Every write is idempotent by construction — a duplicate against the
+// unique constraint in 011 counts as "already saved" — because the thing
+// driving them is a heart icon on a card, and a heart icon gets
+// double-tapped.
 //
 // Reads return product ids and nothing else. The storefront already
 // holds the whole catalogue (see storefront.service.js), so sending
@@ -50,14 +51,16 @@ const ruleError = (rule) =>
  * a burst of concurrent saves could all count 199 and all insert (BUG-5);
  * and a closed account's access token stays valid for up to fifteen
  * minutes, which this read refuses at no extra round trip (BUG-7).
- * FOR NO KEY UPDATE so foreign-key checks elsewhere are not blocked.
+ * (Postgres used FOR NO KEY UPDATE so FK checks elsewhere were not
+ * blocked; InnoDB has no such mode, so those wait for this short
+ * transaction.)
  */
 const lockOwner = async (client, customerId) => {
   const { rowCount } = await client.query(
     `SELECT 1
      FROM customers
-     WHERE id = $1::uuid AND deleted_at IS NULL
-     FOR NO KEY UPDATE`,
+     WHERE id = $1 AND deleted_at IS NULL
+     FOR UPDATE`,
     [customerId],
   );
 
@@ -66,9 +69,9 @@ const lockOwner = async (client, customerId) => {
 
 const countSaved = async (client, customerId) => {
   const { rows } = await client.query(
-    `SELECT COUNT(*)::int AS total
+    `SELECT COUNT(*) AS total
      FROM wishlist_items
-     WHERE customer_id = $1::uuid`,
+     WHERE customer_id = $1`,
     [customerId],
   );
 
@@ -90,7 +93,7 @@ export const WishlistRepository = {
       SELECT w.product_id, w.created_at
       FROM wishlist_items w
       JOIN products p ON p.id = w.product_id
-      WHERE w.customer_id = $1::uuid
+      WHERE w.customer_id = $1
         AND p.active = TRUE
       ORDER BY w.created_at DESC
     `;
@@ -126,7 +129,7 @@ export const WishlistRepository = {
       await lockOwner(client, customerId);
 
       const product = await client.query(
-        `SELECT active FROM products WHERE id = $1::uuid`,
+        `SELECT active FROM products WHERE id = $1`,
         [productId],
       );
 
@@ -135,7 +138,7 @@ export const WishlistRepository = {
 
       const saved = await client.query(
         `SELECT 1 FROM wishlist_items
-         WHERE customer_id = $1::uuid AND product_id = $2::uuid`,
+         WHERE customer_id = $1 AND product_id = $2`,
         [customerId, productId],
       );
 
@@ -145,15 +148,26 @@ export const WishlistRepository = {
         throw ruleError(WISHLIST_RULE.LIMIT_REACHED);
       }
 
-      const result = await client.query(
-        `INSERT INTO wishlist_items (customer_id, product_id)
-         VALUES ($1::uuid, $2::uuid)
-         ON CONFLICT (customer_id, product_id) DO NOTHING
-         RETURNING id`,
-        [customerId, productId],
-      );
+      // Plain INSERT with the duplicate caught, standing in for Postgres's
+      // ON CONFLICT DO NOTHING RETURNING (MariaDB's equivalent would return
+      // the row even on a conflict). A failed statement does not abort the
+      // MariaDB transaction, so returning false here still commits cleanly.
+      try {
+        const result = await client.query(
+          `INSERT INTO wishlist_items (customer_id, product_id)
+           VALUES ($1, $2)
+           RETURNING id`,
+          [customerId, productId],
+        );
 
-      return result.rowCount > 0;
+        return result.rowCount > 0;
+      } catch (error) {
+        if (error?.code === "23505" && error.constraint === "uq_wishlist_customer_product") {
+          return false;
+        }
+
+        throw error;
+      }
     }).catch((error) => {
       if (error?.wishlistRule) throw error;
 
@@ -165,7 +179,7 @@ export const WishlistRepository = {
     try {
       const result = await query(
         `DELETE FROM wishlist_items
-         WHERE customer_id = $1::uuid AND product_id = $2::uuid`,
+         WHERE customer_id = $1 AND product_id = $2`,
         [customerId, productId],
       );
 
@@ -179,10 +193,13 @@ export const WishlistRepository = {
    * Adds several at once — what sign-in does with whatever the browser
    * had saved while the shopper was a guest.
    *
-   * One statement rather than a loop of inserts. `unnest` expands the
-   * array into rows, and the same ON CONFLICT makes the whole merge
-   * idempotent: signing in on the same laptop twice adds nothing the
-   * second time.
+   * One statement rather than a loop of inserts. JSON_TABLE expands the
+   * array into rows (Postgres: unnest … WITH ORDINALITY), and the NOT
+   * EXISTS makes the whole merge idempotent: signing in on the same laptop
+   * twice adds nothing the second time. The no-op ON DUPLICATE KEY UPDATE
+   * stands in for ON CONFLICT DO NOTHING as a backstop; ids are
+   * de-duplicated first because MariaDB evaluates the NOT EXISTS before
+   * any of the rows are written.
    *
    * The join against `products` is what stops a hand-edited localStorage
    * value from putting ids into this table that no product answers to —
@@ -201,17 +218,22 @@ export const WishlistRepository = {
 
     const text = `
       INSERT INTO wishlist_items (customer_id, product_id)
-      SELECT $1::uuid, p.id
-      FROM unnest($2::uuid[]) WITH ORDINALITY AS incoming(id, ord)
+      SELECT $1, p.id
+      FROM JSON_TABLE($2, '$[*]' COLUMNS (
+        ord FOR ORDINALITY,
+        id CHAR(36) PATH '$'
+      )) AS incoming
       JOIN products p ON p.id = incoming.id AND p.active = TRUE
       WHERE NOT EXISTS (
         SELECT 1 FROM wishlist_items w
-        WHERE w.customer_id = $1::uuid AND w.product_id = p.id
+        WHERE w.customer_id = $1 AND w.product_id = p.id
       )
       ORDER BY incoming.ord
       LIMIT $3
-      ON CONFLICT (customer_id, product_id) DO NOTHING
+      ON DUPLICATE KEY UPDATE wishlist_items.id = wishlist_items.id
     `;
+
+    const incoming = JSON.stringify([...new Set(productIds)]);
 
     try {
       const result = await withTransaction(async (client) => {
@@ -221,7 +243,7 @@ export const WishlistRepository = {
 
         if (room <= 0) return { rowCount: 0 };
 
-        return client.query(text, [customerId, productIds, room]);
+        return client.query(text, [customerId, incoming, room]);
       });
 
       logger.info("Wishlist merged", {

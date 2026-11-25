@@ -49,10 +49,11 @@ const handleDatabaseError = (error, operation, context = {}) => {
  * its own: an inventory line that says "M — 2 left" and nothing else is
  * unusable.
  *
- * The cover photo comes from a LATERAL taking the first image rather
- * than the whole gallery — a stock table shows one thumbnail per row,
- * and aggregating up to twenty images per line to display one is wasted work
- * on every request.
+ * The cover photo comes from a correlated subquery taking the first image
+ * rather than the whole gallery — a stock table shows one thumbnail per
+ * row, and aggregating up to twenty images per line to display one is
+ * wasted work on every request. (Postgres used a LATERAL join; MariaDB has
+ * no LATERAL, and a scalar subquery answers the same question.)
  */
 const SELECT_ROW = `
   SELECT
@@ -73,7 +74,13 @@ const SELECT_ROW = `
     p.current_price AS product_price,
     p.category_id   AS category_id,
     c.name          AS category_name,
-    img.image_url   AS product_image_url
+    (
+      SELECT pi.image_url
+      FROM product_images pi
+      WHERE pi.product_id = p.id
+      ORDER BY pi.position ASC, pi.created_at ASC
+      LIMIT 1
+    )               AS product_image_url
   FROM product_variants v
   JOIN products p ON p.id = v.product_id
   LEFT JOIN categories c ON c.id = p.category_id
@@ -83,13 +90,6 @@ const SELECT_ROW = `
   -- stale swatch behind on every row that carries it.
   LEFT JOIN product_attribute_values reg
     ON reg.group_name = '${COLOUR_GROUP}' AND reg.value = v.colour
-  LEFT JOIN LATERAL (
-    SELECT pi.image_url
-    FROM product_images pi
-    WHERE pi.product_id = p.id
-    ORDER BY pi.position ASC, pi.created_at ASC
-    LIMIT 1
-  ) img ON TRUE
 `;
 
 /**
@@ -129,12 +129,12 @@ const buildFilters = ({ status, search, categoryId, productId, activeOnly }) => 
 
   if (categoryId) {
     values.push(categoryId);
-    conditions.push(`p.category_id = $${values.length}::uuid`);
+    conditions.push(`p.category_id = $${values.length}`);
   }
 
   if (productId) {
     values.push(productId);
-    conditions.push(`v.product_id = $${values.length}::uuid`);
+    conditions.push(`v.product_id = $${values.length}`);
   }
 
   // Deactivated products still hold stock and still belong in a stock
@@ -153,10 +153,12 @@ const buildFilters = ({ status, search, categoryId, productId, activeOnly }) => 
     // find size L, not every product with an L in its name. Colour is
     // the other way round — "rani" should find "Rani Pink", because a
     // colour is a name rather than a code and nobody types it in full.
+    // LOWER on both sides: the columns use a binary (case-sensitive)
+    // collation, so plain LIKE would not stand in for ILIKE.
     conditions.push(
-      `(p.name ILIKE ${like}
-        OR p.slug ILIKE ${like}
-        OR v.colour ILIKE ${like}
+      `(LOWER(p.name) LIKE LOWER(${like})
+        OR LOWER(p.slug) LIKE LOWER(${like})
+        OR LOWER(v.colour) LIKE LOWER(${like})
         OR UPPER(v.size) = UPPER(${exact}))`,
     );
   }
@@ -207,7 +209,7 @@ export const InventoryRepository = {
     `;
 
     const countText = `
-      SELECT COUNT(*)::INTEGER AS count
+      SELECT COUNT(*) AS count
       FROM product_variants v
       JOIN products p ON p.id = v.product_id
       ${clause}
@@ -250,9 +252,9 @@ export const InventoryRepository = {
     const text = `
       SELECT
         ${stockStatusCaseSql("v")}      AS stock_status,
-        COUNT(*)::INTEGER               AS size_count,
-        COUNT(DISTINCT v.product_id)::INTEGER AS product_count,
-        COALESCE(SUM(v.stock_quantity), 0)::INTEGER AS units
+        COUNT(*)                        AS size_count,
+        COUNT(DISTINCT v.product_id)    AS product_count,
+        CAST(COALESCE(SUM(v.stock_quantity), 0) AS SIGNED) AS units
       FROM product_variants v
       JOIN products p ON p.id = v.product_id
       ${clause}
@@ -265,17 +267,16 @@ export const InventoryRepository = {
     //
     // Its own parameter list, not the one built above: this query joins
     // no variants, so it references neither the status nor the search
-    // placeholders, and binding a parameter a statement does not use is
-    // an error in Postgres rather than a no-op.
+    // placeholders.
     const orphanValues = categoryId ? [categoryId] : [];
     const orphanText = `
-      SELECT COUNT(*)::INTEGER AS count
+      SELECT COUNT(*) AS count
       FROM products p
       WHERE NOT EXISTS (
         SELECT 1 FROM product_variants v WHERE v.product_id = p.id
       )
       ${activeOnly ? "AND p.active = TRUE" : ""}
-      ${categoryId ? "AND p.category_id = $1::uuid" : ""}
+      ${categoryId ? "AND p.category_id = $1" : ""}
     `;
 
     try {
@@ -296,7 +297,7 @@ export const InventoryRepository = {
   async findById(id) {
     const text = `
       ${SELECT_ROW}
-      WHERE v.id = $1::uuid
+      WHERE v.id = $1
       LIMIT 1
     `;
 
@@ -318,7 +319,7 @@ export const InventoryRepository = {
 
     const text = `
       ${SELECT_ROW}
-      WHERE v.id = ANY($1::uuid[])
+      WHERE v.id IN ($1)
     `;
 
     try {
@@ -350,24 +351,36 @@ export const InventoryRepository = {
     const text = `
       UPDATE product_variants
       SET stock_quantity = stock_quantity + $2,
-          updated_at = NOW()
-      WHERE id = $1::uuid
+          updated_at = NOW(6)
+      WHERE id = $1
         AND stock_quantity + $2 >= 0
         AND stock_quantity + $2 <= ${MAX_STOCK}
-      RETURNING *
     `;
 
     try {
-      const result = await query(text, [id, delta]);
-      if (result.rowCount === 0) return null;
+      // No UPDATE … RETURNING in MariaDB. The guarded UPDATE is still the
+      // single atomic step; the read-back runs in the same transaction,
+      // while the row lock the UPDATE took is still held, so it returns
+      // exactly the row this adjustment produced.
+      const row = await withTransaction(async (client) => {
+        const updated = await client.query(text, [id, delta]);
+        if (updated.rowCount === 0) return null;
+
+        const result = await client.query(
+          "SELECT * FROM product_variants WHERE id = $1",
+          [id],
+        );
+        return result.rows[0] ?? null;
+      });
+      if (!row) return null;
 
       logger.info("Stock adjusted", {
         variantId: id,
         delta,
-        stockQuantity: result.rows[0]?.stock_quantity,
+        stockQuantity: row.stock_quantity,
       });
 
-      return result.rows[0];
+      return row;
     } catch (error) {
       throw handleDatabaseError(error, "adjustStock", { variantId: id, delta });
     }
@@ -388,18 +401,27 @@ export const InventoryRepository = {
     const text = `
       UPDATE product_variants
       SET stock_quantity = $2,
-          updated_at = NOW()
-      WHERE id = $1::uuid
-        AND ($3::INTEGER IS NULL OR stock_quantity = $3)
-      RETURNING *
+          updated_at = NOW(6)
+      WHERE id = $1
+        AND ($3 IS NULL OR stock_quantity = $3)
     `;
 
     try {
-      const result = await query(text, [id, stockQuantity, expected]);
-      if (result.rowCount === 0) return null;
+      // See adjustStock: guarded UPDATE, then read back under its lock.
+      const row = await withTransaction(async (client) => {
+        const updated = await client.query(text, [id, stockQuantity, expected]);
+        if (updated.rowCount === 0) return null;
+
+        const result = await client.query(
+          "SELECT * FROM product_variants WHERE id = $1",
+          [id],
+        );
+        return result.rows[0] ?? null;
+      });
+      if (!row) return null;
 
       logger.info("Stock set", { variantId: id, stockQuantity });
-      return result.rows[0];
+      return row;
     } catch (error) {
       throw handleDatabaseError(error, "setStock", { variantId: id });
     }
@@ -422,22 +444,21 @@ export const InventoryRepository = {
         const rows = [];
 
         for (const { variantId, delta } of adjustments) {
-          const result = await client.query(
+          const updated = await client.query(
             `UPDATE product_variants
              SET stock_quantity = stock_quantity + $2,
-                 updated_at = NOW()
-             WHERE id = $1::uuid
+                 updated_at = NOW(6)
+             WHERE id = $1
                AND stock_quantity + $2 >= 0
-               AND stock_quantity + $2 <= ${MAX_STOCK}
-             RETURNING *`,
+               AND stock_quantity + $2 <= ${MAX_STOCK}`,
             [variantId, delta],
           );
 
-          if (result.rowCount === 0) {
+          if (updated.rowCount === 0) {
             // Which case it is decides the message, so find out now —
             // after the rollback the row is out of reach.
             const exists = await client.query(
-              "SELECT stock_quantity FROM product_variants WHERE id = $1::uuid",
+              "SELECT stock_quantity FROM product_variants WHERE id = $1",
               [variantId],
             );
 
@@ -457,6 +478,11 @@ export const InventoryRepository = {
             throw error;
           }
 
+          // Read back under the lock the UPDATE holds (no UPDATE … RETURNING).
+          const result = await client.query(
+            "SELECT * FROM product_variants WHERE id = $1",
+            [variantId],
+          );
           rows.push(result.rows[0]);
         }
 

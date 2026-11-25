@@ -63,7 +63,7 @@ const handleDatabaseError = (error, operation, context = {}) => {
 /**
  * A review with enough of its product to be readable on its own.
  *
- * The cover photo comes from a LATERAL taking the first image rather
+ * The cover photo comes from a subquery taking the first image rather
  * than the whole gallery — one thumbnail per row, so aggregating eight
  * images to display one is wasted work on every request. The same shape
  * inventory uses, for the same reason.
@@ -88,17 +88,17 @@ const SELECT_ROW = `
     p.active      AS product_active,
     c.name        AS customer_name,
     c.email       AS customer_email,
-    img.image_url AS product_image_url
+    -- A correlated subquery: MariaDB has no LATERAL.
+    (
+      SELECT pi.image_url
+      FROM product_images pi
+      WHERE pi.product_id = p.id
+      ORDER BY pi.position ASC, pi.created_at ASC
+      LIMIT 1
+    )             AS product_image_url
   FROM reviews r
   JOIN products p ON p.id = r.product_id
   LEFT JOIN customers c ON c.id = r.customer_id
-  LEFT JOIN LATERAL (
-    SELECT pi.image_url
-    FROM product_images pi
-    WHERE pi.product_id = p.id
-    ORDER BY pi.position ASC, pi.created_at ASC
-    LIMIT 1
-  ) img ON TRUE
 `;
 
 /**
@@ -118,12 +118,12 @@ const buildFilters = ({
 
   if (productId) {
     values.push(productId);
-    conditions.push(`r.product_id = $${values.length}::uuid`);
+    conditions.push(`r.product_id = $${values.length}`);
   }
 
   if (rating) {
     values.push(rating);
-    conditions.push(`r.rating = $${values.length}::smallint`);
+    conditions.push(`r.rating = $${values.length}`);
   }
 
   // `null` means "either", which is why this tests against null rather
@@ -132,21 +132,26 @@ const buildFilters = ({
   // the rows somebody went looking for.
   if (published !== null && published !== undefined) {
     values.push(published);
-    conditions.push(`r.published = $${values.length}::boolean`);
+    conditions.push(`r.published = $${values.length}`);
   }
 
   if (search) {
     // Escaped the way the customer search is: `%` and `_` typed into the
     // box are characters to find, not wildcards — "100%" otherwise
     // matched every review containing "100".
+    //
+    // LOWER on both sides because the columns' collation is binary
+    // (case-sensitive); Postgres had ILIKE. The escape literal is written
+    // '\\' in the SQL, since MariaDB reads a backslash in a string as an
+    // escape.
     values.push(`%${escapeLikePattern(search)}%`);
-    const like = `$${values.length}`;
+    const like = `LOWER($${values.length})`;
 
     conditions.push(
-      `(r.author_name ILIKE ${like} ESCAPE '\\'
-        OR r.title ILIKE ${like} ESCAPE '\\'
-        OR r.body ILIKE ${like} ESCAPE '\\'
-        OR p.name ILIKE ${like} ESCAPE '\\')`,
+      `(LOWER(r.author_name) LIKE ${like} ESCAPE '\\\\'
+        OR LOWER(r.title) LIKE ${like} ESCAPE '\\\\'
+        OR LOWER(r.body) LIKE ${like} ESCAPE '\\\\'
+        OR LOWER(p.name) LIKE ${like} ESCAPE '\\\\')`,
     );
   }
 
@@ -192,7 +197,7 @@ export const ReviewRepository = {
     // through to the product's name — counting without the join would
     // reference a table the clause mentions and fail.
     const countText = `
-      SELECT COUNT(*)::INTEGER AS count
+      SELECT COUNT(*) AS count
       FROM reviews r
       JOIN products p ON p.id = r.product_id
       ${clause}
@@ -216,7 +221,7 @@ export const ReviewRepository = {
   async findById(id) {
     const text = `
       ${SELECT_ROW}
-      WHERE r.id = $1::uuid
+      WHERE r.id = $1
       LIMIT 1
     `;
 
@@ -244,29 +249,30 @@ export const ReviewRepository = {
 
     if (productId) {
       values.push(productId);
-      clause = `WHERE r.product_id = $${values.length}::uuid`;
+      clause = `WHERE r.product_id = $${values.length}`;
     }
 
-    // One scan, with the published/hidden split expressed as FILTERs
-    // rather than as a WHERE plus a second unfiltered subquery. The
+    // One scan, with the published/hidden split expressed as conditional
+    // aggregates (Postgres's FILTERs) rather than as a WHERE plus a second
+    // unfiltered subquery. The
     // subquery version returned a shop-wide total beside a per-product
     // average, which is two different questions printed as one answer.
     const text = `
       SELECT
-        COUNT(*)::INTEGER AS total_reviews,
-        COUNT(*) FILTER (WHERE r.published)::INTEGER     AS published_reviews,
-        COUNT(*) FILTER (WHERE NOT r.published)::INTEGER AS hidden_reviews,
+        COUNT(*) AS total_reviews,
+        COUNT(CASE WHEN r.published THEN 1 END)     AS published_reviews,
+        COUNT(CASE WHEN NOT r.published THEN 1 END) AS hidden_reviews,
 
-        COALESCE(
-          ROUND((AVG(r.rating) FILTER (WHERE r.published)), 1),
+        CAST(COALESCE(
+          ROUND(AVG(CASE WHEN r.published THEN r.rating END), 1),
           0
-        )::NUMERIC(3,1) AS average_rating,
+        ) AS DECIMAL(3,1)) AS average_rating,
 
-        COUNT(*) FILTER (WHERE r.published AND r.rating = 5)::INTEGER AS five,
-        COUNT(*) FILTER (WHERE r.published AND r.rating = 4)::INTEGER AS four,
-        COUNT(*) FILTER (WHERE r.published AND r.rating = 3)::INTEGER AS three,
-        COUNT(*) FILTER (WHERE r.published AND r.rating = 2)::INTEGER AS two,
-        COUNT(*) FILTER (WHERE r.published AND r.rating = 1)::INTEGER AS one
+        COUNT(CASE WHEN r.published AND r.rating = 5 THEN 1 END) AS five,
+        COUNT(CASE WHEN r.published AND r.rating = 4 THEN 1 END) AS four,
+        COUNT(CASE WHEN r.published AND r.rating = 3 THEN 1 END) AS three,
+        COUNT(CASE WHEN r.published AND r.rating = 2 THEN 1 END) AS two,
+        COUNT(CASE WHEN r.published AND r.rating = 1 THEN 1 END) AS one
       FROM reviews r
       ${clause}
     `;
@@ -296,7 +302,7 @@ export const ReviewRepository = {
       INSERT INTO reviews (
         product_id, customer_id, author_name, rating, title, body, published
       )
-      VALUES ($1::uuid, $2::uuid, $3, $4::smallint, $5, $6, $7::boolean)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING id
     `;
 
@@ -341,15 +347,14 @@ export const ReviewRepository = {
     const text = `
       UPDATE reviews
       SET
-        customer_id = COALESCE($2::uuid, customer_id),
+        customer_id = COALESCE($2, customer_id),
         author_name = COALESCE($3, author_name),
-        rating      = COALESCE($4::smallint, rating),
+        rating      = COALESCE($4, rating),
         title       = COALESCE($5, title),
         body        = COALESCE($6, body),
-        published   = COALESCE($7::boolean, published),
-        updated_at  = NOW()
-      WHERE id = $1::uuid
-      RETURNING id
+        published   = COALESCE($7, published),
+        updated_at  = NOW(6)
+      WHERE id = $1
     `;
 
     try {
@@ -390,9 +395,8 @@ export const ReviewRepository = {
 
     const text = `
       UPDATE reviews
-      SET ${assignments}, updated_at = NOW()
-      WHERE id = $1::uuid
-      RETURNING id
+      SET ${assignments}, updated_at = NOW(6)
+      WHERE id = $1
     `;
 
     try {
@@ -418,7 +422,7 @@ export const ReviewRepository = {
    */
   async remove(id) {
     try {
-      const result = await query("DELETE FROM reviews WHERE id = $1::uuid", [id]);
+      const result = await query("DELETE FROM reviews WHERE id = $1", [id]);
 
       if (result.rowCount === 0) return false;
 

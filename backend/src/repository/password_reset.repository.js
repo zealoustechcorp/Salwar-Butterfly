@@ -28,7 +28,7 @@ export const PasswordResetRepository = {
    * recent email's link works — unless this account already asked within
    * the cooldown, in which case nothing is written.
    *
-   * Every clock question here is answered by Postgres. `created_at` is
+   * Every clock question here is answered by the database. `created_at` is
    * stamped by the database, whose clock runs ~2 s ahead of the API
    * host, so the old "Date.now() - created_at" cooldown and the
    * "Date.now() + TTL" expiry were each off by the skew — and the expiry
@@ -47,38 +47,38 @@ export const PasswordResetRepository = {
   async create({ customerId, tokenHash, ttlMinutes, cooldownSeconds, ip = null }) {
     try {
       return await withTransaction(async (client) => {
-        // FOR NO KEY UPDATE rather than FOR UPDATE: it serialises
-        // concurrent requests for this account without blocking the
-        // foreign-key checks of an order or address being written for
-        // the same customer meanwhile.
+        // Serialises concurrent requests for this account. (Postgres used
+        // FOR NO KEY UPDATE so FK checks from an order or address insert
+        // were not blocked; InnoDB has no such mode, so those wait for
+        // this short transaction.)
         await client.query(
-          `SELECT 1 FROM customers WHERE id = $1::uuid FOR NO KEY UPDATE`,
+          `SELECT 1 FROM customers WHERE id = $1 FOR UPDATE`,
           [customerId],
         );
 
         const recent = await client.query(
           `SELECT 1
              FROM password_reset_tokens
-            WHERE customer_id = $1::uuid
-              AND created_at > NOW() - make_interval(secs => $2::float8)
+            WHERE customer_id = $1
+              AND created_at > NOW(6) - INTERVAL $2 SECOND
             LIMIT 1`,
-          [customerId, cooldownSeconds],
+          [customerId, Number(cooldownSeconds)],
         );
 
         if (recent.rowCount > 0) return false;
 
         await client.query(
           `UPDATE password_reset_tokens
-              SET used_at = NOW()
-            WHERE customer_id = $1::uuid
+              SET used_at = NOW(6)
+            WHERE customer_id = $1
               AND used_at IS NULL`,
           [customerId],
         );
 
         await client.query(
           `INSERT INTO password_reset_tokens (customer_id, token_hash, expires_at, requested_ip)
-           VALUES ($1::uuid, $2, NOW() + make_interval(mins => $3::int), $4)`,
-          [customerId, tokenHash, ttlMinutes, ip ? String(ip).slice(0, 64) : null],
+           VALUES ($1, $2, NOW(6) + INTERVAL $3 MINUTE, $4)`,
+          [customerId, tokenHash, Math.round(Number(ttlMinutes)), ip ? String(ip).slice(0, 64) : null],
         );
 
         return true;
@@ -97,27 +97,40 @@ export const PasswordResetRepository = {
   async consume(tokenHash, hashedPassword) {
     try {
       return await withTransaction(async (client) => {
-        const burned = await client.query(
-          `UPDATE password_reset_tokens
-              SET used_at = NOW()
+        // The claim. Postgres did it in one UPDATE … RETURNING, which
+        // MariaDB lacks: the locking read holds the token row, so a second
+        // concurrent consume waits here and then no longer sees it as
+        // unused; the guarded UPDATE re-checks that anyway.
+        const claimed = await client.query(
+          `SELECT id, customer_id
+             FROM password_reset_tokens
             WHERE token_hash = $1
               AND used_at IS NULL
-              AND expires_at > NOW()
-            RETURNING customer_id`,
+              AND expires_at > NOW(6)
+            FOR UPDATE`,
           [tokenHash],
         );
 
-        if (burned.rowCount === 0) return null;
+        if (claimed.rowCount === 0) return null;
 
-        const customerId = burned.rows[0].customer_id;
+        const burned = await client.query(
+          `UPDATE password_reset_tokens
+              SET used_at = NOW(6)
+            WHERE id = $1
+              AND used_at IS NULL`,
+          [claimed.rows[0].id],
+        );
+
+        if (burned.rowCount !== 1) return null;
+
+        const customerId = claimed.rows[0].customer_id;
 
         const updated = await client.query(
           `UPDATE customers
               SET password = $1,
-                  updated_at = NOW()
-            WHERE id = $2::uuid
-              AND deleted_at IS NULL
-            RETURNING id`,
+                  updated_at = NOW(6)
+            WHERE id = $2
+              AND deleted_at IS NULL`,
           [hashedPassword, customerId],
         );
 

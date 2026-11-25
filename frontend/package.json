@@ -16,7 +16,7 @@
     "downshift": "^9.4.0",
     "lucide-react": "^1.33.0",
     "motion": "^13.1.0",
-    "next": "16.4.3",
+    "next": "16.4.6",
     "radix-ui": "^1.6.7",
     "react": "19.2.8",
     "react-dom": "19.2.8",
@@ -28,7 +28,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "eslint": "^9",
-    "eslint-config-next": "16.4.3",
+    "eslint-config-next": "16.4.6",
     "tailwindcss": "^4",
     "vitest": "^5.0.5"
   }

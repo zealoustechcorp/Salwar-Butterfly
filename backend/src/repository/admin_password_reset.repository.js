@@ -28,7 +28,7 @@ export const AdminPasswordResetRepository = {
    * recent email's link works — unless this admin already asked within
    * the cooldown, in which case nothing is written.
    *
-   * Every clock question is answered by Postgres, and the cooldown check
+   * Every clock question is answered by the database, and the cooldown check
    * and the insert share a transaction serialised on the admin row — see
    * PasswordResetRepository.create for why.
    *
@@ -38,33 +38,33 @@ export const AdminPasswordResetRepository = {
     try {
       return await withTransaction(async (client) => {
         await client.query(
-          `SELECT 1 FROM admins WHERE id = $1::uuid FOR NO KEY UPDATE`,
+          `SELECT 1 FROM admins WHERE id = $1 FOR UPDATE`,
           [adminId],
         );
 
         const recent = await client.query(
           `SELECT 1
              FROM admin_password_reset_tokens
-            WHERE admin_id = $1::uuid
-              AND created_at > NOW() - make_interval(secs => $2::float8)
+            WHERE admin_id = $1
+              AND created_at > NOW(6) - INTERVAL $2 SECOND
             LIMIT 1`,
-          [adminId, cooldownSeconds],
+          [adminId, Number(cooldownSeconds)],
         );
 
         if (recent.rowCount > 0) return false;
 
         await client.query(
           `UPDATE admin_password_reset_tokens
-              SET used_at = NOW()
-            WHERE admin_id = $1::uuid
+              SET used_at = NOW(6)
+            WHERE admin_id = $1
               AND used_at IS NULL`,
           [adminId],
         );
 
         await client.query(
           `INSERT INTO admin_password_reset_tokens (admin_id, token_hash, expires_at, requested_ip)
-           VALUES ($1::uuid, $2, NOW() + make_interval(mins => $3::int), $4)`,
-          [adminId, tokenHash, ttlMinutes, ip ? String(ip).slice(0, 64) : null],
+           VALUES ($1, $2, NOW(6) + INTERVAL $3 MINUTE, $4)`,
+          [adminId, tokenHash, Math.round(Number(ttlMinutes)), ip ? String(ip).slice(0, 64) : null],
         );
 
         return true;
@@ -87,33 +87,53 @@ export const AdminPasswordResetRepository = {
   async consume(tokenHash, hashedPassword) {
     try {
       return await withTransaction(async (client) => {
-        const burned = await client.query(
-          `UPDATE admin_password_reset_tokens
-              SET used_at = NOW()
+        // The claim: locking read, then a guarded burn — see
+        // PasswordResetRepository.consume (MariaDB has no UPDATE … RETURNING).
+        const claimed = await client.query(
+          `SELECT id, admin_id
+             FROM admin_password_reset_tokens
             WHERE token_hash = $1
               AND used_at IS NULL
-              AND expires_at > NOW()
-            RETURNING admin_id`,
+              AND expires_at > NOW(6)
+            FOR UPDATE`,
           [tokenHash],
         );
 
-        if (burned.rowCount === 0) return null;
+        if (claimed.rowCount === 0) return null;
+
+        const burned = await client.query(
+          `UPDATE admin_password_reset_tokens
+              SET used_at = NOW(6)
+            WHERE id = $1
+              AND used_at IS NULL`,
+          [claimed.rows[0].id],
+        );
+
+        if (burned.rowCount !== 1) return null;
+
+        const adminId = claimed.rows[0].admin_id;
 
         const updated = await client.query(
           `UPDATE admins
               SET password = $1,
-                  password_changed_at = NOW(),
-                  updated_at = NOW()
-            WHERE id = $2::uuid
+                  password_changed_at = NOW(6),
+                  updated_at = NOW(6)
+            WHERE id = $2
               AND deleted_at IS NULL
-              AND active = TRUE
-            RETURNING id, name, email`,
-          [hashedPassword, burned.rows[0].admin_id],
+              AND active = TRUE`,
+          [hashedPassword, adminId],
         );
 
         // Same reasoning as the customer side: the caller's answer is
         // "link no longer works" either way, so commit the burn.
-        return updated.rows[0] ?? null;
+        if (updated.rowCount === 0) return null;
+
+        const admin = await client.query(
+          `SELECT id, name, email FROM admins WHERE id = $1`,
+          [adminId],
+        );
+
+        return admin.rows[0] ?? null;
       });
     } catch (error) {
       throw handleDatabaseError(error, "consume");
