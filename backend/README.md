@@ -1,17 +1,25 @@
 # backend
 
-Express 5 + PostgreSQL (`pg`) API for Salwar Butterfly.
+Express 5 + MariaDB 11.8 (`mysql2`) API for Salwar Butterfly.
 
 ## Setup
 
 ```bash
 cd backend
-cp .env.example .env   # fill in DATABASE_URL and JWT_SECRET
+cp .env.example .env   # fill in MYSQL_* and JWT_SECRET
 npm install
-npm run db:check       # verifies the PostgreSQL connection
-npm run db:migrate     # applies src/migrations/*.sql in order
+npm run db:check       # verifies the MariaDB connection
+npm run db:migrate     # applies src/migrations-mysql/*.sql in order
 npm run dev            # http://localhost:4000
 ```
+
+The schema moved from PostgreSQL (Neon) to MariaDB in November 2026.
+`src/migrations` is the Postgres history and is no longer applied;
+`src/config/db.js` keeps node-postgres's interface (`$1` placeholders,
+`{ rows, rowCount }`, Postgres error codes) so the repositories read as
+they did. Tests that touch the database must use `beginTestScope()`
+(always rolled back); any other database access under `node --test` is
+refused.
 
 ### Creating an admin
 
@@ -36,7 +44,7 @@ backend/
     ├── app.js              # express app: middleware + route mounting
     ├── config/
     │   ├── env.js          # validated environment config
-    │   ├── db.js           # pg Pool, query(), withTransaction(), connectDb(), closeDb()
+    │   ├── db.js           # mysql2 pool behind a pg-shaped query(), withTransaction(), connectDb(), closeDb()
     │   ├── cloudinary.cdn.js
     │   ├── razorpay.gateway.js
     │   └── *.policy.js     # one module per feature's rules — see below
@@ -368,7 +376,7 @@ Online payment is off when `RAZORPAY_KEY_ID` is empty.
 | GET    | `/reports/getOrderReport`         | admin | F-11.03 — orders in a range, with quantities     |
 | GET    | `/reports/getInventoryReport`     | admin | F-11.04 — stock by status and by category        |
 
-Days, weeks and months are cut in `Asia/Kolkata`, in Postgres. An order
+Days, weeks and months are cut in `Asia/Kolkata` (UTC+05:30), in the database. An order
 placed at 1am IST belongs to that day; bucketing in UTC would file it
 under the previous one.
 

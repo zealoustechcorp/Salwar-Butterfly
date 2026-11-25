@@ -1,4 +1,4 @@
-import { query } from "../config/db.js";
+import { query, withTransaction } from "../config/db.js";
 import { logger } from "../utils/logger.js";
 
 const CATEGORY_COLUMNS = `
@@ -13,7 +13,7 @@ export class CategoryRepository {
 
     const sql = `
       INSERT INTO categories (name, slug, description, image, image_public_id, fits, active, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, NOW(), NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(6), NOW(6))
       RETURNING ${CATEGORY_COLUMNS}
     `;
 
@@ -109,7 +109,7 @@ export class CategoryRepository {
 
   static async countAll() {
     const sql = `
-      SELECT COUNT(*)::INTEGER as count FROM categories
+      SELECT COUNT(*) as count FROM categories
       WHERE deleted_at IS NULL
     `;
 
@@ -158,7 +158,7 @@ export class CategoryRepository {
     }
 
     if (updateData.fits !== undefined) {
-      fields.push(`fits = $${paramIndex}::jsonb`);
+      fields.push(`fits = $${paramIndex}`);
       const fitsJson = updateData.fits ? JSON.stringify(updateData.fits) : null;
       values.push(fitsJson);
       paramIndex++;
@@ -174,30 +174,39 @@ export class CategoryRepository {
       throw new Error("NO_UPDATE_FIELDS");
     }
 
-    fields.push("updated_at = NOW()");
+    fields.push("updated_at = NOW(6)");
     values.push(id);
 
+    // MariaDB has no UPDATE … RETURNING: update, then read the row back by
+    // its key in the same transaction.
     const sql = `
       UPDATE categories
       SET ${fields.join(", ")}
       WHERE id = $${paramIndex} AND deleted_at IS NULL
-      RETURNING ${CATEGORY_COLUMNS}
     `;
 
     try {
-      const result = await query(sql, values);
+      const row = await withTransaction(async (client) => {
+        const updated = await client.query(sql, values);
 
-      if (result.rowCount === 0) {
-        logger.warn("Category update target not found", { categoryId: id });
-        throw new Error("CATEGORY_NOT_FOUND");
-      }
+        if (updated.rowCount === 0) {
+          logger.warn("Category update target not found", { categoryId: id });
+          throw new Error("CATEGORY_NOT_FOUND");
+        }
+
+        const result = await client.query(
+          `SELECT ${CATEGORY_COLUMNS} FROM categories WHERE id = $1`,
+          [id],
+        );
+        return result.rows[0];
+      });
 
       logger.info("Category updated successfully", {
         categoryId: id,
         fields: Object.keys(updateData),
       });
 
-      return result.rows[0];
+      return row;
     } catch (error) {
       logger.error("Category update error", {
         categoryId: id,
@@ -217,8 +226,8 @@ export class CategoryRepository {
   static async countDependents(id) {
     const sql = `
       SELECT
-        (SELECT COUNT(*)::INTEGER FROM products WHERE category_id = $1::uuid) AS products,
-        (SELECT COUNT(*)::INTEGER FROM sub_categories WHERE category_id = $1::uuid) AS sub_categories
+        (SELECT COUNT(*) FROM products WHERE category_id = $1) AS products,
+        (SELECT COUNT(*) FROM sub_categories WHERE category_id = $1) AS sub_categories
     `;
 
     try {
@@ -245,30 +254,38 @@ export class CategoryRepository {
    * category is gone or is no longer empty; the service tells which.
    */
   static async softDelete(id) {
+    // No UPDATE … RETURNING in MariaDB: update, then read back by key.
     const sql = `
       UPDATE categories
-      SET deleted_at = NOW(), updated_at = NOW()
+      SET deleted_at = NOW(6), updated_at = NOW(6)
       WHERE id = $1 AND deleted_at IS NULL
-        AND NOT EXISTS (SELECT 1 FROM products WHERE category_id = $1::uuid)
-        AND NOT EXISTS (SELECT 1 FROM sub_categories WHERE category_id = $1::uuid)
-      RETURNING id, deleted_at
+        AND NOT EXISTS (SELECT 1 FROM products WHERE category_id = $1)
+        AND NOT EXISTS (SELECT 1 FROM sub_categories WHERE category_id = $1)
     `;
 
     try {
-      const result = await query(sql, [id]);
+      const row = await withTransaction(async (client) => {
+        const updated = await client.query(sql, [id]);
 
-      if (result.rowCount === 0) {
-        logger.warn("Category soft delete target not found", {
-          categoryId: id,
-        });
-        throw new Error("CATEGORY_NOT_FOUND");
-      }
+        if (updated.rowCount === 0) {
+          logger.warn("Category soft delete target not found", {
+            categoryId: id,
+          });
+          throw new Error("CATEGORY_NOT_FOUND");
+        }
+
+        const result = await client.query(
+          "SELECT id, deleted_at FROM categories WHERE id = $1",
+          [id],
+        );
+        return result.rows[0];
+      });
 
       logger.info("Category soft deleted successfully", {
         categoryId: id,
       });
 
-      return result.rows[0];
+      return row;
     } catch (error) {
       logger.error("Category softDelete error", {
         categoryId: id,
@@ -291,8 +308,8 @@ export class CategoryRepository {
   static async findSlugHolder(slug, excludeId = null) {
     const sql = `
       SELECT id, name, deleted_at FROM categories
-      WHERE slug = $1 AND ($2::uuid IS NULL OR id <> $2::uuid)
-      ORDER BY deleted_at NULLS FIRST
+      WHERE slug = $1 AND ($2 IS NULL OR id <> $2)
+      ORDER BY deleted_at IS NOT NULL, deleted_at
       LIMIT 1
     `;
 
@@ -310,8 +327,8 @@ export class CategoryRepository {
 
   static async checkSlugExists(slug, excludeId = null) {
     const sql = excludeId
-      ? `SELECT EXISTS(SELECT 1 FROM categories WHERE slug = $1 AND deleted_at IS NULL AND id != $2) as exists`
-      : `SELECT EXISTS(SELECT 1 FROM categories WHERE slug = $1 AND deleted_at IS NULL) as exists`;
+      ? `SELECT EXISTS(SELECT 1 FROM categories WHERE slug = $1 AND deleted_at IS NULL AND id != $2) as exists__bool`
+      : `SELECT EXISTS(SELECT 1 FROM categories WHERE slug = $1 AND deleted_at IS NULL) as exists__bool`;
 
     try {
       const params = excludeId ? [slug, excludeId] : [slug];

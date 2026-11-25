@@ -4,7 +4,8 @@
 //
 // A small table read on every home page render and written whenever the
 // shop has a new message worth publishing. Every statement names its
-// columns, and every id is cast explicitly.
+// columns; ids are bound as plain text, which MariaDB compares against a
+// UUID column directly.
 //
 // The admin list joins `products` for the name of the piece a story
 // points at. That join is LEFT and unfiltered by `active`: the admin
@@ -56,9 +57,10 @@ const FROM = `
  * `created_at DESC` breaks the tie rather than ascending, and that is
  * the one place this table differs from banners: two stories sharing a
  * position should settle newest-first, matching the front-insert rule
- * that put them there.
+ * that put them there. The id is compared as text, since MariaDB sorts
+ * its UUID type in a different byte order from Postgres.
  */
-const ORDER = "ORDER BY cs.position ASC, cs.created_at DESC, cs.id ASC";
+const ORDER = "ORDER BY cs.position ASC, cs.created_at DESC, CAST(cs.id AS CHAR) ASC";
 
 export const CustomerStoryRepository = {
   // ==========================================================
@@ -79,7 +81,7 @@ export const CustomerStoryRepository = {
   async findById(id) {
     try {
       const result = await query(
-        `SELECT ${COLUMNS} ${FROM} WHERE cs.id = $1::uuid`,
+        `SELECT ${COLUMNS} ${FROM} WHERE cs.id = $1`,
         [id],
       );
 
@@ -93,7 +95,7 @@ export const CustomerStoryRepository = {
   async count() {
     try {
       const result = await query(
-        "SELECT COUNT(*)::INTEGER AS total FROM customer_stories",
+        "SELECT COUNT(*) AS total FROM customer_stories",
       );
 
       return result.rows[0]?.total ?? 0;
@@ -135,7 +137,7 @@ export const CustomerStoryRepository = {
           `INSERT INTO customer_stories (
              customer_name, body, image, image_public_id, product_id, position
            )
-           VALUES ($1, $2, $3, $4, $5::uuid, $6)`,
+           VALUES ($1, $2, $3, $4, $5, $6)`,
           [
             story.customerName ?? null,
             story.body ?? null,
@@ -174,15 +176,15 @@ export const CustomerStoryRepository = {
         `UPDATE customer_stories
          SET customer_name = $2,
              body          = $3,
-             product_id    = $4::uuid,
-             updated_at    = NOW()
-         WHERE id = $1::uuid
-         RETURNING id`,
+             product_id    = $4,
+             updated_at    = NOW(6)
+         WHERE id = $1`,
         [id, fields.customerName ?? null, fields.body ?? null, fields.productId ?? null],
       );
 
-      if (!result.rows[0]) return null;
+      if (result.rowCount === 0) return null;
 
+      // MariaDB has no UPDATE … RETURNING; read the row back by id.
       return CustomerStoryRepository.findById(id);
     } catch (error) {
       throw handleDatabaseError(error, "updateFields", { id });
@@ -196,13 +198,12 @@ export const CustomerStoryRepository = {
         `UPDATE customer_stories
          SET image           = $2,
              image_public_id = $3,
-             updated_at      = NOW()
-         WHERE id = $1::uuid
-         RETURNING id`,
+             updated_at      = NOW(6)
+         WHERE id = $1`,
         [id, image.imageUrl, image.imagePublicId],
       );
 
-      if (!result.rows[0]) return null;
+      if (result.rowCount === 0) return null;
 
       return CustomerStoryRepository.findById(id);
     } catch (error) {
@@ -215,13 +216,12 @@ export const CustomerStoryRepository = {
     try {
       const result = await query(
         `UPDATE customer_stories
-         SET published = $2, updated_at = NOW()
-         WHERE id = $1::uuid
-         RETURNING id`,
+         SET published = $2, updated_at = NOW(6)
+         WHERE id = $1`,
         [id, published],
       );
 
-      if (!result.rows[0]) return null;
+      if (result.rowCount === 0) return null;
 
       return CustomerStoryRepository.findById(id);
     } catch (error) {
@@ -241,8 +241,8 @@ export const CustomerStoryRepository = {
       for (const [index, id] of ids.entries()) {
         await client.query(
           `UPDATE customer_stories
-           SET position = $2, updated_at = NOW()
-           WHERE id = $1::uuid`,
+           SET position = $2, updated_at = NOW(6)
+           WHERE id = $1`,
           [id, index + 1],
         );
       }
@@ -266,7 +266,7 @@ export const CustomerStoryRepository = {
     try {
       const result = await query(
         `DELETE FROM customer_stories
-         WHERE id = $1::uuid
+         WHERE id = $1
          RETURNING id, image_public_id`,
         [id],
       );

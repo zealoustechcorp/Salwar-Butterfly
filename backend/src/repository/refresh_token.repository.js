@@ -73,10 +73,10 @@ export const RefreshTokenRepository = {
     { token, familyId, subjectId, typ, expiresAt, userAgent, ip },
     client,
   ) {
-    // Checked before the INSERT rather than caught after it. Inside the
-    // refresh transaction a 22P02 from INET aborts the transaction, so
-    // the old catch-and-retry could only ever fail again with 25P02 —
-    // see normaliseClientIp.
+    // Checked before the INSERT rather than caught after it. On Postgres
+    // a 22P02 from INET aborted the refresh transaction; the column is now
+    // VARCHAR(45), and storing only addresses isIP accepts keeps it clean
+    // — see normaliseClientIp.
     const safeIp = normaliseClientIp(ip);
 
     if (ip && !safeIp) {
@@ -91,7 +91,7 @@ export const RefreshTokenRepository = {
         `
         INSERT INTO refresh_tokens
           (family_id, subject_id, typ, token_hash, expires_at, user_agent, ip)
-        VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7::inet)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING id, family_id, subject_id, typ, expires_at, created_at
         `,
         [
@@ -105,7 +105,7 @@ export const RefreshTokenRepository = {
           // without this a script could write megabytes per login.
           userAgent ? String(userAgent).slice(0, 512) : null,
           // An unparseable address must not cost somebody their login —
-          // INET would reject it and take the whole INSERT down with it.
+          // it is stored as null rather than refused.
           safeIp,
         ],
       );
@@ -135,11 +135,12 @@ export const RefreshTokenRepository = {
    * The clock questions — has it expired, how long since it was burned,
    * is that inside the grace window — are answered here, in SQL, against
    * the database's own clock. `used_at` and `expires_at` were stamped by
-   * Postgres, and the Aiven clock runs ~2 s ahead of the API host, so
+   * the database, whose clock can run seconds apart from the API host, so
    * comparing them with Date.now() shrank or stretched the grace window
-   * by whatever the skew happened to be that day. clock_timestamp()
-   * rather than NOW() because NOW() is frozen at BEGIN, and this SELECT
-   * may have queued behind another tab's lock for a while first.
+   * by whatever the skew happened to be that day. SYSDATE(6) (Postgres:
+   * clock_timestamp()) rather than NOW(6) because NOW(6) is fixed when the
+   * statement starts, and this SELECT may have queued behind another
+   * tab's lock for a while first.
    *
    * @param {import('pg').PoolClient} client  required — FOR UPDATE needs a transaction
    * @returns row plus `expired` (bool), `ms_since_use` (number|null) and
@@ -151,12 +152,12 @@ export const RefreshTokenRepository = {
         `
         SELECT id, family_id, subject_id, typ,
                expires_at, used_at, revoked_at, revoked_reason, created_at,
-               expires_at <= clock_timestamp() AS expired,
-               (EXTRACT(EPOCH FROM (clock_timestamp() - used_at)) * 1000)::float8
+               expires_at <= SYSDATE(6) AS expired__bool,
+               CAST(TIMESTAMPDIFF(MICROSECOND, used_at, SYSDATE(6)) / 1000 AS DOUBLE)
                  AS ms_since_use,
                (used_at IS NOT NULL
-                 AND clock_timestamp() - used_at <= make_interval(secs => $2::float8 / 1000))
-                 AS within_grace
+                 AND TIMESTAMPDIFF(MICROSECOND, used_at, SYSDATE(6)) <= $2 * 1000)
+                 AS within_grace__bool
         FROM refresh_tokens
         WHERE token_hash = $1
         FOR UPDATE
@@ -187,8 +188,8 @@ export const RefreshTokenRepository = {
       const { rowCount } = await client.query(
         `
         UPDATE refresh_tokens
-        SET used_at = NOW()
-        WHERE id = $1::uuid AND used_at IS NULL
+        SET used_at = NOW(6)
+        WHERE id = $1 AND used_at IS NULL
         `,
         [id],
       );
@@ -219,8 +220,8 @@ export const RefreshTokenRepository = {
       const { rowCount } = await runner(client)(
         `
         UPDATE refresh_tokens
-        SET revoked_at = NOW(), revoked_reason = $2
-        WHERE family_id = $1::uuid AND revoked_at IS NULL
+        SET revoked_at = NOW(6), revoked_reason = $2
+        WHERE family_id = $1 AND revoked_at IS NULL
         `,
         [familyId, reason],
       );
@@ -259,9 +260,9 @@ export const RefreshTokenRepository = {
       query(
         `
         UPDATE refresh_tokens
-        SET revoked_at = NOW(), revoked_reason = $3
-        WHERE subject_id = $1::uuid AND typ = $2 AND revoked_at IS NULL
-          AND ($4::uuid IS NULL OR family_id <> $4::uuid)
+        SET revoked_at = NOW(6), revoked_reason = $3
+        WHERE subject_id = $1 AND typ = $2 AND revoked_at IS NULL
+          AND ($4 IS NULL OR family_id <> $4)
         `,
         [subjectId, typ, why, exceptFamilyId],
       );
@@ -319,7 +320,7 @@ export const RefreshTokenRepository = {
       const { rowCount } = await query(
         `
         DELETE FROM refresh_tokens
-        WHERE expires_at < NOW() - INTERVAL '30 days'
+        WHERE expires_at < NOW(6) - INTERVAL 30 DAY
         `,
       );
 

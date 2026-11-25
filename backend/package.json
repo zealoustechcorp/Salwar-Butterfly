@@ -11,6 +11,7 @@
     "test:ci": "node --test --test-force-exit \"tests/!(session).test.js\"",
     "db:check": "node --env-file=.env src/scripts/checkDb.js",
     "db:migrate": "node --env-file=.env src/scripts/migrate.js",
+    "db:copy-to-mysql": "node --env-file=.env src/scripts/copyNeonToMysql.js",
     "db:import-catalogue": "node --env-file=.env src/scripts/importCatalogue.js",
     "data:pincodes": "node src/scripts/buildPincodes.js",
     "admin:create": "node --env-file=.env src/scripts/createAdmin.js"
@@ -28,6 +29,7 @@
     "jsonwebtoken": "^9.0.3",
     "morgan": "^1.11.0",
     "multer": "^2.2.0",
+    "mysql2": "^3.11.3",
     "nodemon": "^3.1.14",
     "pg": "^8.16.3",
     "rate-limit-redis": "^6.0.1",

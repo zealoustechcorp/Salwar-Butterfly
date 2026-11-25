@@ -49,7 +49,7 @@ const ruleError = (rule) =>
  * Serialise every write to one shopper's address book, and refuse a
  * closed account.
  *
- * Takes the customer row with FOR NO KEY UPDATE for the rest of the
+ * Takes the customer row with FOR UPDATE for the rest of the
  * transaction. Without it the three-address limit was check-then-insert
  * across two connections — five concurrent saves all counted 0, 1 or 2
  * and all inserted — and two concurrent "make this the default" writes
@@ -57,9 +57,10 @@ const ruleError = (rule) =>
  * uq_customer_addresses_one_default with a 500 (BUG-5, 2026-10-09).
  * Holding the parent row turns both into a queue.
  *
- * NO KEY UPDATE rather than UPDATE because it does not conflict with the
- * KEY SHARE lock a foreign-key check takes, so an order being placed for
- * the same customer meanwhile is not held up by it.
+ * (Postgres used FOR NO KEY UPDATE so a concurrent foreign-key check from
+ * an order insert was not held up. InnoDB has no such mode: its FK check
+ * takes a shared lock on the customer row, so an order insert for the
+ * same customer waits for this transaction — a few milliseconds.)
  *
  * The same read is what makes a closed account's still-valid access
  * token unable to write here (BUG-7): `deleted_at IS NULL` is checked
@@ -69,8 +70,8 @@ const lockOwner = async (client, customerId) => {
   const { rowCount } = await client.query(
     `SELECT 1
      FROM customers
-     WHERE id = $1::uuid AND deleted_at IS NULL
-     FOR NO KEY UPDATE`,
+     WHERE id = $1 AND deleted_at IS NULL
+     FOR UPDATE`,
     [customerId],
   );
 
@@ -106,7 +107,7 @@ export const CustomerAddressRepository = {
     const text = `
       SELECT ${COLUMNS}
       FROM customer_addresses
-      WHERE customer_id = $1::uuid
+      WHERE customer_id = $1
       ORDER BY is_default DESC, created_at
     `;
 
@@ -121,9 +122,9 @@ export const CustomerAddressRepository = {
   async countByCustomer(customerId) {
     try {
       const result = await query(
-        `SELECT COUNT(*)::int AS total
+        `SELECT COUNT(*) AS total
          FROM customer_addresses
-         WHERE customer_id = $1::uuid`,
+         WHERE customer_id = $1`,
         [customerId],
       );
 
@@ -138,7 +139,7 @@ export const CustomerAddressRepository = {
     const text = `
       SELECT ${COLUMNS}
       FROM customer_addresses
-      WHERE id = $1::uuid AND customer_id = $2::uuid
+      WHERE id = $1 AND customer_id = $2
     `;
 
     try {
@@ -171,9 +172,9 @@ export const CustomerAddressRepository = {
       await lockOwner(client, customerId);
 
       const counted = await client.query(
-        `SELECT COUNT(*)::int AS total
+        `SELECT COUNT(*) AS total
          FROM customer_addresses
-         WHERE customer_id = $1::uuid`,
+         WHERE customer_id = $1`,
         [customerId],
       );
 
@@ -186,8 +187,8 @@ export const CustomerAddressRepository = {
       if (address.isDefault) {
         await client.query(
           `UPDATE customer_addresses
-           SET is_default = FALSE, updated_at = NOW()
-           WHERE customer_id = $1::uuid AND is_default`,
+           SET is_default = FALSE, updated_at = NOW(6)
+           WHERE customer_id = $1 AND is_default`,
           [customerId],
         );
       }
@@ -198,7 +199,7 @@ export const CustomerAddressRepository = {
           city, state, postal_code, country, is_default
         )
         VALUES (
-          $1::uuid, $2, $3, $4, $5,
+          $1, $2, $3, $4, $5,
           $6, $7, $8, $9, $10
         )
         RETURNING ${COLUMNS}
@@ -242,12 +243,14 @@ export const CustomerAddressRepository = {
       if (address.isDefault) {
         await client.query(
           `UPDATE customer_addresses
-           SET is_default = FALSE, updated_at = NOW()
-           WHERE customer_id = $1::uuid AND is_default AND id <> $2::uuid`,
+           SET is_default = FALSE, updated_at = NOW(6)
+           WHERE customer_id = $1 AND is_default AND id <> $2`,
           [customerId, id],
         );
       }
 
+      // MariaDB has no UPDATE … RETURNING: update, then read the row back
+      // by its key in the same transaction.
       const text = `
         UPDATE customer_addresses
         SET label       = $3,
@@ -259,12 +262,11 @@ export const CustomerAddressRepository = {
             postal_code = $9,
             country     = $10,
             is_default  = $11,
-            updated_at  = NOW()
-        WHERE id = $1::uuid AND customer_id = $2::uuid
-        RETURNING ${COLUMNS}
+            updated_at  = NOW(6)
+        WHERE id = $1 AND customer_id = $2
       `;
 
-      const result = await client.query(text, [
+      const updated = await client.query(text, [
         id,
         customerId,
         address.label,
@@ -277,6 +279,13 @@ export const CustomerAddressRepository = {
         address.country,
         address.isDefault,
       ]);
+
+      if (updated.rowCount === 0) return null;
+
+      const result = await client.query(
+        `SELECT ${COLUMNS} FROM customer_addresses WHERE id = $1 AND customer_id = $2`,
+        [id, customerId],
+      );
 
       return result.rows[0] ?? null;
     }).catch((error) => {
@@ -301,20 +310,27 @@ export const CustomerAddressRepository = {
 
       const cleared = await client.query(
         `UPDATE customer_addresses
-         SET is_default = FALSE, updated_at = NOW()
-         WHERE customer_id = $1::uuid AND is_default AND id <> $2::uuid`,
+         SET is_default = FALSE, updated_at = NOW(6)
+         WHERE customer_id = $1 AND is_default AND id <> $2`,
         [customerId, id],
       );
 
-      const result = await client.query(
+      const updated = await client.query(
         `UPDATE customer_addresses
-         SET is_default = TRUE, updated_at = NOW()
-         WHERE id = $1::uuid AND customer_id = $2::uuid
-         RETURNING ${COLUMNS}`,
+         SET is_default = TRUE, updated_at = NOW(6)
+         WHERE id = $1 AND customer_id = $2`,
         [id, customerId],
       );
 
-      const row = result.rows[0] ?? null;
+      const row =
+        updated.rowCount === 0
+          ? null
+          : (
+              await client.query(
+                `SELECT ${COLUMNS} FROM customer_addresses WHERE id = $1 AND customer_id = $2`,
+                [id, customerId],
+              )
+            ).rows[0] ?? null;
 
       // Nothing answered to that id. Undo the clearing by failing the
       // transaction rather than by writing the old flag back — the
@@ -353,7 +369,7 @@ export const CustomerAddressRepository = {
 
       const deleted = await client.query(
         `DELETE FROM customer_addresses
-         WHERE id = $1::uuid AND customer_id = $2::uuid
+         WHERE id = $1 AND customer_id = $2
          RETURNING is_default`,
         [id, customerId],
       );
@@ -363,11 +379,11 @@ export const CustomerAddressRepository = {
       if (deleted.rows[0].is_default) {
         await client.query(
           `UPDATE customer_addresses
-           SET is_default = TRUE, updated_at = NOW()
+           SET is_default = TRUE, updated_at = NOW(6)
            WHERE id = (
              SELECT id
              FROM customer_addresses
-             WHERE customer_id = $1::uuid
+             WHERE customer_id = $1
              ORDER BY created_at
              LIMIT 1
            )`,

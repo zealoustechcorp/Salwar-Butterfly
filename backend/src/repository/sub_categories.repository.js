@@ -1,4 +1,4 @@
-import { query } from "../config/db.js";
+import { query, withTransaction } from "../config/db.js";
 import { logger } from "../utils/logger.js";
 
 const SUB_CATEGORY_COLUMNS = `
@@ -11,7 +11,7 @@ export class SubCategoryRepository {
 
     const sql = `
       INSERT INTO sub_categories (name, category_id, is_active, created_at, updated_at)
-      VALUES ($1, $2::uuid, $3, NOW(), NOW())
+      VALUES ($1, $2, $3, NOW(6), NOW(6))
       RETURNING ${SUB_CATEGORY_COLUMNS}
     `;
 
@@ -47,7 +47,7 @@ export class SubCategoryRepository {
   static async findById(id) {
     const sql = `
       SELECT ${SUB_CATEGORY_COLUMNS} FROM sub_categories
-      WHERE id = $1::uuid
+      WHERE id = $1
       LIMIT 1
     `;
 
@@ -66,7 +66,7 @@ export class SubCategoryRepository {
   static async findByCategoryId(categoryId, limit = 20, offset = 0) {
     const sql = `
       SELECT ${SUB_CATEGORY_COLUMNS} FROM sub_categories
-      WHERE category_id = $1::uuid
+      WHERE category_id = $1
       ORDER BY created_at DESC
       LIMIT $2 OFFSET $3
     `;
@@ -107,8 +107,8 @@ export class SubCategoryRepository {
 
   static async countByCategoryId(categoryId) {
     const sql = `
-      SELECT COUNT(*)::INTEGER as count FROM sub_categories
-      WHERE category_id = $1::uuid
+      SELECT COUNT(*) as count FROM sub_categories
+      WHERE category_id = $1
     `;
 
     try {
@@ -125,7 +125,7 @@ export class SubCategoryRepository {
 
   static async countAll() {
     const sql = `
-      SELECT COUNT(*)::INTEGER as count FROM sub_categories
+      SELECT COUNT(*) as count FROM sub_categories
     `;
 
     try {
@@ -149,7 +149,7 @@ export class SubCategoryRepository {
     }
 
     if (updateData.categoryId !== undefined) {
-      fields.push(`category_id = $${paramIndex}::uuid`);
+      fields.push(`category_id = $${paramIndex}`);
       values.push(updateData.categoryId);
       paramIndex++;
     }
@@ -164,32 +164,41 @@ export class SubCategoryRepository {
       throw new Error("NO_UPDATE_FIELDS");
     }
 
-    fields.push("updated_at = NOW()");
+    fields.push("updated_at = NOW(6)");
     values.push(id);
 
+    // MariaDB has no UPDATE … RETURNING: update, then read the row back by
+    // its key in the same transaction.
     const sql = `
       UPDATE sub_categories
       SET ${fields.join(", ")}
-      WHERE id = $${paramIndex}::uuid
-      RETURNING ${SUB_CATEGORY_COLUMNS}
+      WHERE id = $${paramIndex}
     `;
 
     try {
-      const result = await query(sql, values);
+      const row = await withTransaction(async (client) => {
+        const updated = await client.query(sql, values);
 
-      if (result.rowCount === 0) {
-        logger.warn("Sub-category update target not found", {
-          subCategoryId: id,
-        });
-        throw new Error("SUB_CATEGORY_NOT_FOUND");
-      }
+        if (updated.rowCount === 0) {
+          logger.warn("Sub-category update target not found", {
+            subCategoryId: id,
+          });
+          throw new Error("SUB_CATEGORY_NOT_FOUND");
+        }
+
+        const result = await client.query(
+          `SELECT ${SUB_CATEGORY_COLUMNS} FROM sub_categories WHERE id = $1`,
+          [id],
+        );
+        return result.rows[0];
+      });
 
       logger.info("Sub-category updated successfully", {
         subCategoryId: id,
         fields: Object.keys(updateData),
       });
 
-      return result.rows[0];
+      return row;
     } catch (error) {
       logger.error("Sub-category update error", {
         subCategoryId: id,
@@ -203,7 +212,7 @@ export class SubCategoryRepository {
   static async delete(id) {
     const sql = `
       DELETE FROM sub_categories
-      WHERE id = $1::uuid
+      WHERE id = $1
       RETURNING id
     `;
 
@@ -238,8 +247,8 @@ export class SubCategoryRepository {
   static async checkCategoryExists(categoryId) {
     const sql = `
       SELECT EXISTS(
-        SELECT 1 FROM categories WHERE id = $1::uuid AND deleted_at IS NULL
-      ) as exists
+        SELECT 1 FROM categories WHERE id = $1 AND deleted_at IS NULL
+      ) as exists__bool
     `;
 
     try {

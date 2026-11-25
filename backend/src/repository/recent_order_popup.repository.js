@@ -6,7 +6,7 @@
 // that is a public read and lives in storefront.repository.js with the
 // other columns the world may see.
 
-import { query } from "../config/db.js";
+import { query, withTransaction } from "../config/db.js";
 import { logger } from "../utils/logger.js";
 
 const handleDatabaseError = (error, operation) => {
@@ -45,26 +45,33 @@ export const RecentOrderPopupRepository = {
   /**
    * A full replace of the settings. An upsert so a database whose seed row
    * was deleted by hand heals itself on the next save.
+   *
+   * The primary key is the table's only unique key, so ON DUPLICATE KEY
+   * fires exactly where Postgres's ON CONFLICT (id) did. The row is read
+   * back in the same transaction rather than RETURNed, because RETURNING
+   * on an upsert that took the UPDATE branch is not something to rely on.
    */
   async save({ enabled, lookbackDays, displayMode, visibleSeconds, gapSeconds }) {
-    try {
-      const result = await query(
+    return withTransaction(async (client) => {
+      await client.query(
         `INSERT INTO recent_order_popup_settings
            (id, enabled, lookback_days, display_mode, visible_seconds, gap_seconds, updated_at)
-         VALUES (1, $1, $2, $3, $4, $5, NOW())
-         ON CONFLICT (id) DO UPDATE SET
-           enabled         = EXCLUDED.enabled,
-           lookback_days   = EXCLUDED.lookback_days,
-           display_mode    = EXCLUDED.display_mode,
-           visible_seconds = EXCLUDED.visible_seconds,
-           gap_seconds     = EXCLUDED.gap_seconds,
-           updated_at      = NOW()
-         RETURNING ${COLUMNS}`,
+         VALUES (1, $1, $2, $3, $4, $5, NOW(6))
+         ON DUPLICATE KEY UPDATE
+           enabled         = VALUES(enabled),
+           lookback_days   = VALUES(lookback_days),
+           display_mode    = VALUES(display_mode),
+           visible_seconds = VALUES(visible_seconds),
+           gap_seconds     = VALUES(gap_seconds),
+           updated_at      = NOW(6)`,
         [enabled, lookbackDays, displayMode, visibleSeconds, gapSeconds],
       );
+      const result = await client.query(
+        `SELECT ${COLUMNS} FROM recent_order_popup_settings WHERE id = 1`,
+      );
       return result.rows[0];
-    } catch (error) {
+    }).catch((error) => {
       throw handleDatabaseError(error, "save");
-    }
+    });
   },
 };

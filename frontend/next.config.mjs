@@ -63,6 +63,13 @@ const SECURITY_HEADERS = [
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: {
+    // Set by `next upgrade --agent=security` (16.4.3 → 16.4.6, a patch for
+    // a published security advisory): keeps future agent-assisted upgrades
+    // on the security-only track.
+    agentUpgrade: "security",
+  },
+
   async headers() {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];
   },

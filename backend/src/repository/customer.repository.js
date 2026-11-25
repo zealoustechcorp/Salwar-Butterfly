@@ -1,4 +1,4 @@
-import { query } from "../config/db.js";
+import { query, withTransaction } from "../config/db.js";
 import {
   clampPagination,
   customerSortSql,
@@ -32,10 +32,11 @@ const CUSTOMER_CONSTRAINTS = Object.freeze({
 /**
  * Which field a unique violation is about: "email", "phone" or null.
  *
- * By constraint name first, then by the column Postgres names in
- * `detail` ("Key (email)=…" or "Key (lower((email)::text))=…"), so a
- * third spelling of the same rule is still recognised rather than
- * falling through to a 500.
+ * By constraint name first, then by the column named in `detail`
+ * ("Key (email)=…" or "Key (lower((email)::text))=…" — db.js writes the
+ * same format for MariaDB, mapping the email_live/phone_live helper
+ * columns back to email/phone), so a third spelling of the same rule is
+ * still recognised rather than falling through to a 500.
  */
 export const uniqueFieldOf = (error) => {
   const constraint = error?.constraint;
@@ -58,23 +59,16 @@ export const uniqueFieldOf = (error) => {
 /**
  * The timestamp columns, read as instants.
  *
- * On the live database `created_at`, `updated_at` and `deleted_at` are
- * `timestamp WITHOUT time zone`, filled by NOW() under the connection's
- * TimeZone (GMT on Aiven — checked 2026-10-14). node-pg parses a naive
- * timestamp as *host-local* time, and the API host runs in IST, so every
- * date the API returned was 5h30m early.
- *
- * `::timestamptz` reinterprets the naive value in the session TimeZone —
- * the zone it was written in — and hands node-pg an unambiguous instant.
- * On a timestamptz column (001's intent, and what
- * 026_customers_timestamptz.sql converts the live table to) the cast is
- * a no-op, so this is correct on either schema and can stay after the
- * migration has run.
+ * On Postgres these were cast `::timestamptz` because the old live table
+ * stored naive timestamps that node-pg parsed as host-local (IST) time.
+ * On MariaDB they are DATETIME(6) written in UTC, and db.js runs every
+ * session in UTC with the driver's timezone 'Z', so the plain columns
+ * already arrive as correct instants.
  */
 const TS = Object.freeze({
-  created: "created_at::timestamptz AS created_at",
-  updated: "updated_at::timestamptz AS updated_at",
-  deleted: "deleted_at::timestamptz AS deleted_at",
+  created: "created_at",
+  updated: "updated_at",
+  deleted: "deleted_at",
 });
 
 /** Runs on a transaction's client when given one, on the pool otherwise. */
@@ -278,10 +272,14 @@ const buildListFilters = (search) => {
 
     const placeholder = `$${values.length}`;
 
+    // LOWER() on both sides stands in for ILIKE: the columns use a binary
+    // collation, so a bare LIKE would be case-sensitive. MariaDB reads a
+    // backslash in a string literal as an escape, so the one-backslash
+    // ESCAPE character is written '\\' in the SQL.
     conditions.push(`(
-      name ILIKE ${placeholder} ESCAPE '\\'
-      OR email ILIKE ${placeholder} ESCAPE '\\'
-      OR phone ILIKE ${placeholder} ESCAPE '\\'
+      LOWER(name) LIKE LOWER(${placeholder}) ESCAPE '\\\\'
+      OR LOWER(email) LIKE LOWER(${placeholder}) ESCAPE '\\\\'
+      OR LOWER(phone) LIKE LOWER(${placeholder}) ESCAPE '\\\\'
     )`);
   }
 
@@ -558,7 +556,7 @@ export const CustomerRepository = {
     const { where, values } = buildListFilters(search);
 
     const text = `
-      SELECT COUNT(*)::int AS total
+      SELECT COUNT(*) AS total
       FROM customers
       ${where}
     `;
@@ -577,28 +575,40 @@ export const CustomerRepository = {
   // ==========================================================
 
   async update(id, name, email, phone) {
+    // MariaDB has no UPDATE … RETURNING: update, then read the row back by
+    // its key in the same transaction.
     const text = `
       UPDATE customers
       SET
         name = $1,
         email = $2,
         phone = $3,
-        updated_at = NOW()
+        updated_at = NOW(6)
       WHERE id = $4
         AND deleted_at IS NULL
-      RETURNING
-        id,
-        name,
-        email,
-        phone,
-        ${TS.created},
-        ${TS.updated}
     `;
 
     try {
-      const result = await query(text, [name, email, phone, id]);
+      return await withTransaction(async (client) => {
+        const updated = await client.query(text, [name, email, phone, id]);
 
-      return result.rows[0] ?? null;
+        if (updated.rowCount === 0) return null;
+
+        const result = await client.query(
+          `SELECT
+             id,
+             name,
+             email,
+             phone,
+             ${TS.created},
+             ${TS.updated}
+           FROM customers
+           WHERE id = $1`,
+          [id],
+        );
+
+        return result.rows[0] ?? null;
+      });
     } catch (error) {
       throw handleDatabaseError(error, "update", {
         customerId: id,
@@ -614,19 +624,25 @@ export const CustomerRepository = {
     const text = `
       UPDATE customers
       SET
-        deleted_at = NOW(),
-        updated_at = NOW()
+        deleted_at = NOW(6),
+        updated_at = NOW(6)
       WHERE id = $1
         AND deleted_at IS NULL
-      RETURNING
-        id,
-        ${TS.deleted}
     `;
 
     try {
-      const result = await query(text, [id]);
+      return await withTransaction(async (client) => {
+        const updated = await client.query(text, [id]);
 
-      return result.rows[0] ?? null;
+        if (updated.rowCount === 0) return null;
+
+        const result = await client.query(
+          `SELECT id, ${TS.deleted} FROM customers WHERE id = $1`,
+          [id],
+        );
+
+        return result.rows[0] ?? null;
+      });
     } catch (error) {
       throw handleDatabaseError(error, "softDelete", {
         customerId: id,
@@ -643,21 +659,26 @@ export const CustomerRepository = {
       UPDATE customers
       SET
         password = $1,
-        updated_at = NOW()
+        updated_at = NOW(6)
       WHERE id = $2
         AND deleted_at IS NULL
-      RETURNING
-        id,
-        name,
-        email,
-        phone,
-        ${TS.updated}
     `;
 
     try {
-      const result = await query(text, [hashedPassword, id]);
+      return await withTransaction(async (client) => {
+        const updated = await client.query(text, [hashedPassword, id]);
 
-      return result.rows[0] ?? null;
+        if (updated.rowCount === 0) return null;
+
+        const result = await client.query(
+          `SELECT id, name, email, phone, ${TS.updated}
+           FROM customers
+           WHERE id = $1`,
+          [id],
+        );
+
+        return result.rows[0] ?? null;
+      });
     } catch (error) {
       throw handleDatabaseError(error, "updatePassword", {
         customerId: id,

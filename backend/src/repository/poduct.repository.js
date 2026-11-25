@@ -1,4 +1,4 @@
-import { query } from "../config/db.js";
+import { query, withTransaction } from "../config/db.js";
 import { logger } from "../utils/logger.js";
 
 const PG_ERROR_CODES = {
@@ -66,34 +66,36 @@ const handleDatabaseError = (error, operation, context = {}) => {
  * A product's gallery, aggregated onto the product row.
  *
  * Photographs are read on every product screen, so fetching them as a
- * lateral rather than a follow-up query keeps a product list at one round
- * trip instead of one per row. Ordered here, so the first element is
- * always the cover image.
+ * correlated subquery (MariaDB has no LATERAL) rather than a follow-up
+ * query keeps a product list at one round trip instead of one per row.
+ * Ordered here, so the first element is always the cover image.
  *
  * Keys are camelCase because this JSON is passed to the client as-is by
- * ProductImageMapper.fromProductRow — no snake_case round trip.
+ * ProductImageMapper.fromProductRow — no snake_case round trip. The
+ * timestamps are formatted as ISO-8601 UTC, as Postgres' json did; the
+ * `__json` alias makes db.js parse the array.
  */
-const IMAGES_LATERAL = `
-  LEFT JOIN LATERAL (
+const IMAGES_COLUMN = `
+  (
     SELECT COALESCE(
-      json_agg(
-        json_build_object(
+      JSON_ARRAYAGG(
+        JSON_OBJECT(
           'id', pi.id,
           'productId', pi.product_id,
           'imageUrl', pi.image_url,
           'imagePublicId', pi.image_public_id,
           'altText', pi.alt_text,
           'position', pi.position,
-          'createdAt', pi.created_at,
-          'updatedAt', pi.updated_at
+          'createdAt', DATE_FORMAT(pi.created_at, '%Y-%m-%dT%H:%i:%s.%fZ'),
+          'updatedAt', DATE_FORMAT(pi.updated_at, '%Y-%m-%dT%H:%i:%s.%fZ')
         )
         ORDER BY pi.position ASC, pi.created_at ASC
       ),
-      '[]'::json
-    ) AS images
+      JSON_ARRAY()
+    )
     FROM product_images pi
     WHERE pi.product_id = p.id
-  ) img ON TRUE
+  ) AS images__json
 `;
 
 export const ProductRepository = {
@@ -126,7 +128,7 @@ export const ProductRepository = {
         created_at,
         updated_at
       )
-      VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, NOW(), NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(6), NOW(6))
       RETURNING *
     `;
 
@@ -166,7 +168,7 @@ export const ProductRepository = {
     let paramIndex = 1;
     const placeholders = productsData
       .map(() => {
-        const ph = `($${paramIndex}::uuid, $${paramIndex + 1}::uuid, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7}, $${paramIndex + 8}::jsonb, $${paramIndex + 9}, $${paramIndex + 10}, NOW(), NOW())`;
+        const ph = `($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7}, $${paramIndex + 8}, $${paramIndex + 9}, $${paramIndex + 10}, NOW(6), NOW(6))`;
         paramIndex += 11;
         return ph;
       })
@@ -227,13 +229,14 @@ export const ProductRepository = {
       return 0;
     }
 
-    const placeholders = productIds.map((_, i) => `$${i + 1}::uuid`).join(",");
+    const placeholders = productIds.map((_, i) => `$${i + 1}`).join(",");
 
     // A sub-category belongs to one category, so a product moved out of
     // its category cannot keep a sub-category from the old one — it would
     // be filed under a heading that does not exist where it now lives.
     // Kept only when it happens to belong to the destination too.
-    const target = `$${productIds.length + 1}::uuid`;
+    // rowCount is rows matched (db.js), so no RETURNING is needed to count.
+    const target = `$${productIds.length + 1}`;
     const text = `
       UPDATE products
       SET category_id = ${target},
@@ -243,9 +246,8 @@ export const ProductRepository = {
             ) THEN sub_category_id
             ELSE NULL
           END,
-          updated_at = NOW()
+          updated_at = NOW(6)
       WHERE id IN (${placeholders})
-      RETURNING id
     `;
 
     try {
@@ -267,10 +269,9 @@ export const ProductRepository = {
 
   async findById(id) {
     const text = `
-      SELECT p.*, img.images
+      SELECT p.*, ${IMAGES_COLUMN}
       FROM products p
-      ${IMAGES_LATERAL}
-      WHERE p.id = $1::uuid
+      WHERE p.id = $1
       LIMIT 1
     `;
 
@@ -284,9 +285,8 @@ export const ProductRepository = {
 
   async findBySlug(slug) {
     const text = `
-      SELECT p.*, img.images
+      SELECT p.*, ${IMAGES_COLUMN}
       FROM products p
-      ${IMAGES_LATERAL}
       WHERE p.slug = $1
       LIMIT 1
     `;
@@ -313,7 +313,7 @@ export const ProductRepository = {
     const values = [];
 
     if (categoryId) {
-      whereClause += ` AND p.category_id = $${values.length + 1}::uuid`;
+      whereClause += ` AND p.category_id = $${values.length + 1}`;
       values.push(categoryId);
     }
 
@@ -322,19 +322,18 @@ export const ProductRepository = {
     }
 
     const text = `
-      SELECT p.*, img.images
+      SELECT p.*, ${IMAGES_COLUMN}
       FROM products p
-      ${IMAGES_LATERAL}
       ${whereClause}
       ORDER BY p.created_at DESC
       LIMIT $${values.length + 1}
       OFFSET $${values.length + 2}
     `;
 
-    // No lateral here: the count does not need the galleries, and joining
-    // them in would make Postgres build every one only to discard it.
+    // No gallery subquery here: the count does not need the galleries, and
+    // including it would build every one only to discard it.
     const countText = `
-      SELECT COUNT(*)::INTEGER AS count FROM products p ${whereClause}
+      SELECT COUNT(*) AS count FROM products p ${whereClause}
     `;
 
     try {
@@ -389,7 +388,7 @@ export const ProductRepository = {
     }
 
     if (updateData.attributes !== undefined) {
-      fields.push(`attributes = $${paramIndex++}::jsonb`);
+      fields.push(`attributes = $${paramIndex++}`);
       values.push(JSON.stringify(updateData.attributes ?? {}));
     }
 
@@ -404,7 +403,7 @@ export const ProductRepository = {
     }
 
     if (updateData.subCategoryId !== undefined) {
-      fields.push(`sub_category_id = $${paramIndex++}::uuid`);
+      fields.push(`sub_category_id = $${paramIndex++}`);
       values.push(updateData.subCategoryId);
     }
 
@@ -412,46 +411,64 @@ export const ProductRepository = {
       throw new Error("No product fields provided for update");
     }
 
-    fields.push(`updated_at = NOW()`);
+    fields.push(`updated_at = NOW(6)`);
     values.push(productId);
 
+    // MariaDB has no UPDATE … RETURNING: update, then read the row back by
+    // its key in the same transaction.
     const text = `
       UPDATE products
       SET ${fields.join(", ")}
-      WHERE id = $${paramIndex}::uuid
-      RETURNING *
+      WHERE id = $${paramIndex}
     `;
 
     try {
-      const result = await query(text, values);
+      const row = await withTransaction(async (client) => {
+        const updated = await client.query(text, values);
 
-      if (result.rowCount === 0) {
-        const error = new Error("Product not found");
-        error.code = "PRODUCT_NOT_FOUND";
-        throw error;
-      }
+        if (updated.rowCount === 0) {
+          const error = new Error("Product not found");
+          error.code = "PRODUCT_NOT_FOUND";
+          throw error;
+        }
+
+        const result = await client.query(
+          "SELECT * FROM products WHERE id = $1",
+          [productId],
+        );
+        return result.rows[0];
+      });
 
       logger.info("Product updated successfully", { productId });
-      return result.rows[0];
+      return row;
     } catch (error) {
       throw handleDatabaseError(error, "update", { productId });
     }
   },
 
   async updateStatus(id, active) {
+    // No UPDATE … RETURNING in MariaDB: update, then read back by key.
     const text = `
       UPDATE products
-      SET active = $1, updated_at = NOW()
-      WHERE id = $2::uuid
-      RETURNING *
+      SET active = $1, updated_at = NOW(6)
+      WHERE id = $2
     `;
 
     try {
-      const result = await query(text, [active, id]);
-      if (result.rowCount === 0) return null;
+      const row = await withTransaction(async (client) => {
+        const updated = await client.query(text, [active, id]);
+        if (updated.rowCount === 0) return null;
+
+        const result = await client.query(
+          "SELECT * FROM products WHERE id = $1",
+          [id],
+        );
+        return result.rows[0] ?? null;
+      });
+      if (!row) return null;
 
       logger.info("Product status updated", { productId: id, active });
-      return result.rows[0];
+      return row;
     } catch (error) {
       throw handleDatabaseError(error, "updateStatus", { productId: id });
     }
@@ -460,7 +477,7 @@ export const ProductRepository = {
   async delete(id) {
     const text = `
       DELETE FROM products
-      WHERE id = $1::uuid
+      WHERE id = $1
       RETURNING id
     `;
 
@@ -478,8 +495,8 @@ export const ProductRepository = {
   async exists(id) {
     const text = `
       SELECT EXISTS (
-        SELECT 1 FROM products WHERE id = $1::uuid
-      ) AS exists
+        SELECT 1 FROM products WHERE id = $1
+      ) AS exists__bool
     `;
 
     try {
@@ -500,7 +517,7 @@ export const ProductRepository = {
 
     try {
       const result = await query(
-        "SELECT slug FROM products WHERE slug = ANY($1::text[])",
+        "SELECT slug FROM products WHERE slug IN ($1)",
         [slugs],
       );
       return result.rows.map((row) => row.slug);

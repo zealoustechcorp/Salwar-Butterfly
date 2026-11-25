@@ -37,7 +37,7 @@ export const ProductImageRepository = {
   async findByProductId(productId) {
     const text = `
       SELECT * FROM product_images
-      WHERE product_id = $1::uuid
+      WHERE product_id = $1
       ORDER BY position ASC, created_at ASC
     `;
 
@@ -63,7 +63,7 @@ export const ProductImageRepository = {
     try {
       const result = await query(text, [safeLimit, offset]);
       const countResult = await query(
-        "SELECT COUNT(*)::INTEGER AS count FROM product_images",
+        "SELECT COUNT(*) AS count FROM product_images",
       );
 
       return { rows: result.rows, total: countResult.rows[0]?.count ?? 0 };
@@ -75,7 +75,7 @@ export const ProductImageRepository = {
   async findById(id) {
     const text = `
       SELECT * FROM product_images
-      WHERE id = $1::uuid
+      WHERE id = $1
       LIMIT 1
     `;
 
@@ -89,9 +89,9 @@ export const ProductImageRepository = {
 
   async countByProductId(productId) {
     const text = `
-      SELECT COUNT(*)::INTEGER AS count
+      SELECT COUNT(*) AS count
       FROM product_images
-      WHERE product_id = $1::uuid
+      WHERE product_id = $1
     `;
 
     try {
@@ -120,7 +120,7 @@ export const ProductImageRepository = {
         // Locks the product row, so concurrent uploads to the same product
         // serialize here instead of racing for a position.
         const product = await client.query(
-          "SELECT id FROM products WHERE id = $1::uuid FOR UPDATE",
+          "SELECT id FROM products WHERE id = $1 FOR UPDATE",
           [productId],
         );
 
@@ -131,9 +131,9 @@ export const ProductImageRepository = {
         }
 
         const highest = await client.query(
-          `SELECT COALESCE(MAX(position) + 1, 0)::INTEGER AS next
+          `SELECT CAST(COALESCE(MAX(position) + 1, 0) AS SIGNED) AS next
            FROM product_images
-           WHERE product_id = $1::uuid`,
+           WHERE product_id = $1`,
           [productId],
         );
 
@@ -145,7 +145,7 @@ export const ProductImageRepository = {
                product_id, image_url, image_public_id, alt_text, position,
                created_at, updated_at
              )
-             VALUES ($1::uuid, $2, $3, $4, $5, NOW(), NOW())`,
+             VALUES ($1, $2, $3, $4, $5, NOW(6), NOW(6))`,
             [
               productId,
               image.imageUrl,
@@ -160,7 +160,7 @@ export const ProductImageRepository = {
 
         const result = await client.query(
           `SELECT * FROM product_images
-           WHERE product_id = $1::uuid
+           WHERE product_id = $1
            ORDER BY position ASC, created_at ASC`,
           [productId],
         );
@@ -179,19 +179,28 @@ export const ProductImageRepository = {
   },
 
   async updateAltText(id, altText) {
+    // No UPDATE … RETURNING in MariaDB: update, then read back by key.
     const text = `
       UPDATE product_images
-      SET alt_text = $1, updated_at = NOW()
-      WHERE id = $2::uuid
-      RETURNING *
+      SET alt_text = $1, updated_at = NOW(6)
+      WHERE id = $2
     `;
 
     try {
-      const result = await query(text, [altText, id]);
-      if (result.rowCount === 0) return null;
+      const row = await withTransaction(async (client) => {
+        const updated = await client.query(text, [altText, id]);
+        if (updated.rowCount === 0) return null;
+
+        const result = await client.query(
+          "SELECT * FROM product_images WHERE id = $1",
+          [id],
+        );
+        return result.rows[0] ?? null;
+      });
+      if (!row) return null;
 
       logger.info("Product image alt text updated", { imageId: id });
-      return result.rows[0];
+      return row;
     } catch (error) {
       throw handleDatabaseError(error, "updateAltText", { imageId: id });
     }
@@ -213,30 +222,32 @@ export const ProductImageRepository = {
         for (const [index, imageId] of imageIds.entries()) {
           await client.query(
             `UPDATE product_images
-             SET position = $1, updated_at = NOW()
-             WHERE id = $2::uuid AND product_id = $3::uuid`,
+             SET position = $1, updated_at = NOW(6)
+             WHERE id = $2 AND product_id = $3`,
             [index, imageId, productId],
           );
         }
 
         // Anything not named in the payload keeps its relative order but
         // moves behind the images that were, so positions stay contiguous
-        // and position 0 is always exactly one row.
+        // and position 0 is always exactly one row. (MariaDB's multi-table
+        // UPDATE … JOIN form of Postgres' UPDATE … FROM; the derived table is
+        // materialised first, so ranks come from the positions set above.)
         await client.query(
           `UPDATE product_images AS target
-           SET position = ranked.rank - 1, updated_at = NOW()
-           FROM (
+           JOIN (
              SELECT id, ROW_NUMBER() OVER (ORDER BY position ASC, created_at ASC) AS rank
              FROM product_images
-             WHERE product_id = $1::uuid
-           ) AS ranked
-           WHERE target.id = ranked.id AND target.position <> ranked.rank - 1`,
+             WHERE product_id = $1
+           ) AS ranked ON target.id = ranked.id
+           SET target.position = ranked.rank - 1, target.updated_at = NOW(6)
+           WHERE target.position <> ranked.rank - 1`,
           [productId],
         );
 
         const result = await client.query(
           `SELECT * FROM product_images
-           WHERE product_id = $1::uuid
+           WHERE product_id = $1
            ORDER BY position ASC, created_at ASC`,
           [productId],
         );
@@ -263,7 +274,7 @@ export const ProductImageRepository = {
     try {
       return await withTransaction(async (client) => {
         const deleted = await client.query(
-          "DELETE FROM product_images WHERE id = $1::uuid RETURNING *",
+          "DELETE FROM product_images WHERE id = $1 RETURNING *",
           [id],
         );
 
@@ -273,8 +284,8 @@ export const ProductImageRepository = {
 
         await client.query(
           `UPDATE product_images
-           SET position = position - 1, updated_at = NOW()
-           WHERE product_id = $1::uuid AND position > $2`,
+           SET position = position - 1, updated_at = NOW(6)
+           WHERE product_id = $1 AND position > $2`,
           [row.product_id, row.position],
         );
 

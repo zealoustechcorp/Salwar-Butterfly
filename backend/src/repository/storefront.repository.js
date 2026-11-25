@@ -15,9 +15,18 @@
 // storefront reads it over HTTP instead of importing a JSON file that went
 // stale the moment stock moved.
 //
-// Both queries use LATERALs rather than joins for the same reason the
-// export did: a product with six sizes and two photos would otherwise come
-// back twelve times and have to be reassembled in JavaScript.
+// The product query aggregates each child table in its own derived table,
+// grouped by product_id, rather than joining the children directly — for
+// the same reason the export used LATERALs: a product with six sizes and
+// two photos would otherwise come back twelve times and have to be
+// reassembled in JavaScript. (MariaDB has no LATERAL, and a derived table
+// cannot refer to the outer row, so each one aggregates every product and
+// is joined on product_id.)
+//
+// Tie-breakers on an id compare it as text (CAST(… AS CHAR)): MariaDB
+// sorts its UUID type in a different byte order from Postgres, and
+// products and order lines written in one transaction share a created_at,
+// so the id really does decide their order.
 
 import { query } from "../config/db.js";
 import { COLOUR_GROUP, FIT_GROUP } from "../config/attribute.groups.js";
@@ -112,17 +121,18 @@ const PRODUCTS_SQL = `
     -- an admin can add to, and selecting it whole would put whatever
     -- they add next on a public endpoint. NULL where no fit is
     -- recorded, which is the "show them all" case.
-    p.attributes->>'${FIT_GROUP}'    AS fit,
-    COALESCE(sizes.rows, '[]'::json) AS sizes,
-    COALESCE(sizes.total_stock, 0)   AS stock,
-    COALESCE(colourways.rows, '[]'::json) AS colours,
-    COALESCE(by_colour.rows, '[]'::json)  AS variants,
-    photos.image_url                 AS image,
-    photos.image_url_2               AS image2,
-    COALESCE(photos.images, '[]'::json) AS images,
-    COALESCE(rating.count, 0)        AS rating_count,
-    COALESCE(rating.sum, 0)          AS rating_sum,
-    rating.average                   AS rating_average
+    JSON_VALUE(p.attributes, '$.${FIT_GROUP}') AS fit,
+    -- __json: db.js parses these back into arrays.
+    COALESCE(sizes.items, JSON_ARRAY())      AS sizes__json,
+    COALESCE(sizes.total_stock, 0)           AS stock,
+    COALESCE(colourways.items, JSON_ARRAY()) AS colours__json,
+    COALESCE(by_colour.items, JSON_ARRAY())  AS variants__json,
+    photos.image_url                         AS image,
+    photos.image_url_2                       AS image2,
+    COALESCE(photos.images, JSON_ARRAY())    AS images__json,
+    COALESCE(rating.review_count, 0)         AS rating_count,
+    COALESCE(rating.star_sum, 0)             AS rating_sum,
+    rating.average                           AS rating_average
   FROM products p
   -- One entry per SIZE, not per variant row.
   --
@@ -139,91 +149,100 @@ const PRODUCTS_SQL = `
   -- below instead, against the (size, colour) the shopper picked — the
   -- first-by-position id here would book every colour against one
   -- arbitrary colourway's shelf.
-  LEFT JOIN LATERAL (
+  LEFT JOIN (
     SELECT
-      json_agg(
-        json_build_object(
+      by_size.product_id,
+      JSON_ARRAYAGG(
+        JSON_OBJECT(
           'variant_id', by_size.variant_id,
           'size',       by_size.size,
           'stock',      by_size.stock
         )
         ORDER BY by_size.position ASC, by_size.size ASC
-      ) AS rows,
-      SUM(by_size.stock)::INTEGER AS total_stock
+      ) AS items,
+      CAST(SUM(by_size.stock) AS SIGNED) AS total_stock
     FROM (
       SELECT
+        v.product_id,
         v.size,
         MIN(v.position)                        AS position,
-        SUM(v.stock_quantity)::INTEGER         AS stock,
-        (ARRAY_AGG(v.id ORDER BY v.position ASC, v.colour ASC))[1] AS variant_id
+        CAST(SUM(v.stock_quantity) AS SIGNED)  AS stock,
+        JSON_VALUE(
+          JSON_ARRAYAGG(v.id ORDER BY v.position ASC, v.colour ASC),
+          '$[0]'
+        )                                      AS variant_id
       FROM product_variants v
-      WHERE v.product_id = p.id
-        AND v.active = TRUE
-      GROUP BY v.size
+      WHERE v.active = TRUE
+      GROUP BY v.product_id, v.size
     ) by_size
-  ) sizes ON TRUE
+    GROUP BY by_size.product_id
+  ) sizes ON sizes.product_id = p.id
 
   -- The colourways on sale: the swatches on the detail page and the dots
   -- on a card. Empty for a product not sold by colour: '' is the "no
   -- colour" sentinel and is filtered out rather than surfacing as a
   -- blank chip.
-  LEFT JOIN LATERAL (
+  LEFT JOIN (
     SELECT
-      COALESCE(
-        json_agg(
-          json_build_object('name', colours.colour, 'hex', colours.hex)
-          ORDER BY colours.position ASC, colours.colour ASC
-        ),
-        '[]'::json
-      ) AS rows
+      colours.product_id,
+      JSON_ARRAYAGG(
+        JSON_OBJECT('name', colours.colour, 'hex', colours.hex)
+        ORDER BY colours.position ASC, colours.colour ASC
+      ) AS items
     FROM (
-      SELECT v.colour, MIN(v.position) AS position, MIN(reg.hex) AS hex
+      SELECT v.product_id, v.colour, MIN(v.position) AS position, MIN(reg.hex) AS hex
       FROM product_variants v
       LEFT JOIN product_attribute_values reg
         ON reg.group_name = '${COLOUR_GROUP}' AND reg.value = v.colour
-      WHERE v.product_id = p.id
-        AND v.active = TRUE
+      WHERE v.active = TRUE
         AND v.colour <> ''
-      GROUP BY v.colour
+      GROUP BY v.product_id, v.colour
     ) colours
-  ) colourways ON TRUE
+    GROUP BY colours.product_id
+  ) colourways ON colourways.product_id = p.id
 
   -- Every sellable (size, colour) with its own shelf count, for the
   -- colour picker. Only filled for a product that has colours: one with
   -- none is fully described by \`sizes\` above, and repeating its rows
   -- here would double what every card in the grid downloads for nothing.
-  LEFT JOIN LATERAL (
+  LEFT JOIN (
     SELECT
-      json_agg(
-        json_build_object(
+      v.product_id,
+      JSON_ARRAYAGG(
+        JSON_OBJECT(
           'variant_id', v.id,
           'size',       v.size,
           'colour',     v.colour,
           'stock',      v.stock_quantity
         )
         ORDER BY v.position ASC, v.colour ASC
-      ) AS rows
+      ) AS items
     FROM product_variants v
-    WHERE v.product_id = p.id
-      AND v.active = TRUE
+    WHERE v.active = TRUE
       AND v.colour <> ''
-  ) by_colour ON TRUE
-  LEFT JOIN LATERAL (
+    GROUP BY v.product_id
+  ) by_colour ON by_colour.product_id = p.id
+  LEFT JOIN (
     SELECT
-      MAX(i.image_url) FILTER (WHERE i.rn = 1) AS image_url,
-      MAX(i.image_url) FILTER (WHERE i.rn = 2) AS image_url_2,
+      i.product_id,
+      MAX(CASE WHEN i.rn = 1 THEN i.image_url END) AS image_url,
+      MAX(CASE WHEN i.rn = 2 THEN i.image_url END) AS image_url_2,
       -- The whole gallery, in the shop's order, for the product page.
       -- The two columns above stay for the cards, which only ever show
       -- the cover and a hover shot.
-      JSON_AGG(i.image_url ORDER BY i.rn) AS images
+      JSON_ARRAYAGG(i.image_url ORDER BY i.rn) AS images
     FROM (
       SELECT
+        pi.product_id,
         pi.image_url,
-        ROW_NUMBER() OVER (ORDER BY pi.position ASC, pi.created_at ASC) AS rn
+        ROW_NUMBER() OVER (
+          PARTITION BY pi.product_id
+          ORDER BY pi.position ASC, pi.created_at ASC
+        ) AS rn
       FROM product_images pi
-      WHERE pi.product_id = p.id
     ) i
-  ) photos ON TRUE
+    GROUP BY i.product_id
+  ) photos ON photos.product_id = p.id
 
   -- Ratings (F-06.08). Published reviews only: the published column is
   -- the shop's switch for taking one off the storefront, and a hidden
@@ -240,19 +259,20 @@ const PRODUCTS_SQL = `
   -- the rounded ones would drift besides. Summing the stars and dividing
   -- by the count is the only arithmetic that gives the same answer as
   -- counting every review at once.
-  LEFT JOIN LATERAL (
+  LEFT JOIN (
     SELECT
-      COUNT(*)::INTEGER              AS count,
-      SUM(r.rating)::INTEGER         AS sum,
-      ROUND(AVG(r.rating), 1)::NUMERIC(3,1) AS average
+      r.product_id,
+      COUNT(*)                                      AS review_count,
+      CAST(SUM(r.rating) AS SIGNED)                 AS star_sum,
+      CAST(ROUND(AVG(r.rating), 1) AS DECIMAL(3,1)) AS average
     FROM reviews r
-    WHERE r.product_id = p.id
-      AND r.published
-  ) rating ON TRUE
+    WHERE r.published
+    GROUP BY r.product_id
+  ) rating ON rating.product_id = p.id
 
   WHERE p.active = TRUE
     AND ${PRODUCT_CATEGORY_VISIBLE}
-  ORDER BY p.created_at DESC, p.id DESC
+  ORDER BY p.created_at DESC, CAST(p.id AS CHAR) DESC
 `;
 
 // ============================================================
@@ -279,11 +299,11 @@ const REVIEWS_SQL = `
     r.created_at
   FROM reviews r
   JOIN products p ON p.id = r.product_id
-  WHERE r.product_id = $1::uuid
+  WHERE r.product_id = $1
     AND r.published
     AND p.active = TRUE
     AND ${PRODUCT_CATEGORY_VISIBLE}
-  ORDER BY r.created_at DESC, r.id DESC
+  ORDER BY r.created_at DESC, CAST(r.id AS CHAR) DESC
   LIMIT $2
 `;
 
@@ -295,16 +315,16 @@ const REVIEWS_SQL = `
  */
 const RATING_SQL = `
   SELECT
-    COUNT(*)::INTEGER AS count,
-    COALESCE(ROUND(AVG(r.rating), 1), 0)::NUMERIC(3,1) AS average,
-    COUNT(*) FILTER (WHERE r.rating = 5)::INTEGER AS five,
-    COUNT(*) FILTER (WHERE r.rating = 4)::INTEGER AS four,
-    COUNT(*) FILTER (WHERE r.rating = 3)::INTEGER AS three,
-    COUNT(*) FILTER (WHERE r.rating = 2)::INTEGER AS two,
-    COUNT(*) FILTER (WHERE r.rating = 1)::INTEGER AS one
+    COUNT(*) AS count,
+    CAST(COALESCE(ROUND(AVG(r.rating), 1), 0) AS DECIMAL(3,1)) AS average,
+    COUNT(CASE WHEN r.rating = 5 THEN 1 END) AS five,
+    COUNT(CASE WHEN r.rating = 4 THEN 1 END) AS four,
+    COUNT(CASE WHEN r.rating = 3 THEN 1 END) AS three,
+    COUNT(CASE WHEN r.rating = 2 THEN 1 END) AS two,
+    COUNT(CASE WHEN r.rating = 1 THEN 1 END) AS one
   FROM reviews r
   JOIN products p ON p.id = r.product_id
-  WHERE r.product_id = $1::uuid
+  WHERE r.product_id = $1
     AND r.published
     AND p.active = TRUE
     AND ${PRODUCT_CATEGORY_VISIBLE}
@@ -322,10 +342,10 @@ const RATING_SQL = `
 const PRODUCT_VISIBLE_SQL = `
   SELECT EXISTS (
     SELECT 1 FROM products p
-    WHERE p.id = $1::uuid
+    WHERE p.id = $1
       AND p.active = TRUE
       AND ${PRODUCT_CATEGORY_VISIBLE}
-  ) AS found
+  ) AS found__bool
 `;
 
 // ============================================================
@@ -400,7 +420,7 @@ const BANNERS_SQL = `
    AND p.active = TRUE
    AND ${PRODUCT_CATEGORY_VISIBLE}
   WHERE b.active
-  ORDER BY b.position ASC, b.created_at ASC, b.id ASC
+  ORDER BY b.position ASC, b.created_at ASC, CAST(b.id AS CHAR) ASC
 `;
 
 // ============================================================
@@ -441,7 +461,7 @@ const CUSTOMER_STORIES_SQL = `
    AND p.active = TRUE
    AND ${PRODUCT_CATEGORY_VISIBLE}
   WHERE cs.published
-  ORDER BY cs.position ASC, cs.created_at DESC, cs.id ASC
+  ORDER BY cs.position ASC, cs.created_at DESC, CAST(cs.id AS CHAR) ASC
   LIMIT $1
 `;
 
@@ -464,22 +484,25 @@ const HOME_SECTIONS_SQL = `
     s.title,
     s.subtitle,
     s.slug,
-    picked.product_ids
+    picked.product_ids AS product_ids__json
   FROM home_sections s
-  CROSS JOIN LATERAL (
-    SELECT array_agg(p.id ORDER BY hsp.position ASC) AS product_ids
+  -- An inner join: a section with no visible picks has no row here and
+  -- is dropped, as the Postgres version's "product_ids IS NOT NULL" did.
+  JOIN (
+    SELECT
+      hsp.section_id,
+      JSON_ARRAYAGG(p.id ORDER BY hsp.position ASC) AS product_ids
     FROM home_section_products hsp
     JOIN products p ON p.id = hsp.product_id
-    WHERE hsp.section_id = s.id
-      AND p.active = TRUE
+    WHERE p.active = TRUE
       AND ${PRODUCT_CATEGORY_VISIBLE}
-  ) picked
+    GROUP BY hsp.section_id
+  ) picked ON picked.section_id = s.id
   WHERE s.slug = 'custom'
     AND s.active
-    AND (s.starts_at IS NULL OR s.starts_at <= NOW())
-    AND (s.ends_at IS NULL OR s.ends_at > NOW())
-    AND picked.product_ids IS NOT NULL
-  ORDER BY s.position ASC, s.created_at ASC, s.id ASC
+    AND (s.starts_at IS NULL OR s.starts_at <= NOW(6))
+    AND (s.ends_at IS NULL OR s.ends_at > NOW(6))
+  ORDER BY s.position ASC, s.created_at ASC, CAST(s.id AS CHAR) ASC
 `;
 
 // ============================================================
@@ -513,65 +536,111 @@ const HOME_SECTIONS_SQL = `
 // than from the order line's snapshot, so the pop-up matches the page it
 // links to.
 
+//
+// The city is title-cased in JavaScript (see recentOrders): MariaDB has no
+// INITCAP.
+
 const RECENT_ORDERS_SQL = `
-  SELECT
-    INITCAP(TRIM(o.shipping_city))  AS city,
-    COALESCE(o.paid_at, o.placed_at) AS ordered_at,
-    p.name                           AS product_name,
-    p.slug                           AS product_slug,
-    photo.image_url                  AS product_image,
-    item.more_count                  AS more_count,
-    more.items                       AS more
-  FROM orders o
-  CROSS JOIN LATERAL (
+  WITH eligible AS (
     SELECT
-      (ARRAY_AGG(line.product_id ORDER BY line.created_at, line.id))[1] AS product_id,
-      (ARRAY_AGG(line.product_id ORDER BY line.created_at, line.id))[2:$3::int + 1] AS more_ids,
-      GREATEST(COUNT(*)::int - 1, 0) AS more_count
+      o.id,
+      o.shipping_city,
+      COALESCE(o.paid_at, o.placed_at) AS ordered_at
+    FROM orders o
+    WHERE o.payment_status = 'paid'
+      AND o.status <> 'cancelled'
+      AND COALESCE(o.paid_at, o.placed_at) >= NOW(6) - INTERVAL $1 DAY
+      AND NULLIF(TRIM(o.shipping_city), '') IS NOT NULL
+  ),
+  -- Each on-sale product once, at the first line it appears on (Postgres
+  -- used DISTINCT ON), then numbered in the order the customer added them
+  -- (ord) and counted per order.
+  first_lines AS (
+    SELECT
+      line.order_id,
+      line.product_id,
+      ROW_NUMBER() OVER (
+        PARTITION BY line.order_id
+        ORDER BY line.created_at ASC, line.id_text ASC
+      ) AS ord,
+      COUNT(*) OVER (PARTITION BY line.order_id) AS piece_count
     FROM (
-      -- Each on-sale product once, at the first line it appears on.
-      SELECT DISTINCT ON (oi.product_id) oi.product_id, oi.created_at, oi.id
+      SELECT
+        oi.order_id,
+        oi.product_id,
+        oi.created_at,
+        CAST(oi.id AS CHAR) AS id_text,
+        ROW_NUMBER() OVER (
+          PARTITION BY oi.order_id, oi.product_id
+          ORDER BY oi.created_at ASC, CAST(oi.id AS CHAR) ASC
+        ) AS rn
       FROM order_items oi
+      JOIN eligible e ON e.id = oi.order_id
       JOIN products p ON p.id = oi.product_id
-      WHERE oi.order_id = o.id
-        AND p.active = TRUE
+      WHERE p.active = TRUE
         AND ${PRODUCT_CATEGORY_VISIBLE}
-      ORDER BY oi.product_id, oi.created_at ASC, oi.id ASC
     ) line
-  ) item
-  JOIN products p ON p.id = item.product_id
-  LEFT JOIN LATERAL (
-    SELECT pi.image_url
-    FROM product_images pi
-    WHERE pi.product_id = p.id
-    ORDER BY pi.position ASC, pi.created_at ASC
-    LIMIT 1
-  ) photo ON TRUE
-  CROSS JOIN LATERAL (
-    SELECT COALESCE(
-      JSON_AGG(
-        JSON_BUILD_OBJECT('name', mp.name, 'slug', mp.slug, 'image', mphoto.image_url)
-        ORDER BY m.ord
-      ),
-      '[]'::json
-    ) AS items
-    FROM UNNEST(item.more_ids) WITH ORDINALITY AS m(product_id, ord)
-    JOIN products mp ON mp.id = m.product_id
-    LEFT JOIN LATERAL (
+    WHERE line.rn = 1
+  )
+  SELECT
+    TRIM(o.shipping_city) AS city,
+    o.ordered_at          AS ordered_at,
+    p.name                AS product_name,
+    p.slug                AS product_slug,
+    (
       SELECT pi.image_url
       FROM product_images pi
-      WHERE pi.product_id = mp.id
+      WHERE pi.product_id = p.id
       ORDER BY pi.position ASC, pi.created_at ASC
       LIMIT 1
-    ) mphoto ON TRUE
-  ) more
-  WHERE o.payment_status = 'paid'
-    AND o.status <> 'cancelled'
-    AND COALESCE(o.paid_at, o.placed_at) >= NOW() - make_interval(days => $1::int)
-    AND NULLIF(TRIM(o.shipping_city), '') IS NOT NULL
-  ORDER BY COALESCE(o.paid_at, o.placed_at) DESC, o.id DESC
+    )                     AS product_image,
+    lead.piece_count - 1 AS more_count,
+    (
+      SELECT COALESCE(
+        JSON_ARRAYAGG(
+          JSON_OBJECT(
+            'name',  mp.name,
+            'slug',  mp.slug,
+            'image', (
+              SELECT pi.image_url
+              FROM product_images pi
+              WHERE pi.product_id = mp.id
+              ORDER BY pi.position ASC, pi.created_at ASC
+              LIMIT 1
+            )
+          )
+          ORDER BY m.ord
+        ),
+        JSON_ARRAY()
+      )
+      FROM first_lines m
+      JOIN products mp ON mp.id = m.product_id
+      WHERE m.order_id = o.id
+        AND m.ord BETWEEN 2 AND $3 + 1
+    )                     AS more__json
+  FROM eligible o
+  JOIN first_lines lead ON lead.order_id = o.id AND lead.ord = 1
+  JOIN products p ON p.id = lead.product_id
+  ORDER BY o.ordered_at DESC, CAST(o.id AS CHAR) DESC
   LIMIT $2
 `;
+
+/**
+ * Postgres's INITCAP: the first letter or digit of every run of letters
+ * and digits upper-cased, the rest lower-cased ("NEW delhi" → "New Delhi",
+ * "port-blair" → "Port-Blair").
+ */
+const initcap = (text) => {
+  let previousWasAlnum = false;
+  let out = "";
+
+  for (const ch of String(text)) {
+    out += previousWasAlnum ? ch.toLowerCase() : ch.toUpperCase();
+    previousWasAlnum = /[\p{L}\p{N}]/u.test(ch);
+  }
+
+  return out;
+};
 
 /** The pop-up's switch and timing (036). The public half of a settings row. */
 const POPUP_SETTINGS_SQL = `
@@ -597,8 +666,12 @@ export const StorefrontRepository = {
    */
   async recentOrders(lookbackDays, limit, moreLimit) {
     try {
-      const result = await query(RECENT_ORDERS_SQL, [lookbackDays, limit, moreLimit]);
-      return result.rows;
+      const result = await query(RECENT_ORDERS_SQL, [
+        Number(lookbackDays),
+        Number(limit),
+        Number(moreLimit),
+      ]);
+      return result.rows.map((row) => ({ ...row, city: initcap(row.city) }));
     } catch (error) {
       throw handleDatabaseError(error, "recentOrders");
     }

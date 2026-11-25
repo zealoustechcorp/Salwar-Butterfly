@@ -66,17 +66,24 @@ const handleDatabaseError = (error, operation, context = {}) => {
  * over product_variants and DISTINCT by product — "used by 3 products"
  * is the useful answer, not "used by 12 variants", which would make a
  * colour in four sizes look four times as entrenched as it is.
+ *
+ * JSON_VALUE returns the JSON column's utf8mb4_bin collation; it is
+ * re-collated to the tables' utf8mb4_nopad_bin so the comparison is
+ * allowed and stays exact (case- and trailing-space-sensitive), as
+ * Postgres' `->>` comparison was.
  */
+const attributePath = (keyExpr) => `CONCAT('$."', ${keyExpr}, '"')`;
+
 const USAGE_COUNT = `
   (
     CASE WHEN av.group_name = '${COLOUR_GROUP}' THEN (
-      SELECT COUNT(DISTINCT v.product_id)::INTEGER
+      SELECT COUNT(DISTINCT v.product_id)
       FROM product_variants v
       WHERE v.colour = av.value
     ) ELSE (
-      SELECT COUNT(*)::INTEGER
+      SELECT COUNT(*)
       FROM products p
-      WHERE p.attributes ->> av.group_name = av.value
+      WHERE JSON_VALUE(p.attributes, ${attributePath("av.group_name")}) COLLATE utf8mb4_nopad_bin = av.value
     ) END
   ) AS usage_count
 `;
@@ -119,7 +126,7 @@ export const AttributeValueRepository = {
     const text = `
       SELECT av.*, ${USAGE_COUNT}
       FROM product_attribute_values av
-      WHERE av.id = $1::uuid
+      WHERE av.id = $1
       LIMIT 1
     `;
 
@@ -138,17 +145,14 @@ export const AttributeValueRepository = {
         group_name, value, hex, active, position, created_at, updated_at
       )
       VALUES (
-        $1::varchar, $2::varchar, $5::char(7), $3::boolean,
+        $1, $2, $5, $3,
         COALESCE(
-          $4::integer,
-          -- $1 appears twice, so both uses need an explicit cast:
-          -- without them Postgres cannot deduce one type for the
-          -- parameter and rejects the statement (42P08).
+          $4,
           (SELECT COALESCE(MAX(position), -1) + 1
              FROM product_attribute_values
-            WHERE group_name = $1::varchar)
+            WHERE group_name = $1)
         ),
-        NOW(), NOW()
+        NOW(6), NOW(6)
       )
       RETURNING *
     `;
@@ -181,7 +185,7 @@ export const AttributeValueRepository = {
     // Null is a real value here — "this colour has no swatch" — so only
     // `undefined` means "leave it alone".
     if (updateData.hex !== undefined) {
-      fields.push(`hex = $${paramIndex++}::char(7)`);
+      fields.push(`hex = $${paramIndex++}`);
       values.push(updateData.hex);
     }
 
@@ -199,22 +203,31 @@ export const AttributeValueRepository = {
       throw new Error("No attribute value fields provided for update");
     }
 
-    fields.push("updated_at = NOW()");
+    fields.push("updated_at = NOW(6)");
     values.push(id);
 
+    // No UPDATE … RETURNING in MariaDB: update, then read back by key.
     const text = `
       UPDATE product_attribute_values
       SET ${fields.join(", ")}
-      WHERE id = $${paramIndex}::uuid
-      RETURNING *
+      WHERE id = $${paramIndex}
     `;
 
     try {
-      const result = await query(text, values);
-      if (result.rowCount === 0) return null;
+      const row = await withTransaction(async (client) => {
+        const updated = await client.query(text, values);
+        if (updated.rowCount === 0) return null;
+
+        const result = await client.query(
+          "SELECT * FROM product_attribute_values WHERE id = $1",
+          [id],
+        );
+        return result.rows[0] ?? null;
+      });
+      if (!row) return null;
 
       logger.info("Attribute value updated", { id });
-      return result.rows[0];
+      return row;
     } catch (error) {
       throw handleDatabaseError(error, "update", { id });
     }
@@ -252,7 +265,7 @@ export const AttributeValueRepository = {
       SELECT id, value FROM product_attribute_values
       WHERE group_name = $1
         AND lower(value) = lower($2)
-        AND ($3::uuid IS NULL OR id <> $3::uuid)
+        AND ($3 IS NULL OR id <> $3)
       LIMIT 1
     `;
 
@@ -270,19 +283,24 @@ export const AttributeValueRepository = {
     try {
       return await withTransaction(async (client) => {
         const current = await client.query(
-          "SELECT * FROM product_attribute_values WHERE id = $1::uuid",
+          "SELECT * FROM product_attribute_values WHERE id = $1",
           [id],
         );
 
         const row = current.rows[0];
         if (!row) return { row: null, productsUpdated: 0 };
 
-        const updated = await client.query(
+        // No UPDATE … RETURNING in MariaDB: update, then read back by key.
+        await client.query(
           `UPDATE product_attribute_values
-              SET value = $1, updated_at = NOW()
-            WHERE id = $2::uuid
-        RETURNING *`,
+              SET value = $1, updated_at = NOW(6)
+            WHERE id = $2`,
           [nextValue, id],
+        );
+
+        const updated = await client.query(
+          "SELECT * FROM product_attribute_values WHERE id = $1",
+          [id],
         );
 
         const carriersUpdated =
@@ -293,12 +311,12 @@ export const AttributeValueRepository = {
                 nextValue,
               )
             : (
+                // rowCount is rows matched (db.js), the count RETURNING id gave.
                 await client.query(
                   `UPDATE products
-                      SET attributes = jsonb_set(attributes, ARRAY[$1::text], to_jsonb($2::text)),
-                          updated_at = NOW()
-                    WHERE attributes ->> $1 = $3
-                RETURNING id`,
+                      SET attributes = JSON_SET(attributes, ${attributePath("$1")}, $2),
+                          updated_at = NOW(6)
+                    WHERE JSON_VALUE(attributes, ${attributePath("$1")}) COLLATE utf8mb4_nopad_bin = $3`,
                   [row.group_name, nextValue, row.value],
                 )
               ).rowCount ?? 0;
@@ -321,7 +339,7 @@ export const AttributeValueRepository = {
   async delete(id) {
     const text = `
       DELETE FROM product_attribute_values
-      WHERE id = $1::uuid
+      WHERE id = $1
       RETURNING id
     `;
 

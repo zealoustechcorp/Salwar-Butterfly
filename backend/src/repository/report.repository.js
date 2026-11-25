@@ -57,27 +57,66 @@ const handleDatabaseError = (error, operation, context = {}) => {
 // ============================================================
 
 /**
- * "Today", "this week", "this month" — as timestamptz, computed in the
+ * The shop's zone as a fixed UTC offset, for CONVERT_TZ.
+ *
+ * MariaDB on this host has no timezone tables loaded, so a named zone
+ * ("Asia/Kolkata") makes CONVERT_TZ return NULL. India has no daylight
+ * saving, so the offset is exact all year. Throws at load if the policy
+ * names a zone this map does not know, rather than reporting NULLs.
+ */
+const UTC_OFFSETS = { "Asia/Kolkata": "+05:30" };
+const REPORT_UTC_OFFSET = UTC_OFFSETS[REPORT_TIMEZONE];
+if (!REPORT_UTC_OFFSET) {
+  throw new Error(`report.repository: no UTC offset known for ${REPORT_TIMEZONE}`);
+}
+
+/** An instant (UTC DATETIME) → the shop's wall clock. `$1` is the offset. */
+const toLocal = (expr) => `CONVERT_TZ(${expr}, '+00:00', $1)`;
+
+/** The shop's wall clock (a DATE or DATETIME) → the UTC instant. */
+const toInstant = (expr) => `CONVERT_TZ(CAST(${expr} AS DATETIME(6)), $1, '+00:00')`;
+
+/**
+ * Postgres's date_trunc for the three report periods, on a local wall
+ * clock, returning a DATE. Weeks start on Monday, as date_trunc's did
+ * (WEEKDAY() is 0 for Monday). `period` is the placeholder holding the
+ * bound period name — never interpolated text — so an unknown value is
+ * NULL rather than SQL.
+ */
+const truncLocal = (expr, period) => `
+  CASE ${period}
+    WHEN 'day'   THEN DATE(${expr})
+    WHEN 'week'  THEN DATE(${expr}) - INTERVAL WEEKDAY(${expr}) DAY
+    WHEN 'month' THEN DATE(${expr}) - INTERVAL (DAYOFMONTH(${expr}) - 1) DAY
+  END`;
+
+/** `date + n periods` — an INTERVAL unit cannot be a bound parameter. */
+const addPeriods = (expr, n, period) => `
+  CASE ${period}
+    WHEN 'day'   THEN ${expr} + INTERVAL (${n}) DAY
+    WHEN 'week'  THEN ${expr} + INTERVAL (${n}) WEEK
+    WHEN 'month' THEN ${expr} + INTERVAL (${n}) MONTH
+  END`;
+
+/**
+ * "Today", "this week", "this month" — as UTC instants, computed in the
  * shop's zone.
  *
- * The round trip through `AT TIME ZONE` twice is not redundant. The
- * first converts `now` into a wall clock in Coimbatore so `date_trunc`
- * cuts the day where the shop does; the second converts that wall clock
- * back into an absolute instant so it can be compared against
- * `placed_at`, which is a timestamptz. Truncating in UTC instead would
- * file an order placed at 1am IST under yesterday.
+ * The round trip through CONVERT_TZ twice is not redundant. The first
+ * converts `now` into a wall clock in Coimbatore so the truncation cuts
+ * the day where the shop does; the second converts that wall clock back
+ * into an absolute instant so it can be compared against `placed_at`,
+ * which is stored in UTC. Truncating in UTC instead would file an order
+ * placed at 1am IST under yesterday.
  *
- * `$1` is the timezone, bound as a parameter like any other value. It
- * carries an explicit `::text` everywhere it appears: `AT TIME ZONE`
- * accepts both a zone name and an interval, and Postgres refuses to
- * plan a statement where an untyped parameter leaves it a choice.
+ * `$1` is the shop's UTC offset, bound as a parameter like any other value.
  */
 const BOUNDS_CTE = `
   bounds AS (
     SELECT
-      (date_trunc('day',   NOW() AT TIME ZONE $1::text) AT TIME ZONE $1::text) AS day_start,
-      (date_trunc('week',  NOW() AT TIME ZONE $1::text) AT TIME ZONE $1::text) AS week_start,
-      (date_trunc('month', NOW() AT TIME ZONE $1::text) AT TIME ZONE $1::text) AS month_start
+      ${toInstant(truncLocal(toLocal("NOW(6)"), "'day'"))}   AS day_start,
+      ${toInstant(truncLocal(toLocal("NOW(6)"), "'week'"))}  AS week_start,
+      ${toInstant(truncLocal(toLocal("NOW(6)"), "'month'"))} AS month_start
   )
 `;
 
@@ -96,28 +135,28 @@ const WINDOWS = [
  * The same four measures for one window.
  *
  * Generated rather than typed out four times: sixteen near-identical
- * FILTER clauses is where a copy-paste slip hides, and the only thing
- * that varies between them is the boundary. Nothing interpolated here
- * comes from a caller — the window list is the frozen one above and the
- * predicates come from report.policy.js.
+ * conditional aggregates is where a copy-paste slip hides, and the only
+ * thing that varies between them is the boundary. Nothing interpolated
+ * here comes from a caller — the window list is the frozen one above and
+ * the predicates come from report.policy.js.
  */
 const windowColumns = ({ key, since }) => {
   const within = since ? `o.placed_at >= ${since}` : "TRUE";
 
   return `
-    COUNT(*) FILTER (WHERE ${within})::INTEGER
+    COUNT(CASE WHEN ${within} THEN 1 END)
       AS ${key}_orders,
 
-    COUNT(*) FILTER (WHERE ${within} AND ${cancelledFilterSql("o")})::INTEGER
+    COUNT(CASE WHEN ${within} AND ${cancelledFilterSql("o")} THEN 1 END)
       AS ${key}_cancelled,
 
-    COUNT(*) FILTER (WHERE ${within} AND ${revenueFilterSql("o")})::INTEGER
+    COUNT(CASE WHEN ${within} AND ${revenueFilterSql("o")} THEN 1 END)
       AS ${key}_paid_orders,
 
-    COALESCE(
-      SUM(${revenueAmountSql("o")}) FILTER (WHERE ${within} AND ${revenueFilterSql("o")}),
+    CAST(COALESCE(
+      SUM(CASE WHEN ${within} AND ${revenueFilterSql("o")} THEN ${revenueAmountSql("o")} END),
       0
-    )::NUMERIC(12,2) AS ${key}_revenue
+    ) AS DECIMAL(12,2)) AS ${key}_revenue
   `;
 };
 
@@ -145,13 +184,13 @@ export const ReportRepository = {
         SELECT
           ${WINDOWS.map(windowColumns).join(",\n")},
 
-          COUNT(*) FILTER (WHERE ${pipelineFilterSql("o")})::INTEGER
+          COUNT(CASE WHEN ${pipelineFilterSql("o")} THEN 1 END)
             AS pipeline_orders,
 
-          COALESCE(
-            SUM(o.total) FILTER (WHERE ${pipelineFilterSql("o")}),
+          CAST(COALESCE(
+            SUM(CASE WHEN ${pipelineFilterSql("o")} THEN o.total END),
             0
-          )::NUMERIC(12,2) AS pipeline_value
+          ) AS DECIMAL(12,2)) AS pipeline_value
 
         FROM orders o
         CROSS JOIN bounds b
@@ -166,7 +205,7 @@ export const ReportRepository = {
       // An aggregate with no GROUP BY returns exactly one row even over
       // an empty table, so a shop with no orders yet reads as zeroes
       // rather than as a missing dashboard.
-      const result = await query(text, [REPORT_TIMEZONE]);
+      const result = await query(text, [REPORT_UTC_OFFSET]);
       return result.rows[0] ?? null;
     } catch (error) {
       throw handleDatabaseError(error, "orderTotals");
@@ -188,18 +227,18 @@ export const ReportRepository = {
     const text = `
       WITH ${BOUNDS_CTE}
       SELECT
-        (SELECT COUNT(*)::INTEGER FROM products)                       AS products,
-        (SELECT COUNT(*)::INTEGER FROM products WHERE active)          AS products_active,
-        (SELECT COUNT(*)::INTEGER FROM categories)                     AS categories,
-        (SELECT COUNT(*)::INTEGER FROM categories WHERE active)        AS categories_active,
+        (SELECT COUNT(*) FROM products)                       AS products,
+        (SELECT COUNT(*) FROM products WHERE active)          AS products_active,
+        (SELECT COUNT(*) FROM categories)                     AS categories,
+        (SELECT COUNT(*) FROM categories WHERE active)        AS categories_active,
 
         -- Soft-deleted customers keep their orders attached, so they
         -- stay in the database. They are not customers any more and do
         -- not belong in a headcount.
-        (SELECT COUNT(*)::INTEGER FROM customers WHERE deleted_at IS NULL)
+        (SELECT COUNT(*) FROM customers WHERE deleted_at IS NULL)
           AS customers,
 
-        (SELECT COUNT(*)::INTEGER
+        (SELECT COUNT(*)
          FROM customers
          WHERE deleted_at IS NULL
            AND created_at >= (SELECT month_start FROM bounds))
@@ -207,7 +246,7 @@ export const ReportRepository = {
     `;
 
     try {
-      const result = await query(text, [REPORT_TIMEZONE]);
+      const result = await query(text, [REPORT_UTC_OFFSET]);
       return result.rows[0] ?? null;
     } catch (error) {
       throw handleDatabaseError(error, "catalogueTotals");
@@ -226,9 +265,8 @@ export const ReportRepository = {
    * method exists. `2026-08-01` means midnight in Coimbatore, and
    * `new Date("2026-08-01")` in Node means midnight UTC — five and a
    * half hours earlier, which quietly pulls the previous evening's
-   * orders into the range. Node has no timezone database exposed to
-   * arithmetic; Postgres does, so the conversion happens where the
-   * zone is actually known.
+   * orders into the range. The conversion happens in SQL, next to the
+   * bucketing it has to agree with (see REPORT_UTC_OFFSET).
    *
    * The end is exclusive and lands at midnight *after* the `to` date,
    * so a range ending on the 30th includes everything ordered on the
@@ -242,35 +280,34 @@ export const ReportRepository = {
   async resolveRange({ from = null, to = null, period, span }) {
     const text = `
       WITH local AS (
-        SELECT NOW() AT TIME ZONE $1::text AS now_local
+        SELECT ${truncLocal(toLocal("NOW(6)"), "$4")} AS today_bucket
       ),
       bounds AS (
         SELECT
           COALESCE(
-            $2::date::timestamp,
-            date_trunc($4::text, (SELECT now_local FROM local))
-              - ((($5::int - 1))::text || ' ' || $4::text)::interval
+            DATE($2),
+            ${addPeriods("today_bucket", "1 - $5", "$4")}
           ) AS from_local,
 
           COALESCE(
-            ($3::date + 1)::timestamp,
-            date_trunc($4::text, (SELECT now_local FROM local))
-              + ('1 ' || $4::text)::interval
+            DATE($3) + INTERVAL 1 DAY,
+            ${addPeriods("today_bucket", "1", "$4")}
           ) AS to_local
+        FROM local
       )
       SELECT
-        (from_local AT TIME ZONE $1::text) AS from_ts,
-        (to_local   AT TIME ZONE $1::text) AS to_ts
+        ${toInstant("from_local")} AS from_ts,
+        ${toInstant("to_local")}   AS to_ts
       FROM bounds
     `;
 
     try {
       const result = await query(text, [
-        REPORT_TIMEZONE,
+        REPORT_UTC_OFFSET,
         from,
         to,
         period,
-        span,
+        Number(span),
       ]);
 
       return result.rows[0] ?? null;
@@ -289,69 +326,72 @@ export const ReportRepository = {
    * drawn from that closes the gap — three quiet days in a row become a
    * flat line between two spikes instead of the hole they actually are.
    *
-   * `period` is bound as a parameter, not interpolated, in both
-   * `date_trunc` and the interval that steps the series. The service has
+   * `period` is bound as a parameter, not interpolated, in both the
+   * truncation and the interval that steps the series. The service has
    * already checked it against the policy's whitelist; binding it means
    * a mistake there is still not a way to write SQL.
+   *
+   * The buckets come from a recursive CTE (MariaDB has no
+   * generate_series); MAX_BUCKETS keeps it short.
    */
   async salesSeries({ period, from, to }) {
     const text = `
-      WITH span AS (
+      WITH RECURSIVE span AS (
         SELECT
-          date_trunc($2::text, $3::timestamptz AT TIME ZONE $1::text) AS first_bucket,
+          ${truncLocal(toLocal("$3"), "$2")} AS first_bucket,
 
           -- The range's end is exclusive, so the last bucket is the one
           -- containing the final instant *inside* it. Truncating the
           -- end itself would add an empty bar for the day the range
           -- stops at.
-          date_trunc(
-            $2::text,
-            ($4::timestamptz - INTERVAL '1 microsecond') AT TIME ZONE $1::text
-          ) AS last_bucket
+          ${truncLocal(toLocal("($4 - INTERVAL 1 MICROSECOND)"), "$2")} AS last_bucket
       ),
       buckets AS (
-        SELECT generate_series(
-          (SELECT first_bucket FROM span),
-          (SELECT last_bucket  FROM span),
-          ('1 ' || $2::text)::interval
-        ) AS bucket_local
+        SELECT first_bucket AS bucket_local
+        FROM span
+        WHERE first_bucket <= last_bucket
+        UNION ALL
+        SELECT ${addPeriods("b.bucket_local", "1", "$2")}
+        FROM buckets b
+        CROSS JOIN span s
+        WHERE ${addPeriods("b.bucket_local", "1", "$2")} <= s.last_bucket
       ),
       placed AS (
         SELECT
-          date_trunc($2::text, o.placed_at AT TIME ZONE $1::text) AS bucket_local,
+          ${truncLocal(toLocal("o.placed_at"), "$2")} AS bucket_local,
 
-          COUNT(*)::INTEGER AS orders,
+          COUNT(*) AS orders,
 
-          COUNT(*) FILTER (WHERE ${cancelledFilterSql("o")})::INTEGER
+          COUNT(CASE WHEN ${cancelledFilterSql("o")} THEN 1 END)
             AS cancelled,
 
-          COUNT(*) FILTER (WHERE ${revenueFilterSql("o")})::INTEGER
+          COUNT(CASE WHEN ${revenueFilterSql("o")} THEN 1 END)
             AS paid_orders,
 
           COALESCE(
-            SUM(${revenueAmountSql("o")}) FILTER (WHERE ${revenueFilterSql("o")}),
+            SUM(CASE WHEN ${revenueFilterSql("o")} THEN ${revenueAmountSql("o")} END),
             0
-          )::NUMERIC(12,2) AS revenue
+          ) AS revenue
 
         FROM orders o
-        WHERE o.placed_at >= $3::timestamptz
-          AND o.placed_at <  $4::timestamptz
+        WHERE o.placed_at >= $3
+          AND o.placed_at <  $4
           AND ${isPlacedSql("o")}
         GROUP BY 1
       )
       SELECT
-        (b.bucket_local AT TIME ZONE $1::text) AS bucket_start,
-        COALESCE(p.orders, 0)::INTEGER        AS orders,
-        COALESCE(p.cancelled, 0)::INTEGER     AS cancelled,
-        COALESCE(p.paid_orders, 0)::INTEGER   AS paid_orders,
-        COALESCE(p.revenue, 0)::NUMERIC(12,2) AS revenue
+        ${toInstant("b.bucket_local")}               AS bucket_start,
+        COALESCE(p.orders, 0)                         AS orders,
+        COALESCE(p.cancelled, 0)                      AS cancelled,
+        COALESCE(p.paid_orders, 0)                    AS paid_orders,
+        CAST(COALESCE(p.revenue, 0) AS DECIMAL(12,2)) AS revenue
       FROM buckets b
       LEFT JOIN placed p ON p.bucket_local = b.bucket_local
       ORDER BY b.bucket_local ASC
     `;
 
     try {
-      const result = await query(text, [REPORT_TIMEZONE, period, from, to]);
+      const result = await query(text, [REPORT_UTC_OFFSET, period, from, to]);
       return result.rows;
     } catch (error) {
       throw handleDatabaseError(error, "salesSeries", { period, from, to });
@@ -369,32 +409,32 @@ export const ReportRepository = {
   async salesTotals({ from, to }) {
     const text = `
       SELECT
-        COUNT(*)::INTEGER AS orders,
+        COUNT(*) AS orders,
 
-        COUNT(*) FILTER (WHERE ${cancelledFilterSql("o")})::INTEGER
+        COUNT(CASE WHEN ${cancelledFilterSql("o")} THEN 1 END)
           AS cancelled,
 
-        COUNT(*) FILTER (WHERE ${revenueFilterSql("o")})::INTEGER
+        COUNT(CASE WHEN ${revenueFilterSql("o")} THEN 1 END)
           AS paid_orders,
 
-        COALESCE(SUM(${revenueAmountSql("o")}) FILTER (WHERE ${revenueFilterSql("o")}), 0)::NUMERIC(12,2)
+        CAST(COALESCE(SUM(CASE WHEN ${revenueFilterSql("o")} THEN ${revenueAmountSql("o")} END), 0) AS DECIMAL(12,2))
           AS revenue,
 
         -- Pieces, not lines: two of one size is two pieces. Read from a
         -- subquery so the header count above is not multiplied by it.
-        COALESCE((
+        CAST(COALESCE((
           SELECT SUM(i.quantity)
           FROM order_items i
           JOIN orders io ON io.id = i.order_id
-          WHERE io.placed_at >= $1::timestamptz
-            AND io.placed_at <  $2::timestamptz
+          WHERE io.placed_at >= $1
+            AND io.placed_at <  $2
             AND ${isPlacedSql("io")}
             AND ${soldFilterSql("io")}
-        ), 0)::INTEGER AS units
+        ), 0) AS SIGNED) AS units
 
       FROM orders o
-      WHERE o.placed_at >= $1::timestamptz
-        AND o.placed_at <  $2::timestamptz
+      WHERE o.placed_at >= $1
+        AND o.placed_at <  $2
         AND ${isPlacedSql("o")}
     `;
 
@@ -422,17 +462,17 @@ export const ReportRepository = {
   async topProducts({ from, to, sort, limit }) {
     const text = `
       SELECT
-        MIN(i.product_id::TEXT)             AS product_id,
+        MIN(CAST(i.product_id AS CHAR(36))) AS product_id,
         MIN(i.product_name)                 AS product_name,
         MIN(i.product_slug)                 AS product_slug,
         MIN(i.image_url)                    AS image_url,
-        COUNT(DISTINCT i.order_id)::INTEGER AS orders,
-        SUM(i.quantity)::INTEGER            AS units,
-        SUM(i.line_total)::NUMERIC(12,2)    AS revenue
+        COUNT(DISTINCT i.order_id)          AS orders,
+        CAST(SUM(i.quantity) AS SIGNED)     AS units,
+        CAST(SUM(i.line_total) AS DECIMAL(12,2)) AS revenue
       FROM order_items i
       JOIN orders o ON o.id = i.order_id
-      WHERE o.placed_at >= $1::timestamptz
-        AND o.placed_at <  $2::timestamptz
+      WHERE o.placed_at >= $1
+        AND o.placed_at <  $2
         AND ${isPlacedSql("o")}
         AND ${soldFilterSql("o")}
 
@@ -441,14 +481,16 @@ export const ReportRepository = {
       -- would merge two different products that happen to share one;
       -- grouping by id alone would drop every line whose product has
       -- been deleted, which is the history this report exists to keep.
-      GROUP BY COALESCE(i.product_id::TEXT, 'deleted:' || i.product_name)
+      -- (The id is cast to text: COALESCE with a UUID would try to read
+      -- 'deleted:…' as a UUID.)
+      GROUP BY COALESCE(CAST(i.product_id AS CHAR(36)), 'deleted:' || i.product_name)
 
       ORDER BY ${topProductsSortSql(sort)}
       LIMIT $3
     `;
 
     try {
-      const result = await query(text, [from, to, limit]);
+      const result = await query(text, [from, to, Number(limit)]);
       return result.rows;
     } catch (error) {
       throw handleDatabaseError(error, "topProducts", { from, to, sort });
@@ -478,12 +520,12 @@ export const ReportRepository = {
         c.name,
         c.slug,
         c.active,
-        COUNT(DISTINCT p.id)::INTEGER AS products,
-        COUNT(DISTINCT p.id) FILTER (WHERE p.active)::INTEGER AS products_active,
-        COALESCE(SUM(v.stock_quantity) FILTER (WHERE v.active), 0)::INTEGER AS units,
-        COUNT(DISTINCT p.id) FILTER (
-          WHERE p.active AND v.active AND v.stock_quantity > 0
-        )::INTEGER AS products_in_stock
+        COUNT(DISTINCT p.id) AS products,
+        COUNT(DISTINCT CASE WHEN p.active THEN p.id END) AS products_active,
+        CAST(COALESCE(SUM(CASE WHEN v.active THEN v.stock_quantity END), 0) AS SIGNED) AS units,
+        COUNT(DISTINCT CASE
+          WHEN p.active AND v.active AND v.stock_quantity > 0 THEN p.id
+        END) AS products_in_stock
       FROM categories c
       LEFT JOIN products p ON p.category_id = c.id
       LEFT JOIN product_variants v ON v.product_id = p.id

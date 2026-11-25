@@ -3,8 +3,7 @@
 // The home page's one hand-picked section (F-06), admin side.
 //
 // There is exactly one row that matters — "custom" (030) — addressed by
-// slug. Every statement names its columns and casts its
-// ids. A write that replaces a section's pieces runs in one transaction, so
+// slug. Every statement names its columns. A write that replaces a section's pieces runs in one transaction, so
 // a section is never left half-saved with the old pieces gone and the new
 // ones not yet in.
 //
@@ -36,7 +35,7 @@ const COLUMNS = `
   s.created_at,
   s.updated_at,
   (
-    SELECT COUNT(*)::INTEGER
+    SELECT COUNT(*)
     FROM home_section_products hsp
     WHERE hsp.section_id = s.id
   ) AS product_count
@@ -52,7 +51,7 @@ const PRODUCTS_SQL = `
     p.current_price
   FROM home_section_products hsp
   JOIN products p ON p.id = hsp.product_id
-  WHERE hsp.section_id = $1::uuid
+  WHERE hsp.section_id = $1
   ORDER BY hsp.position ASC
 `;
 
@@ -67,8 +66,8 @@ export const HomeSectionRepository = {
       const sections = await query(
         `SELECT ${COLUMNS}
          FROM home_sections s
-         WHERE s.slug = ANY($1::text[])
-         ORDER BY s.position ASC, s.id ASC`,
+         WHERE s.slug IN ($1)
+         ORDER BY s.position ASC, CAST(s.id AS CHAR) ASC`,
         [FIXED_SECTIONS],
       );
 
@@ -108,8 +107,8 @@ export const HomeSectionRepository = {
         `SELECT s.slug
          FROM home_section_products hsp
          JOIN home_sections s ON s.id = hsp.section_id
-         WHERE hsp.product_id = $1::uuid
-           AND s.slug = ANY($2::text[])`,
+         WHERE hsp.product_id = $1
+           AND s.slug IN ($2)`,
         [productId, FIXED_SECTIONS],
       );
 
@@ -123,10 +122,10 @@ export const HomeSectionRepository = {
   async counts() {
     try {
       const result = await query(
-        `SELECT s.slug, COUNT(hsp.product_id)::INTEGER AS total
+        `SELECT s.slug, COUNT(hsp.product_id) AS total
          FROM home_sections s
          LEFT JOIN home_section_products hsp ON hsp.section_id = s.id
-         WHERE s.slug = ANY($1::text[])
+         WHERE s.slug IN ($1)
          GROUP BY s.slug`,
         [FIXED_SECTIONS],
       );
@@ -148,30 +147,39 @@ export const HomeSectionRepository = {
    */
   async update(slug, fields) {
     return withTransaction(async (client) => {
-      const result = await client.query(
-        `UPDATE home_sections
-         SET title = $2, subtitle = $3, updated_at = NOW()
-         WHERE slug = $1
-         RETURNING id`,
-        [slug, fields.title, fields.subtitle],
+      // MariaDB has no UPDATE … RETURNING: lock the row and take its id
+      // first, then update it by id.
+      const found = await client.query(
+        "SELECT id FROM home_sections WHERE slug = $1 FOR UPDATE",
+        [slug],
       );
 
-      const id = result.rows[0]?.id;
+      const id = found.rows[0]?.id;
       if (!id) return false;
 
       await client.query(
-        "DELETE FROM home_section_products WHERE section_id = $1::uuid",
+        `UPDATE home_sections
+         SET title = $2, subtitle = $3, updated_at = NOW(6)
+         WHERE id = $1`,
+        [id, fields.title, fields.subtitle],
+      );
+
+      await client.query(
+        "DELETE FROM home_section_products WHERE section_id = $1",
         [id],
       );
 
       if (fields.productIds.length) {
-        // unnest keeps the array's order as the ordinality, which becomes
-        // the position.
+        // JSON_TABLE's FOR ORDINALITY keeps the array's order, which
+        // becomes the position.
         await client.query(
           `INSERT INTO home_section_products (section_id, product_id, position)
-           SELECT $1::uuid, picked.product_id, picked.ord - 1
-           FROM unnest($2::uuid[]) WITH ORDINALITY AS picked(product_id, ord)`,
-          [id, fields.productIds],
+           SELECT $1, picked.product_id, picked.ord - 1
+           FROM JSON_TABLE($2, '$[*]' COLUMNS (
+             ord        FOR ORDINALITY,
+             product_id CHAR(36) PATH '$'
+           )) AS picked`,
+          [id, JSON.stringify(fields.productIds)],
         );
       }
 
@@ -188,28 +196,33 @@ export const HomeSectionRepository = {
    */
   async setProductSections(productId, slugs) {
     return withTransaction(async (client) => {
+      // An empty list binds as NULL, and NOT IN (NULL) is never true, so
+      // the "not one of these" clause is left out when nothing is named.
       await client.query(
-        `DELETE FROM home_section_products hsp
-         USING home_sections s
-         WHERE s.id = hsp.section_id
-           AND hsp.product_id = $1::uuid
-           AND s.slug = ANY($2::text[])
-           AND NOT (s.slug = ANY($3::text[]))`,
-        [productId, FIXED_SECTIONS, slugs],
+        `DELETE hsp
+         FROM home_section_products hsp
+         JOIN home_sections s ON s.id = hsp.section_id
+         WHERE hsp.product_id = $1
+           AND s.slug IN ($2)
+           ${slugs.length ? "AND s.slug NOT IN ($3)" : ""}`,
+        slugs.length ? [productId, FIXED_SECTIONS, slugs] : [productId, FIXED_SECTIONS],
       );
 
       if (slugs.length) {
+        // The no-op ON DUPLICATE KEY is Postgres's ON CONFLICT DO NOTHING:
+        // the primary key (section_id, product_id) is the table's only
+        // unique key, so an existing pick is left where it was.
         await client.query(
           `INSERT INTO home_section_products (section_id, product_id, position)
-           SELECT s.id, $1::uuid,
+           SELECT s.id, $1,
                   COALESCE((
                     SELECT MAX(hsp.position) + 1
                     FROM home_section_products hsp
                     WHERE hsp.section_id = s.id
                   ), 0)
            FROM home_sections s
-           WHERE s.slug = ANY($2::text[])
-           ON CONFLICT (section_id, product_id) DO NOTHING`,
+           WHERE s.slug IN ($2)
+           ON DUPLICATE KEY UPDATE section_id = section_id`,
           [productId, slugs],
         );
       }
